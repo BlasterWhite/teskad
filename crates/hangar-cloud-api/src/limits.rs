@@ -32,7 +32,8 @@ pub const CHALLENGE_CHARS: usize = 43;
 /// The loopback ports a sign-in may come back to: never a privileged one.
 pub const MIN_LOOPBACK_PORT: u16 = 1024;
 
-/// How long a link code, and the sign-in it belongs to, stays valid.
+/// How long a link code stays valid, counted from the provider's callback
+/// that draws it (the sign-in itself may take ten minutes before that).
 pub const LINK_CODE_TTL_SECS: u64 = 300;
 
 /// The largest counter a statistics row may carry: what SQLite's signed

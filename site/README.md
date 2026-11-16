@@ -6,6 +6,7 @@ loaded from another origin.
 
 ```
 index.html            the page
+privacy.html          what the optional Hangar account stores, and how to delete it (linked from the footer)
 styles.css            every colour is a token; Graphite unless main.js swaps them
 main.js               themes, section bar, download per OS, the delivery, folds
 assets/motion.js      the scroll-driven motion (see Motion below)
