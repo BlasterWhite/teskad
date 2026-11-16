@@ -166,6 +166,24 @@ impl State {
         }
     }
 
+    /// Signed in, the sync on, and `answer` read from the account: what the
+    /// Statistics page needs to offer « Toutes les machines ».
+    #[cfg(test)]
+    pub(crate) fn synced_for_test(
+        account: Account,
+        device: Device,
+        answer: StatsResponse,
+    ) -> State {
+        let mut st = State::signed_in_for_test(account, device.clone());
+        st.sync_on = true;
+        st.pulled = Some(Arc::new(Pulled {
+            answer,
+            at: 1_794_000_000_000,
+            this: Some(device.id),
+        }));
+        st
+    }
+
     #[cfg(test)]
     pub(crate) fn signed_in_for_test(account: Account, device: Device) -> State {
         State {

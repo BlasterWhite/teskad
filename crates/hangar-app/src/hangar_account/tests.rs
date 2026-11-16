@@ -47,8 +47,10 @@ fn signed_in() -> State {
 /// `absent`), in `locale`.
 fn shows(st: State, locale: Locale, words: &[&str], absent: &[&str]) {
     let model = Model::default();
-    let mut pkg = Packages::default();
-    pkg.hangar_account = st;
+    let pkg = Packages {
+        hangar_account: st,
+        ..Packages::default()
+    };
     let ctx = Ctx {
         model: &model,
         pkg: &pkg,
@@ -75,16 +77,20 @@ fn shows(st: State, locale: Locale, words: &[&str], absent: &[&str]) {
 
 #[test]
 fn signed_out_the_card_offers_the_two_providers_and_nothing_else() {
-    let mut st = State::default();
-    st.phase = Phase::SignedOut;
+    let st = State {
+        phase: Phase::SignedOut,
+        ..State::default()
+    };
     shows(
         st,
         Locale::En,
         &["Sign in with GitHub", "Sign in with Google"],
         &["Sync statistics", "Sign out", "Delete my account"],
     );
-    let mut st = State::default();
-    st.phase = Phase::SignedOut;
+    let st = State {
+        phase: Phase::SignedOut,
+        ..State::default()
+    };
     shows(
         st,
         Locale::Fr,
@@ -95,8 +101,10 @@ fn signed_out_the_card_offers_the_two_providers_and_nothing_else() {
 
 #[test]
 fn waiting_for_the_browser_the_card_says_so_and_can_cancel() {
-    let mut st = State::default();
-    st.phase = Phase::Waiting;
+    let st = State {
+        phase: Phase::Waiting,
+        ..State::default()
+    };
     shows(
         st,
         Locale::En,

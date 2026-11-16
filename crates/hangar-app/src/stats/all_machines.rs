@@ -43,7 +43,7 @@ fn seconds_text(ui: Ui, seconds: u64) -> String {
     super::format::format_duration(seconds as f64 * 1000.0, ui.tr)
 }
 
-fn figures<'a>(ui: Ui, totals: &Totals) -> [String; 3] {
+fn figures(ui: Ui, totals: &Totals) -> [String; 3] {
     let locale = ui.locale();
     [
         format_integer(totals.tokens as f64, locale),
