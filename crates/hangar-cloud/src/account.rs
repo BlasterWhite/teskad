@@ -8,17 +8,14 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use hangar_cloud_api::{Account, MeResponse, Provider};
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::auth::Caller;
 use crate::refusal::Refusal;
 use crate::state::AppState;
 
 /// What a provider said about the person. `email` only when the provider
-/// says it verified the address.
-// Built by the sign-in routes, which come next; the tests build accounts
-// with it meanwhile.
-#[allow(dead_code)]
+/// says it verified the address, and then in lower case (`provider.rs`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewIdentity {
     pub provider: Provider,
@@ -29,22 +26,27 @@ pub struct NewIdentity {
 }
 
 /// A new account, with the identity that signed in as its first. Gives the
-/// account's id.
-#[allow(dead_code)]
-pub fn create(conn: &mut Connection, identity: &NewIdentity, now: i64) -> Result<String, Refusal> {
+/// account's id. The caller holds the transaction.
+fn insert(conn: &Connection, identity: &NewIdentity, now: i64) -> Result<String, Refusal> {
     let id = uuid::Uuid::new_v4().to_string();
-    let tx = conn.transaction()?;
-    tx.execute(
+    conn.execute(
         "INSERT INTO accounts (id, created_at) VALUES (?1, ?2)",
         params![id, now],
     )?;
-    add_identity(&tx, &id, identity, now)?;
+    add_identity(conn, &id, identity, now)?;
+    Ok(id)
+}
+
+/// A new account in a transaction of its own, as the tests make them.
+#[cfg(test)]
+pub fn create(conn: &mut Connection, identity: &NewIdentity, now: i64) -> Result<String, Refusal> {
+    let tx = conn.transaction()?;
+    let id = insert(&tx, identity, now)?;
     tx.commit()?;
     Ok(id)
 }
 
 /// One more way to sign in to an account that exists.
-#[allow(dead_code)]
 pub fn add_identity(
     conn: &Connection,
     account_id: &str,
@@ -65,6 +67,70 @@ pub fn add_identity(
         ],
     )?;
     Ok(())
+}
+
+/// The account of the person a provider just vouched for. The caller holds
+/// the transaction. In order:
+///
+/// 1. The account this identity (the provider and its id for the person)
+///    already belongs to. What the provider says today replaces what it said
+///    at the last sign-in, the address included: one it no longer vouches
+///    for is forgotten.
+/// 2. Otherwise, when the provider says the address is verified: the account
+///    that holds an identity of the *other* provider with the same verified
+///    address. This identity joins it: same person, same account.
+/// 3. Otherwise a new account.
+///
+/// The second step never runs on an address the provider did not verify, and
+/// only ever matches an address another provider verified: `identities.email`
+/// holds nothing else. It is also declined, for a new account, whenever it
+/// would have to guess:
+///
+/// - the account already has an identity of this provider. A provider gives
+///   a verified address to one person at a time, so two of its identities
+///   with the same address means the stored one is out of date, and whoever
+///   holds the address now is not known to be whoever held it then;
+/// - more than one account matches.
+pub fn resolve(conn: &Connection, identity: &NewIdentity, now: i64) -> Result<String, Refusal> {
+    let provider = identity.provider.as_str();
+    let known: Option<String> = conn
+        .query_row(
+            "UPDATE identities SET email = ?1, display_name = ?2, avatar_url = ?3, \
+             updated_at = ?4 WHERE provider = ?5 AND provider_user_id = ?6 \
+             RETURNING account_id",
+            params![
+                identity.email,
+                identity.display_name,
+                identity.avatar_url,
+                now,
+                provider,
+                identity.provider_user_id
+            ],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if let Some(account_id) = known {
+        return Ok(account_id);
+    }
+
+    if let Some(email) = &identity.email {
+        let matching: Vec<String> = conn
+            .prepare_cached(
+                "SELECT DISTINCT account_id FROM identities AS other \
+                 WHERE other.email = ?1 AND other.provider <> ?2 \
+                 AND NOT EXISTS (SELECT 1 FROM identities AS same \
+                     WHERE same.account_id = other.account_id AND same.provider = ?2) \
+                 LIMIT 2",
+            )?
+            .query_map(params![email, provider], |row| row.get(0))?
+            .collect::<Result<_, _>>()?;
+        if let [account_id] = matching.as_slice() {
+            add_identity(conn, account_id, identity, now)?;
+            return Ok(account_id.clone());
+        }
+    }
+
+    insert(conn, identity, now)
 }
 
 /// The account as the protocol shows it: the profile of its first identity,

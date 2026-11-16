@@ -21,13 +21,18 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tower::ServiceExt;
 
+mod fake;
+mod sign_in;
+
 use crate::account::{self, NewIdentity};
 use crate::auth;
+use crate::config::OAuthClient;
 use crate::db::Db;
 use crate::limit::{Rate, Rates};
+use crate::provider::Endpoints;
 use crate::routes::router;
 use crate::secrets;
-use crate::state::AppState;
+use crate::state::{AppState, SignIn};
 
 /// When the tests' clock starts.
 const T0: i64 = 1_794_000_000_000;
@@ -83,17 +88,23 @@ impl Server {
             Rates {
                 ip: generous,
                 exchange: generous,
+                start: generous,
                 device: generous,
             },
         )
     }
 
     fn with(db: Db, rates: Rates) -> Self {
+        Self::with_sign_in(db, rates, sign_in())
+    }
+
+    fn with_sign_in(db: Db, rates: Rates, sign_in: SignIn) -> Self {
         let clock = Arc::new(AtomicI64::new(T0));
         let ticking = Arc::clone(&clock);
         // One trusted proxy, as deployed: a test chooses its address with
         // `X-Forwarded-For`.
-        let state = AppState::new(db, rates, 1).with_clock(move || ticking.load(Ordering::SeqCst));
+        let state =
+            AppState::new(db, rates, 1, sign_in).with_clock(move || ticking.load(Ordering::SeqCst));
         Self {
             router: router(state.clone()),
             state,
@@ -210,6 +221,26 @@ impl Server {
             .call(move |conn| Ok(conn.query_row(sql, params![account_id], |row| row.get(0))?))
             .await
             .unwrap()
+    }
+}
+
+/// The server's public address in the tests. Nothing listens there: the
+/// tests play the browser, and hand the router what a browser would ask it.
+const BASE_URL: &str = "https://account.test";
+
+/// Both providers configured, at the stand-in for them (`tests/fake.rs`).
+fn sign_in() -> SignIn {
+    SignIn {
+        base_url: BASE_URL.into(),
+        github: Some(OAuthClient {
+            client_id: fake::GITHUB_CLIENT.0.into(),
+            client_secret: fake::GITHUB_CLIENT.1.into(),
+        }),
+        google: Some(OAuthClient {
+            client_id: fake::GOOGLE_CLIENT.0.into(),
+            client_secret: fake::GOOGLE_CLIENT.1.into(),
+        }),
+        endpoints: Endpoints::fake(fake::provider().base()),
     }
 }
 
@@ -435,7 +466,7 @@ async fn a_link_code_presented_many_times_at_once_still_works_once() {
 }
 
 #[tokio::test]
-async fn a_link_code_expires_five_minutes_after_the_sign_in_started() {
+async fn a_link_code_expires_five_minutes_after_it_was_drawn() {
     let server = Server::new();
     let account = server.account("Ada", Provider::Github).await;
 
@@ -1445,6 +1476,7 @@ fn tight(rates: impl FnOnce(&mut Rates)) -> Server {
     let mut all = Rates {
         ip: generous,
         exchange: generous,
+        start: generous,
         device: generous,
     };
     rates(&mut all);

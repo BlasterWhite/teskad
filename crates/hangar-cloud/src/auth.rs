@@ -72,16 +72,14 @@ fn bearer_token(parts: &Parts) -> Option<&str> {
 /// A link code for `account_id`: what the sign-in routes send the browser
 /// back to the desktop with, once the provider has said who the person is.
 /// `challenge` is the desktop's PKCE challenge, as it gave it at the start;
-/// `started_at` is when that sign-in started, which the code's five minutes
-/// are counted from. The code is returned here and nowhere else: the
-/// database keeps its SHA-256.
-// Called by the sign-in routes, which come next, and by the tests meanwhile.
-#[allow(dead_code)]
+/// `issued_at` is when the provider's callback was answered, which the
+/// code's five minutes are counted from. The code is returned here and
+/// nowhere else: the database keeps its SHA-256.
 pub fn create_link_code(
     conn: &Connection,
     account_id: &str,
     challenge: &str,
-    started_at: i64,
+    issued_at: i64,
 ) -> Result<String, Refusal> {
     if !secrets::is_challenge(challenge) {
         // The start refuses such a challenge; one that reaches this is a bug
@@ -98,7 +96,7 @@ pub fn create_link_code(
             &secrets::sha256(&code)[..],
             account_id,
             challenge,
-            started_at + link_code_ttl_ms()
+            issued_at + link_code_ttl_ms()
         ],
     )?;
     Ok(code)
@@ -108,8 +106,9 @@ fn link_code_ttl_ms() -> i64 {
     i64::try_from(LINK_CODE_TTL_SECS * 1000).unwrap_or(i64::MAX)
 }
 
-/// Deletes the sign-ins nobody can finish any more: link codes and pending
-/// states past their five minutes. Run at each exchange and once a minute.
+/// Deletes the sign-ins nobody can finish any more: pending states past
+/// their ten minutes, link codes past their five. Run at each exchange and
+/// once a minute.
 pub fn purge_expired(conn: &Connection, now: i64) -> Result<(), Refusal> {
     conn.execute(
         "DELETE FROM link_codes WHERE expires_at <= ?1",
