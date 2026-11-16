@@ -118,8 +118,13 @@ Some things to know:
 - **Old names stay.** Some identifiers keep the project's former name `iabench` on
   purpose: the bundle identifier `com.simnjs.iabench` and the fallbacks that read files
   written before the rename. Do not rename them. Give anything new a `hangar` name.
-- **Local only.** Hangar runs entirely on the user's machine. Changes that add a hosted
-  service, accounts or telemetry will not be accepted.
+- **Local first.** Hangar runs on the user's machine and works fully without a network
+  or an account. The optional Hangar account (`crates/hangar-core/src/cloud`, its server
+  `crates/hangar-cloud`, docs/native/cloud.md) is the only online service of ours, and it
+  is opt-in: nothing calls it until the person signs in, and statistics leave only while
+  their sync switch, off by default, is on. Changes that add another hosted service, make
+  anything depend on the account, or add telemetry will not be accepted. What the account
+  sends stays totals per day, model and project name: never a path, a prompt or code.
 
 ## Commit messages
 

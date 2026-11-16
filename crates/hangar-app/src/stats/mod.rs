@@ -38,6 +38,7 @@ pub mod format;
 // The statistics' model and calendar live in hangar-engine: named here as
 // before.
 pub use hangar_engine::stats::{model, time};
+mod all_machines;
 mod ranked;
 mod sessions;
 mod tables;
@@ -75,10 +76,21 @@ pub struct ComputedFor {
     day: i64,
 }
 
+/// Whose statistics the page shows.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Scope {
+    #[default]
+    ThisPc,
+    AllMachines,
+}
+
 /// The package's UI state; lives in `App.pkg.stats`.
 #[derive(Debug, Default)]
 pub struct State {
     period: Period,
+    /// This PC, or every machine of the Hangar account (only offered once a
+    /// sync has read them).
+    scope: Scope,
     measure: Measure,
     /// A project key, or none for all of them.
     project: Option<String>,
@@ -319,6 +331,7 @@ pub enum Msg {
     Mounted,
     SetPeriod(Period),
     SetMeasure(Measure),
+    SetScope(Scope),
     SetProject(Option<String>),
     /// A click on a project's ranking row: filter on it, or off if it is.
     TogglePick(String),
@@ -414,6 +427,7 @@ pub fn update(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Me
             st.clear_readouts();
         }
         Msg::SetMeasure(measure) => st.measure = measure,
+        Msg::SetScope(scope) => st.scope = scope,
         Msg::SetProject(project) => {
             st.project = project;
             st.menu_open = false;

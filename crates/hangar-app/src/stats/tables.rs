@@ -16,10 +16,10 @@ use crate::message::Message;
 
 /// The tallest a table grows before it scrolls.
 const MAX_HEIGHT: f32 = 260.0;
-const FIRST_COLUMN: Length = Length::FillPortion(3);
-const NUMBER_COLUMN: Length = Length::FillPortion(2);
+pub(super) const FIRST_COLUMN: Length = Length::FillPortion(3);
+pub(super) const NUMBER_COLUMN: Length = Length::FillPortion(2);
 
-fn cell<'a>(
+pub(super) fn cell<'a>(
     ui: Ui,
     content: String,
     width: impl Into<Length>,
@@ -50,7 +50,11 @@ fn cell<'a>(
 
 /// A table's frame: a hairline around it, scrolling both ways past
 /// [`MAX_HEIGHT`] or the card's width.
-fn frame<'a>(ui: Ui, rows: Vec<Element<'a, Message>>, sideways: bool) -> Element<'a, Message> {
+pub(super) fn frame<'a>(
+    ui: Ui,
+    rows: Vec<Element<'a, Message>>,
+    sideways: bool,
+) -> Element<'a, Message> {
     let t = ui.t;
     let mut body = column![];
     for (at, line) in rows.into_iter().enumerate() {

@@ -28,7 +28,7 @@ use super::format::{
 use super::model::{Granularity, Measure, PERIODS, Period, Summary, change};
 use super::ranked::{self, List};
 use super::ui::{self, Ui, measure_key, one_line};
-use super::{Computed, Msg, State, sessions, tables};
+use super::{Computed, Msg, Scope, State, sessions, tables};
 use crate::ctx::Ctx;
 use crate::message::Message;
 
@@ -45,6 +45,15 @@ const PAGE_MAX_WIDTH: f32 = 1240.0;
 
 fn msg(m: Msg) -> Message {
     Message::Stats(m)
+}
+
+/// The account's rows, when the page shows every machine: the choice was made
+/// and a sync has read them (and the sync is still on).
+fn all_machines_shown<'a>(st: &State, ctx: Ctx<'a>) -> Option<&'a crate::hangar_account::Pulled> {
+    ctx.pkg
+        .hangar_account
+        .all_machines()
+        .filter(|_| st.scope == Scope::AllMachines)
 }
 
 /// Region `main` in the stats view.
@@ -96,6 +105,11 @@ fn page<'a>(
         iced::widget::stack![body, ui::stale_veil(ui.t)].into()
     } else {
         body
+    };
+    // "All machines" replaces everything under the bar by the account's tables.
+    let body = match all_machines_shown(st, ctx) {
+        Some(pulled) => super::all_machines::view(ctx, ui, pulled, st.period),
+        None => body,
     };
     container(column![
         bar,
@@ -243,7 +257,7 @@ pub fn spin_angle(since: Option<Instant>, now: Instant) -> f32 {
     (elapsed.as_secs_f32() / 0.9).fract() * std::f32::consts::TAU
 }
 
-fn status<'a>(ctx: Ctx<'a>, ui: Ui) -> Option<Element<'a, Message>> {
+fn status<'a>(ctx: Ctx<'a>, ui: Ui, every: bool) -> Option<Element<'a, Message>> {
     let t = ui.t;
     let live = &ctx.model.live.stats;
     let small = |content: String| {
@@ -251,6 +265,20 @@ fn status<'a>(ctx: Ctx<'a>, ui: Ui) -> Option<Element<'a, Message>> {
             .size(font_size::CAPTION_LG)
             .wrapping(text::Wrapping::None)
     };
+    // Every machine: when the account was last read, not when this PC was.
+    if every {
+        let at = ctx.pkg.hangar_account.all_machines()?.at;
+        let time = format::prose_time(at, ui.locale());
+        return Some(
+            small(
+                ui.tr
+                    .t_with(Key::StatsAllSynced, &args!("time" => time))
+                    .into_owned(),
+            )
+            .style(style::text::subtle(t))
+            .into(),
+        );
+    }
     if live.refreshing {
         let spinner = Canvas::new(Spinner {
             theme: t,
@@ -399,15 +427,39 @@ fn bar<'a>(
                 .style(style::text::primary(t)),
         );
     }
-    left = left.push(period).push(project);
+    // Offered once a sync has read every machine of the account.
+    let every = all_machines_shown(st, ctx).is_some();
+    if ctx.pkg.hangar_account.all_machines().is_some() {
+        let scopes = vec![
+            (
+                Scope::ThisPc,
+                ui.s(Key::StatsScopeThisPc),
+                ui.s(Key::StatsScopeHintThisPc),
+            ),
+            (
+                Scope::AllMachines,
+                ui.s(Key::StatsScopeAll),
+                ui.s(Key::StatsScopeHintAll),
+            ),
+        ];
+        left = left.push(choice(ui, scopes, st.scope, |scope| {
+            msg(Msg::SetScope(scope))
+        }));
+    }
+    left = left.push(period);
+    if !every {
+        left = left.push(project);
+    }
 
     let mut right = row![].spacing(10).align_y(alignment::Vertical::Center);
     if width >= NO_STATUS_BELOW
-        && let Some(status) = status(ctx, ui)
+        && let Some(status) = status(ctx, ui, every)
     {
         right = right.push(status);
     }
-    right = right.push(measure).push(refresh);
+    if !every {
+        right = right.push(measure).push(refresh);
+    }
 
     container(
         row![left, Space::new().width(Length::Fill), right]
@@ -509,7 +561,7 @@ fn empty_state<'a>(ui: Ui, data: &hangar_core::stats::UsageStats) -> Element<'a,
 // ---------------------------------------------------------------------------
 
 /// A card of the page: a title, a quiet hint, and what it holds.
-fn card<'a>(
+pub(super) fn card<'a>(
     ui: Ui,
     title: String,
     hint: Option<String>,

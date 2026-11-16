@@ -27,7 +27,12 @@
 
 Hangar is an open-source native desktop app written in Rust (no Electron). It runs the Claude
 Code already on your machine, as many sessions as you need, and gives them a shared board,
-a shared memory and an orchestrator. No account, no telemetry, no server of ours.
+a shared memory and an orchestrator. No telemetry, ever. Everything works with no account; an
+optional Hangar account (Settings › Hangar account, off by default) links your machines and
+syncs your usage statistics between them. Until you sign in, nothing leaves your PC. Once you
+do, and only if you turn the sync on, Hangar sends totals per machine, day, model and project
+name (tokens, active time and cost), never a path, a prompt or any code. What is sent, and how to
+delete it, is on the [privacy page](https://hangar.simnjs.fr/privacy.html).
 
 ## What it does
 

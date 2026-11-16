@@ -329,3 +329,131 @@ fn an_answer_for_an_older_ask_is_dropped() {
     assert!(Arc::ptr_eq(&st.computed().unwrap(), &fresh));
     assert!(st.pending.is_none());
 }
+
+mod scope {
+    use std::borrow::Cow;
+
+    use hangar_core::cloud::{Account, Device, DeviceStatsRow, Provider, StatsResponse, StatsRow};
+    use hangar_i18n::{Locale, Translator};
+    use iced::{Settings as WindowSettings, Size};
+    use iced_test::Simulator;
+
+    use super::super::{Scope, State, view};
+    use crate::app::Packages;
+    use crate::ctx::{Ctx, Metrics};
+    use crate::hangar_account::State as Account_;
+    use crate::state::Model;
+
+    fn device(id: &str, name: &str) -> Device {
+        Device {
+            id: id.into(),
+            name: name.into(),
+            os: "windows".into(),
+            created_at: 1,
+            last_seen_at: 1_794_000_600_000,
+            revoked_at: None,
+        }
+    }
+
+    fn synced() -> Account_ {
+        let row = |device: &str, project: &str| DeviceStatsRow {
+            device_id: device.into(),
+            row: StatsRow {
+                day: chrono::Local::now().date_naive().to_string(),
+                model: "claude-opus-5-5".into(),
+                project: project.into(),
+                input_tokens: 10,
+                output_tokens: 20,
+                cache_read_tokens: 0,
+                cache_write_tokens: 0,
+                cost_usd_micros: 1_500_000,
+                active_seconds: 600,
+                sessions: 1,
+            },
+        };
+        Account_::synced_for_test(
+            Account {
+                id: "a".into(),
+                display_name: "Ada".into(),
+                email: None,
+                avatar_url: None,
+                providers: vec![Provider::Github],
+            },
+            device("d1", "Atelier"),
+            StatsResponse {
+                devices: vec![device("d1", "Atelier"), device("d2", "Portable")],
+                rows: vec![row("d1", "hangar"), row("d2", "blog")],
+            },
+        )
+    }
+
+    fn page(
+        account: Account_,
+        scope: Scope,
+        locale: Locale,
+    ) -> Simulator<'static, crate::message::Message> {
+        // The page borrows its model and packages: leaked for the test's life.
+        let model: &'static Model = Box::leak(Box::new(Model::default()));
+        let pkg = Packages {
+            hangar_account: account,
+            ..Packages::default()
+        };
+        let pkg: &'static Packages = Box::leak(Box::new(pkg));
+        let ctx = Ctx {
+            model,
+            pkg,
+            i18n: Translator::new(locale),
+            theme: hangar_theme::by_id_or_default("graphite"),
+            metrics: Metrics::default(),
+            keymap: &model.live.keymap.index,
+            window: iced::window::Id::unique(),
+            now: std::time::Instant::now(),
+        };
+        let st: &'static State = Box::leak(Box::new(State {
+            scope,
+            ..State::default()
+        }));
+        let window = WindowSettings {
+            fonts: vec![Cow::Borrowed(hangar_theme::fonts::INTER_VARIABLE)],
+            default_font: hangar_theme::fonts::ui(),
+            ..WindowSettings::default()
+        };
+        Simulator::with_size(window, Size::new(1200.0, 900.0), view(st, ctx))
+    }
+
+    #[test]
+    fn without_a_synced_account_the_page_has_no_switch_and_is_as_it_was() {
+        let mut ui = page(Account_::default(), Scope::AllMachines, Locale::En);
+        assert!(ui.find("All machines").is_err());
+        assert!(ui.find("By machine").is_err());
+    }
+
+    #[test]
+    fn once_synced_the_page_offers_this_pc_and_all_machines() {
+        let mut ui = page(synced(), Scope::ThisPc, Locale::En);
+        assert!(ui.find("This PC").is_ok());
+        assert!(ui.find("All machines").is_ok());
+        // This PC is the page as it was: nothing of the account's tables.
+        assert!(ui.find("By machine").is_err());
+        let mut ui = page(synced(), Scope::ThisPc, Locale::Fr);
+        assert!(ui.find("Ce PC").is_ok());
+        assert!(ui.find("Toutes les machines").is_ok());
+    }
+
+    #[test]
+    fn all_machines_shows_the_merged_rows_and_the_breakdown_per_machine() {
+        let mut ui = page(synced(), Scope::AllMachines, Locale::En);
+        for word in [
+            "By machine",
+            "By day",
+            "By project",
+            "By model",
+            "Atelier · This PC",
+            "Portable",
+            "hangar",
+            "blog",
+        ] {
+            assert!(ui.find(word).is_ok(), "{word:?} is not shown");
+        }
+    }
+}
