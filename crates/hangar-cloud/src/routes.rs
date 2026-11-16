@@ -18,10 +18,12 @@ use hangar_cloud_api::{API_VERSION, ErrorCode, Health, MAX_BODY_BYTES, paths};
 
 use crate::refusal::Refusal;
 use crate::state::AppState;
-use crate::{account, auth, devices, limit, stats};
+use crate::{account, auth, devices, limit, signin, stats};
 
 pub fn router(state: AppState) -> Router {
     let v1 = Router::new()
+        .route(paths::AUTH_START, get(signin::start))
+        .route(paths::AUTH_CALLBACK, get(signin::callback))
         .route(
             paths::AUTH_EXCHANGE,
             post(auth::exchange).route_layer(middleware::from_fn_with_state(

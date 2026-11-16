@@ -47,8 +47,6 @@ pub struct Config {
 #[derive(Clone, PartialEq, Eq)]
 pub struct OAuthClient {
     pub client_id: String,
-    // Read by the sign-in routes, which this skeleton does not have yet.
-    #[allow(dead_code)]
     pub client_secret: String,
 }
 

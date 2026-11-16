@@ -37,6 +37,26 @@ pub fn new_link_code() -> Result<String, Refusal> {
     random_secret()
 }
 
+/// A new state or PKCE verifier for a provider: 43 characters of base64url,
+/// which is a verifier as RFC 7636 wants one.
+pub fn new_oauth_secret() -> Result<String, Refusal> {
+    random_secret()
+}
+
+/// The S256 challenge of a verifier: `base64url(sha256(verifier))`.
+pub fn challenge_of(verifier: &str) -> String {
+    URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()))
+}
+
+/// Whether `text` could be a secret this server drew: 43 characters of
+/// base64url. What is not is never looked up.
+pub fn is_secret_shaped(text: &str) -> bool {
+    text.len() == SECRET_BYTES.div_ceil(3) * 4 - 1
+        && text
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+}
+
 pub fn sha256(text: &str) -> Hash {
     Sha256::digest(text.as_bytes()).into()
 }

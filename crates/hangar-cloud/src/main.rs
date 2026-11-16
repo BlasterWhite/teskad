@@ -7,8 +7,9 @@
 //!
 //! `routes.rs` is the router and what surrounds every route; each part of
 //! the protocol is a module beside it: `auth.rs` (link codes, the exchange,
-//! the token's check), `account.rs`, `devices.rs`, `stats.rs`. The sign-in
-//! with the providers comes next.
+//! the token's check), `signin.rs` (the sign-in with GitHub or Google, with
+//! `provider.rs` for the calls to them and `pages.rs` for what a browser is
+//! shown when it stops), `account.rs`, `devices.rs`, `stats.rs`.
 //!
 //! Nothing here writes a token, a link code or an email address anywhere but
 //! in the database (tokens and codes as their SHA-256) and in the answer that
@@ -21,9 +22,12 @@ mod db;
 mod devices;
 mod extract;
 mod limit;
+mod pages;
+mod provider;
 mod refusal;
 mod routes;
 mod secrets;
+mod signin;
 mod state;
 mod stats;
 #[cfg(test)]
@@ -37,7 +41,7 @@ use config::Config;
 use db::Db;
 use hangar_cloud_api::{Provider, paths};
 use limit::Rates;
-use state::AppState;
+use state::{AppState, SignIn};
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -56,7 +60,12 @@ async fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    let state = AppState::new(db, Rates::default(), config.trusted_proxies);
+    let state = AppState::new(
+        db,
+        Rates::default(),
+        config.trusted_proxies,
+        SignIn::from_config(&config),
+    );
 
     let listener = match tokio::net::TcpListener::bind(config.bind).await {
         Ok(listener) => listener,
@@ -109,7 +118,7 @@ fn announce(config: &Config) {
 }
 
 /// Once a minute: the sign-ins nobody can finish any more leave the database
-/// (five minutes at most, as the document promises), and the rate limits
+/// (as the document promises), and the rate limits
 /// forget the callers that have been quiet.
 async fn housekeeping(state: AppState) {
     let mut tick = tokio::time::interval(Duration::from_secs(60));
@@ -125,6 +134,7 @@ async fn housekeeping(state: AppState) {
         let now = Instant::now();
         state.limits.ip.sweep(now);
         state.limits.exchange.sweep(now);
+        state.limits.start.sweep(now);
         state.limits.device.sweep(now);
     }
 }

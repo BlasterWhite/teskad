@@ -1,7 +1,8 @@
 //! How many requests one caller may make: a token bucket per IP address for
 //! everything under `/v1`, a tighter one per address for the exchange (the
-//! one route that takes a secret from somebody not yet known), and one per
-//! device for what a token signs.
+//! one route that takes a secret from somebody not yet known) and for the
+//! start of a sign-in (the one route that stores something for somebody not
+//! yet known), and one per device for what a token signs.
 //!
 //! In memory only, and forgotten as soon as a bucket is full again: the
 //! server stores no IP address (docs/native/cloud.md, "What the server
@@ -57,6 +58,9 @@ pub struct Rates {
     /// `POST /v1/auth/exchange`, per address: a person signs in a few times
     /// a day at most.
     pub exchange: Rate,
+    /// `GET /v1/auth/start`, per address: each one stores a sign-in in
+    /// progress for ten minutes, and a person starts a few a day at most.
+    pub start: Rate,
     /// Every request a device token signs, per device.
     pub device: Rate,
 }
@@ -66,6 +70,7 @@ impl Default for Rates {
         Self {
             ip: Rate::per_minute(300),
             exchange: Rate::per_minute(10),
+            start: Rate::per_minute(10),
             device: Rate::per_minute(120),
         }
     }
@@ -74,6 +79,7 @@ impl Default for Rates {
 pub struct Limits {
     pub ip: Limiter<IpAddr>,
     pub exchange: Limiter<IpAddr>,
+    pub start: Limiter<IpAddr>,
     pub device: Limiter<String>,
 }
 
@@ -82,6 +88,7 @@ impl Limits {
         Self {
             ip: Limiter::new(rates.ip),
             exchange: Limiter::new(rates.exchange),
+            start: Limiter::new(rates.start),
             device: Limiter::new(rates.device),
         }
     }
