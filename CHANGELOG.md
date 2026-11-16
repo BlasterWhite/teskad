@@ -10,6 +10,11 @@ Every release, with its installers, is on the
 
 ## [Unreleased]
 
+### Added
+
+- **An optional Hangar account.** Settings › Hangar account (« Compte Hangar ») lets you sign in with GitHub or Google, in your system browser, to link your machines. It is off by default: Hangar works as before without one, never calls the account server until you sign in, and still sends no telemetry. Signed in, the page shows who you are, your machines (name, system, last seen, « This PC »; rename one, remove another with a confirmation), Sign out, and Delete my account (type the word to confirm; it deletes everything on the server, then signs this PC out). A « Sync statistics » switch, off until you turn it on, sends totals per machine, day, model and project name (tokens, active time and cost; never a path, a prompt or any code) at once, every 15 minutes, when you open Statistics, and on « Sync now », without ever waiting on the network in the window. A day's totals already sent are never replaced by lower ones, so Claude Code cleaning old transcripts does not shrink your history. Errors read as plain sentences (server unreachable, signed out from another machine). The token stays in your system's keychain. The details are on the [privacy page](https://hangar.simnjs.fr/privacy.html) and in docs/native/cloud.md.
+- **Statistics of all your machines.** Once synced, the Statistics page has a « This PC / All machines » switch. This PC is the page as it was; All machines shows the merged totals of every machine of the account by machine, day, project and model, for the period chosen, with when the account was last synced.
+
 ## [2.3.0] - 2026-11-13
 
 ### Added
