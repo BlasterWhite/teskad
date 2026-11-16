@@ -29,6 +29,9 @@ hangar-webview = { path = "crates/hangar-webview" }
 hangar-i18n = { path = "crates/hangar-i18n" }
 hangar-update = { path = "crates/hangar-update" }
 hangar-model3d = { path = "crates/hangar-model3d" }
+# The optional Hangar account's protocol (docs/native/cloud.md), shared by its
+# server (hangar-cloud) and by the desktop (hangar-core's `cloud` module).
+hangar-cloud-api = { path = "crates/hangar-cloud-api" }
 
 # `image-without-codecs` rather than `image`: iced's `image` turns on the
 # image crate's default formats, every one of them (EXR, TIFF, DDS, HDR, QOI,
@@ -106,6 +109,15 @@ regex = "1"
 # The ids the store gives new workspaces, panes, folders and saved commands,
 # as `crypto.randomUUID()` gave them (v4); hangar-core already builds it.
 uuid = { version = "1.24.0", features = ["v4"] }
+# The Hangar account, on both of its sides (docs/native/cloud.md). SHA-256 for
+# PKCE's S256 and for the device tokens the server keeps hashed, at the version
+# hangar-core already builds; the operating system's random bytes for tokens,
+# codes and verifiers, at the version uuid already builds.
+sha2 = "0.11"
+getrandom = "0.4"
+# The account server's database (hangar-cloud alone). `bundled` compiles SQLite
+# in, so its Docker image needs no library and every build has the same one.
+rusqlite = { version = "0.43", features = ["bundled"] }
 
 # The AV1 decoder behind AVIF previews is unusably slow unoptimised; a debug
 # build of the app optimises it alone (release builds are unaffected).

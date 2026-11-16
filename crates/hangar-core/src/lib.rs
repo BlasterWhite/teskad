@@ -4,8 +4,9 @@
 //!
 //! The `desktop` feature, on by default, is what only the desktop app needs:
 //! dictation (voice/), notifications (notify.rs), the system opener
-//! (opener.rs), the Discord presence, Hangar at login (autostart.rs) and
-//! Hangar Mobile (remote/), with `Core` around them. Without it hangar-core
+//! (opener.rs), the Discord presence, Hangar at login (autostart.rs), Hangar
+//! Mobile (remote/) and the optional Hangar account (cloud/), with `Core`
+//! around them. Without it hangar-core
 //! builds on a server with none of their libraries, and `headless::start`
 //! sets up what a node runs instead (docs/native/nodes.md).
 //!
@@ -29,6 +30,8 @@ pub mod board;
 pub mod bridge;
 pub mod build_cache;
 pub mod chat;
+#[cfg(feature = "desktop")]
+pub mod cloud;
 pub mod context;
 pub mod control;
 pub mod delivery;

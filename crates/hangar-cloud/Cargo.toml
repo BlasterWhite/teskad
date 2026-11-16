@@ -1,0 +1,55 @@
+[package]
+name = "hangar-cloud"
+description = "The server of the optional Hangar account: sign-in with GitHub or Google, the machines linked to an account, their usage statistics"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2024"
+
+# docs/native/cloud.md: the protocol, what this server stores and how it is
+# deployed (its Dockerfile is beside this file). Nothing of the desktop app
+# depends on this crate, and it depends on nothing of the desktop's: the two
+# share hangar-cloud-api and no more.
+#
+# Every dependency the server needs is declared here already, the ones the
+# routes to come will use included, so that adding a route never touches a
+# manifest or the lockfile.
+[[bin]]
+name = "hangar-cloud"
+path = "src/main.rs"
+
+[dependencies]
+hangar-cloud-api.workspace = true
+# The features hangar-core builds axum with: one HTTP/1 listener behind the
+# reverse proxy, JSON bodies, query strings.
+axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "query", "tokio"] }
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+# The database, one file in the image's volume. `bundled` compiles SQLite in:
+# the runtime image carries no library for it.
+rusqlite.workspace = true
+# The calls to GitHub and Google at sign-in (the code exchanged for a token,
+# the profile read once). Rustls with its own roots, as everywhere in the
+# workspace: the runtime image has no system TLS library or certificate store.
+ureq = { version = "3.3", default-features = false, features = ["json", "rustls", "rustls-webpki-roots"] }
+# Device tokens are stored as their SHA-256, and PKCE's S256 is one too.
+sha2.workspace = true
+# base64url, for tokens, link codes and PKCE challenges.
+base64.workspace = true
+# The operating system's random bytes, for everything that must not be
+# guessed: device tokens, link codes, the OAuth state and verifier.
+getrandom.workspace = true
+# Hashes and challenges compared in constant time.
+subtle = "2.6"
+# The ids of accounts and devices (v4).
+uuid.workspace = true
+
+[dev-dependencies]
+# The router called directly, without a socket (`oneshot`), and its answer's
+# body read whole.
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+# A database file per test, removed when the test ends.
+tempfile = "3"

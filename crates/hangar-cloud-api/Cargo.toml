@@ -1,0 +1,22 @@
+[package]
+name = "hangar-cloud-api"
+description = "The optional Hangar account's protocol: the requests and answers the desktop and the account server exchange"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2024"
+
+# docs/native/cloud.md is the protocol in words; this crate is the same thing
+# in types, shared by the server (hangar-cloud) and the desktop (hangar-core's
+# `cloud` module) so that neither can drift from the other. Serde and nothing
+# else: no HTTP client, no clock, no I/O.
+[lib]
+name = "hangar_cloud_api"
+
+[dependencies]
+serde.workspace = true
+
+[dev-dependencies]
+# The tests check the JSON itself, field names included.
+serde_json.workspace = true
