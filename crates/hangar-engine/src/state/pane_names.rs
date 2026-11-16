@@ -20,7 +20,7 @@ pub const PANE_NAMES: [&str; 48] = [
     "Ava", "Max", "Leo", "Mia", "Sam", "Zoe", "Eli", "Nora", "Finn", "Ivy", "Theo", "Luna", "Jude",
     "Cleo", "Rex", "Wren", "Vadim", "Samuel", "Lenny", "Sasha", "Gabriel", "Simon", "Soren",
     "Phileas", "Ada", "Ben", "Cora", "Emma", "Hugo", "Iris", "Jack", "Kai", "Lola", "Milo",
-    "Quinn", "Rosa", "Tara", "Vera", "Will", "Yara", "Zack", "Ezra", "Faye", "Hana", "Juno",
+    "Quinn", "Baptiste", "Tara", "Vera", "Will", "Yara", "Zack", "Matéo", "Faye", "Hana", "Juno",
     "Omar", "Ruby", "Tess",
 ];
 
