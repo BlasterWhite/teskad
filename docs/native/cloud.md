@@ -714,6 +714,7 @@ not read the file again; remove and run). Nobody is signed out by it.
 
 Built: this document, the protocol's types, the server (storage, device
 tokens, machines, statistics, account deletion, the sign-in with GitHub and
-Google and its pages), the desktop's calls, sign-in and sync, the site's
-privacy page. Not done yet: the first deployment, which is also the first
+Google and its pages), the desktop's calls, sign-in and sync, the Hangar
+account section of the settings, the "This PC / All machines" switch of the
+statistics, the site's privacy page. Not done yet: the first deployment, which is also the first
 build of the Docker image (see "Deploy").
