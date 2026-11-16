@@ -1,21 +1,52 @@
-//! The router. `GET /health` for now, and the protocol's way of refusing for
-//! everything else: `{"error": code, "message": text}` with the code's status
-//! (docs/native/cloud.md, "Errors"), so that a desktop never has to read an
-//! answer that is not JSON.
+//! The router: `GET /health`, the protocol's routes under `/v1`, and the
+//! protocol's way of refusing for everything else, `{"error": code,
+//! "message": text}` with the code's status (docs/native/cloud.md, "Errors"),
+//! so that a desktop never has to read an answer that is not JSON.
+//!
+//! Around every route: a limit on the body's size, and the headers that tell
+//! a browser or a cache to do nothing with an answer. Around the routes of
+//! `/v1`: the limit per address. The limit per device and the token's check
+//! are in `auth::Caller`, which each route with a token takes.
 
-use axum::extract::DefaultBodyLimit;
-use axum::http::StatusCode;
+use axum::extract::{DefaultBodyLimit, Request};
+use axum::http::header::{self, HeaderName, HeaderValue};
+use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
-use axum::routing::get;
+use axum::routing::{delete, get, patch, post};
 use axum::{Json, Router};
-use hangar_cloud_api::{API_VERSION, ApiError, ErrorCode, Health, MAX_BODY_BYTES, paths};
+use hangar_cloud_api::{API_VERSION, ErrorCode, Health, MAX_BODY_BYTES, paths};
 
-pub fn router() -> Router {
+use crate::refusal::Refusal;
+use crate::state::AppState;
+use crate::{account, auth, devices, limit, stats};
+
+pub fn router(state: AppState) -> Router {
+    let v1 = Router::new()
+        .route(
+            paths::AUTH_EXCHANGE,
+            post(auth::exchange).route_layer(middleware::from_fn_with_state(
+                state.clone(),
+                auth::limit_exchange,
+            )),
+        )
+        .route(paths::ME, get(account::me))
+        .route(paths::DEVICES, get(devices::list))
+        .route(
+            paths::DEVICE,
+            patch(devices::rename).delete(devices::delete),
+        )
+        .route(paths::STATS, get(stats::get).put(stats::put))
+        .route(paths::ACCOUNT, delete(account::delete))
+        .route_layer(middleware::from_fn_with_state(state.clone(), limit::per_ip));
+
     Router::new()
         .route(paths::HEALTH, get(health))
+        .merge(v1)
         .fallback(no_such_route)
         .method_not_allowed_fallback(wrong_method)
         .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
+        .layer(middleware::from_fn(security_headers))
+        .with_state(state)
 }
 
 /// What the reverse proxy and the deployment ask: the process is up and
@@ -28,78 +59,43 @@ async fn health() -> Json<Health> {
     })
 }
 
-/// A refusal, as the protocol writes it.
-pub fn refuse(code: ErrorCode, message: &str) -> Response {
-    let status = StatusCode::from_u16(code.status()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
-    (status, Json(ApiError::new(code, message))).into_response()
-}
-
 async fn no_such_route() -> Response {
-    refuse(ErrorCode::NotFound, "no such route")
+    Refusal::new(ErrorCode::NotFound, "no such route").into_response()
 }
 
 async fn wrong_method() -> Response {
-    refuse(
+    Refusal::new(
         ErrorCode::MethodNotAllowed,
         "this route does not take this method",
     )
+    .into_response()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use axum::body::Body;
-    use axum::http::{Method, Request, header};
-    use http_body_util::BodyExt;
-    use tower::ServiceExt;
-
-    async fn call(method: Method, path: &str) -> (StatusCode, String, Vec<u8>) {
-        let request = Request::builder()
-            .method(method)
-            .uri(path)
-            .body(Body::empty())
-            .unwrap();
-        let response = router().oneshot(request).await.unwrap();
-        let status = response.status();
-        let content_type = response
-            .headers()
-            .get(header::CONTENT_TYPE)
-            .and_then(|value| value.to_str().ok())
-            .unwrap_or_default()
-            .to_string();
-        let body = response.into_body().collect().await.unwrap().to_bytes();
-        (status, content_type, body.to_vec())
+/// On every answer, the refusals included. An answer of this server is JSON
+/// for a program: nothing may cache it (some carry a token), a browser must
+/// not guess another type for it, frame it, or load anything because of it.
+/// A route that sets one of these itself (a page of the sign-in, with a
+/// policy of its own) keeps its value.
+async fn security_headers(request: Request, next: Next) -> Response {
+    const HEADERS: [(HeaderName, &str); 6] = [
+        (header::CACHE_CONTROL, "no-store"),
+        (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+        (header::X_FRAME_OPTIONS, "DENY"),
+        (header::REFERRER_POLICY, "no-referrer"),
+        (
+            header::CONTENT_SECURITY_POLICY,
+            "default-src 'none'; frame-ancestors 'none'",
+        ),
+        // Only honoured over HTTPS, which is how the server is reached
+        // outside of development.
+        (header::STRICT_TRANSPORT_SECURITY, "max-age=63072000"),
+    ];
+    let mut response = next.run(request).await;
+    let headers = response.headers_mut();
+    for (name, value) in HEADERS {
+        headers
+            .entry(name)
+            .or_insert(HeaderValue::from_static(value));
     }
-
-    #[tokio::test]
-    async fn health_says_ok_and_which_protocol_the_server_speaks() {
-        let (status, content_type, body) = call(Method::GET, paths::HEALTH).await;
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(content_type, "application/json");
-        let health: Health = serde_json::from_slice(&body).unwrap();
-        assert_eq!(health.status, "ok");
-        assert_eq!(health.api_version, API_VERSION);
-        assert_eq!(health.version, env!("CARGO_PKG_VERSION"));
-    }
-
-    #[tokio::test]
-    async fn a_route_that_does_not_exist_is_refused_in_the_protocol_s_words() {
-        // The protocol's own routes too, until they are written.
-        for path in ["/", "/v1/nothing", paths::ME] {
-            let (status, content_type, body) = call(Method::GET, path).await;
-            assert_eq!(status, StatusCode::NOT_FOUND, "{path}");
-            assert_eq!(content_type, "application/json", "{path}");
-            let error: ApiError = serde_json::from_slice(&body).unwrap();
-            assert_eq!(error.error, ErrorCode::NotFound, "{path}");
-        }
-    }
-
-    #[tokio::test]
-    async fn a_method_a_route_does_not_take_is_refused_the_same_way() {
-        let (status, content_type, body) = call(Method::POST, paths::HEALTH).await;
-        assert_eq!(status, StatusCode::METHOD_NOT_ALLOWED);
-        assert_eq!(content_type, "application/json");
-        let error: ApiError = serde_json::from_slice(&body).unwrap();
-        assert_eq!(error.error, ErrorCode::MethodNotAllowed);
-    }
+    response
 }

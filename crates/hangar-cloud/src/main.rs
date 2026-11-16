@@ -5,17 +5,39 @@
 //! each account and the usage totals those machines choose to send: nothing
 //! else, and nothing a Hangar without an account ever talks to.
 //!
-//! This is the skeleton: the configuration read from the environment and a
-//! router that answers `GET /health`. The routes of the protocol come next,
-//! each in a module of its own beside `routes.rs`.
+//! `routes.rs` is the router and what surrounds every route; each part of
+//! the protocol is a module beside it: `auth.rs` (link codes, the exchange,
+//! the token's check), `account.rs`, `devices.rs`, `stats.rs`. The sign-in
+//! with the providers comes next.
+//!
+//! Nothing here writes a token, a link code or an email address anywhere but
+//! in the database (tokens and codes as their SHA-256) and in the answer that
+//! is meant to carry it: not to stdout, not to stderr.
 
+mod account;
+mod auth;
 mod config;
+mod db;
+mod devices;
+mod extract;
+mod limit;
+mod refusal;
 mod routes;
+mod secrets;
+mod state;
+mod stats;
+#[cfg(test)]
+mod tests;
 
+use std::net::SocketAddr;
 use std::process::ExitCode;
+use std::time::{Duration, Instant};
 
 use config::Config;
+use db::Db;
 use hangar_cloud_api::{Provider, paths};
+use limit::Rates;
+use state::AppState;
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -27,6 +49,15 @@ async fn main() -> ExitCode {
         }
     };
 
+    let db = match Db::open(&config.db) {
+        Ok(db) => db,
+        Err(err) => {
+            eprintln!("hangar-cloud: {err}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let state = AppState::new(db, Rates::default(), config.trusted_proxies);
+
     let listener = match tokio::net::TcpListener::bind(config.bind).await {
         Ok(listener) => listener,
         Err(err) => {
@@ -36,7 +67,11 @@ async fn main() -> ExitCode {
     };
     announce(&config);
 
-    let served = axum::serve(listener, routes::router())
+    tokio::spawn(housekeeping(state.clone()));
+
+    // With the connection's address, which the rate limit falls back on.
+    let service = routes::router(state).into_make_service_with_connect_info::<SocketAddr>();
+    let served = axum::serve(listener, service)
         .with_graceful_shutdown(stop_signal())
         .await;
     match served {
@@ -52,11 +87,12 @@ async fn main() -> ExitCode {
 /// when a deployment does not behave. Never a secret.
 fn announce(config: &Config) {
     println!(
-        "hangar-cloud {} listening on {}, public at {}, database {}",
+        "hangar-cloud {} listening on {}, public at {}, database {}, {} trusted proxies in front",
         env!("CARGO_PKG_VERSION"),
         config.bind,
         config.base_url,
-        config.db.display()
+        config.db.display(),
+        config.trusted_proxies
     );
     for provider in Provider::ALL {
         match config.provider(provider) {
@@ -69,6 +105,27 @@ fn announce(config: &Config) {
             ),
             None => println!("  {provider}: not configured, sign-in with it is refused"),
         }
+    }
+}
+
+/// Once a minute: the sign-ins nobody can finish any more leave the database
+/// (five minutes at most, as the document promises), and the rate limits
+/// forget the callers that have been quiet.
+async fn housekeeping(state: AppState) {
+    let mut tick = tokio::time::interval(Duration::from_secs(60));
+    loop {
+        tick.tick().await;
+        let now = state.now();
+        // A failure is said on stderr by the refusal itself, and tried again
+        // at the next tick.
+        let _ = state
+            .db
+            .call(move |conn| auth::purge_expired(conn, now))
+            .await;
+        let now = Instant::now();
+        state.limits.ip.sweep(now);
+        state.limits.exchange.sweep(now);
+        state.limits.device.sweep(now);
     }
 }
 

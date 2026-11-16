@@ -13,11 +13,16 @@ use hangar_cloud_api::{DEFAULT_BASE_URL, Provider};
 pub const BIND: &str = "HANGAR_CLOUD_BIND";
 pub const DB: &str = "HANGAR_CLOUD_DB";
 pub const BASE_URL: &str = "HANGAR_CLOUD_BASE_URL";
+pub const TRUSTED_PROXIES: &str = "HANGAR_CLOUD_TRUSTED_PROXIES";
 
 /// Inside the image: every interface, the port the Dockerfile exposes.
 const DEFAULT_BIND: &str = "0.0.0.0:8080";
 /// Inside the image's volume.
 const DEFAULT_DB: &str = "/data/hangar-cloud.sqlite";
+/// The image runs behind Cloudflare, and Cloudflare only.
+const DEFAULT_TRUSTED_PROXIES: usize = 1;
+/// More than this is a mistake, not a deployment.
+const MAX_TRUSTED_PROXIES: usize = 8;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Config {
@@ -28,6 +33,12 @@ pub struct Config {
     /// redirect URIs are built from, since behind the proxy the server cannot
     /// know it.
     pub base_url: String,
+    /// How many reverse proxies are in front of the server. The caller's
+    /// address, for the rate limit, is the entry of `X-Forwarded-For` that
+    /// the outermost of them wrote; with 0 the header is not read and the
+    /// connection's address is the caller's. Too high a number believes an
+    /// address the caller wrote; too low counts everybody as the proxy.
+    pub trusted_proxies: usize,
     pub github: Option<OAuthClient>,
     pub google: Option<OAuthClient>,
 }
@@ -86,6 +97,20 @@ impl Config {
             ));
         }
 
+        let trusted_proxies = match var(TRUSTED_PROXIES) {
+            None => DEFAULT_TRUSTED_PROXIES,
+            Some(text) => text
+                .parse()
+                .ok()
+                .filter(|count| *count <= MAX_TRUSTED_PROXIES)
+                .ok_or_else(|| {
+                    format!(
+                        "{TRUSTED_PROXIES} must be a number of proxies, 0 to \
+                         {MAX_TRUSTED_PROXIES} (\"{text}\")"
+                    )
+                })?,
+        };
+
         let client = |provider: Provider| {
             let id_name = format!("{}_CLIENT_ID", provider.as_str().to_uppercase());
             let secret_name = format!("{}_CLIENT_SECRET", provider.as_str().to_uppercase());
@@ -105,6 +130,7 @@ impl Config {
             bind,
             db,
             base_url,
+            trusted_proxies,
             github: client(Provider::Github)?,
             google: client(Provider::Google)?,
         })
@@ -137,6 +163,7 @@ mod tests {
         assert_eq!(config.bind, "0.0.0.0:8080".parse().unwrap());
         assert_eq!(config.db, PathBuf::from("/data/hangar-cloud.sqlite"));
         assert_eq!(config.base_url, "https://account.hangar.simnjs.fr");
+        assert_eq!(config.trusted_proxies, 1);
         assert_eq!(config.provider(Provider::Github), None);
         assert_eq!(config.provider(Provider::Google), None);
     }
@@ -147,6 +174,7 @@ mod tests {
             (BIND, "127.0.0.1:21120"),
             (DB, "/tmp/test.sqlite"),
             (BASE_URL, "http://localhost:21120/"),
+            (TRUSTED_PROXIES, "0"),
             ("GITHUB_CLIENT_ID", "gh-id"),
             ("GITHUB_CLIENT_SECRET", "gh-secret"),
             ("GOOGLE_CLIENT_ID", "g-id"),
@@ -157,6 +185,7 @@ mod tests {
         assert_eq!(config.db, PathBuf::from("/tmp/test.sqlite"));
         // Without the slash: paths are appended to it as they are.
         assert_eq!(config.base_url, "http://localhost:21120");
+        assert_eq!(config.trusted_proxies, 0);
         let github = config.provider(Provider::Github).unwrap();
         assert_eq!(github.client_id, "gh-id");
         assert_eq!(github.client_secret, "gh-secret");
@@ -177,6 +206,10 @@ mod tests {
     fn a_wrong_value_stops_the_server_and_names_its_variable() {
         let err = config(&[(BIND, "8080")]).unwrap_err();
         assert!(err.contains(BIND), "{err}");
+        for count in ["-1", "one", "9", "1.5"] {
+            let err = config(&[(TRUSTED_PROXIES, count)]).unwrap_err();
+            assert!(err.contains(TRUSTED_PROXIES), "{count}: {err}");
+        }
         for url in [
             "account.hangar.simnjs.fr",
             "ftp://x",
