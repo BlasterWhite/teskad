@@ -1397,6 +1397,42 @@ fn rows_the_server_lost_are_sent_again() {
 }
 
 #[test]
+fn a_day_whose_local_totals_drop_is_not_sent_lower() {
+    let server = Server::start();
+    let (cloud, _tokens, _dir) = server.signed_in("shrinking");
+    let mut full = row("2026-10-01", "m", "hangar", 500);
+    full.cost_usd_micros = 900;
+    full.active_seconds = 60;
+    cloud.sync_rows(true, &[full.clone()]).unwrap();
+
+    // Claude Code cleaned old transcripts: the same day now adds up to less.
+    let mut cleaned = row("2026-10-01", "m", "hangar", 100);
+    cleaned.cost_usd_micros = 200;
+    cleaned.active_seconds = 10;
+    cleaned.sessions = 0;
+    let before = server.puts().len();
+    let synced = cloud.sync_rows(true, &[cleaned.clone()]).unwrap();
+    assert_eq!((synced.sent, synced.unchanged), (0, 1));
+    assert_eq!(server.puts().len(), before);
+    assert_eq!(
+        server.fake().rows.values().cloned().collect::<Vec<_>>(),
+        [full.clone()]
+    );
+
+    // A field that grows is still sent, the others keep their higher value.
+    let mut grown = cleaned;
+    grown.output_tokens = 700;
+    let synced = cloud.sync_rows(true, &[grown]).unwrap();
+    assert_eq!(synced.sent, 1);
+    let mut expected = full;
+    expected.output_tokens = 700;
+    assert_eq!(
+        server.fake().rows.values().cloned().collect::<Vec<_>>(),
+        [expected]
+    );
+}
+
+#[test]
 fn signing_in_again_sends_everything_again() {
     let server = Server::start();
     let (cloud, _tokens, _dir) = server.signed_in("again");

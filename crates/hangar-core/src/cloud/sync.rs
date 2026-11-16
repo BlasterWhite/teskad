@@ -11,6 +11,11 @@
 //! titles and ids, which no row has a field for.
 //!
 //! A row replaces the server's row of the same key, so sending is idempotent.
+//! It never replaces it with less: Claude Code deletes old transcripts (after
+//! 30 days by default), so a day that was partly cleaned computes smaller
+//! totals than the ones already sent, and the account's history must not shrink
+//! with the disk's. Per numeric field, the larger of what was sent and what is
+//! computed now is kept; a field that grows is still sent.
 //! The last rows sent are remembered in a file of the app data folder, and a
 //! sync sends only the rows that differ from it. Once a day, and at the first
 //! sync of a run, what the server holds for this machine is compared with
@@ -305,6 +310,21 @@ pub struct Synced {
     pub skipped: usize,
 }
 
+/// `now` with no field below what `sent` already holds: totals only grow on
+/// the account, whatever the transcripts that remain here add up to.
+fn raised(sent: &StatsRow, now: &StatsRow) -> StatsRow {
+    StatsRow {
+        input_tokens: sent.input_tokens.max(now.input_tokens),
+        output_tokens: sent.output_tokens.max(now.output_tokens),
+        cache_read_tokens: sent.cache_read_tokens.max(now.cache_read_tokens),
+        cache_write_tokens: sent.cache_write_tokens.max(now.cache_write_tokens),
+        cost_usd_micros: sent.cost_usd_micros.max(now.cost_usd_micros),
+        active_seconds: sent.active_seconds.max(now.active_seconds),
+        sessions: sent.sessions.max(now.sessions),
+        ..now.clone()
+    }
+}
+
 /// The rows cut into calls the server takes: within its row count and well
 /// within its body size.
 fn calls(rows: Vec<StatsRow>) -> Vec<Vec<StatsRow>> {
@@ -384,10 +404,16 @@ impl Cloud {
             for (key, row) in wanted {
                 if row.validate().is_err() {
                     synced.skipped += 1;
-                } else if ledger.rows.get(&key) == Some(row) {
+                    continue;
+                }
+                let row = match ledger.rows.get(&key) {
+                    Some(sent) => raised(sent, row),
+                    None => row.clone(),
+                };
+                if ledger.rows.get(&key) == Some(&row) {
                     synced.unchanged += 1;
                 } else {
-                    changed.push(row.clone());
+                    changed.push(row);
                 }
             }
 
