@@ -96,6 +96,8 @@ pub enum Block {
     Kits,
     /// P8's (`accounts::settings_page`).
     Accounts,
+    /// The optional Hangar account's card (`hangar_account::card`).
+    HangarAccount,
     VoiceModel,
     VoiceKey,
     DiscordCard,
@@ -270,7 +272,7 @@ pub const VOICE_LANGUAGES: [&str; 11] = [
 ];
 
 /// The categories in the order of the page.
-pub const ORDER: [SettingsCategory; 14] = [
+pub const ORDER: [SettingsCategory; 15] = [
     SettingsCategory::General,
     SettingsCategory::Appearance,
     SettingsCategory::Terminal,
@@ -279,6 +281,7 @@ pub const ORDER: [SettingsCategory; 14] = [
     SettingsCategory::Mobile,
     SettingsCategory::Kits,
     SettingsCategory::Accounts,
+    SettingsCategory::HangarAccount,
     SettingsCategory::Voice,
     SettingsCategory::Discord,
     SettingsCategory::Shortcuts,
@@ -597,6 +600,17 @@ pub fn build_categories(ctx: &Context) -> Vec<Category> {
             Some(tx(Key::AccountsSettingsIntro)),
             "claude account accounts compte comptes abonnement subscription login".to_string(),
             Block::Accounts,
+        ),
+        // The optional Hangar account: not the Claude accounts above.
+        entry_point(
+            SettingsCategory::HangarAccount,
+            tx(Key::SettingsCatHangarAccount),
+            Icon::Cloud,
+            "hangarAccount",
+            Some(tx(Key::HangarAccountIntro)),
+            "hangar account compte hangar sync synchronisation statistiques statistics machines github google cloud sign in connexion"
+                .to_string(),
+            Block::HangarAccount,
         ),
         voice(ctx, keymap),
         discord(ctx),

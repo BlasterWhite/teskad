@@ -74,6 +74,7 @@ macro_rules! packages {
             chat_view: ChatView,
             nodes: Nodes,
             discord: Discord,
+            hangar_account: HangarAccount,
         }
     };
 }

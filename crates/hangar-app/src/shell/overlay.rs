@@ -31,6 +31,8 @@ pub enum SettingsCategory {
     Mobile,
     Kits,
     Accounts,
+    /// The optional Hangar account ("Compte Hangar"), not the Claude accounts.
+    HangarAccount,
     Voice,
     Discord,
     Shortcuts,
@@ -53,6 +55,7 @@ impl SettingsCategory {
             SettingsCategory::Mobile => "mobile",
             SettingsCategory::Kits => "kits",
             SettingsCategory::Accounts => "accounts",
+            SettingsCategory::HangarAccount => "hangar-account",
             SettingsCategory::Voice => "voice",
             SettingsCategory::Discord => "discord",
             SettingsCategory::Shortcuts => "shortcuts",
