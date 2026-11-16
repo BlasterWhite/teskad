@@ -448,8 +448,8 @@ secrets: never the production ones.
 ## Deploy
 
 One container, one volume, behind Cloudflare at
-`https://account.hangar.simnjs.fr`. The person deploys; nothing here is run by
-a worker or by CI.
+`https://account.hangar.simnjs.fr`, run by `crates/hangar-cloud/compose.yaml`.
+The person deploys; CI only builds, checks and publishes the image (step 4).
 
 ### 1. The GitHub OAuth app
 
@@ -493,15 +493,22 @@ Both callback URLs must match to the character: `https`, no trailing slash, no
 port. They are `HANGAR_CLOUD_BASE_URL` followed by the path, and the server
 prints them at start.
 
-### 3. The secrets
+### 3. The settings
 
-In a file on the host that only root reads, not in the shell's history or the
-`docker run` line:
+On the host, in a folder of its own (`/opt/hangar-cloud`, say), the Compose
+file and the settings, which hold the two clients' secrets: readable by their
+owner only, never in the shell's history or on a command line.
 
 ```sh
-sudo install -m 600 /dev/null /etc/hangar-cloud.env
-sudoedit /etc/hangar-cloud.env
+sudo install -d -m 700 /opt/hangar-cloud && cd /opt/hangar-cloud
+base=https://raw.githubusercontent.com/hangar-ai/hangar/main/crates/hangar-cloud
+sudo curl -fsSLO "$base/compose.yaml"
+sudo curl -fsSL "$base/hangar-cloud.env.example" -o hangar-cloud.env
+sudo chmod 600 hangar-cloud.env
+sudoedit hangar-cloud.env
 ```
+
+`hangar-cloud.env` (`crates/hangar-cloud/hangar-cloud.env.example`):
 
 ```
 GITHUB_CLIENT_ID=…
@@ -509,70 +516,98 @@ GITHUB_CLIENT_SECRET=…
 GOOGLE_CLIENT_ID=…
 GOOGLE_CLIENT_SECRET=…
 # Only when they differ from the defaults (see "Running the server"):
-# HANGAR_CLOUD_BASE_URL=https://account.hangar.simnjs.fr
 # HANGAR_CLOUD_TRUSTED_PROXIES=1
+# HANGAR_CLOUD_BASE_URL=https://account.hangar.simnjs.fr
 ```
 
-No quotes around the values: Docker's `--env-file` keeps them as written.
+No quotes around the values: Compose keeps them as written. A value left
+empty is no value: that provider is off.
 
-### 4. Build the image
+### 4. The image
 
-From the root of the repository, where the workspace's `Cargo.toml` and
-`Cargo.lock` are, with BuildKit (Docker 23 or later has it on by default; the
-Dockerfile needs it for its cache mounts and for `Dockerfile.dockerignore`):
+CI builds the image whenever the server changes, checks it as a host runs
+it (it starts with no secret, answers `/health`, refuses `/v1` without a
+token, reports healthy, writes its database as its own user on a read-only
+root, stops within seconds), and publishes it from `main` and from release
+tags (`.github/workflows/cloud-image.yml`):
+
+| Tag | What |
+|---|---|
+| `ghcr.io/hangar-ai/hangar-cloud:latest` | the last commit of `main` that changed the server |
+| `ghcr.io/hangar-ai/hangar-cloud:sha-<commit>` | that commit, to pin or to go back to |
+| `ghcr.io/hangar-ai/hangar-cloud:<version>`, `:<major>.<minor>` | a release (`v2.4.0` gives `2.4.0` and `2.4`) |
+
+`compose.yaml` runs `latest`; `HANGAR_CLOUD_TAG=sha-1a2b3c4 docker compose up -d`
+(or the same line in a `.env` beside it) pins another.
+
+Once, after the first publish: GitHub publishes a new package as private.
+Either make it public (the organization's Packages, `hangar-cloud`, Package
+settings, Change visibility: the image holds the open-source server and no
+secret), or sign the host in to the registry with a token that has
+`read:packages` (`docker login ghcr.io`).
+
+The published image is for x86-64. On an arm64 host, or to run a change not
+yet on `main`, build it from a clone of the repository instead, with BuildKit
+(Docker 23 or later), where `docker compose up -d --build` builds it beside
+the Compose file:
 
 ```sh
-docker build -f crates/hangar-cloud/Dockerfile -t hangar-cloud:2.3.0 -t hangar-cloud:latest .
+git clone https://github.com/hangar-ai/hangar && cd hangar/crates/hangar-cloud
+cp hangar-cloud.env.example hangar-cloud.env && chmod 600 hangar-cloud.env   # then fill it in
+docker compose up -d --build
 ```
 
-**This Dockerfile has never been built.** Docker is not installed on the
-machine it was written on, so the first deployment is also its first test.
-The server itself is tested (`cargo test -p hangar-cloud`), the image is not.
-If the build fails, the likely places are:
-
-- the Rust image (`rust:1-slim-bookworm`) being older than what the workspace
-  needs (edition 2024, and the `rust-version` of the root `Cargo.toml` if it
-  names one): pin a newer tag in the `FROM` line;
-- `cargo build --locked` refusing a `Cargo.lock` that is out of date: build
-  from a clean checkout of a commit whose check passed;
-- a file the build needs being left out by
-  `crates/hangar-cloud/Dockerfile.dockerignore`: cargo names the manifest it
-  could not read.
-
-Before going further, check the image on the host itself:
-
-```sh
-docker run -d --name hangar-cloud-smoke -p 127.0.0.1:8080:8080 -v hangar-cloud-smoke:/data hangar-cloud:latest
-curl -fsS http://127.0.0.1:8080/health     # {"status":"ok","api_version":1,"version":"2.3.0"}
-docker logs hangar-cloud-smoke
-docker stop hangar-cloud-smoke && docker rm hangar-cloud-smoke && docker volume rm hangar-cloud-smoke
-```
-
-It must start (and say "not configured" for both providers, having no
-secret), create `/data/hangar-cloud.sqlite` as its own user, answer the health
-check, and stop within a second or two of `docker stop`.
+(`crates/hangar-cloud/*.env` is ignored by git and left out of the image's
+build context.)
 
 ### 5. Run it
 
+Behind a reverse proxy on the host (Caddy, Traefik, nginx, Coolify,
+Dokploy), which reaches the server at `127.0.0.1:8080`
+(`HANGAR_CLOUD_PORT` in a `.env` beside the Compose file picks another port):
+
 ```sh
-docker run -d --name hangar-cloud --restart unless-stopped \
-  -p 127.0.0.1:8080:8080 \
-  -v hangar-cloud-data:/data \
-  --env-file /etc/hangar-cloud.env \
-  --cap-drop ALL --security-opt no-new-privileges \
-  hangar-cloud:latest
+docker compose up -d
+docker compose ps        # hangar-cloud … (healthy)
 docker logs hangar-cloud
 ```
 
-It runs as a user of its own (uid 10001), listens on 8080 and keeps its one
-file in the `/data` volume: that volume is the whole state of the service.
-The log's first lines say what it runs with, and for each provider its client
-id and redirect URI, or "not configured". They never hold a secret, and the
-server logs no request afterwards: only its own failures, as a step and a
-status.
+Or through a Cloudflare Tunnel, with no reverse proxy and no port open to the
+internet at all: in Cloudflare, Zero Trust, Networks, Tunnels, create a tunnel
+(cloudflared), add the public hostname `account.hangar.simnjs.fr` with the
+service `HTTP` `hangar-cloud:8080`, and put the tunnel's token in
+`cloudflared.env` (`crates/hangar-cloud/cloudflared.env.example`):
 
-`-p 127.0.0.1:8080:8080` publishes the port to the host only, for a tunnel or
-a reverse proxy on the same host. Never publish it to the internet: see below.
+```sh
+sudo curl -fsSL "$base/cloudflared.env.example" -o cloudflared.env
+sudo chmod 600 cloudflared.env && sudoedit cloudflared.env    # TUNNEL_TOKEN=…
+docker compose --profile tunnel up -d
+```
+
+The tunnel starts once the server reports healthy. The tunnel is the case
+`HANGAR_CLOUD_TRUSTED_PROXIES=1` (the default) is for; behind Cloudflare and
+a reverse proxy, set it to `2` (step 6).
+
+The server runs as a user of its own (uid 10001) on a read-only root, with no
+capability, listens on 8080 and keeps its one file in the volume
+`hangar-cloud-data`: that volume is the whole state of the service. The log's
+first lines say what it runs with, and for each provider its client id and
+redirect URI, or "not configured". They never hold a secret, and the server
+logs no request afterwards: only its own failures, as a step and a status.
+`hangar-cloud health` (the image's health check) asks its own `/health`.
+
+The port is published to the host only (`127.0.0.1`), for a tunnel or a
+reverse proxy on the same host. Never publish it to the internet: see below.
+
+Without Compose, the same container is:
+
+```sh
+docker run -d --name hangar-cloud --restart unless-stopped \
+  -p 127.0.0.1:8080:8080 -v hangar-cloud-data:/data \
+  --env-file hangar-cloud.env \
+  --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
+  ghcr.io/hangar-ai/hangar-cloud:latest
+```
 
 ### 6. Cloudflare
 
@@ -590,7 +625,7 @@ sent none reaches the container:
 
 | In front of the container | Setting |
 |---|---|
-| Cloudflare, through a Cloudflare Tunnel (`cloudflared`) to `http://127.0.0.1:8080` | `1` (the default) |
+| Cloudflare, through a Cloudflare Tunnel (`cloudflared`, the Compose file's `tunnel` profile) | `1` (the default) |
 | Cloudflare, then a reverse proxy on the host (Caddy, Traefik, nginx, a PaaS's router) that appends to `X-Forwarded-For` | `2` |
 | Nothing (development) | `0` |
 
@@ -629,9 +664,8 @@ curl -sI https://account.hangar.simnjs.fr/v1/me | head -1
 ```
 
 `GET /health` is outside `/v1` and outside the rate limits: point an uptime
-monitor (Cloudflare's health checks, or any other) at it. The image has no
-`HEALTHCHECK` of Docker's: it holds the server's binary and no tool to call it
-with.
+monitor (Cloudflare's health checks, or any other) at it. The image's own health check (`hangar-cloud health`) asks the same route
+from inside the container: `docker compose ps` shows it.
 
 Then sign in for real, from a Hangar with no `HANGAR_CLOUD_URL` set, once with
 each provider. What a mistake looks like:
@@ -696,10 +730,10 @@ was deleted since if one is kept, or do not restore further back than needed.
 
 ```sh
 /usr/local/bin/hangar-cloud-backup
-git pull && docker build -f crates/hangar-cloud/Dockerfile -t hangar-cloud:latest .
-docker stop hangar-cloud && docker rm hangar-cloud
-# the same `docker run` as in step 5
+cd /opt/hangar-cloud && docker compose pull && docker compose up -d
 ```
+
+(From a clone: `git pull && docker compose up -d --build`.)
 
 The schema's migrations run at start. A database that a newer server has
 migrated is refused by an older one, which says so and stops: going back a
@@ -707,8 +741,9 @@ version means restoring the snapshot taken before the update. Machines stay
 signed in across an update, their tokens being in the database.
 
 To change a client secret: generate the new one at the provider, put it in
-`/etc/hangar-cloud.env`, and run the container again (`docker restart` does
-not read the file again; remove and run). Nobody is signed out by it.
+`hangar-cloud.env`, and run `docker compose up -d` (it recreates the
+container when its settings changed; `docker restart` does not read the file
+again). Nobody is signed out by it.
 
 ## Status
 
@@ -716,5 +751,4 @@ Built: this document, the protocol's types, the server (storage, device
 tokens, machines, statistics, account deletion, the sign-in with GitHub and
 Google and its pages), the desktop's calls, sign-in and sync, the Hangar
 account section of the settings, the "This PC / All machines" switch of the
-statistics, the site's privacy page. Not done yet: the first deployment, which is also the first
-build of the Docker image (see "Deploy").
+statistics, the site's privacy page. Not done yet: the first deployment (see "Deploy").

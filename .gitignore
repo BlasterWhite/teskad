@@ -54,3 +54,6 @@ scripts/node-test/ssh_config
 
 # Python bytecode beside the scripts
 __pycache__/
+
+# The optional Hangar account's server: the secrets beside its compose.yaml
+crates/hangar-cloud/*.env

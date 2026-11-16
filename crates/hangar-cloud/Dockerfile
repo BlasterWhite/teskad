@@ -9,6 +9,9 @@
 #
 #   docker build -f crates/hangar-cloud/Dockerfile -t hangar-cloud .
 #
+# CI builds it, checks it and publishes it as ghcr.io/hangar-ai/hangar-cloud
+# (.github/workflows/cloud-image.yml); compose.yaml, beside this file, runs it.
+#
 # Dockerfile.dockerignore, beside this file, is what BuildKit reads instead of
 # the root's .dockerignore (the site's): it sends the workspace's manifests and
 # crates, and nothing else.
@@ -43,6 +46,11 @@ VOLUME /data
 ENV HANGAR_CLOUD_BIND=0.0.0.0:8080 \
     HANGAR_CLOUD_DB=/data/hangar-cloud.sqlite
 EXPOSE 8080
+# The binary checks itself (`hangar-cloud health`, src/health.rs): the image
+# has no curl to call /health with. `docker ps` shows the result, and the
+# Compose file's tunnel waits for it.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD ["/usr/local/bin/hangar-cloud", "health"]
 # `docker stop` sends SIGTERM, which the server answers by finishing the
 # requests in flight (main.rs).
 ENTRYPOINT ["/usr/local/bin/hangar-cloud"]

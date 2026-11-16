@@ -8,3 +8,5 @@
 !examples/kits/
 **/target/
 **/node_modules/
+# The secrets beside compose.yaml, when a clone is where the server runs.
+**/*.env

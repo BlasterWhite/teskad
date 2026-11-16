@@ -21,6 +21,7 @@ mod config;
 mod db;
 mod devices;
 mod extract;
+mod health;
 mod limit;
 mod pages;
 mod provider;
@@ -45,6 +46,11 @@ use state::{AppState, SignIn};
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    // `hangar-cloud health`: the image's health check (health.rs), one
+    // blocking call of a few milliseconds before anything else starts.
+    if std::env::args().nth(1).as_deref() == Some("health") {
+        return health::check();
+    }
     let config = match Config::from_env() {
         Ok(config) => config,
         Err(err) => {
