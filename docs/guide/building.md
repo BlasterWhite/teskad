@@ -22,6 +22,12 @@ You need:
 - **Node.js** 22 and **pnpm** 10, only for Hangar Mobile, the phone app: a build without it
   serves the phone a page saying the app is missing.
 
+On **NixOS** (or anywhere with Nix), `nix develop` opens a shell with all of the above,
+and the libraries the window loads at start in `LD_LIBRARY_PATH`; every command below
+works in it. `nix build` makes the package in `./result`, as
+[the install guide](install.md#nixos-and-nix) describes; after a change to
+`pnpm-lock.yaml`, update the hash in `nix/mobile.nix` (the build prints the new one).
+
 Then:
 
 ```bash
