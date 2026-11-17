@@ -146,6 +146,7 @@ GitHub — start with [CONTRIBUTING.md](CONTRIBUTING.md) and the
       <img src="https://github.com/McSon2.png" width="100px" style="border-radius:50%" alt="McSon2"/><br/>
       <b>McSon2</b><br/>
       <i>Contributor · macOS</i><br/>
+      <sub>He/Him</sub><br/>
       <a href="https://github.com/McSon2">GitHub</a>
     </td>
   </tr>
