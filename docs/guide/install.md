@@ -43,6 +43,9 @@ use the flake at the root of the repository instead. It builds Hangar, its webvi
 nix run github:hangar-ai/hangar           # try it without installing
 ```
 
+That builds `main`, the development version. The releases after 2.3.0 carry the flake too:
+pin one with its tag, `github:hangar-ai/hangar/v<version>`, here and in the input below.
+
 To install it, add the flake to your system's `flake.nix` and its package to your packages:
 
 ```nix
@@ -59,6 +62,9 @@ hangar` and rebuild for a new version. The MCP configs and the login item it wri
 `hangar-ai` on your `PATH` (`/run/current-system/sw/bin`, your profile's `bin`), not the
 store path, so they keep working across upgrades and garbage collections. Claude Code
 itself comes from nixpkgs (`claude-code`) or its own installer.
+
+Nodes (the experiment that runs workspaces on another Linux machine) are not available from
+the flake yet: the package does not carry the `hangar-node` binaries a node is set up with.
 
 ## Getting started
 

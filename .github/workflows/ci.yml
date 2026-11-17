@@ -173,6 +173,25 @@ jobs:
           pnpm mobile:build
           crates/hangar-app/packaging/check-mobile.sh
 
+  # The Nix flake (flake.nix, nix/): it evaluates, and Hangar Mobile builds
+  # through it. That build fetches the pnpm dependencies against the hash in
+  # nix/mobile.nix, which goes stale with every change to pnpm-lock.yaml: the
+  # red check is the reminder to update it (the failure prints the new one).
+  # The whole package is not built here: a Rust build from scratch, with no
+  # cache, for a check the rust job already makes.
+  nix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v31
+
+      - name: Evaluate the flake
+        run: nix flake check --no-build --all-systems
+
+      - name: Build Hangar Mobile with Nix
+        run: nix build .#hangar-mobile --print-build-logs
+
       # crates/hangar-i18n/src/generated.rs is committed so that cargo needs no
       # Node; a dictionary changed without running the generator fails here.
       - name: Interface strings are generated

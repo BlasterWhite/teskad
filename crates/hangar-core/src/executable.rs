@@ -27,6 +27,11 @@ pub fn stable() -> std::io::Result<PathBuf> {
 /// A folder of the `PATH` gives its entry of the same name when that entry,
 /// links followed, is the executable itself, and it is not in the store: a
 /// link from the store to the store is no steadier than the binary.
+///
+/// After a system switch while Hangar runs, the link leads to the new build
+/// and no longer to this one: what is written then names the running store
+/// path, which a later garbage collection removes; what the new build writes
+/// names the link again.
 pub(crate) fn stable_path(exe: &Path, path: Option<&OsStr>) -> PathBuf {
     if !exe.starts_with(NIX_STORE) {
         return exe.to_path_buf();
