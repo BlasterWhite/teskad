@@ -121,8 +121,10 @@ fn refusal_for(root: Option<std::ffi::OsString>, what: &str) -> Option<String> {
     })
 }
 
+/// The running Hangar, or on Nix the link to it that survives an upgrade
+/// (executable.rs): what the configs written here keep naming afterwards.
 fn executable() -> Result<String, String> {
-    std::env::current_exe()
+    crate::executable::stable()
         .map(|p| p.to_string_lossy().into_owned())
         .map_err(|e| e.to_string())
 }

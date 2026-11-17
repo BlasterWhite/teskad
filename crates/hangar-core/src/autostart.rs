@@ -47,6 +47,10 @@ fn app_path() -> Result<String, String> {
     if let Some(image) = std::env::var_os("APPIMAGE").and_then(|image| image.into_string().ok()) {
         return Ok(image);
     }
+    // A Nix package's binary is gone a few upgrades later; the link to it on
+    // the PATH is not (executable.rs).
+    #[cfg(target_os = "linux")]
+    let exe = crate::executable::stable_path(&exe, std::env::var_os("PATH").as_deref());
     Ok(exe.display().to_string())
 }
 

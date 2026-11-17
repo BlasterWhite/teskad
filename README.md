@@ -63,6 +63,7 @@ Grab the file for your system from the
 | Windows (x64) | `Hangar.AI_<version>_x64-setup.exe` — per-user, no admin rights |
 | macOS (Apple Silicon + Intel) | `Hangar.AI_2.2.0_universal.dmg` (2.2.0, the last one built for you); later versions: [build it on your Mac](#build-on-macos) |
 | Linux (x86_64) | `.AppImage` (glibc 2.35+, `chmod +x` it), `.deb` or `.rpm` |
+| NixOS / Nix | `nix run github:hangar-ai/hangar`, or the flake in your config: [NixOS](docs/guide/install.md#nixos-and-nix) |
 
 You also need [Claude Code](https://code.claude.com/docs/en/overview) installed and signed
 in. Then create a workspace (`Ctrl`/`Cmd`+`Shift`+`N`): it starts with one Claude Code

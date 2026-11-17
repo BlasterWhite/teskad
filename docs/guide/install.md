@@ -33,6 +33,33 @@ lived in the old web view, and are not carried over. The [changelog](../../CHANG
 what 2.0 does not do yet: mainly, there is no screen reader support, and Windows and macOS
 have been tested by CI but not yet used by a person.
 
+## NixOS and Nix
+
+The release files are made for distributions that keep libraries in `/usr/lib`; on NixOS,
+use the flake at the root of the repository instead. It builds Hangar, its webview helper
+(HTML kit tabs and PDFs, with WebKitGTK) and Hangar Mobile from source:
+
+```bash
+nix run github:hangar-ai/hangar           # try it without installing
+```
+
+To install it, add the flake to your system's `flake.nix` and its package to your packages:
+
+```nix
+# inputs
+hangar.url = "github:hangar-ai/hangar";
+hangar.inputs.nixpkgs.follows = "nixpkgs";
+
+# environment.systemPackages (or home.packages with Home Manager)
+inputs.hangar.packages.${pkgs.stdenv.hostPlatform.system}.default
+```
+
+Hangar then appears in your launcher. It does not update itself on Nix: `nix flake update
+hangar` and rebuild for a new version. The MCP configs and the login item it writes name the
+`hangar-ai` on your `PATH` (`/run/current-system/sw/bin`, your profile's `bin`), not the
+store path, so they keep working across upgrades and garbage collections. Claude Code
+itself comes from nixpkgs (`claude-code`) or its own installer.
+
 ## Getting started
 
 0. **Claude Code.** When Hangar cannot find Claude Code on this machine, it opens a
