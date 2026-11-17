@@ -1,12 +1,14 @@
-//! The folders the preview may read from, and how a path an agent wrote is
-//! resolved against them (`createRootGrants` of `lib/modelHost.ts`,
-//! `modelRoots` and `resolvePath` of `lib/control.ts`).
+//! The workspaces' folders hangar-core serves whole, and how a path an agent
+//! wrote is resolved against a workspace's folder (`createRootGrants` of
+//! `lib/modelHost.ts`, `modelRoots` and `resolvePath` of `lib/control.ts`).
 //!
-//! hangar-core holds one list for the whole process (`model_allow_roots`
-//! replaces it), and a file stays open after the call that showed it: its
-//! viewer keeps reading it and polling it for changes. Replacing the list with
-//! only the latest caller's folders would cut every other workspace's files
-//! off, so the union of what each live workspace was granted is sent.
+//! A file may be shown from anywhere on the computer, and core serves every
+//! file shown from then on. These folders are served whole besides, for what
+//! a page or a model shown from them pulls in beside it. Core holds one list
+//! of them for the whole process (`model_allow_roots` replaces it), and a file
+//! stays open after the call that showed it: replacing the list with only the
+//! latest caller's folders would cut what is beside every other workspace's
+//! files off, so the union of what each live workspace was granted is sent.
 
 use std::path::{Component, Path, PathBuf};
 
@@ -88,19 +90,12 @@ fn normalize(path: &Path) -> PathBuf {
     out
 }
 
-/// Whether `path` is one of `roots` or under one.
-pub fn inside(path: &str, roots: &[String]) -> bool {
-    let path = comparable(path);
-    roots.iter().any(|root| {
-        let root = comparable(root);
-        !root.is_empty() && (path == root || path.starts_with(&format!("{root}/")))
-    })
-}
-
-/// The folders an agent in `workspace` may show files from: its folder, the
-/// other roots of a `.code-workspace`, and the folders its panes work in
-/// (a worker's worktree is a pane's folder). The worktrees git lists for
-/// them are added by the caller, which has to ask git.
+/// The folders core serves whole for `workspace`: its folder, the other roots
+/// of a `.code-workspace`, and the folders its panes work in (a worker's
+/// worktree is a pane's folder). The worktrees git lists for them are added
+/// by the caller, which has to ask git. One that is not an absolute path (a
+/// workspace whose folder was typed as "Build anything") is listed all the
+/// same, and core drops it: it would mean the app's own working directory.
 pub fn workspace_roots(workspace: &Workspace) -> Vec<String> {
     let panes = workspace
         .panes
@@ -203,25 +198,18 @@ mod tests {
     }
 
     #[test]
-    fn tells_what_is_inside_a_root_and_what_only_starts_like_one() {
-        let roots = vec!["/work/app".to_string()];
-        assert!(inside("/work/app", &roots));
-        assert!(inside("/work/app/out/a.png", &roots));
-        assert!(!inside("/work/application/a.png", &roots));
-        assert!(!inside("/work", &roots));
-        assert!(inside("C:\\Work\\App\\a.png", &["c:/work/app".to_string()]));
+    fn a_folder_written_with_the_other_slash_or_a_trailing_one_is_the_same() {
+        assert_eq!(comparable("/work/app/"), "/work/app");
+        assert_eq!(comparable("C:\\Work\\App\\"), comparable("c:/work/app"));
+        assert_ne!(comparable("/work/application"), comparable("/work/app"));
     }
 
     #[test]
     fn case_is_folded_only_where_the_file_system_folds_it() {
-        let roots = vec!["/home/u/proj".to_string()];
-        let folded = inside("/home/u/Proj/x.png", &roots);
+        let folded = comparable("/home/u/Proj") == comparable("/home/u/proj");
         assert_eq!(folded, cfg!(any(windows, target_os = "macos")));
         // A drive path is a Windows one, on any platform.
-        assert!(inside(
-            "C:/Users/U/Proj/x.png",
-            &["c:/users/u/proj".to_string()]
-        ));
+        assert_eq!(comparable("C:/Users/U/Proj"), comparable("c:/users/u/proj"));
     }
 
     #[test]

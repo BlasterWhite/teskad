@@ -15,7 +15,7 @@ use crate::state::Workspace;
 use crate::state::types::MAX_PANES;
 
 use super::panes::{announce, tell};
-use super::paths::{basename, comparable, inside, resolve_path};
+use super::paths::{basename, comparable, resolve_path};
 use super::port::{
     EntryStatus, ModelCmd, ModelFileInfo, OpenEntry, Port, PreviewFile, PreviewHost, Showing,
     SnapshotAngle, is_asleep, workspace_in,
@@ -67,10 +67,11 @@ fn formats() -> String {
     MODEL_FORMATS.join(", ")
 }
 
-/// The folders an agent may show files from: its workspace's main folder,
-/// extra roots and pane folders, plus every worktree of their repositories
-/// (`modelRoots`). An agent working in a worktree must not be refused its own
-/// files; a folder that is not a repository just adds none.
+/// The folders core serves whole for a workspace that shows a file: its main
+/// folder, extra roots and pane folders, plus every worktree of their
+/// repositories (`modelRoots`). A file may be shown from anywhere on the
+/// computer; these folders are what a page or a model shown from them pulls
+/// in beside it. A folder that is not a repository just adds none.
 pub async fn model_roots(ws: &Workspace, port: &Port) -> Vec<String> {
     let repos: Vec<String> = std::iter::once(ws.cwd.clone())
         .chain(ws.extra_roots.iter().cloned())
@@ -323,56 +324,22 @@ fn find_model<'a>(
     )
 }
 
-/// A path that names what it answers for.
-trait Pathed {
-    fn path(&self) -> &str;
-}
-
-impl Pathed for ModelFileInfo {
-    fn path(&self) -> &str {
-        &self.path
-    }
-}
-
-impl Pathed for PreviewFile {
-    fn path(&self) -> &str {
-        &self.path
-    }
-}
-
 /// Lets core serve the workspace's folders, then asks it about `path`: what
 /// it found, or the refusal worth passing on (`admit`).
-async fn admit<T: Pathed>(
+///
+/// The file may be anywhere on the computer, in the workspace's folders or
+/// not, and the workspace's folder need not even be a path. Core is the gate,
+/// on the canonical path: it judges the file by its type, its size and its
+/// first bytes, and from then on serves that file — never one no one showed.
+async fn admit<T>(
     ws: &Workspace,
     path: &str,
-    what: &str,
     port: &Port,
     ask: impl AsyncFnOnce(&str) -> Result<T, String>,
 ) -> Result<T, String> {
     let roots = model_roots(ws, port).await;
-    let outside = || {
-        format!(
-            "{path} is outside your workspace. The preview only opens {what} from {} (and their \
-             subfolders). Move or copy the file into one of them, then show it from there.",
-            roots.join(", ")
-        )
-    };
-    port.model_allow_roots(&ws.id, roots.clone()).await?;
-    // Core is the real gate, on the canonical path. The folders it allows are
-    // every workspace's that showed a file, though, and this one is checked
-    // against the caller's own: the path as given, or where its links lead.
-    let given_inside = inside(path, &roots);
-    let file = match ask(path).await {
-        Ok(file) => file,
-        // Refused for being out of bounds, or missing out of bounds: either
-        // way, the workspace is the thing worth naming.
-        Err(_) if !given_inside => return Err(outside()),
-        Err(error) => return Err(error),
-    };
-    if !given_inside && !inside(file.path(), &roots) {
-        return Err(outside());
-    }
-    Ok(file)
+    port.model_allow_roots(&ws.id, roots).await?;
+    ask(path).await
 }
 
 /// Whatever showing something in a workspace's preview does to it: it is
@@ -486,7 +453,7 @@ pub async fn model_show(
             formats()
         ));
     }
-    let file = admit(ws, &path, "models", port, async |path: &str| {
+    let file = admit(ws, &path, port, async |path: &str| {
         port.model_stat(path).await
     })
     .await?;
@@ -779,7 +746,7 @@ pub async fn preview_show(
         );
     };
     let path = resolve_path(&caller_folder(ws, caller), &given);
-    let file = admit(ws, &path, "files", port, async |path: &str| {
+    let file = admit(ws, &path, port, async |path: &str| {
         inspect_file(port, path).await
     })
     .await?;

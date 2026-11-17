@@ -585,9 +585,9 @@ pub fn pretty_json(text: &str) -> Option<String> {
 pub enum ImageSource {
     /// A file on the disk: beside the Markdown file for a relative path, or
     /// an absolute one. This only says which file is meant: the viewer reads
-    /// it after core's `preview_inspect` has allowed it (inside the folders
-    /// agents may show from, an image, under the cap), as the scheme of the
-    /// old app did for every image a page asked for.
+    /// it after core's `preview_inspect_beside` has allowed it (beside the
+    /// page or below it, or served already; an image, under the cap), as the
+    /// scheme of the old app did for every image a page asked for.
     Path(PathBuf),
     /// A web image. The native viewer does not fetch from the network; it
     /// shows the alt text, and the link opens in the browser.

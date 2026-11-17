@@ -269,7 +269,10 @@ fn gif_file(path: &Path) {
 /// What a page ends up with for the images it names, by address.
 async fn loaded(text: &str, page: &Path) -> HashMap<Uri, Resolved> {
     let rendered = Rendered::parse(text, &page.to_string_lossy());
-    load_images(rendered.wanted()).await.into_iter().collect()
+    load_images(rendered.folder(), rendered.wanted())
+        .await
+        .into_iter()
+        .collect()
 }
 
 #[tokio::test]
@@ -307,6 +310,25 @@ async fn an_image_beside_the_page_loads_whatever_it_is_made_of() {
         matches!(found.get("logo.svg"), Some(Resolved::Vector(_))),
         "an SVG is drawn as a vector, not handed to the raster decoder"
     );
+}
+
+/// A page may be anywhere on the computer, in no workspace's folder: the
+/// pictures beside it and below come with it, and nothing above it.
+#[tokio::test]
+async fn a_page_anywhere_loads_the_pictures_beside_it_and_nothing_above() {
+    let base = crate::kit_tabs::testdir::scratch("md-anywhere");
+    let docs = base.join("far").join("docs");
+    std::fs::create_dir_all(docs.join("shots")).unwrap();
+    png_file(&docs.join("shots").join("one.png"));
+    png_file(&base.join("far").join("above.png"));
+    let page = docs.join("README.md");
+    let found = loaded("![a](shots/one.png) ![b](../above.png)", &page).await;
+    assert!(
+        matches!(found.get("shots/one.png"), Some(Resolved::Raster(_))),
+        "{found:?}"
+    );
+    assert!(!found.contains_key("../above.png"), "{found:?}");
+    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[tokio::test]

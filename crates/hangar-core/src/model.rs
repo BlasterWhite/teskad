@@ -6,19 +6,27 @@
 //! to it as plain relative URLs. Tauri's asset protocol could serve that, but
 //! only by opening whole folders to every file type, and base64 over IPC would
 //! hold a 200 MB model several times over in memory. So the app answers a
-//! scheme of its own, only for the folders the window allowed — an agent's
-//! workspace and its worktrees — and only for the file types a model is made
-//! of. The preview's other files — images, video, text, pages — come through
-//! the same scheme, from the same folders: see preview.rs.
+//! scheme of its own, and only for the file types a model is made of. The
+//! preview's other files — images, video, text, pages — come through the same
+//! scheme, under the same rule: see preview.rs.
+//!
+//! Showing and serving are two gates. The person or an agent may show any
+//! readable file on the computer (`model_stat`, `preview_inspect`): only its
+//! type, its size and its first bytes are judged. The scheme, which any page
+//! in the viewer can ask for any path, hands out only what was shown
+//! ([`Grants`]): each file shown, the folder of each model shown (its
+//! textures, `.bin` and `.mtl`), and the folders of the workspaces that showed
+//! something. A path no one showed is refused, even one that exists.
 //!
 //! Every check is made on the file's canonical path. A `..`, a symlink and a
-//! drive letter typed in the other case all resolve before the folders are
-//! compared, so none of them can walk out of an allowed folder.
+//! drive letter typed in the other case all resolve before the grants are
+//! compared, so none of them can walk out of what was shown.
 
+use std::collections::HashSet;
 use std::fs::{File, Metadata};
 use std::io::{ErrorKind, Read, Seek, SeekFrom};
 use std::path::{Component, Path, PathBuf};
-use std::sync::{OnceLock, RwLock};
+use std::sync::{OnceLock, PoisonError, RwLock};
 use std::time::UNIX_EPOCH;
 
 use http::{header, response::Builder, Method, Request, Response, StatusCode};
@@ -69,22 +77,94 @@ pub(crate) const MAX_BYTES: u64 = 256 * 1024 * 1024;
 
 pub(crate) const MEGABYTE: u64 = 1024 * 1024;
 
-/// The folders the window last allowed, canonical: those of every workspace
-/// that has a model open, not only the workspace of the agent asking. Which
-/// agent may show which file is decided in the window (src/lib/control.ts);
-/// this list only keeps the scheme from reading anywhere else.
+/// What the scheme may hand out, every path canonical.
 ///
-/// One list for the whole app rather than one per window: whichever window
-/// allowed a folder, the window that ends up drawing the model must be able to
-/// load from it, and a detached workspace window is not always the one that
-/// handled the agent's request.
-fn roots() -> &'static RwLock<Vec<PathBuf>> {
-    static ROOTS: OnceLock<RwLock<Vec<PathBuf>>> = OnceLock::new();
-    ROOTS.get_or_init(Default::default)
+/// One set for the whole app rather than one per window: whichever window
+/// showed a file, the window that ends up drawing it must be able to load it,
+/// and a detached workspace window is not always the one that handled the
+/// agent's request.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Grants {
+    /// The folders of every workspace that showed a file, its worktrees
+    /// included: what `model_allow_roots` last sent, replaced whole. Any file
+    /// under one is served, of any type, as it always was: a page's pictures
+    /// beside it, a model's textures a folder up.
+    roots: Vec<PathBuf>,
+    /// The folder of every model shown, for the files a model pulls in beside
+    /// it or below: only the types a model is made of ([`Accept::Asset`]).
+    folders: Vec<PathBuf>,
+    /// Every file shown.
+    files: HashSet<PathBuf>,
 }
 
-pub(crate) fn allowed_roots() -> Vec<PathBuf> {
-    roots().read().unwrap().clone()
+impl Grants {
+    /// Whether the scheme serves `path`, canonical. Folders are compared
+    /// component-wise, so a granted `proj` does not let `proj-secrets` in.
+    pub(crate) fn serves(&self, path: &Path) -> bool {
+        self.files.contains(path)
+            || self.roots.iter().any(|root| path.starts_with(root))
+            || (Accept::Asset.allows(path)
+                && self.folders.iter().any(|folder| path.starts_with(folder)))
+    }
+
+    /// `path`, canonical, was shown: it is served from now on, and a model's
+    /// folder with it.
+    pub(crate) fn show(&mut self, path: &Path, model: bool) {
+        self.files.insert(path.to_path_buf());
+        let Some(folder) = path.parent().filter(|_| model) else {
+            return;
+        };
+        // A folder under one held adds nothing; one above them covers them.
+        if self.folders.iter().any(|known| folder.starts_with(known)) {
+            return;
+        }
+        self.folders.retain(|known| !known.starts_with(folder));
+        self.folders.push(folder.to_path_buf());
+    }
+
+    /// Serves `folder` too, and everything under it, when it is an absolute
+    /// folder that exists.
+    pub(crate) fn with_root(mut self, folder: &str) -> Grants {
+        for root in canonical_roots(&[folder.to_string()]) {
+            if !self.roots.contains(&root) {
+                self.roots.push(root);
+            }
+        }
+        self
+    }
+
+    /// Only `roots`, canonical folders, and everything under them.
+    pub(crate) fn of_roots(roots: Vec<PathBuf>) -> Grants {
+        Grants {
+            roots,
+            ..Grants::default()
+        }
+    }
+}
+
+fn grants() -> &'static RwLock<Grants> {
+    static GRANTS: OnceLock<RwLock<Grants>> = OnceLock::new();
+    GRANTS.get_or_init(Default::default)
+}
+
+/// What the scheme serves now.
+pub(crate) fn granted() -> Grants {
+    grants()
+        .read()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone()
+}
+
+/// `path`, canonical, was just shown: the scheme serves it from now on.
+///
+/// Nothing is taken back while the app runs. A viewer goes on reading its
+/// file, and polling it, long after the call that showed it; and a file shown
+/// once is one the person or an agent chose to look at.
+pub(crate) fn grant_shown(path: &Path, model: bool) {
+    grants()
+        .write()
+        .unwrap_or_else(PoisonError::into_inner)
+        .show(path, model);
 }
 
 /// A path as an agent or the window wrote it, in the platform's own form.
@@ -173,20 +253,41 @@ pub(crate) struct Checked {
 #[derive(Debug, PartialEq)]
 pub(crate) enum Refusal {
     /// A path that does not say where it starts. The window resolves an
-    /// agent's relative path before asking, so this is a caller's bug.
+    /// agent's relative path against its folder before asking, so this is one
+    /// whose folder does not say where it starts either.
     Relative,
     /// Not an extension the check accepts, on the name asked for or on the
     /// file that name leads to.
     Format,
     Missing,
     NotAFile,
-    /// Resolves outside every allowed folder.
+    /// Resolves to a file the scheme does not serve: never shown, nor in a
+    /// folder granted with one ([`Grants::serves`]). Showing never meets it.
     Outside,
     TooBig {
         size: u64,
         cap: u64,
     },
     Unreadable(String),
+}
+
+/// Where a check finds a file acceptable.
+#[derive(Clone, Copy)]
+pub(crate) enum Within<'a> {
+    /// Anywhere on the computer: a file the person or an agent shows.
+    Anywhere,
+    /// Only what was shown: a file the scheme hands to whatever page asks.
+    Granted(&'a Grants),
+}
+
+impl Within<'_> {
+    /// Whether `path`, canonical, is acceptable here.
+    pub(crate) fn admits(self, path: &Path) -> bool {
+        match self {
+            Within::Anywhere => true,
+            Within::Granted(grants) => grants.serves(path),
+        }
+    }
 }
 
 impl Refusal {
@@ -216,8 +317,8 @@ impl Refusal {
                 format!("{path} is a folder: give the path of the model file inside it.")
             }
             Refusal::Outside => format!(
-                "{path} is outside this workspace's folders: copy it into the workspace or one of \
-                 its worktrees."
+                "{path} was not shown in the preview, and is not beside a file that was: show it \
+                 first."
             ),
             Refusal::TooBig { size, cap } => format!(
                 "{path} is {} MB, over the preview's {} MB limit: decimate the mesh or compress it \
@@ -242,7 +343,7 @@ impl Refusal {
             Refusal::NotAFile => (StatusCode::NOT_FOUND, "not a file".into()),
             Refusal::Outside => (
                 StatusCode::FORBIDDEN,
-                "outside the folders the preview may read".into(),
+                "not a file the preview was shown".into(),
             ),
             Refusal::TooBig { cap, .. } => (
                 StatusCode::FORBIDDEN,
@@ -253,7 +354,7 @@ impl Refusal {
     }
 }
 
-/// Judges one file against the allowed folders, the extensions and the cap.
+/// Judges one file against where it may be, the extensions and the cap.
 ///
 /// The extension is read twice: on the name asked for, first, because a
 /// format the viewer cannot read is the most useful thing to hear whether or
@@ -261,7 +362,7 @@ impl Refusal {
 /// a link to anything.
 pub(crate) fn inspect(
     requested: &Path,
-    roots: &[PathBuf],
+    within: Within,
     accept: Accept,
     max_bytes: u64,
 ) -> Result<Checked, Refusal> {
@@ -275,8 +376,8 @@ pub(crate) fn inspect(
         ErrorKind::NotFound => Refusal::Missing,
         _ => Refusal::Unreadable(err.to_string()),
     })?;
-    // Component-wise, so an allowed `proj` does not let `proj-secrets` in.
-    if !roots.iter().any(|root| path.starts_with(root)) {
+    // Before anything else is read of a file that is not to be served.
+    if !within.admits(&path) {
         return Err(Refusal::Outside);
     }
     if !accept.allows(&path) {
@@ -311,15 +412,19 @@ pub(crate) fn modified_ms(metadata: &Metadata) -> u64 {
         .map_or(0, |since| since.as_millis() as u64)
 }
 
-/// Replaces the folders the preview may read from. The window calls it each
-/// time an agent shows a model, with the folders of every workspace that has
-/// one open, so a model shown earlier for another workspace keeps loading its
-/// textures and reloading when its file changes.
+/// Replaces the workspaces' folders the scheme serves. The window calls it
+/// each time a file is shown, with the folders of every workspace that showed
+/// one, so a page shown earlier for another workspace keeps loading what is
+/// beside it. The files shown, and the folders of the models shown, are kept
+/// apart and stay served: this list never takes them back.
 pub async fn model_allow_roots(roots: Vec<String>) -> Result<(), String> {
     // Canonicalizing touches the disk, a network share's included: off the
     // main thread, like every git command.
     let canonical = crate::git::off_thread(move || Ok(canonical_roots(&roots))).await?;
-    *self::roots().write().unwrap() = canonical;
+    grants()
+        .write()
+        .unwrap_or_else(PoisonError::into_inner)
+        .roots = canonical;
     Ok(())
 }
 
@@ -338,19 +443,27 @@ pub struct ModelFile {
 }
 
 /// Size and modification time of a model the window is about to show or is
-/// watching, or the reason it may not read it.
+/// watching, or the reason it may not show it.
+///
+/// It may be anywhere on the computer. What passes is served by the scheme
+/// from then on, and the folder it is in with it, for its textures.
 pub async fn model_stat(path: String) -> Result<ModelFile, String> {
-    let roots = allowed_roots();
     crate::git::off_thread(move || {
-        inspect(&native_path(path.trim()), &roots, Accept::Model, MAX_BYTES)
-            .map(|checked| ModelFile {
-                path: dunce::simplified(&checked.path)
-                    .to_string_lossy()
-                    .into_owned(),
-                size: checked.size,
-                modified_ms: checked.modified_ms,
-            })
-            .map_err(|refusal| refusal.explain(&path))
+        let checked = inspect(
+            &native_path(path.trim()),
+            Within::Anywhere,
+            Accept::Model,
+            MAX_BYTES,
+        )
+        .map_err(|refusal| refusal.explain(&path))?;
+        grant_shown(&checked.path, true);
+        Ok(ModelFile {
+            path: dunce::simplified(&checked.path)
+                .to_string_lossy()
+                .into_owned(),
+            size: checked.size,
+            modified_ms: checked.modified_ms,
+        })
     })
     .await
 }
@@ -401,8 +514,8 @@ pub async fn model_save_png(path: String, data: String) -> Result<(), String> {
 ///
 /// A browser resolves `..` out of a URL before sending it, so one that is
 /// still there was encoded on purpose (`%2E%2E`, or hidden behind an encoded
-/// backslash) and is refused outright, even where it would resolve inside an
-/// allowed folder.
+/// backslash) and is refused outright, even where it would resolve to a file
+/// that is served.
 fn path_from_url(url_path: &str) -> Result<PathBuf, (StatusCode, String)> {
     let decoded = percent_encoding::percent_decode_str(url_path)
         .decode_utf8()
@@ -523,7 +636,7 @@ pub(crate) fn finish(builder: Builder, body: Vec<u8>) -> Response<Vec<u8>> {
 /// a `Range` request reads only the part it asks for.
 pub(crate) fn answer(
     request: &Request<Vec<u8>>,
-    roots: &[PathBuf],
+    grants: &Grants,
     origins: &[String],
 ) -> Response<Vec<u8>> {
     // The page and the scheme are different origins on every platform, so
@@ -599,9 +712,9 @@ pub(crate) fn answer(
     // Any other file is one the preview shows for itself, as what it is:
     // preview.rs. From here on, this is the models' own way, as it was.
     if !Accept::Asset.allows(&path) {
-        return crate::preview::answer(request, &path, roots, &base);
+        return crate::preview::answer(request, &path, grants, &base);
     }
-    let checked = match inspect(&path, roots, Accept::Asset, MAX_BYTES) {
+    let checked = match inspect(&path, Within::Granted(grants), Accept::Asset, MAX_BYTES) {
         Ok(checked) => checked,
         Err(refusal) => {
             let (status, reason) = refusal.status();
@@ -666,9 +779,9 @@ pub(crate) fn answer(
     finish(builder, body)
 }
 
-/// The `hangar-model` scheme's answer to one request, from the folders
-/// `model_allow_roots` last allowed: what a webview registering the scheme
-/// hands back, and what the native preview asks for directly.
+/// The `hangar-model` scheme's answer to one request, for a file that was
+/// shown ([`Grants`]): what a webview registering the scheme hands back, and
+/// what the native preview asks for directly.
 ///
 /// `origins` are those of the pages Hangar's own interface is served from in
 /// that webview — the Tauri window's were `tauri://localhost` and
@@ -680,7 +793,7 @@ pub(crate) fn answer(
 /// thread would freeze every pane while it lasted, so the caller runs it off
 /// that thread, as Tauri's handler moved it to the blocking pool.
 pub fn serve(request: &Request<Vec<u8>>, origins: &[String]) -> Response<Vec<u8>> {
-    answer(request, &allowed_roots(), origins)
+    answer(request, &granted(), origins)
 }
 
 #[cfg(test)]
@@ -717,17 +830,24 @@ pub(crate) mod tests {
         path
     }
 
-    pub(crate) fn roots_of(dirs: &[&Path]) -> Vec<PathBuf> {
-        canonical_roots(
+    /// What the scheme serves once workspaces of these folders showed a file.
+    pub(crate) fn roots_of(dirs: &[&Path]) -> Grants {
+        Grants::of_roots(canonical_roots(
             &dirs
                 .iter()
                 .map(|dir| dir.to_string_lossy().into_owned())
                 .collect::<Vec<_>>(),
-        )
+        ))
     }
 
-    fn model(path: &Path, roots: &[PathBuf]) -> Result<Checked, Refusal> {
-        inspect(path, roots, Accept::Model, MAX_BYTES)
+    /// A model as the scheme judges it.
+    fn model(path: &Path, grants: &Grants) -> Result<Checked, Refusal> {
+        inspect(path, Within::Granted(grants), Accept::Model, MAX_BYTES)
+    }
+
+    /// A model as showing judges it.
+    fn shown(path: &Path) -> Result<Checked, Refusal> {
+        inspect(path, Within::Anywhere, Accept::Model, MAX_BYTES)
     }
 
     /// What `encodeURIComponent` leaves alone, so the tests ask for files the
@@ -786,6 +906,38 @@ pub(crate) mod tests {
         let refused = serve(&request, &["hangar://localhost".to_string()]);
         assert_eq!(refused.status(), StatusCode::FORBIDDEN);
         assert_eq!(refused.body().as_slice(), b"this page may not read models");
+    }
+
+    /// Showing reaches the whole computer: a model in no workspace's folder,
+    /// with nothing granted, is described all the same.
+    #[test]
+    fn a_model_anywhere_on_the_computer_is_shown() {
+        let root = temp_dir("anywhere");
+        let file = write(&root, "far away/Chair.glb", b"glTF");
+
+        let checked = shown(&file).expect("shown");
+
+        assert_eq!(checked.path, file.canonicalize().unwrap());
+        assert_eq!(checked.size, 4);
+        assert_eq!(
+            model(&file, &Grants::default()).err(),
+            Some(Refusal::Outside),
+            "showing it is not serving it"
+        );
+        // Every other check still holds.
+        let notes = write(&root, "notes.txt", b"not a model");
+        assert_eq!(shown(&notes).err(), Some(Refusal::Format));
+        assert_eq!(shown(&root.join("gone.glb")).err(), Some(Refusal::Missing));
+        assert_eq!(
+            shown(Path::new("Build anything/chair.glb")).err(),
+            Some(Refusal::Relative)
+        );
+        let big = write(&root, "big.stl", b"12345");
+        assert_eq!(
+            inspect(&big, Within::Anywhere, Accept::Model, 4).err(),
+            Some(Refusal::TooBig { size: 5, cap: 4 })
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -905,9 +1057,9 @@ pub(crate) mod tests {
         );
         // A texture is served beside a model, but it is not one.
         assert_eq!(model(&texture, &roots).err(), Some(Refusal::Format));
-        assert!(inspect(&texture, &roots, Accept::Asset, MAX_BYTES).is_ok());
+        assert!(inspect(&texture, Within::Granted(&roots), Accept::Asset, MAX_BYTES).is_ok());
         assert_eq!(
-            inspect(&env, &roots, Accept::Asset, MAX_BYTES).err(),
+            inspect(&env, Within::Granted(&roots), Accept::Asset, MAX_BYTES).err(),
             Some(Refusal::Format)
         );
         let _ = std::fs::remove_dir_all(&root);
@@ -920,10 +1072,10 @@ pub(crate) mod tests {
         let roots = roots_of(&[&root]);
 
         assert_eq!(
-            inspect(&file, &roots, Accept::Model, 4).err(),
+            inspect(&file, Within::Granted(&roots), Accept::Model, 4).err(),
             Some(Refusal::TooBig { size: 5, cap: 4 })
         );
-        assert!(inspect(&file, &roots, Accept::Model, 5).is_ok());
+        assert!(inspect(&file, Within::Granted(&roots), Accept::Model, 5).is_ok());
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -965,7 +1117,10 @@ pub(crate) mod tests {
         ];
 
         assert_eq!(canonical_roots(&listed), vec![root.canonicalize().unwrap()]);
-        assert_eq!(model(&file, &[]).err(), Some(Refusal::Outside));
+        assert_eq!(
+            model(&file, &Grants::default()).err(),
+            Some(Refusal::Outside)
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -991,6 +1146,7 @@ pub(crate) mod tests {
         let file = write(&root, "Chair.glb", b"glTF");
         let roots = canonical_roots(&[swap_drive_case(&root).to_lowercase()]);
         assert_eq!(roots.len(), 1);
+        let roots = Grants::of_roots(roots);
 
         let asked = PathBuf::from(swap_drive_case(&file).to_uppercase());
         let checked = model(&asked, &roots).expect("same folder");
@@ -1085,6 +1241,131 @@ pub(crate) mod tests {
             "text/plain; charset=utf-8"
         );
         assert_eq!(serve(&blend).status(), StatusCode::FORBIDDEN);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// The scheme hands out what was shown, never a path a page picks: a file
+    /// shown far from every workspace is served; the file beside it is not,
+    /// though it exists, and neither is a text in the same folder.
+    #[test]
+    fn the_scheme_serves_a_file_shown_and_refuses_one_never_shown() {
+        let root = temp_dir("shown-only");
+        let shot = write(&root, "elsewhere/shot.png", b"\x89PNG\r\n\x1a\n");
+        let beside = write(&root, "elsewhere/other.png", b"\x89PNG\r\n\x1a\n");
+        let secret = write(&root, "elsewhere/secret.txt", b"secret");
+        let url = |path: &Path| url_path(&path.canonicalize().unwrap());
+        let status = |grants: &Grants, path: &Path| {
+            answer(&get(&url(path), None, None), grants, &origins()).status()
+        };
+        let mut grants = Grants::default();
+        assert_eq!(status(&grants, &shot), StatusCode::FORBIDDEN);
+
+        grants.show(&shot.canonicalize().unwrap(), false);
+
+        assert_eq!(status(&grants, &shot), StatusCode::OK);
+        for never in [&beside, &secret] {
+            let refused = answer(&get(&url(never), None, None), &grants, &origins());
+            assert_eq!(
+                refused.status(),
+                StatusCode::FORBIDDEN,
+                "{}",
+                never.display()
+            );
+            assert_eq!(
+                refused.body().as_slice(),
+                b"not a file the preview was shown"
+            );
+        }
+        // Shown or not, another page may still not fetch it.
+        let fetched = answer(
+            &get(&url(&shot), Some("https://evil.example"), None),
+            &grants,
+            &origins(),
+        );
+        assert_eq!(fetched.status(), StatusCode::FORBIDDEN);
+        assert_eq!(fetched.body().as_slice(), b"this page may not read models");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A model is shown with what it is made of: its buffers and textures
+    /// beside it or below are served, as the types a model pulls in; nothing
+    /// else of its folder, nothing above it, nothing in a folder that only
+    /// starts like it.
+    #[test]
+    fn a_model_shown_brings_the_files_beside_it_and_nothing_else() {
+        let base = temp_dir("model-folder");
+        let model = write(&base, "downloads/chair/chair.gltf", b"{}");
+        let buffer = write(&base, "downloads/chair/chair.bin", b"buffer");
+        let texture = write(&base, "downloads/chair/textures/wood.png", b"png");
+        let notes = write(&base, "downloads/chair/notes.txt", b"notes");
+        let above = write(&base, "downloads/photo.png", b"png");
+        let sibling = write(&base, "downloads/chair-secrets/key.png", b"png");
+        let mut grants = Grants::default();
+        grants.show(&model.canonicalize().unwrap(), true);
+        let status = |path: &Path| {
+            let url = url_path(&path.canonicalize().unwrap());
+            answer(&get(&url, None, None), &grants, &origins()).status()
+        };
+
+        for served in [&model, &buffer, &texture] {
+            assert_eq!(status(served), StatusCode::OK, "{}", served.display());
+        }
+        for refused in [&notes, &above, &sibling] {
+            assert_eq!(
+                status(refused),
+                StatusCode::FORBIDDEN,
+                "{}",
+                refused.display()
+            );
+        }
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn a_models_folder_is_held_once_under_the_highest_one_shown() {
+        let root = if cfg!(windows) {
+            PathBuf::from(r"C:\m")
+        } else {
+            PathBuf::from("/m")
+        };
+        let mut grants = Grants::default();
+        grants.show(&root.join("a").join("b").join("x.glb"), true);
+        grants.show(&root.join("a").join("y.glb"), true);
+        grants.show(&root.join("a").join("b").join("z.glb"), true);
+        grants.show(&root.join("shot.png"), false);
+
+        assert_eq!(grants.folders, vec![root.join("a")]);
+        assert_eq!(grants.files.len(), 4);
+        assert!(grants.serves(&root.join("a").join("b").join("c").join("t.png")));
+        assert!(grants.serves(&root.join("shot.png")));
+        assert!(!grants.serves(&root.join("other.png")));
+        assert!(!grants.serves(&root.join("a").join("notes.txt")));
+    }
+
+    /// `model_stat` is how a model is shown: from anywhere, and what it lets
+    /// through the scheme serves from then on, with what is beside it.
+    #[tokio::test]
+    async fn model_stat_shows_a_model_from_anywhere_and_the_scheme_serves_it() {
+        let root = temp_dir("stat-grants");
+        let file = write(&root, "chair.glb", b"glTF");
+        let texture = write(&root, "wood.jpg", b"jpeg");
+        let stray = write(&temp_dir("stat-stray"), "wood.jpg", b"jpeg");
+
+        let stat = model_stat(file.to_string_lossy().into_owned())
+            .await
+            .expect("shown");
+
+        assert_eq!(
+            Path::new(&stat.path),
+            dunce::simplified(&file.canonicalize().unwrap())
+        );
+        let status = |path: &Path| {
+            let url = url_path(&path.canonicalize().unwrap());
+            serve(&get(&url, None, None), &[]).status()
+        };
+        assert_eq!(status(&file), StatusCode::OK);
+        assert_eq!(status(&texture), StatusCode::OK);
+        assert_eq!(status(&stray), StatusCode::FORBIDDEN);
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -1210,7 +1491,7 @@ pub(crate) mod tests {
             .contains("one of .glb, .gltf, .obj, .stl, .ply, .fbx, .usdz and show that file"));
         assert_eq!(
             Refusal::Outside.explain(r"C:\x\y.glb"),
-            r"C:\x\y.glb is outside this workspace's folders: copy it into the workspace or one of its worktrees."
+            r"C:\x\y.glb was not shown in the preview, and is not beside a file that was: show it first."
         );
         // Every refusal says what to do next, after a colon.
         for refusal in [

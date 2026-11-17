@@ -11,11 +11,13 @@
 //! - **Linkify.** pulldown-cmark does not link a bare address; `prepare` wraps
 //!   `http://` and `https://` addresses in angle brackets, which it does.
 //! - **Images** load from beside the file or by an absolute path, but only
-//!   through core's `preview_inspect`, which the scheme of the old app asked
-//!   as well: a file inside the folders agents may show from, of a kind the
-//!   preview draws, confirmed by its first bytes, under the 64 MB cap. A
-//!   README cannot make the page draw `/dev/zero`, a link to another folder
-//!   or a file elsewhere on the disk; what is refused is its alt text. An
+//!   through core's `preview_inspect_beside`: a file in the page's own folder
+//!   or below it, or one the preview serves already (shown, or in a
+//!   workspace's folders), of a kind the preview draws, confirmed by its
+//!   first bytes, under the 64 MB cap. The page may be anywhere on the
+//!   computer, and its pictures come with it; but a README cannot make the
+//!   page draw `/dev/zero`, a link out of its folder or a file elsewhere on
+//!   the disk: what is refused is its alt text. An
 //!   inline `data:` image is read from its own bytes (`markdownImageSrc`). A
 //!   local SVG is drawn as a vector, a GIF or WebP of several frames plays. A
 //!   web image is not fetched: the viewer draws a link in its place, with its
@@ -228,6 +230,12 @@ impl Rendered {
         self.wanted.clone()
     }
 
+    /// The folder of the page's file: its pictures are read from there and
+    /// below, by [`load_images`].
+    pub fn folder(&self) -> PathBuf {
+        self.base.clone()
+    }
+
     /// Puts the images [`load_images`] found in their places on the page.
     pub fn resolve(&mut self, found: Vec<(Uri, Resolved)>) {
         self.images.extend(found);
@@ -329,19 +337,24 @@ const MAX_IMAGE_BYTES: u64 = 256 * 1024 * 1024;
 /// The most pixels one picture may have, as its header says.
 const MAX_PIXELS: u64 = 120_000_000;
 
-/// Reads the files a page asks for. Each goes through core's
-/// `preview_inspect`, as the scheme of the old app made every image request
-/// do: the file is under a folder agents may show from (symbolic links and
-/// `..` are resolved first), is a regular file, is an image of the kind its
-/// name says, and is no larger than the preview's cap. What passes is read
-/// and decoded here, off the UI thread; what does not is left out, and the
-/// page draws its alt text.
-pub async fn load_images(wanted: Vec<(Uri, PathBuf)>) -> Vec<(Uri, Resolved)> {
+/// Reads the files a page in `folder` asks for. Each goes through core's
+/// `preview_inspect_beside`, as the scheme of the old app made every image
+/// request go through its checks: the file is in the page's folder or below
+/// it, or one the preview serves already (symbolic links and `..` are
+/// resolved first), is a regular file, is an image of the kind its name says,
+/// and is no larger than the preview's cap. What passes is read and decoded
+/// here, off the UI thread; what does not is left out, and the page draws its
+/// alt text. Asking grants nothing: no page is ever served these files.
+pub async fn load_images(folder: PathBuf, wanted: Vec<(Uri, PathBuf)>) -> Vec<(Uri, Resolved)> {
+    let folder = folder.to_string_lossy().into_owned();
     let mut left = MAX_IMAGE_BYTES;
     let mut found = Vec::new();
     for (url, path) in wanted.into_iter().take(MAX_IMAGES) {
-        let Ok(shown) =
-            hangar_core::preview::preview_inspect(path.to_string_lossy().into_owned()).await
+        let Ok(shown) = hangar_core::preview::preview_inspect_beside(
+            path.to_string_lossy().into_owned(),
+            folder.clone(),
+        )
+        .await
         else {
             continue;
         };

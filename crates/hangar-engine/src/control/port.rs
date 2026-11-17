@@ -241,10 +241,12 @@ pub trait AppPort: Send + Sync + 'static {
     // ── the preview ────────────────────────────────────────────────
 
     /// Lets core serve models and files from these folders on behalf of this
-    /// workspace, keeping what the other workspaces were granted.
+    /// workspace, keeping what the other workspaces were granted. A file may
+    /// be shown from anywhere; these folders are what is served beside it.
     fn model_allow_roots(&self, ws: &WsId, roots: Vec<String>) -> BoxFuture<Result<(), String>>;
 
-    /// Canonical path, size and mtime; refused outside the allowed folders.
+    /// Canonical path, size and mtime of a model anywhere on the computer,
+    /// which core serves from then on; refused for its type or its size.
     fn model_stat(&self, path: &str) -> BoxFuture<Result<ModelFileInfo, String>>;
 
     /// Every worktree of the repository holding `path`; refused outside one.

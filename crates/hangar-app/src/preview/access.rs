@@ -267,6 +267,12 @@ impl Shared {
     /// Lets hangar-core serve the workspace's folders (and its worktrees), then
     /// asks it what `path` is: the file, or the refusal worth passing on
     /// (`admit`).
+    ///
+    /// The file may be anywhere on the computer, in the workspace's folders or
+    /// not, and the workspace's folder need not even be a path. Core is the
+    /// gate, on the canonical path: it judges the file by its type, its size
+    /// and its first bytes, and from then on serves that file — never one no
+    /// one showed.
     pub async fn admit(&self, workspace: &Workspace, path: &str) -> Result<PreviewFile, String> {
         let mut roots = roots::workspace_roots(workspace);
         let repos: Vec<String> = std::iter::once(workspace.cwd.clone())
@@ -286,30 +292,9 @@ impl Shared {
         }
         let mut seen = std::collections::HashSet::new();
         roots.retain(|root| !root.trim().is_empty() && seen.insert(roots::comparable(root)));
-        let outside = || {
-            format!(
-                "{path} is outside your workspace. The preview only opens files from {} \
-                 (and their subfolders). Move or copy the file into one of them, then show it from there.",
-                roots.join(", ")
-            )
-        };
-        self.grant_roots(&workspace.id, roots.clone()).await?;
-        // Rust is the real gate, on the canonical path. The folders it allows
-        // are every workspace's that showed a file, though, and this one is
-        // checked against the caller's own: the path as given, or where its
-        // links lead.
-        let given_inside = roots::inside(path, &roots);
-        let inspected = hangar_core::preview::preview_inspect(path.to_string()).await;
-        let found = match inspected {
-            Ok(found) => found,
-            Err(_) if !given_inside => return Err(outside()),
-            Err(refusal) => return Err(refusal),
-        };
-        let file = model::from_core(&found)?;
-        if !given_inside && !roots::inside(&file.path, &roots) {
-            return Err(outside());
-        }
-        Ok(file)
+        self.grant_roots(&workspace.id, roots).await?;
+        let found = hangar_core::preview::preview_inspect(path.to_string()).await?;
+        model::from_core(&found)
     }
 
     /// What `PreviewAccess::show` does for a request, asynchronously: the path

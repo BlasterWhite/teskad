@@ -2,10 +2,11 @@
 //! video, audio, PDF, Markdown, HTML pages, text and source code, beside the
 //! 3D models of model.rs.
 //!
-//! They come through the same `hangar-model` scheme, from the same allowed
-//! folders and through the same path checks. model.rs answers a request for
-//! one of a model's files exactly as it always has and hands every other one
-//! here, where a file is served as what it is:
+//! They come through the same `hangar-model` scheme, under the same rule: any
+//! readable file on the computer may be shown, and the scheme serves only what
+//! was shown (model.rs, `Grants`). model.rs answers a request for one of a
+//! model's files exactly as it always has and hands every other one here,
+//! where a file is served as what it is:
 //!
 //! - its kind is read from its extension and confirmed on its first bytes, so
 //!   a `.jpg` that is a saved error page, or a `.json` that is binary, is
@@ -26,7 +27,7 @@
 //!   frame of another origin can read neither from its parent;
 //! - it has no storage of its own, and cannot reach Hangar's;
 //! - its `fetch` carries `Origin: null` too, which model.rs refuses for every
-//!   file, inside the allowed folders or not. What it loads without CORS —
+//!   file, shown or not. What it loads without CORS —
 //!   the images beside it, a video — it can show but never read, and a script
 //!   or a stylesheet beside it goes out as `text/plain` with `nosniff`, which
 //!   no webview runs or applies: a page's scripts and styles must be inline.
@@ -42,7 +43,7 @@ use std::path::{Path, PathBuf};
 use http::{header, response::Builder, Method, Request, Response, StatusCode};
 use serde::Serialize;
 
-use crate::model::{self, Accept, Span, MAX_BYTES, MEGABYTE};
+use crate::model::{self, Accept, Grants, Span, Within, MAX_BYTES, MEGABYTE};
 
 /// What the panel shows a file as.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -335,8 +336,8 @@ impl Refusal {
                 format!("{path} is a folder: give the path of a file inside it.")
             }
             Refusal::Outside => format!(
-                "{path} is outside this workspace's folders: copy it into the workspace or one of \
-                 its worktrees."
+                "{path} was not shown in the preview, and is not beside a file that was: show it \
+                 first."
             ),
             Refusal::Retyped(target) => format!(
                 "{path} is a link to {}, a file of another type: show that file itself.",
@@ -399,7 +400,7 @@ impl Refusal {
             Refusal::NotAFile => (StatusCode::NOT_FOUND, "not a file".into()),
             Refusal::Outside => (
                 StatusCode::FORBIDDEN,
-                "outside the folders the preview may read".into(),
+                "not a file the preview was shown".into(),
             ),
             Refusal::Retyped(_) => (
                 StatusCode::FORBIDDEN,
@@ -425,20 +426,20 @@ fn read_head(path: &Path) -> std::io::Result<Vec<u8>> {
     Ok(head)
 }
 
-/// Judges one file against the allowed folders, the kinds and their caps.
+/// Judges one file against where it may be, the kinds and their caps.
 ///
 /// A model is judged by model.rs, as model_show judges it. Any other name is
 /// read twice, like a model's: on the name asked for, because a type the
 /// preview never shows is worth hearing whether or not the file exists; and
 /// on the file it leads to, which must have the same extension, so that what
 /// the panel was told and what the scheme serves can never differ.
-pub(crate) fn inspect(requested: &Path, roots: &[PathBuf]) -> Result<Shown, Refusal> {
+pub(crate) fn inspect(requested: &Path, within: Within) -> Result<Shown, Refusal> {
     if !requested.is_absolute() {
         return Err(Refusal::Relative);
     }
     if Accept::Model.allows(requested) {
         let checked =
-            model::inspect(requested, roots, Accept::Model, MAX_BYTES).map_err(Refusal::Model)?;
+            model::inspect(requested, within, Accept::Model, MAX_BYTES).map_err(Refusal::Model)?;
         let mime = model::extension(&checked.path)
             .and_then(|extension| model::content_type(&extension))
             .unwrap_or("application/octet-stream");
@@ -459,8 +460,8 @@ pub(crate) fn inspect(requested: &Path, roots: &[PathBuf]) -> Result<Shown, Refu
         ErrorKind::NotFound => Refusal::Missing,
         _ => Refusal::Unreadable(err.to_string()),
     })?;
-    // Component-wise, so an allowed `proj` does not let `proj-secrets` in.
-    if !roots.iter().any(|root| path.starts_with(root)) {
+    // Before anything else is read of a file that is not to be served.
+    if !within.admits(&path) {
         return Err(Refusal::Outside);
     }
     if model::extension(&path) != extension {
@@ -529,13 +530,34 @@ impl From<Shown> for PreviewFile {
     }
 }
 
-/// What a file the window is about to show is, or the reason it may not show
-/// it. The folders are those `model_allow_roots` last allowed, as for a
-/// model.
+/// What a file the window is about to show, or is watching, is — or the
+/// reason it may not show it.
+///
+/// It may be anywhere on the computer, as a model may (`model_stat`). What
+/// passes is served by the scheme from then on: the file itself, and for a
+/// model the folder it is in, for its textures.
 pub async fn preview_inspect(path: String) -> Result<PreviewFile, String> {
-    let roots = model::allowed_roots();
     crate::git::off_thread(move || {
-        inspect(&model::native_path(path.trim()), &roots)
+        let shown = inspect(&model::native_path(path.trim()), Within::Anywhere)
+            .map_err(|refusal| refusal.explain(&path))?;
+        model::grant_shown(&shown.path, shown.kind == Kind::Model);
+        Ok(PreviewFile::from(shown))
+    })
+    .await
+}
+
+/// What a file that another one names is — a picture a Markdown page shows —
+/// when it is in `beside`, the folder of the file naming it, or below it, or
+/// is served already: shown, or in a folder granted with what was.
+///
+/// The viewer reads such a file itself; no page is ever handed it, so asking
+/// grants nothing. A page cannot make the viewer draw a file elsewhere on the
+/// disk, `/dev/zero`, or one a link beside it leads out to.
+pub async fn preview_inspect_beside(path: String, beside: String) -> Result<PreviewFile, String> {
+    let grants = model::granted();
+    crate::git::off_thread(move || {
+        let grants = grants.with_root(&beside);
+        inspect(&model::native_path(path.trim()), Within::Granted(&grants))
             .map(PreviewFile::from)
             .map_err(|refusal| refusal.explain(&path))
     })
@@ -554,7 +576,7 @@ fn wants_source(query: Option<&str>) -> bool {
 pub(crate) fn answer(
     request: &Request<Vec<u8>>,
     requested: &Path,
-    roots: &[PathBuf],
+    grants: &Grants,
     base: &dyn Fn() -> Builder,
 ) -> Response<Vec<u8>> {
     let refuse = |status: StatusCode, reason: String| {
@@ -566,7 +588,7 @@ pub(crate) fn answer(
             reason.into_bytes(),
         )
     };
-    let shown = match inspect(requested, roots) {
+    let shown = match inspect(requested, Within::Granted(grants)) {
         Ok(shown) => shown,
         Err(refusal) => {
             let (status, reason) = refusal.status();
@@ -849,24 +871,28 @@ mod tests {
     }
 
     /// Through the scheme's own entry point, as the panel asks for it.
-    fn fetch(
-        path: &Path,
-        query: &str,
-        range: Option<&str>,
-        roots: &[PathBuf],
-    ) -> Response<Vec<u8>> {
+    fn fetch(path: &Path, query: &str, range: Option<&str>, grants: &Grants) -> Response<Vec<u8>> {
         let url = format!("{}{query}", url_path(&path.canonicalize().unwrap()));
-        model::answer(&get(&url, None, range), roots, &origins())
+        model::answer(&get(&url, None, range), grants, &origins())
+    }
+
+    /// A file as showing judges it: wherever it is.
+    fn shown(path: &Path) -> Result<Shown, Refusal> {
+        inspect(path, Within::Anywhere)
+    }
+
+    /// A file as the scheme judges it.
+    fn served(path: &Path, grants: &Grants) -> Result<Shown, Refusal> {
+        inspect(path, Within::Granted(grants))
     }
 
     #[test]
     fn every_kind_is_told_by_its_name_and_its_bytes() {
         let root = temp_dir("preview-kinds");
-        let roots = roots_of(&[&root]);
         let mut seen = Vec::new();
         for (name, body, kind, mime) in SAMPLES {
             let file = write(&root, name, body);
-            let shown = inspect(&file, &roots).unwrap_or_else(|err| panic!("{name}: {err:?}"));
+            let shown = shown(&file).unwrap_or_else(|err| panic!("{name}: {err:?}"));
             assert_eq!((shown.kind, shown.mime), (*kind, *mime), "{name}");
             assert_eq!(shown.size, body.len() as u64, "{name}");
             assert_eq!(shown.path, file.canonicalize().unwrap(), "{name}");
@@ -891,11 +917,9 @@ mod tests {
     #[test]
     fn the_window_is_told_path_kind_mime_size_and_name() {
         let root = temp_dir("preview-answer");
-        let roots = roots_of(&[&root]);
         let file = sample(&root, "README.md");
 
-        let answer =
-            serde_json::to_value(PreviewFile::from(inspect(&file, &roots).unwrap())).unwrap();
+        let answer = serde_json::to_value(PreviewFile::from(shown(&file).unwrap())).unwrap();
 
         assert_eq!(answer["kind"], "markdown");
         assert_eq!(answer["mime"], TEXT_PLAIN);
@@ -978,11 +1002,7 @@ mod tests {
         ];
         for (name, body, refusal) in cases {
             let file = write(&root, name, body);
-            assert_eq!(
-                inspect(&file, &roots).err().as_ref(),
-                Some(refusal),
-                "{name}"
-            );
+            assert_eq!(shown(&file).err().as_ref(), Some(refusal), "{name}");
             let served = fetch(&file, "", None, &roots).status();
             // A texture's name is model.rs's to serve, as it always was.
             if !Accept::Asset.allows(&file) {
@@ -997,59 +1017,88 @@ mod tests {
     #[test]
     fn text_is_judged_on_its_head_without_tripping_on_its_end() {
         let root = temp_dir("preview-head");
-        let roots = roots_of(&[&root]);
         let mut long = vec![b'a'; HEAD_BYTES as usize - 1];
         long.extend_from_slice("é and more".as_bytes());
         let cut = write(&root, "long.txt", &long);
         let unnamed = write(&root, "long", &long);
         let broken = write(&root, "broken", b"ok \xC3 then not");
 
-        assert_eq!(inspect(&cut, &roots).unwrap().kind, Kind::Text);
-        assert_eq!(inspect(&unnamed, &roots).unwrap().kind, Kind::Text);
-        assert_eq!(inspect(&broken, &roots).err(), Some(Refusal::Unsupported));
+        assert_eq!(shown(&cut).unwrap().kind, Kind::Text);
+        assert_eq!(shown(&unnamed).unwrap().kind, Kind::Text);
+        assert_eq!(shown(&broken).err(), Some(Refusal::Unsupported));
         let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
-    fn missing_outside_folders_and_relative_paths_are_refused() {
-        let base = temp_dir("preview-refusals");
-        let root = base.join("project");
+    fn missing_files_folders_and_relative_paths_are_refused() {
+        let root = temp_dir("preview-refusals");
         std::fs::create_dir_all(root.join("shots.png")).unwrap();
-        let outside = write(&base, "outside/secret.txt", b"secret");
-        let sibling = write(&base, "project-secrets/key.txt", b"secret");
-        let roots = roots_of(&[&root]);
 
+        assert_eq!(shown(&root.join("gone.png")).err(), Some(Refusal::Missing));
         assert_eq!(
-            inspect(&root.join("gone.png"), &roots).err(),
-            Some(Refusal::Missing)
-        );
-        assert_eq!(
-            inspect(&root.join("shots.png"), &roots).err(),
+            shown(&root.join("shots.png")).err(),
             Some(Refusal::NotAFile)
         );
-        assert_eq!(inspect(&outside, &roots).err(), Some(Refusal::Outside));
-        assert_eq!(inspect(&sibling, &roots).err(), Some(Refusal::Outside));
-        let climbing = root.join("..").join("outside").join("secret.txt");
-        assert_eq!(inspect(&climbing, &roots).err(), Some(Refusal::Outside));
         assert_eq!(
-            inspect(Path::new("shots/a.png"), &roots).err(),
+            shown(Path::new("shots/a.png")).err(),
+            Some(Refusal::Relative)
+        );
+        // A workspace whose folder is not a path leaves a relative one.
+        assert_eq!(
+            shown(Path::new("Build anything/out/a.png")).err(),
             Some(Refusal::Relative)
         );
         // A model is refused as model_show refuses it.
         assert_eq!(
-            inspect(&root.join("gone.glb"), &roots).err(),
+            shown(&root.join("gone.glb")).err(),
             Some(Refusal::Model(model::Refusal::Missing))
         );
         // A model's own parts are no file to show, whether or not they exist.
         for part in ["chair.bin", "wood.tga", "sky.hdr", "chair.mtl"] {
             assert_eq!(
-                inspect(&root.join(part), &roots).err(),
+                shown(&root.join(part)).err(),
                 Some(Refusal::Unsupported),
                 "{part}"
             );
         }
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Showing reaches every folder of the computer; serving only what was
+    /// shown. A file outside the workspace's folders is shown as what it is,
+    /// and the scheme hands it out once it was, not before, and never what
+    /// only lies beside it or climbs out of a folder through `..`.
+    #[test]
+    fn a_file_outside_every_folder_is_shown_and_served_only_once_shown() {
+        let base = temp_dir("preview-outside");
+        let root = base.join("project");
+        std::fs::create_dir_all(&root).unwrap();
+        let shot = sample(&base.join("outside"), "shot.png");
+        let secret = write(&base, "outside/secret.txt", b"secret");
+        let sibling = write(&base, "project-secrets/key.txt", b"secret");
+        let mut grants = roots_of(&[&root]);
+
+        let found = shown(&shot).expect("shown from anywhere");
+        assert_eq!((found.kind, found.mime), (Kind::Image, "image/png"));
+        assert_eq!(shown(&secret).unwrap().kind, Kind::Text);
+
+        for never in [&shot, &secret, &sibling] {
+            assert_eq!(served(never, &grants).err(), Some(Refusal::Outside));
+            assert_eq!(
+                fetch(never, "", None, &grants).status(),
+                StatusCode::FORBIDDEN
+            );
+        }
+        let climbing = root.join("..").join("outside").join("secret.txt");
+        assert_eq!(served(&climbing, &grants).err(), Some(Refusal::Outside));
+
+        grants.show(&found.path, false);
+        let response = fetch(&shot, "", None, &grants);
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.body(), &std::fs::read(&shot).unwrap());
+        // Its neighbour was not shown.
         assert_eq!(
-            fetch(&outside, "", None, &roots).status(),
+            fetch(&secret, "", None, &grants).status(),
             StatusCode::FORBIDDEN
         );
         let _ = std::fs::remove_dir_all(&base);
@@ -1063,18 +1112,87 @@ mod tests {
         let root = base.join("project");
         let notes = write(&root, "notes.txt", b"<script>alert(1)</script>");
         let secret = write(&base, "outside/secret.txt", b"secret");
-        let roots = roots_of(&[&root]);
+        let grants = roots_of(&[&root]);
 
         if link(&notes, &root.join("page.html")) {
             let page = root.join("page.html");
-            assert!(matches!(inspect(&page, &roots), Err(Refusal::Retyped(_))));
+            assert!(matches!(shown(&page), Err(Refusal::Retyped(_))));
         }
         if link(&secret, &root.join("secret.txt")) {
+            // Shown as the file it leads to; never served from a folder it
+            // only seems to be in.
+            let through = root.join("secret.txt");
             assert_eq!(
-                inspect(&root.join("secret.txt"), &roots).err(),
-                Some(Refusal::Outside)
+                shown(&through).unwrap().path,
+                secret.canonicalize().unwrap()
             );
+            assert_eq!(served(&through, &grants).err(), Some(Refusal::Outside));
         }
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// `preview_inspect` is how a file is shown: from anywhere, and the
+    /// scheme serves it from then on; a model with the folder it is in.
+    #[tokio::test]
+    async fn preview_inspect_shows_a_file_from_anywhere_and_the_scheme_serves_it() {
+        let root = temp_dir("preview-grants");
+        let shot = sample(&root, "shot.png");
+        let beside = write(&root, "notes.txt", b"beside");
+        let chair = sample(&root.join("chair"), "chair.glb");
+        let texture = write(&root, "chair/wood.jpg", b"jpeg");
+        let status = |path: &Path| {
+            let url = url_path(&path.canonicalize().unwrap());
+            model::serve(&get(&url, None, None), &[]).status()
+        };
+        assert_eq!(status(&shot), StatusCode::FORBIDDEN);
+
+        let found = preview_inspect(shot.to_string_lossy().into_owned())
+            .await
+            .expect("shown");
+
+        assert_eq!(found.kind, Kind::Image);
+        assert_eq!(status(&shot), StatusCode::OK);
+        assert_eq!(status(&beside), StatusCode::FORBIDDEN);
+        assert_eq!(status(&texture), StatusCode::FORBIDDEN);
+
+        let model = preview_inspect(chair.to_string_lossy().into_owned())
+            .await
+            .expect("shown");
+
+        assert_eq!(model.kind, Kind::Model);
+        assert_eq!(status(&chair), StatusCode::OK);
+        assert_eq!(status(&texture), StatusCode::OK);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A Markdown page's pictures: beside the page or below it, or a file
+    /// shown; never above the page or elsewhere, and asking grants nothing.
+    #[tokio::test]
+    async fn a_picture_a_page_names_is_read_beside_it_or_where_it_was_shown() {
+        let base = temp_dir("preview-beside");
+        let docs = base.join("far").join("docs");
+        let page_dir = docs.to_string_lossy().into_owned();
+        let near = sample(&docs.join("shots"), "shot.png");
+        let above = sample(&base.join("far"), "shot.png");
+        let elsewhere = sample(&base.join("elsewhere"), "shot.png");
+        let beside = |path: &Path| {
+            preview_inspect_beside(path.to_string_lossy().into_owned(), page_dir.clone())
+        };
+
+        assert_eq!(beside(&near).await.expect("beside").kind, Kind::Image);
+        assert!(beside(&above).await.is_err());
+        assert!(beside(&elsewhere).await.is_err());
+        let url = url_path(&near.canonicalize().unwrap());
+        assert_eq!(
+            model::serve(&get(&url, None, None), &[]).status(),
+            StatusCode::FORBIDDEN,
+            "asking granted nothing"
+        );
+
+        preview_inspect(elsewhere.to_string_lossy().into_owned())
+            .await
+            .expect("shown");
+        assert!(beside(&elsewhere).await.is_ok());
         let _ = std::fs::remove_dir_all(&base);
     }
 
@@ -1090,7 +1208,6 @@ mod tests {
         assert_eq!(Kind::Audio.cap(), None);
 
         let root = temp_dir("preview-caps");
-        let roots = roots_of(&[&root]);
         let png = b"\x89PNG\r\n\x1a\n";
         let image = sized(&root, "huge.png", png, 64 * MEGABYTE + 1);
         let fits = sized(&root, "fits.png", png, 64 * MEGABYTE);
@@ -1098,16 +1215,16 @@ mod tests {
         let log = write(&root, "huge.log", &vec![b'a'; 10 * MEGABYTE as usize + 1]);
 
         assert_eq!(
-            inspect(&image, &roots).err(),
+            shown(&image).err(),
             Some(Refusal::TooBig {
                 kind: Kind::Image,
                 size: 64 * MEGABYTE + 1,
                 cap: 64 * MEGABYTE
             })
         );
-        assert!(inspect(&fits, &roots).is_ok());
+        assert!(shown(&fits).is_ok());
         assert!(matches!(
-            inspect(&log, &roots),
+            shown(&log),
             Err(Refusal::TooBig {
                 kind: Kind::Text,
                 ..
@@ -1183,7 +1300,7 @@ mod tests {
         let roots = roots_of(&[&root]);
         let len = MAX_BYTES + 1;
         let file = sized(&root, "long.mp4", b"\0\0\0\x18ftypisom", len);
-        assert_eq!(inspect(&file, &roots).unwrap().kind, Kind::Video);
+        assert_eq!(shown(&file).unwrap().kind, Kind::Video);
 
         let start = fetch(&file, "", Some("bytes=0-"), &roots);
         assert_eq!(start.status(), StatusCode::PARTIAL_CONTENT);

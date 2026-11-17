@@ -4,7 +4,7 @@
 //!
 //! The helper opens `hangar-model://localhost/<path>` and every request the
 //! page makes to that scheme comes back here, where hangar-core's
-//! `model::serve` answers it from the folders the preview may read: the same
+//! `model::serve` answers it with what the preview was shown: the same
 //! rules, the same `Range` handling, the same CSP as the web view of the old
 //! app had. The helper holds no rule of its own about what a page may load.
 //!
@@ -335,9 +335,9 @@ pub fn event_window(event: &Event) -> Option<&str> {
     }
 }
 
-/// Answers a page's request for a file: hangar-core serves it, from the
-/// folders the preview may read. Pages of the helper have no Hangar origin,
-/// so none may `fetch` a file (an `Origin` they carry is refused).
+/// Answers a page's request for a file: hangar-core serves it if it was
+/// shown, never a path the page picks. Pages of the helper have no Hangar
+/// origin, so none may `fetch` a file (an `Origin` they carry is refused).
 pub fn answer(request: &SchemeRequest) -> SchemeResponse {
     let mut builder = http::Request::builder()
         .method(request.method.as_str())

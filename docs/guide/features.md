@@ -90,9 +90,11 @@ settings. It is not a model provider, and it has no online service of its own.
   organization. See [Kits](#kits).
 - **Previews.** Agents show you files as panes of the grid, beside their terminal: images
   (animated GIF and WebP too), code and text with highlighting, Markdown, PDFs, web pages,
-  video and audio.
-- **3D preview.** Agents show you a model (glTF/GLB, OBJ, STL, PLY, FBX) in a pane of the
-  grid, with its glTF animations, and render snapshots to check their own work.
+  video and audio. A file can come from any folder of your computer, not only the
+  workspace's; the viewers are only ever served the files that were shown.
+- **3D preview.** Agents show you a model (glTF/GLB, OBJ, STL, PLY, FBX) from any folder
+  in a pane of the grid, its textures loaded from beside it, with its glTF animations, and
+  render snapshots to check their own work.
 - **Your own control layout.** A preview and a kit's tab are panes like the terminals: drag
   them by their header onto another pane, resize them with the dividers, zoom them, reach
   them with `Ctrl`+`1`…`9`. Kit tabs come back where you left them after a restart.
