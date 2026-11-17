@@ -228,17 +228,13 @@ impl Server {
 /// tests play the browser, and hand the router what a browser would ask it.
 const BASE_URL: &str = "https://account.test";
 
-/// Both providers configured, at the stand-in for them (`tests/fake.rs`).
+/// The provider configured, at the stand-in for it (`tests/fake.rs`).
 fn sign_in() -> SignIn {
     SignIn {
         base_url: BASE_URL.into(),
         github: Some(OAuthClient {
             client_id: fake::GITHUB_CLIENT.0.into(),
             client_secret: fake::GITHUB_CLIENT.1.into(),
-        }),
-        google: Some(OAuthClient {
-            client_id: fake::GOOGLE_CLIENT.0.into(),
-            client_secret: fake::GOOGLE_CLIENT.1.into(),
         }),
         endpoints: Endpoints::fake(fake::provider().base()),
     }
@@ -652,7 +648,7 @@ async fn a_signed_out_machine_signing_in_again_finds_its_device_and_its_rows() {
     assert_eq!(again.device.revoked_at, None);
     assert_eq!(server.stats(&again.token, "").await.rows.len(), 1);
     // Another account's machine with the same id is another device.
-    let other = server.account("Bob", Provider::Google).await;
+    let other = server.account("Bob", Provider::Github).await;
     let bob = server.sign_in(&other, "m1").await;
     assert_ne!(bob.device.id, first.device.id);
     assert!(server.stats(&bob.token, "").await.rows.is_empty());
@@ -752,29 +748,18 @@ async fn last_seen_moves_at_most_once_a_minute() {
 // ------------------------------------------------------------------------ me
 
 #[tokio::test]
-async fn me_is_the_account_with_every_provider_and_the_device_asking() {
+async fn me_is_the_account_and_the_device_asking() {
     let server = Server::new();
-    let account = server.account("Ada", Provider::Google).await;
-    let later = NewIdentity {
-        display_name: "Ada L.".into(),
-        avatar_url: Some("https://example.org/ada.png".into()),
-        ..identity("Ada", Provider::Github)
-    };
-    let (id, now) = (account.clone(), T0 + 1);
-    server
-        .state
-        .db
-        .call(move |conn| account::add_identity(conn, &id, &later, now))
-        .await
-        .unwrap();
+    let account = server.account("Ada", Provider::Github).await;
     let first = server.sign_in(&account, "m1").await;
     let second = server.sign_in(&account, "m2").await;
 
     let me: MeResponse = server.get(paths::ME, &second.token).await.json();
-    // The profile of the first identity, the providers of both.
+    assert_eq!(me.account.id, account);
     assert_eq!(me.account.display_name, "Ada");
+    assert_eq!(me.account.email.as_deref(), Some("ada@example.org"));
     assert_eq!(me.account.avatar_url, None);
-    assert_eq!(me.account.providers, [Provider::Google, Provider::Github]);
+    assert_eq!(me.account.providers, [Provider::Github]);
     assert_eq!(me.device.id, second.device.id);
     assert_ne!(me.device.id, first.device.id);
 
@@ -796,6 +781,33 @@ async fn me_is_the_account_with_every_provider_and_the_device_asking() {
         json!({ "id": bob, "display_name": "Bob", "providers": ["github"] })
     );
     assert!(me["device"].get("revoked_at").is_none());
+}
+
+#[tokio::test]
+async fn an_account_of_a_provider_the_server_no_longer_knows_keeps_its_devices() {
+    // Its identity is of a provider this server once signed people in with:
+    // nobody signs in with it again, but the devices it linked keep their
+    // tokens, and the account shows without it.
+    let server = Server::new();
+    let account = server.account("Ada", Provider::Github).await;
+    let token = server.sign_in(&account, "m1").await.token;
+    let id = account.clone();
+    server
+        .state
+        .db
+        .call(move |conn| {
+            conn.execute(
+                "UPDATE identities SET provider = 'gitlab' WHERE account_id = ?1",
+                params![id],
+            )?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    let me: MeResponse = server.get(paths::ME, &token).await.json();
+    assert_eq!(me.account.id, account);
+    assert_eq!(me.account.display_name, "Ada");
+    assert!(me.account.providers.is_empty());
 }
 
 // ------------------------------------------------------------------- devices
@@ -1384,14 +1396,6 @@ async fn deleting_the_account_deletes_everything_of_it_and_nothing_else() {
     let server = Server::new();
     let ada = server.account("Ada", Provider::Github).await;
     let bob = server.account("Bob", Provider::Github).await;
-    let second = identity("Ada", Provider::Google);
-    let id = ada.clone();
-    server
-        .state
-        .db
-        .call(move |conn| account::add_identity(conn, &id, &second, T0))
-        .await
-        .unwrap();
     let a1 = server.sign_in(&ada, "m1").await;
     let a2 = server.sign_in(&ada, "m2").await;
     let b = server.sign_in(&bob, "m1").await;

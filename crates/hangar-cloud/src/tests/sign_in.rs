@@ -199,34 +199,17 @@ fn github_email(email: &str, primary: bool, verified: bool) -> Value {
     json!({ "email": email, "primary": primary, "verified": verified, "visibility": null })
 }
 
-/// Google's answer about somebody.
-fn google(sub: &str, name: &str, email: &str, verified: bool) -> Person {
-    Person {
-        google_userinfo: json!({
-            "sub": sub,
-            "name": name,
-            "picture": format!("https://photos.test/{sub}"),
-            "email": email,
-            "email_verified": verified,
-        }),
-        ..Person::default()
-    }
-}
-
-/// Ada, with an account at both providers under the same verified address.
+/// Ada, at GitHub: a verified primary address, and an older one beside it.
 fn ada() -> Person {
-    Person {
-        google_userinfo: google("g-ada", "Ada L.", "ada@example.org", true).google_userinfo,
-        ..github(
-            1815,
-            "ada",
-            Some("Ada Lovelace"),
-            json!([
-                github_email("old@example.org", false, true),
-                github_email("ada@example.org", true, true),
-            ]),
-        )
-    }
+    github(
+        1815,
+        "ada",
+        Some("Ada Lovelace"),
+        json!([
+            github_email("old@example.org", false, true),
+            github_email("ada@example.org", true, true),
+        ]),
+    )
 }
 
 // ------------------------------------------------------------- the whole way
@@ -309,46 +292,6 @@ async fn a_sign_in_with_github_ends_with_a_token_that_works() {
 }
 
 #[tokio::test]
-async fn a_sign_in_with_google_ends_with_a_token_that_works() {
-    let server = Server::new();
-    let who = fake::provider().add(ada());
-    let desktop = Desktop::new();
-
-    let started = browse(&server, &desktop.start_path("google")).await;
-    let authorize = started.location();
-    assert!(
-        authorize.starts_with(&format!("{}/google/authorize?", fake::provider().base())),
-        "{authorize}"
-    );
-    let asked = query_of(&authorize);
-    assert_eq!(asked["client_id"], fake::GOOGLE_CLIENT.0);
-    assert_eq!(
-        asked["redirect_uri"],
-        "https://account.test/v1/auth/callback/google"
-    );
-    assert_eq!(asked["scope"], "openid email profile");
-    assert!(!authorize.contains(fake::GOOGLE_CLIENT.1));
-
-    let back = consent(&authorize, &who).await;
-    let fields = browse(&server, on_server(&back))
-        .await
-        .to_loopback(&desktop);
-    let answer = server
-        .exchange(&fields["code"], desktop.verifier, machine("m1", "Atelier"))
-        .await;
-    let signed_in: ExchangeResponse = answer.json();
-    assert_eq!(signed_in.account.display_name, "Ada L.");
-    assert_eq!(signed_in.account.email.as_deref(), Some("ada@example.org"));
-    assert_eq!(
-        signed_in.account.avatar_url.as_deref(),
-        Some("https://photos.test/g-ada")
-    );
-    assert_eq!(signed_in.account.providers, [Provider::Google]);
-    let me = server.get(paths::ME, &signed_in.token).await;
-    assert_eq!(me.status, StatusCode::OK);
-}
-
-#[tokio::test]
 async fn the_link_code_is_only_good_with_the_verifier_of_the_desktop_that_started() {
     let server = Server::new();
     let who = fake::provider().add(ada());
@@ -418,124 +361,47 @@ async fn signing_in_again_is_the_same_account_with_today_s_profile() {
 }
 
 #[tokio::test]
-async fn the_same_verified_email_through_the_other_provider_is_the_same_account() {
-    for (first, second) in [("github", "google"), ("google", "github")] {
-        let server = Server::new();
-        let who = fake::provider().add(ada());
-        let one = sign_in_as(&server, first, &who, "m1").await;
-        let two = sign_in_as(&server, second, &who, "m2").await;
-        assert_eq!(two.account.id, one.account.id, "{first} then {second}");
-        assert_eq!(two.account.providers.len(), 2);
-        assert_eq!(
-            two.account.providers[0].as_str(),
-            first,
-            "the first identity first"
-        );
-        // The account shows the profile of its first identity.
-        assert_eq!(two.account.display_name, one.account.display_name);
-        assert_eq!(rows(&server, "SELECT count(*) FROM accounts").await, 1);
-        assert_eq!(rows(&server, "SELECT count(*) FROM identities").await, 2);
-        // Both machines are the account's, whichever provider signed them in.
-        assert_eq!(server.devices(&one.token).await.len(), 2);
-    }
+async fn an_address_is_kept_in_lower_case() {
+    let server = Server::new();
+    let who = fake::provider().add(Person {
+        github_emails: json!([github_email("Ada@Example.ORG", true, true)]),
+        ..ada()
+    });
+    let signed_in = sign_in_as(&server, "github", &who, "m1").await;
+    assert_eq!(signed_in.account.email.as_deref(), Some("ada@example.org"));
 }
 
 #[tokio::test]
-async fn the_case_of_an_address_does_not_make_it_another() {
-    let server = Server::new();
-    let who = fake::provider().add(Person {
-        google_userinfo: google("g-ada", "Ada", "Ada@Example.ORG", true).google_userinfo,
-        ..ada()
-    });
-    let one = sign_in_as(&server, "github", &who, "m1").await;
-    let two = sign_in_as(&server, "google", &who, "m2").await;
-    assert_eq!(two.account.id, one.account.id);
-}
-
-#[tokio::test]
-async fn an_address_the_new_provider_did_not_verify_joins_nothing() {
-    // Google does not vouch for the address.
-    let server = Server::new();
-    let who = fake::provider().add(Person {
-        google_userinfo: google("g-eve", "Eve", "ada@example.org", false).google_userinfo,
-        ..ada()
-    });
-    let ada_s = sign_in_as(&server, "github", &who, "m1").await;
-    let eve_s = sign_in_as(&server, "google", &who, "m2").await;
-    assert_ne!(eve_s.account.id, ada_s.account.id);
-    assert_eq!(eve_s.account.providers, [Provider::Google]);
-    // An address nobody verified is not kept at all.
-    assert_eq!(eve_s.account.email, None);
-    assert_eq!(ada_s.account.providers, [Provider::Github]);
-
-    // `email_verified` left out, or anything but true, is not verified.
-    for verified in [json!(null), json!("false"), json!("yes"), json!(1)] {
-        let server = Server::new();
-        let mut userinfo = google("g-eve", "Eve", "ada@example.org", true).google_userinfo;
-        userinfo["email_verified"] = verified.clone();
-        let who = fake::provider().add(Person {
-            google_userinfo: userinfo,
-            ..ada()
-        });
-        let ada_s = sign_in_as(&server, "github", &who, "m1").await;
-        let eve_s = sign_in_as(&server, "google", &who, "m2").await;
-        assert_ne!(eve_s.account.id, ada_s.account.id, "{verified}");
-    }
-
-    // GitHub: the address is there and verified but is not the primary one,
-    // or is the primary one and not verified.
-    for emails in [
-        json!([
-            github_email("eve@example.org", true, true),
-            github_email("ada@example.org", false, true),
-        ]),
-        json!([github_email("ada@example.org", true, false)]),
-        json!([]),
+async fn only_the_primary_verified_address_is_kept() {
+    // Verified but not the primary one, the primary one but not verified, or
+    // none: an address GitHub does not vouch for is not kept at all.
+    for (emails, kept) in [
+        (
+            json!([
+                github_email("eve@example.org", true, true),
+                github_email("ada@example.org", false, true),
+            ]),
+            Some("eve@example.org"),
+        ),
+        (json!([github_email("ada@example.org", true, false)]), None),
+        (json!([]), None),
     ] {
         let server = Server::new();
         let who = fake::provider().add(Person {
             github_emails: emails.clone(),
             ..ada()
         });
-        let ada_s = sign_in_as(&server, "google", &who, "m1").await;
-        let eve_s = sign_in_as(&server, "github", &who, "m2").await;
-        assert_ne!(eve_s.account.id, ada_s.account.id, "{emails}");
-        assert_ne!(eve_s.account.email.as_deref(), Some("ada@example.org"));
+        let signed_in = sign_in_as(&server, "github", &who, "m1").await;
+        assert_eq!(signed_in.account.email.as_deref(), kept, "{emails}");
     }
 }
 
 #[tokio::test]
-async fn an_address_the_first_provider_did_not_verify_is_joined_by_nobody() {
-    // The account was made with an address GitHub did not vouch for; Google
-    // then vouches for the same one. Not the same person as far as anybody
-    // knows.
-    let server = Server::new();
-    let who = fake::provider().add(Person {
-        github_emails: json!([github_email("ada@example.org", true, false)]),
-        ..ada()
-    });
-    let first = sign_in_as(&server, "github", &who, "m1").await;
-    assert_eq!(first.account.email, None);
-    let second = sign_in_as(&server, "google", &who, "m2").await;
-    assert_ne!(second.account.id, first.account.id);
-    assert_eq!(rows(&server, "SELECT count(*) FROM accounts").await, 2);
-
-    // The other way round.
-    let server = Server::new();
-    let who = fake::provider().add(Person {
-        google_userinfo: google("g-ada", "Ada", "ada@example.org", false).google_userinfo,
-        ..ada()
-    });
-    let first = sign_in_as(&server, "google", &who, "m1").await;
-    let second = sign_in_as(&server, "github", &who, "m2").await;
-    assert_ne!(second.account.id, first.account.id);
-}
-
-#[tokio::test]
-async fn an_address_that_stops_being_verified_stops_linking() {
+async fn an_address_github_stops_vouching_for_is_forgotten() {
     let server = Server::new();
     let who = fake::provider().add(ada());
     let first = sign_in_as(&server, "github", &who, "m1").await;
+    assert_eq!(first.account.email.as_deref(), Some("ada@example.org"));
     // GitHub no longer vouches for it at the next sign-in.
     fake::provider().update(
         &who,
@@ -547,14 +413,11 @@ async fn an_address_that_stops_being_verified_stops_linking() {
     let again = sign_in_as(&server, "github", &who, "m1").await;
     assert_eq!(again.account.id, first.account.id);
     assert_eq!(again.account.email, None);
-    let other = sign_in_as(&server, "google", &who, "m2").await;
-    assert_ne!(other.account.id, first.account.id);
 }
 
 #[tokio::test]
-async fn a_second_identity_of_the_same_provider_never_joins_an_account() {
+async fn the_same_address_at_another_identity_is_another_account() {
     let server = Server::new();
-    // Ada, at GitHub only, then at Google too.
     let ada_key = fake::provider().add(ada());
     let ada_s = sign_in_as(&server, "github", &ada_key, "m1").await;
     // Somebody else at GitHub, later, with the address Ada's row still holds.
@@ -566,17 +429,10 @@ async fn a_second_identity_of_the_same_provider_never_joins_an_account() {
     ));
     let other_s = sign_in_as(&server, "github", &other, "m2").await;
     assert_ne!(other_s.account.id, ada_s.account.id);
+    assert_eq!(other_s.account.providers, [Provider::Github]);
     // Without a name, the login.
     assert_eq!(other_s.account.display_name, "newcomer");
-
-    // Nor through Ada's Google identity, once her account has both.
-    let server = Server::new();
-    let ada_s = sign_in_as(&server, "github", &ada_key, "m1").await;
-    let both = sign_in_as(&server, "google", &ada_key, "m1").await;
-    assert_eq!(both.account.id, ada_s.account.id);
-    let other_s = sign_in_as(&server, "github", &other, "m2").await;
-    assert_ne!(other_s.account.id, ada_s.account.id);
-    assert_eq!(other_s.account.providers, [Provider::Github]);
+    assert_eq!(rows(&server, "SELECT count(*) FROM accounts").await, 2);
 }
 
 // ------------------------------------------------------- the server's state
@@ -668,7 +524,7 @@ async fn sign_ins_nobody_finished_leave_the_database() {
     let server = Server::new();
     let desktop = Desktop::new();
     browse(&server, &desktop.start_path("github")).await;
-    browse(&server, &desktop.start_path("google")).await;
+    browse(&server, &desktop.start_path("github")).await;
     assert_eq!(rows(&server, "SELECT count(*) FROM auth_states").await, 2);
     server.advance(10 * MINUTE);
     // What the housekeeping runs once a minute.
@@ -683,20 +539,28 @@ async fn sign_ins_nobody_finished_leave_the_database() {
 }
 
 #[tokio::test]
-async fn a_state_of_one_provider_is_refused_at_the_other_s_callback_and_spent() {
+async fn a_sign_in_started_with_another_provider_is_refused_and_spent() {
     let server = Server::new();
     let who = fake::provider().add(ada());
     let desktop = Desktop::new();
     let back = back_from_provider(&server, "github", &who, &desktop).await;
-    let at_google = on_server(&back).replace("/callback/github", "/callback/google");
-    browse(&server, &at_google)
+    // The row says another provider: one this server no longer knows.
+    server
+        .state
+        .db
+        .call(|conn| {
+            conn.execute("UPDATE auth_states SET provider = 'gitlab'", [])?;
+            Ok(())
+        })
         .await
-        .is_page(400, "This sign-in has expired");
-    assert_eq!(fake::provider().exchanges(&who), 0);
-    // Spent: the right callback does not find it any more.
+        .unwrap();
     browse(&server, on_server(&back))
         .await
         .is_page(400, "This sign-in has expired");
+    assert_eq!(fake::provider().exchanges(&who), 0);
+    // Spent: nothing is left of it.
+    assert_eq!(rows(&server, "SELECT count(*) FROM auth_states").await, 0);
+    assert_eq!(rows(&server, "SELECT count(*) FROM link_codes").await, 0);
 }
 
 #[tokio::test]
@@ -754,7 +618,7 @@ async fn a_person_who_says_no_is_sent_back_with_access_denied() {
         ..ada()
     });
     let desktop = Desktop::new();
-    let back = back_from_provider(&server, "google", &who, &desktop).await;
+    let back = back_from_provider(&server, "github", &who, &desktop).await;
     assert!(back.contains("error=access_denied"), "{back}");
     browse(&server, on_server(&back))
         .await
@@ -772,20 +636,14 @@ async fn a_person_who_says_no_is_sent_back_with_access_denied() {
 
 #[tokio::test]
 async fn a_provider_that_fails_is_said_to_the_desktop_as_provider_error() {
-    for (provider, step) in [
-        ("github", "token"),
-        ("github", "user"),
-        ("github", "emails"),
-        ("google", "token"),
-        ("google", "userinfo"),
-    ] {
+    for step in ["token", "user", "emails"] {
         let server = Server::new();
         let who = fake::provider().add(Person {
             breaks_at: Some(step),
             ..ada()
         });
         let desktop = Desktop::new();
-        let arrived = arrive(&server, provider, &who, &desktop).await;
+        let arrived = arrive(&server, "github", &who, &desktop).await;
         arrived.is_loopback_error(&desktop, "provider_error");
         assert_eq!(rows(&server, "SELECT count(*) FROM accounts").await, 0);
         assert_eq!(rows(&server, "SELECT count(*) FROM link_codes").await, 0);
@@ -801,56 +659,35 @@ async fn an_error_from_the_provider_or_a_code_it_refuses_is_a_provider_error() {
             on_server(back).split('?').next().unwrap()
         )
     };
-    for provider in ["github", "google"] {
-        for query in [
-            // The provider's own error, whatever it is called.
-            "&error=server_error&error_description=oops",
-            "&error=",
-            // A code the provider never gave, and none.
-            "&code=forged",
-            "&code=",
-            "",
-        ] {
-            let server = Server::new();
-            let who = fake::provider().add(ada());
-            let desktop = Desktop::new();
-            let back = back_from_provider(&server, provider, &who, &desktop).await;
-            let answer = browse(&server, &callback(&back, query)).await;
-            answer.is_loopback_error(&desktop, "provider_error");
-            assert_eq!(rows(&server, "SELECT count(*) FROM accounts").await, 0);
-        }
+    for query in [
+        // The provider's own error, whatever it is called.
+        "&error=server_error&error_description=oops",
+        "&error=",
+        // A code the provider never gave, and none.
+        "&code=forged",
+        "&code=",
+        "",
+    ] {
+        let server = Server::new();
+        let who = fake::provider().add(ada());
+        let desktop = Desktop::new();
+        let back = back_from_provider(&server, "github", &who, &desktop).await;
+        let answer = browse(&server, &callback(&back, query)).await;
+        answer.is_loopback_error(&desktop, "provider_error");
+        assert_eq!(rows(&server, "SELECT count(*) FROM accounts").await, 0);
     }
 }
 
 #[tokio::test]
 async fn a_profile_without_an_id_is_a_provider_error() {
-    for (provider, person) in [
-        (
-            "github",
-            Person {
-                github_user: json!({ "login": "ada" }),
-                ..ada()
-            },
-        ),
-        (
-            "google",
-            Person {
-                google_userinfo: json!({ "sub": "", "email": "ada@example.org" }),
-                ..ada()
-            },
-        ),
-        (
-            "google",
-            Person {
-                google_userinfo: json!("nonsense"),
-                ..ada()
-            },
-        ),
-    ] {
+    for github_user in [json!({ "login": "ada" }), json!("nonsense")] {
         let server = Server::new();
-        let who = fake::provider().add(person);
+        let who = fake::provider().add(Person {
+            github_user,
+            ..ada()
+        });
         let desktop = Desktop::new();
-        arrive(&server, provider, &who, &desktop)
+        arrive(&server, "github", &who, &desktop)
             .await
             .is_loopback_error(&desktop, "provider_error");
     }
@@ -860,9 +697,9 @@ async fn a_profile_without_an_id_is_a_provider_error() {
 async fn an_avatar_that_is_not_https_is_not_kept() {
     let server = Server::new();
     let mut person = ada();
-    person.google_userinfo["picture"] = json!("javascript:alert(1)");
+    person.github_user["avatar_url"] = json!("javascript:alert(1)");
     let who = fake::provider().add(person);
-    let signed_in = sign_in_as(&server, "google", &who, "m1").await;
+    let signed_in = sign_in_as(&server, "github", &who, "m1").await;
     assert_eq!(signed_in.account.avatar_url, None);
 }
 
@@ -934,7 +771,7 @@ async fn two_sign_ins_at_once_each_come_back_to_their_own_desktop() {
         machine: "Portable",
     };
     let back_one = back_from_provider(&server, "github", &who, &one).await;
-    let back_two = back_from_provider(&server, "google", &who, &two).await;
+    let back_two = back_from_provider(&server, "github", &who, &two).await;
     let fields_two = browse(&server, on_server(&back_two))
         .await
         .to_loopback(&two);
@@ -1000,7 +837,7 @@ async fn a_start_the_server_would_not_follow_is_refused_and_stores_nothing() {
         start("github", "49152", "s", c, "a%0Ab"),
         // A field twice.
         format!("{}&port=50000", start("github", "49152", "s", c, "A")),
-        format!("{}&provider=google", start("github", "49152", "s", c, "A")),
+        format!("{}&provider=github", start("github", "49152", "s", c, "A")),
         // No query at all.
         paths::AUTH_START.to_string(),
     ];
@@ -1031,7 +868,7 @@ async fn a_start_the_server_would_not_follow_is_refused_and_stores_nothing() {
     // state and machine name.
     for path in [
         start("github", "1024", "s", c, "A"),
-        start("google", "65535", "s", c, "A"),
+        start("github", "65535", "s", c, "A"),
         start("github", "49152", &"s".repeat(200), c, &"é".repeat(100)),
         start("github", "49152", "s", c, "Ada%27s%20MacBook%20Pro"),
     ] {
@@ -1050,19 +887,15 @@ async fn a_provider_the_server_has_no_client_for_is_unavailable() {
         Db::in_memory(),
         Rates::default(),
         SignIn {
-            google: None,
+            github: None,
             ..sign_in()
         },
     );
     let desktop = Desktop::new();
-    browse(&server, &desktop.start_path("google"))
+    browse(&server, &desktop.start_path("github"))
         .await
         .is_page(503, "This sign-in method is not available");
     assert_eq!(rows(&server, "SELECT count(*) FROM auth_states").await, 0);
-    // The other one works.
-    browse(&server, &desktop.start_path("github"))
-        .await
-        .location();
 }
 
 #[tokio::test]

@@ -51,7 +51,7 @@ pub enum ErrorCode {
     RateLimited,
     /// The server's own fault.
     Internal,
-    /// GitHub or Google refused or answered nonsense.
+    /// GitHub refused or answered nonsense.
     ProviderError,
     /// This server has no client id for the provider asked for.
     ProviderUnavailable,

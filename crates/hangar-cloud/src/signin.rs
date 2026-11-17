@@ -1,4 +1,4 @@
-//! Signing in with GitHub or Google (docs/native/cloud.md, "Signing in"):
+//! Signing in with GitHub (docs/native/cloud.md, "Signing in"):
 //! the two routes a browser goes through, between the desktop that opened it
 //! and the desktop's loopback listener it ends at.
 //!
@@ -282,7 +282,7 @@ pub async fn callback(
 
 /// The sign-in the server's state names, deleted as it is read: found once,
 /// and never after. Nothing when it is unknown, expired, or was started with
-/// the other provider (and it is consumed all the same).
+/// another provider (and it is consumed all the same).
 fn take(
     conn: &mut Connection,
     state_hash: &Hash,

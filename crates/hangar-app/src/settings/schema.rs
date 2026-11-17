@@ -608,7 +608,7 @@ pub fn build_categories(ctx: &Context) -> Vec<Category> {
             Icon::Cloud,
             "hangarAccount",
             Some(tx(Key::HangarAccountIntro)),
-            "hangar account compte hangar sync synchronisation statistiques statistics machines github google cloud sign in connexion"
+            "hangar account compte hangar sync synchronisation statistiques statistics machines github cloud sign in connexion"
                 .to_string(),
             Block::HangarAccount,
         ),

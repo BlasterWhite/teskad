@@ -694,8 +694,8 @@ fn signing_in_exchanges_the_code_and_keeps_the_token() {
 fn the_page_is_french_for_a_french_browser() {
     let server = Server::start();
     let (cloud, _tokens, _dir) = server.signed_out("sign-in-fr");
-    let sign_in = cloud.sign_in(Provider::Google).unwrap();
-    assert_eq!(param(sign_in.url(), "provider"), "google");
+    let sign_in = cloud.sign_in(Provider::Github).unwrap();
+    assert_eq!(param(sign_in.url(), "provider"), "github");
     let page = browse(&sign_in, "fr-FR,fr;q=0.9,en;q=0.8");
     assert!(page
         .html

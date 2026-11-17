@@ -102,13 +102,12 @@ impl Page {
             ),
             (Page::Unavailable, Lang::En) => (
                 "This sign-in method is not available",
-                "This server is not set up to sign in with this provider. Try the other one \
-                 from Hangar.",
+                "This server is not set up to sign in with GitHub yet. Try again later.",
             ),
             (Page::Unavailable, Lang::Fr) => (
                 "Cette méthode de connexion n\u{2019}est pas disponible",
-                "Ce serveur n\u{2019}est pas configuré pour ce fournisseur. Essayez l\u{2019}autre \
-                 depuis Hangar.",
+                "Ce serveur n\u{2019}est pas encore configuré pour la connexion avec GitHub. \
+                 Réessayez plus tard.",
             ),
             (Page::Expired, Lang::En) => (
                 "This sign-in has expired",

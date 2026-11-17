@@ -1,8 +1,7 @@
 # The Hangar account (optional)
 
 A Hangar account ("Compte Hangar") links several machines: sign in with GitHub
-or Google on each, and the usage statistics of all of them can be read from any
-of them.
+on each, and the usage statistics of all of them can be read from any of them.
 
 It is optional and off by default. A Hangar nobody signed in with never calls
 the account server, has no code path waiting on it, and works exactly as it
@@ -50,13 +49,12 @@ one.
 
 ### What the server stores
 
-- **The account**: an id, and what each provider said at the last sign-in
-  with it: a display name, an email address when the provider gives a
-  verified one (kept in lower case), an avatar URL when it is an `https` one,
-  and the provider's own id for the person. GitHub is asked for
-  `read:user user:email`, Google for `openid email profile`. The provider's
-  access token is used once, to read that profile, and is not kept. An
-  address the provider does not vouch for is not stored at all.
+- **The account**: an id, and what GitHub said at the last sign-in: a
+  display name, an email address when GitHub gives a verified one (kept in
+  lower case), an avatar URL when it is an `https` one, and GitHub's own id
+  for the person. GitHub is asked for `read:user user:email`. Its access
+  token is used once, to read that profile, and is not kept. An address
+  GitHub does not vouch for is not stored at all.
 - **The devices**: for each machine, the server's id, the machine's id, name
   and operating system, when it was linked and last seen, and the SHA-256 of
   its token. The token itself is sent once, at the exchange, and exists
@@ -73,8 +71,9 @@ limits count addresses in memory, for a minute. Cloudflare, in front of it,
 sees what any reverse proxy sees.
 
 What a person is told of all this is the site's privacy page,
-`site/privacy.html` (https://hangar.simnjs.fr/privacy.html), which Google's
-consent screen links to. When this section changes, that page changes with it.
+`site/privacy.html` (https://hangar.simnjs.fr/privacy.html), which the Hangar
+account section of the settings links to. When this section changes, that page
+changes with it.
 
 ### Deleting
 
@@ -154,26 +153,14 @@ desktop                          browser                 server                 
   account already has a device with that id, it is that device that is signed
   in again (its previous token stops working, its rows are kept) rather than a
   second one that appears.
-- **One account per person.** An identity (a provider and its id for the
-  person) belongs to one account. At each sign-in the server looks, in order
-  (`account::resolve`):
-  1. for the account this identity already belongs to. Its name, address and
-     avatar become what the provider says today; an address the provider no
-     longer vouches for is forgotten;
-  2. otherwise, when the provider says the address is **verified**, for the
-     account that holds an identity of the *other* provider with the same
-     verified address (compared in lower case): the new identity joins it,
-     and `providers` then lists both. Same person, same account;
-  3. otherwise it creates a new account.
-
-  An address a provider did not verify never joins anything, on either side:
-  it is not even stored, so there is nothing to match. For GitHub the address
-  is the one of `/user/emails` that is both primary and verified (never the
-  public `email` of `/user`); for Google it is `email` when `email_verified`
-  is true. The second step is also skipped, for a new account, whenever it
-  would have to guess: when the account found already has an identity of this
-  provider (two GitHub identities with one address means the stored one is
-  out of date), or when more than one account matches.
+- **One account per identity.** An identity (a provider and its id for the
+  person) belongs to one account. At each sign-in the server looks for the
+  account this identity already belongs to (`account::resolve`): its name,
+  address and avatar become what GitHub says today, and an address GitHub no
+  longer vouches for is forgotten. Otherwise it creates a new account. An
+  address never finds an account: the same address at another GitHub
+  identity is another account. The address is the one of `/user/emails` that
+  is both primary and verified (never the public `email` of `/user`).
 
 ## The protocol
 
@@ -203,7 +190,7 @@ the desktop words what it shows from `error`.
 | `too_large` | 413 | More than 5000 rows, or a body over 4 MiB. |
 | `rate_limited` | 429 | Too many requests; `Retry-After` says when to come back. |
 | `internal` | 500 | The server's fault. |
-| `provider_error` | 502 | GitHub or Google refused, or answered nonsense. |
+| `provider_error` | 502 | GitHub refused, or answered nonsense. |
 | `provider_unavailable` | 503 | This server has no OAuth client for the provider. |
 
 A desktop reads a code it does not know as a refusal like any other
@@ -222,7 +209,7 @@ Opened in the system browser, not called by the desktop.
 
 | Query | |
 |---|---|
-| `provider` | `github` or `google` |
+| `provider` | `github` |
 | `port` | The desktop's loopback port, 1024 to 65535 |
 | `state` | The desktop's state, 1 to 200 characters of `[A-Za-z0-9-._~]` |
 | `challenge` | `base64url(sha256(verifier))`, 43 characters |
@@ -248,7 +235,7 @@ sheet by its hash and nothing else (`default-src 'none'; style-src
 #### `GET /v1/auth/callback/{provider}`
 
 Where the provider sends the browser back: the redirect URI registered with
-GitHub and Google. Not called by the desktop. `302` to
+GitHub. Not called by the desktop. `302` to
 `http://127.0.0.1:<port>/callback` with
 
 - `?code=<link code>&state=<desktop state>` when the person is signed in;
@@ -259,7 +246,7 @@ GitHub and Google. Not called by the desktop. `302` to
 
 The server reads three things of the query, `state`, `code` and `error`, and
 nothing else. A callback whose own state the server does not know (missing,
-expired, replayed, forged, or started with the other provider) is answered
+expired, replayed, forged, or started with another provider) is answered
 with a `400` page and redirects nowhere: there is no desktop to send it to.
 The server's own failure after that is a `500` page.
 
@@ -418,18 +405,16 @@ the server with a sentence naming it.
 | `HANGAR_CLOUD_BASE_URL` | `https://account.hangar.simnjs.fr` | The server's public origin (scheme and host, no path): the OAuth redirect URIs are built from it. |
 | `HANGAR_CLOUD_TRUSTED_PROXIES` | `1` | How many reverse proxies are in front of the server, 0 to 8. `1` is Cloudflare and nothing else; `2` when another proxy sits between Cloudflare and the container; `0` when the server is reached directly (development). See "Cloudflare" below. |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | none | The GitHub OAuth app. Both or neither. |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | none | The Google OAuth client. Both or neither. |
 
-A provider without its two variables is off: `/v1/auth/start` answers `503`
-for it. The redirect URI to register with each provider is
-`<HANGAR_CLOUD_BASE_URL>/v1/auth/callback/github` (or `/google`); the server
-prints them at start, with each client's id and never its secret.
+Without the two GitHub variables, sign-in is off: `/v1/auth/start` answers
+`503`. The redirect URI to register with GitHub is
+`<HANGAR_CLOUD_BASE_URL>/v1/auth/callback/github`; the server prints it at
+start, with the client's id and never its secret.
 
-Where GitHub and Google are is not configuration: the server calls
-`github.com`, `api.github.com`, `accounts.google.com`, `oauth2.googleapis.com`
-and `openidconnect.googleapis.com` over HTTPS, follows no redirect from them,
-and no variable points it elsewhere. Only the tests stand something in for
-them (`crates/hangar-cloud/src/tests/fake.rs`).
+GitHub's address is not configuration: the server calls `github.com` and
+`api.github.com` over HTTPS, follows no redirect from them, and no variable
+points it elsewhere. Only the tests stand something in for them
+(`crates/hangar-cloud/src/tests/fake.rs`).
 
 While developing, on a port of one's own:
 
@@ -440,16 +425,16 @@ cargo run -p hangar-cloud
 HANGAR_CLOUD_URL=http://127.0.0.1:21120 cargo run -p hangar-app
 ```
 
-To sign in against it, register a second OAuth app at each provider with
-`http://127.0.0.1:21120/v1/auth/callback/<provider>` as its callback (both
-accept a loopback address over plain HTTP), and give the server their ids and
-secrets: never the production ones.
+To sign in against it, register a second GitHub OAuth app with
+`http://127.0.0.1:21120/v1/auth/callback/github` as its callback (GitHub
+accepts a loopback address over plain HTTP), and give the server its id and
+secret: never the production ones.
 
 ## Deploy
 
 One container, one volume, behind Cloudflare at
 `https://account.hangar.simnjs.fr`, run by `crates/hangar-cloud/compose.yaml`.
-The person deploys; CI only builds, checks and publishes the image (step 4).
+The person deploys; CI only builds, checks and publishes the image (step 3).
 
 ### 1. The GitHub OAuth app
 
@@ -468,35 +453,14 @@ the consent page names the organization).
 Then "Generate a new client secret". The client ID is `GITHUB_CLIENT_ID`, the
 secret `GITHUB_CLIENT_SECRET`; GitHub shows the secret once.
 
-### 2. The Google OAuth client
+The callback URL must match to the character: `https`, no trailing slash, no
+port. It is `HANGAR_CLOUD_BASE_URL` followed by the path, and the server
+prints it at start.
 
-In the Google Cloud console, in a project of its own, under "Google Auth
-Platform" (the console's names move; these are 2026's):
-
-- **Branding**: the app's name (`Hangar.AI`), a support email, the home page
-  `https://hangar.simnjs.fr`, the privacy policy
-  `https://hangar.simnjs.fr/privacy.html` (`site/privacy.html`: Google
-  requires it, and it must be online before the app is published), and
-  `simnjs.fr` as authorized domain.
-- **Audience**: External, then "Publish app" (In production). Left in
-  Testing, only the listed test users can sign in.
-- **Data access**: the scopes `openid`, `.../auth/userinfo.email` and
-  `.../auth/userinfo.profile`, and no other. All three are non-sensitive, so
-  the scopes need no review by Google.
-- **Clients**: Create client, type **Web application**. No authorized
-  JavaScript origin. Authorized redirect URI:
-  `https://account.hangar.simnjs.fr/v1/auth/callback/google`.
-
-The client ID is `GOOGLE_CLIENT_ID`, the secret `GOOGLE_CLIENT_SECRET`.
-
-Both callback URLs must match to the character: `https`, no trailing slash, no
-port. They are `HANGAR_CLOUD_BASE_URL` followed by the path, and the server
-prints them at start.
-
-### 3. The settings
+### 2. The settings
 
 On the host, in a folder of its own (`/opt/hangar-cloud`, say), the Compose
-file and the settings, which hold the two clients' secrets: readable by their
+file and the settings, which hold the client's secret: readable by their
 owner only, never in the shell's history or on a command line.
 
 ```sh
@@ -513,17 +477,15 @@ sudoedit hangar-cloud.env
 ```
 GITHUB_CLIENT_ID=…
 GITHUB_CLIENT_SECRET=…
-GOOGLE_CLIENT_ID=…
-GOOGLE_CLIENT_SECRET=…
 # Only when they differ from the defaults (see "Running the server"):
 # HANGAR_CLOUD_TRUSTED_PROXIES=1
 # HANGAR_CLOUD_BASE_URL=https://account.hangar.simnjs.fr
 ```
 
 No quotes around the values: Compose keeps them as written. A value left
-empty is no value: that provider is off.
+empty is no value: without both GitHub values, sign-in is off.
 
-### 4. The image
+### 3. The image
 
 CI builds the image whenever the server changes, checks it as a host runs
 it (it starts with no secret, answers `/health`, refuses `/v1` without a
@@ -560,7 +522,7 @@ docker compose up -d --build
 (`crates/hangar-cloud/*.env` is ignored by git and left out of the image's
 build context.)
 
-### 5. Run it
+### 4. Run it
 
 Behind a reverse proxy on the host (Caddy, Traefik, nginx, Coolify,
 Dokploy), which reaches the server at `127.0.0.1:8080`
@@ -586,13 +548,13 @@ docker compose --profile tunnel up -d
 
 The tunnel starts once the server reports healthy. The tunnel is the case
 `HANGAR_CLOUD_TRUSTED_PROXIES=1` (the default) is for; behind Cloudflare and
-a reverse proxy, set it to `2` (step 6).
+a reverse proxy, set it to `2` (step 5).
 
 The server runs as a user of its own (uid 10001) on a read-only root, with no
 capability, listens on 8080 and keeps its one file in the volume
 `hangar-cloud-data`: that volume is the whole state of the service. The log's
-first lines say what it runs with, and for each provider its client id and
-redirect URI, or "not configured". They never hold a secret, and the server
+first lines say what it runs with, and GitHub's client id and redirect URI,
+or "not configured". They never hold a secret, and the server
 logs no request afterwards: only its own failures, as a step and a status.
 `hangar-cloud health` (the image's health check) asks its own `/health`.
 
@@ -609,7 +571,7 @@ docker run -d --name hangar-cloud --restart unless-stopped \
   ghcr.io/hangar-ai/hangar-cloud:latest
 ```
 
-### 6. Cloudflare
+### 5. Cloudflare
 
 DNS: a record for `account.hangar.simnjs.fr` (the name `account.hangar` in the
 `simnjs.fr` zone), pointing at the host or at the tunnel, **proxied** (orange
@@ -654,7 +616,7 @@ For this hostname, in Cloudflare:
   Analytics snippet): the sign-in pages' policy refuses every script, so it
   would only fill the browser's console with refusals.
 
-### 7. Check it
+### 6. Check it
 
 ```sh
 curl -fsS https://account.hangar.simnjs.fr/health
@@ -667,18 +629,16 @@ curl -sI https://account.hangar.simnjs.fr/v1/me | head -1
 monitor (Cloudflare's health checks, or any other) at it. The image's own health check (`hangar-cloud health`) asks the same route
 from inside the container: `docker compose ps` shows it.
 
-Then sign in for real, from a Hangar with no `HANGAR_CLOUD_URL` set, once with
-each provider. What a mistake looks like:
+Then sign in for real, from a Hangar with no `HANGAR_CLOUD_URL` set. What a
+mistake looks like:
 
 | What you see | What it is |
 |---|---|
 | GitHub: "The redirect_uri is not associated with this application" | The callback URL of step 1, or `HANGAR_CLOUD_BASE_URL`. |
-| Google: "Error 400: redirect_uri_mismatch" | The redirect URI of step 2, or `HANGAR_CLOUD_BASE_URL`. |
-| Google: "Access blocked", or only you can sign in | The app is still in Testing (step 2, Audience). |
-| The server's page "This sign-in method is not available" (`503`) | The container did not get that provider's two variables: `docker logs hangar-cloud` says "not configured". |
+| The server's page "This sign-in method is not available" (`503`) | The container did not get the two GitHub variables: `docker logs hangar-cloud` says "not configured". |
 | Hangar says the provider failed (`provider_error`) | `docker logs hangar-cloud` names the step: "failed at the code's exchange: status 401" or "the provider refused the code" is a wrong client secret. |
-| `429` after a few sign-ins | `HANGAR_CLOUD_TRUSTED_PROXIES` is too low (step 6). |
-| The desktop cannot reach the server at all, the browser can | A Cloudflare challenge on `/v1` (step 6). |
+| `429` after a few sign-ins | `HANGAR_CLOUD_TRUSTED_PROXIES` is too low (step 5). |
+| The desktop cannot reach the server at all, the browser can | A Cloudflare challenge on `/v1` (step 5). |
 
 ### Backups
 
@@ -740,7 +700,7 @@ migrated is refused by an older one, which says so and stops: going back a
 version means restoring the snapshot taken before the update. Machines stay
 signed in across an update, their tokens being in the database.
 
-To change a client secret: generate the new one at the provider, put it in
+To change the client secret: generate the new one on GitHub, put it in
 `hangar-cloud.env`, and run `docker compose up -d` (it recreates the
 container when its settings changed; `docker restart` does not read the file
 again). Nobody is signed out by it.
@@ -749,6 +709,6 @@ again). Nobody is signed out by it.
 
 Built: this document, the protocol's types, the server (storage, device
 tokens, machines, statistics, account deletion, the sign-in with GitHub and
-Google and its pages), the desktop's calls, sign-in and sync, the Hangar
+its pages), the desktop's calls, sign-in and sync, the Hangar
 account section of the settings, the "This PC / All machines" switch of the
 statistics, the site's privacy page. Not done yet: the first deployment (see "Deploy").

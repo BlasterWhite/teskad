@@ -76,7 +76,7 @@ fn shows(st: State, locale: Locale, words: &[&str], absent: &[&str]) {
 }
 
 #[test]
-fn signed_out_the_card_offers_the_two_providers_and_nothing_else() {
+fn signed_out_the_card_offers_github_and_nothing_else() {
     let st = State {
         phase: Phase::SignedOut,
         ..State::default()
@@ -84,7 +84,7 @@ fn signed_out_the_card_offers_the_two_providers_and_nothing_else() {
     shows(
         st,
         Locale::En,
-        &["Sign in with GitHub", "Sign in with Google"],
+        &["Sign in with GitHub"],
         &["Sync statistics", "Sign out", "Delete my account"],
     );
     let st = State {
@@ -94,7 +94,7 @@ fn signed_out_the_card_offers_the_two_providers_and_nothing_else() {
     shows(
         st,
         Locale::Fr,
-        &["Se connecter avec GitHub", "Se connecter avec Google"],
+        &["Se connecter avec GitHub"],
         &["Se déconnecter"],
     );
 }

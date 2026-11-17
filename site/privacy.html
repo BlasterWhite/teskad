@@ -63,7 +63,7 @@
     </header>
 
     <div class="legal">
-      <p class="legal__date">Last updated: 16 November 2026.</p>
+      <p class="legal__date">Last updated: 17 November 2026.</p>
 
       <div class="legal__short">
         <p><strong>In short.</strong></p>
@@ -84,24 +84,24 @@
       <p>
         It does not cover Claude Code, which Hangar.AI runs on your computer under your own Claude
         account: what Claude Code sends to Anthropic is between you and Anthropic. Nor does it cover
-        GitHub or Google, which you use to sign in and which have privacy policies of their own.
+        GitHub, which you use to sign in and which has a privacy policy of its own.
       </p>
 
       <h2 id="account">The Hangar account</h2>
       <p>
         A Hangar account links several of your machines, so that the usage statistics of all of them
-        can be read from any of them. You create it by signing in with GitHub or with Google from
-        Hangar's settings. Nothing in the app requires it.
+        can be read from any of them. You create it by signing in with GitHub from Hangar's
+        settings. Nothing in the app requires it.
       </p>
 
       <h3 id="stores">What the server stores</h3>
       <ul>
         <li>
-          <strong>Who signed in.</strong> What GitHub or Google says about you when you sign in: their
-          identifier for you, your display name, your email address when they confirm it is verified,
-          and the address of your avatar. Hangar asks GitHub for <code>read:user user:email</code> and
-          Google for <code>openid email profile</code>: your profile and your email address, nothing
-          else. It cannot read your repositories, your mail, your files or your contacts.
+          <strong>Who signed in.</strong> What GitHub says about you when you sign in: its identifier
+          for you, your display name, your email address when it confirms it is verified, and the
+          address of your avatar. Hangar asks GitHub for <code>read:user user:email</code>: your
+          profile and your email address, nothing else. It cannot read your repositories, your files
+          or your contacts.
         </li>
         <li>
           <strong>Your machines.</strong> For each machine you sign in from: its name, its operating
@@ -116,7 +116,7 @@
           (<code>hangar</code>), never its path.
         </li>
         <li>
-          <strong>Sign-ins in progress.</strong> While you are on GitHub's or Google's page: the
+          <strong>Sign-ins in progress.</strong> While you are on GitHub's page: the
           machine's name and what is needed to bring you back to Hangar. Deleted when you come back,
           and after ten minutes if you do not. The one-time code that ends a sign-in is deleted within
           five minutes.
@@ -133,21 +133,13 @@
         <li>The paths of your files or folders.</li>
         <li>Your conversations with Claude: no prompt, no answer, no transcript, no session title.</li>
         <li>Your code, your files, your diffs, your commits.</li>
-        <li>GitHub's or Google's access token. It is used once, to read your profile at sign-in, and is not kept.</li>
-        <li>Your password at GitHub or Google, which Hangar never sees.</li>
+        <li>GitHub's access token. It is used once, to read your profile at sign-in, and is not kept.</li>
+        <li>Your GitHub password, which Hangar never sees.</li>
         <li>Your IP address. The server keeps no request log. To limit abuse it counts requests per address in memory, for about a minute, and writes none of it down.</li>
       </ul>
       <p>
         The server has no field to receive any of this, and refuses a project name that contains a
         path separator.
-      </p>
-
-      <h3 id="one-account">GitHub and Google, one account</h3>
-      <p>
-        If you sign in with GitHub on one machine and with Google on another, and both confirm the
-        <strong>same verified email address</strong>, you get one Hangar account, not two: the same
-        person, the same account. An email address that the provider has not verified is never used
-        to join accounts, and is not stored.
       </p>
 
       <h3 id="use">What it is used for</h3>
@@ -180,16 +172,15 @@
       <ul>
         <li><strong>Sign out</strong> destroys this machine's token. Its statistics stay on your account, so that signing in again finds them.</li>
         <li><strong>Forget a machine</strong> deletes that machine and every statistic it sent.</li>
-        <li><strong>Delete my account</strong> deletes everything: the account, what GitHub and Google said about you, every machine and its token, every statistic. It happens at once, and nothing is kept aside.</li>
+        <li><strong>Delete my account</strong> deletes everything: the account, what GitHub said about you, every machine and its token, every statistic. It happens at once, and nothing is kept aside.</li>
       </ul>
       <p>
         Turning the statistics sync off stops sending new totals; forgetting the machine or deleting
         the account removes the ones already sent.
       </p>
       <p>
-        To also withdraw the access you gave Hangar at the provider, remove it from
-        <a href="https://github.com/settings/applications">your GitHub applications</a> or from
-        <a href="https://myaccount.google.com/connections">your Google account's connections</a>.
+        To also withdraw the access you gave Hangar on GitHub, remove it from
+        <a href="https://github.com/settings/applications">your GitHub applications</a>.
       </p>
 
       <h2 id="rights">Your rights</h2>

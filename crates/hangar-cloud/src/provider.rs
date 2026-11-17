@@ -1,6 +1,6 @@
-//! GitHub and Google, as the sign-in meets them: where the browser is sent
-//! to consent, and the calls the server then makes itself, once per sign-in:
-//! the code exchanged for an access token, the profile read with it
+//! GitHub, as the sign-in meets it: where the browser is sent to consent,
+//! and the calls the server then makes itself, once per sign-in: the code
+//! exchanged for an access token, the profile read with it
 //! (docs/native/cloud.md, "Signing in").
 //!
 //! The access token lives in this module's local variables and nowhere else:
@@ -17,7 +17,6 @@ use std::time::Duration;
 use hangar_cloud_api::Provider;
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
-use serde_json::Value;
 
 use crate::account::NewIdentity;
 use crate::config::OAuthClient;
@@ -26,21 +25,17 @@ use crate::config::OAuthClient;
 const MAX_NAME_CHARS: usize = 100;
 /// The longest address there is (RFC 5321).
 const MAX_EMAIL_CHARS: usize = 254;
-/// The longest provider id and avatar URL the server keeps.
-const MAX_ID_CHARS: usize = 255;
+/// The longest avatar URL the server keeps.
 const MAX_URL_CHARS: usize = 2000;
 
-/// Where each provider is. The real ones, always, outside of the tests: no
-/// variable of the environment moves them.
+/// Where the provider is. The real one, always, outside of the tests: no
+/// variable of the environment moves it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Endpoints {
     pub github_authorize: String,
     pub github_token: String,
     /// `/user` and `/user/emails` are under it.
     pub github_api: String,
-    pub google_authorize: String,
-    pub google_token: String,
-    pub google_userinfo: String,
 }
 
 impl Default for Endpoints {
@@ -49,34 +44,27 @@ impl Default for Endpoints {
             github_authorize: "https://github.com/login/oauth/authorize".into(),
             github_token: "https://github.com/login/oauth/access_token".into(),
             github_api: "https://api.github.com".into(),
-            google_authorize: "https://accounts.google.com/o/oauth2/v2/auth".into(),
-            google_token: "https://oauth2.googleapis.com/token".into(),
-            google_userinfo: "https://openidconnect.googleapis.com/v1/userinfo".into(),
         }
     }
 }
 
 impl Endpoints {
-    /// A stand-in for both providers at `base` (`http://127.0.0.1:<port>`).
+    /// A stand-in for the provider at `base` (`http://127.0.0.1:<port>`).
     #[cfg(test)]
     pub fn fake(base: &str) -> Self {
         Self {
             github_authorize: format!("{base}/github/authorize"),
             github_token: format!("{base}/github/token"),
             github_api: format!("{base}/github/api"),
-            google_authorize: format!("{base}/google/authorize"),
-            google_token: format!("{base}/google/token"),
-            google_userinfo: format!("{base}/google/userinfo"),
         }
     }
 }
 
-/// What the server asks each provider for: who the person is and their
+/// What the server asks the provider for: who the person is and their
 /// address, and nothing they own.
 pub fn scopes(provider: Provider) -> &'static str {
     match provider {
         Provider::Github => "read:user user:email",
-        Provider::Google => "openid email profile",
     }
 }
 
@@ -92,7 +80,6 @@ pub fn authorize_url(
 ) -> String {
     let base = match provider {
         Provider::Github => &endpoints.github_authorize,
-        Provider::Google => &endpoints.google_authorize,
     };
     let query = [
         ("response_type", "code"),
@@ -139,12 +126,10 @@ pub fn identify(
 ) -> Result<NewIdentity, Failed> {
     let token_url = match provider {
         Provider::Github => &endpoints.github_token,
-        Provider::Google => &endpoints.google_token,
     };
     let token = access_token(provider, token_url, client, redirect_uri, code, verifier)?;
     match provider {
         Provider::Github => github_identity(&endpoints.github_api, &token),
-        Provider::Google => google_identity(&endpoints.google_userinfo, &token),
     }
 }
 
@@ -296,50 +281,9 @@ fn github_identity(api: &str, token: &str) -> Result<NewIdentity, Failed> {
     })
 }
 
-#[derive(Deserialize)]
-struct GoogleUser {
-    sub: String,
-    name: Option<String>,
-    picture: Option<String>,
-    email: Option<String>,
-    /// A boolean, which some of Google's answers write as a string.
-    email_verified: Option<Value>,
-}
-
-/// Google: the userinfo endpoint, over TLS, with the access token Google's
-/// token endpoint just gave this server for its own client and secret. The
-/// address counts only when `email_verified` is true.
-fn google_identity(userinfo: &str, token: &str) -> Result<NewIdentity, Failed> {
-    let provider = Provider::Google;
-    let user: GoogleUser = get_json(provider, "the profile", userinfo, token, "application/json")?;
-    let sub = user.sub.trim();
-    if sub.is_empty() || sub.chars().count() > MAX_ID_CHARS || sub.chars().any(char::is_control) {
-        return Err(failed(provider, "the profile", "an id that is not one"));
-    }
-    let verified = match &user.email_verified {
-        Some(Value::Bool(verified)) => *verified,
-        Some(Value::String(text)) => text == "true",
-        _ => false,
-    };
-    let email = user
-        .email
-        .as_deref()
-        .filter(|_| verified)
-        .and_then(verified_email);
-    let display_name = display_name([user.name.as_deref(), email.as_deref()], "Google user");
-    Ok(NewIdentity {
-        provider,
-        provider_user_id: sub.to_string(),
-        display_name,
-        email,
-        avatar_url: user.picture.as_deref().and_then(avatar_url),
-    })
-}
-
-/// An address the provider vouched for, as the server keeps and compares it:
-/// trimmed and in lower case, so that `Ada@Example.org` at one provider and
-/// `ada@example.org` at the other are one address. Nothing when it is not
-/// plausibly an address: it is then not kept, and links nothing.
+/// An address the provider vouched for, as the server keeps it: trimmed and
+/// in lower case. Nothing when it is not plausibly an address: it is then not
+/// kept.
 fn verified_email(email: &str) -> Option<String> {
     let email = email.trim().to_lowercase();
     let shaped = email.chars().count() <= MAX_EMAIL_CHARS
@@ -412,16 +356,6 @@ mod tests {
              &code_challenge_method=S256"
         );
         assert!(!url.contains("the-secret"));
-        let url = authorize_url(
-            &Endpoints::default(),
-            Provider::Google,
-            &client,
-            "https://x/v1/auth/callback/google",
-            "st",
-            "ch",
-        );
-        assert!(url.starts_with("https://accounts.google.com/o/oauth2/v2/auth?"));
-        assert!(url.contains("&scope=openid%20email%20profile&"), "{url}");
     }
 
     #[test]
@@ -431,9 +365,6 @@ mod tests {
             &endpoints.github_authorize,
             &endpoints.github_token,
             &endpoints.github_api,
-            &endpoints.google_authorize,
-            &endpoints.google_token,
-            &endpoints.google_userinfo,
         ] {
             assert!(url.starts_with("https://"), "{url}");
         }
