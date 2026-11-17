@@ -124,16 +124,14 @@ impl Grants {
 
     /// Serves `folder` too, and everything under it, when it is an absolute
     /// folder that exists.
-    pub(crate) fn with_root(mut self, folder: &str) -> Grants {
-        for root in canonical_roots(&[folder.to_string()]) {
-            if !self.roots.contains(&root) {
-                self.roots.push(root);
-            }
-        }
+    pub(crate) fn with_root(mut self, folder: &Path) -> Grants {
+        let root = canonical_root(folder).filter(|root| !self.roots.contains(root));
+        self.roots.extend(root);
         self
     }
 
     /// Only `roots`, canonical folders, and everything under them.
+    #[cfg(test)]
     pub(crate) fn of_roots(roots: Vec<PathBuf>) -> Grants {
         Grants {
             roots,
@@ -193,18 +191,23 @@ pub(crate) fn native_path(raw: &str) -> PathBuf {
 fn canonical_roots(roots: &[String]) -> Vec<PathBuf> {
     let mut canonical: Vec<PathBuf> = Vec::new();
     for root in roots {
-        let path = native_path(root.trim());
-        if !path.is_absolute() {
-            continue;
-        }
-        let Ok(path) = path.canonicalize() else {
+        let Some(path) = canonical_root(&native_path(root.trim())) else {
             continue;
         };
-        if path.is_dir() && !canonical.contains(&path) {
+        if !canonical.contains(&path) {
             canonical.push(path);
         }
     }
     canonical
+}
+
+/// `folder`'s canonical form, when it is an absolute folder that exists.
+fn canonical_root(folder: &Path) -> Option<PathBuf> {
+    if !folder.is_absolute() {
+        return None;
+    }
+    let path = folder.canonicalize().ok()?;
+    path.is_dir().then_some(path)
 }
 
 /// Which extensions a check accepts.

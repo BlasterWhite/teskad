@@ -556,7 +556,7 @@ pub async fn preview_inspect(path: String) -> Result<PreviewFile, String> {
 pub async fn preview_inspect_beside(path: String, beside: String) -> Result<PreviewFile, String> {
     let grants = model::granted();
     crate::git::off_thread(move || {
-        let grants = grants.with_root(&beside);
+        let grants = grants.with_root(&model::native_path(beside.trim()));
         inspect(&model::native_path(path.trim()), Within::Granted(&grants))
             .map(PreviewFile::from)
             .map_err(|refusal| refusal.explain(&path))

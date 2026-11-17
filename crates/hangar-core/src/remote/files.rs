@@ -282,7 +282,7 @@ fn judge(copy: &Path) -> (Kind, String) {
     };
     // Judged within the copy's own folder, and nowhere else: a copy that
     // leads out of it is no file to show.
-    let within = model::Grants::of_roots(vec![folder]);
+    let within = model::Grants::default().with_root(&folder);
     match preview::inspect(copy, model::Within::Granted(&within)) {
         Ok(shown) => {
             // What preview.rs tells the window of a file is all it tells
