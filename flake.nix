@@ -52,6 +52,23 @@
         ];
     in
     {
+      packages = forAllSystems (pkgs: {
+        default = self.packages.${pkgs.stdenv.hostPlatform.system}.hangar;
+        hangar = pkgs.callPackage ./nix/package.nix {
+          inherit (self.packages.${pkgs.stdenv.hostPlatform.system}) hangar-mobile;
+          runtimeLibs = runtimeLibs pkgs;
+          buildLibs = buildLibs pkgs;
+        };
+        hangar-mobile = pkgs.callPackage ./nix/mobile.nix { };
+      });
+
+      apps = forAllSystems (pkgs: {
+        default = {
+          type = "app";
+          program = "${self.packages.${pkgs.stdenv.hostPlatform.system}.hangar}/bin/hangar-ai";
+        };
+      });
+
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
           packages = with pkgs; [

@@ -57,3 +57,7 @@ __pycache__/
 
 # The optional Hangar account's server: the secrets beside its compose.yaml
 crates/hangar-cloud/*.env
+
+# `nix build` output links
+/result
+/result-*
