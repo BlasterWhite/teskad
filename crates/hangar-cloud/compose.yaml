@@ -50,7 +50,7 @@ services:
 
   # A Cloudflare Tunnel to the server, for a host that runs no reverse proxy
   # and opens no port: only with `--profile tunnel`. Its public hostname,
-  # account.hangar.simnjs.fr, points at the service http://hangar-cloud:8080.
+  # hangar-account.simnjs.fr, points at the service http://hangar-cloud:8080.
   cloudflared:
     image: cloudflare/cloudflared:latest
     profiles:

@@ -344,14 +344,14 @@ mod tests {
             &Endpoints::default(),
             Provider::Github,
             &client,
-            "https://account.hangar.simnjs.fr/v1/auth/callback/github",
+            "https://hangar-account.simnjs.fr/v1/auth/callback/github",
             "st",
             "ch",
         );
         assert_eq!(
             url,
             "https://github.com/login/oauth/authorize?response_type=code&client_id=the%20id\
-             &redirect_uri=https%3A%2F%2Faccount.hangar.simnjs.fr%2Fv1%2Fauth%2Fcallback%2Fgithub\
+             &redirect_uri=https%3A%2F%2Fhangar-account.simnjs.fr%2Fv1%2Fauth%2Fcallback%2Fgithub\
              &scope=read%3Auser%20user%3Aemail&state=st&code_challenge=ch\
              &code_challenge_method=S256"
         );

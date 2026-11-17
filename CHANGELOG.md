@@ -10,6 +10,12 @@ Every release, with its installers, is on the
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-11-17
+
+### Fixed
+
+- The Hangar account reaches its server at `hangar-account.simnjs.fr`: 2.4.0 pointed at an address that does not exist, so signing in failed.
+
 ## [2.4.0] - 2026-11-17
 
 ### Added
@@ -806,6 +812,7 @@ statistics, workspace sleep and per-workspace MCP servers.
 - Automatic updates from signed GitHub releases.
 - An interface in English and French (0.1.1).
 
+[2.4.1]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.1
 [2.4.0]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.0
 [2.3.0]: https://github.com/simnJS/hangar-ai/releases/tag/v2.3.0
 [2.2.1]: https://github.com/simnJS/hangar-ai/releases/tag/v2.2.1

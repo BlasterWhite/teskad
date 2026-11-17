@@ -594,10 +594,10 @@ fn row(day: &str, model: &str, project: &str, output: u64) -> StatsRow {
 
 #[test]
 fn the_server_is_the_public_one_unless_the_environment_names_another() {
-    assert_eq!(resolve_base_url(None), "https://account.hangar.simnjs.fr");
+    assert_eq!(resolve_base_url(None), "https://hangar-account.simnjs.fr");
     assert_eq!(
         resolve_base_url(Some("  ".into())),
-        "https://account.hangar.simnjs.fr"
+        "https://hangar-account.simnjs.fr"
     );
     // Paths are appended as they are, so the slash goes.
     assert_eq!(

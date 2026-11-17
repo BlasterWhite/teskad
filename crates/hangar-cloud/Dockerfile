@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 #
 # The server of the optional Hangar account (docs/native/cloud.md), behind
-# Cloudflare at https://account.hangar.simnjs.fr like the site is at
+# Cloudflare at https://hangar-account.simnjs.fr like the site is at
 # https://hangar.simnjs.fr (the Dockerfile at the root).
 #
 # Built from the root of the repository, which is where the workspace's

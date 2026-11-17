@@ -16,10 +16,10 @@ the PC, and have nothing to do with this.
 | Piece | Where | What |
 |---|---|---|
 | Protocol types | `crates/hangar-cloud-api` | Requests, answers, paths, limits, `API_VERSION`. Serde only; both sides build from it. |
-| Server | `crates/hangar-cloud` | One binary (axum, SQLite through rusqlite's `bundled`), one database file, a Docker image behind Cloudflare at `https://account.hangar.simnjs.fr`. |
+| Server | `crates/hangar-cloud` | One binary (axum, SQLite through rusqlite's `bundled`), one database file, a Docker image behind Cloudflare at `https://hangar-account.simnjs.fr`. |
 | Desktop | `crates/hangar-core/src/cloud/` | Sign-in, the device token in the OS keychain, the sync. Behind hangar-core's `desktop` feature: a node has no browser to sign in with. |
 
-The desktop reaches `https://account.hangar.simnjs.fr`, or the address in
+The desktop reaches `https://hangar-account.simnjs.fr`, or the address in
 `HANGAR_CLOUD_URL` when that variable is set (a local server, while developing).
 
 ## Privacy
@@ -402,7 +402,7 @@ the server with a sentence naming it.
 |---|---|---|
 | `HANGAR_CLOUD_BIND` | `0.0.0.0:8080` | The address and port to listen on. |
 | `HANGAR_CLOUD_DB` | `/data/hangar-cloud.sqlite` | The SQLite file. |
-| `HANGAR_CLOUD_BASE_URL` | `https://account.hangar.simnjs.fr` | The server's public origin (scheme and host, no path): the OAuth redirect URIs are built from it. |
+| `HANGAR_CLOUD_BASE_URL` | `https://hangar-account.simnjs.fr` | The server's public origin (scheme and host, no path): the OAuth redirect URIs are built from it. |
 | `HANGAR_CLOUD_TRUSTED_PROXIES` | `1` | How many reverse proxies are in front of the server, 0 to 8. `1` is Cloudflare and nothing else; `2` when another proxy sits between Cloudflare and the container; `0` when the server is reached directly (development). See "Cloudflare" below. |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | none | The GitHub OAuth app. Both or neither. |
 
@@ -433,7 +433,7 @@ secret: never the production ones.
 ## Deploy
 
 One container, one volume, behind Cloudflare at
-`https://account.hangar.simnjs.fr`, run by `crates/hangar-cloud/compose.yaml`.
+`https://hangar-account.simnjs.fr`, run by `crates/hangar-cloud/compose.yaml`.
 The person deploys; CI only builds, checks and publishes the image (step 3).
 
 ### 1. The GitHub OAuth app
@@ -447,7 +447,7 @@ the consent page names the organization).
 |---|---|
 | Application name | `Hangar.AI` |
 | Homepage URL | `https://hangar.simnjs.fr` |
-| Authorization callback URL | `https://account.hangar.simnjs.fr/v1/auth/callback/github` |
+| Authorization callback URL | `https://hangar-account.simnjs.fr/v1/auth/callback/github` |
 | Enable Device Flow | off |
 
 Then "Generate a new client secret". The client ID is `GITHUB_CLIENT_ID`, the
@@ -479,7 +479,7 @@ GITHUB_CLIENT_ID=…
 GITHUB_CLIENT_SECRET=…
 # Only when they differ from the defaults (see "Running the server"):
 # HANGAR_CLOUD_TRUSTED_PROXIES=1
-# HANGAR_CLOUD_BASE_URL=https://account.hangar.simnjs.fr
+# HANGAR_CLOUD_BASE_URL=https://hangar-account.simnjs.fr
 ```
 
 No quotes around the values: Compose keeps them as written. A value left
@@ -536,7 +536,7 @@ docker logs hangar-cloud
 
 Or through a Cloudflare Tunnel, with no reverse proxy and no port open to the
 internet at all: in Cloudflare, Zero Trust, Networks, Tunnels, create a tunnel
-(cloudflared), add the public hostname `account.hangar.simnjs.fr` with the
+(cloudflared), add the public hostname `hangar-account.simnjs.fr` with the
 service `HTTP` `hangar-cloud:8080`, and put the tunnel's token in
 `cloudflared.env` (`crates/hangar-cloud/cloudflared.env.example`):
 
@@ -573,7 +573,7 @@ docker run -d --name hangar-cloud --restart unless-stopped \
 
 ### 5. Cloudflare
 
-DNS: a record for `account.hangar.simnjs.fr` (the name `account.hangar` in the
+DNS: a record for `hangar-account.simnjs.fr` (the name `account.hangar` in the
 `simnjs.fr` zone), pointing at the host or at the tunnel, **proxied** (orange
 cloud), like the site's. TLS is Cloudflare's: SSL/TLS mode "Full (strict)" when the
 origin has a certificate, and "Always Use HTTPS" on. The server sends
@@ -609,7 +609,7 @@ For this hostname, in Cloudflare:
 - no challenge: Bot Fight Mode, "Under Attack" and managed challenges answer
   with a page that a browser solves and the desktop cannot. The desktop calls
   `/v1/…` with a plain HTTP client; a challenge there looks like the server
-  being down. Skip them for `account.hangar.simnjs.fr`;
+  being down. Skip them for `hangar-account.simnjs.fr`;
 - no cache rule: every answer says `Cache-Control: no-store`, and some carry a
   token. Do not add "Cache Everything";
 - nothing injected into HTML (Rocket Loader, email obfuscation, the Web
@@ -619,9 +619,9 @@ For this hostname, in Cloudflare:
 ### 6. Check it
 
 ```sh
-curl -fsS https://account.hangar.simnjs.fr/health
+curl -fsS https://hangar-account.simnjs.fr/health
 # {"status":"ok","api_version":1,"version":"2.3.0"}
-curl -sI https://account.hangar.simnjs.fr/v1/me | head -1
+curl -sI https://hangar-account.simnjs.fr/v1/me | head -1
 # HTTP/2 401
 ```
 
