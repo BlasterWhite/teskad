@@ -1,8 +1,8 @@
 # This fork
 
 [OLIVIER-CG/hangar](https://github.com/OLIVIER-CG/hangar), forked from
-[hangar-ai/hangar](https://github.com/hangar-ai/hangar) at **v2.4.0**. Our changes live on
-the `custom` branch; `main` mirrors upstream.
+[hangar-ai/hangar](https://github.com/hangar-ai/hangar) at **v2.4.0**, with upstream's
+**2.4.1** merged in. Our changes live on the `custom` branch; `main` mirrors upstream.
 
 ## What differs from upstream
 
@@ -54,7 +54,7 @@ would delete it.
 
 ```bash
 git fetch upstream --tags
-git merge v2.4.1          # or upstream/main
+git merge upstream/main   # or a release tag, e.g. v2.4.2
 scripts/fork/build.sh
 ```
 
