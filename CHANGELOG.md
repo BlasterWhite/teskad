@@ -10,6 +10,10 @@ Every release, with its installers, is on the
 
 ## [Unreleased]
 
+### Fixed
+
+- The Hangar account reaches its server at `hangar-account.simnjs.fr`: 2.4.0 pointed at an address that does not exist, so signing in failed.
+
 ## [2.4.0] - 2026-11-17
 
 ### Added

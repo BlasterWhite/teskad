@@ -29,7 +29,7 @@ use serde::{Deserialize, Serialize};
 pub const API_VERSION: u32 = 1;
 
 /// Where the account server lives, unless `HANGAR_CLOUD_URL` says otherwise.
-pub const DEFAULT_BASE_URL: &str = "https://account.hangar.simnjs.fr";
+pub const DEFAULT_BASE_URL: &str = "https://hangar-account.simnjs.fr";
 
 /// The environment variable the desktop reads to reach another server (a
 /// local one, while developing).
