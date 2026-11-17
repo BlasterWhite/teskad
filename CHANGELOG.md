@@ -18,6 +18,10 @@ Every release, with its installers, is on the
 - **Hangar on NixOS.** A Nix flake at the root of the repository: `nix run github:hangar-ai/hangar` builds and starts Hangar with its webview helper and Hangar Mobile, its package goes in a NixOS or Home Manager config, and `nix develop` opens a shell with everything a build needs. On Nix, the MCP configs and the login item name the `hangar-ai` on your `PATH`, not the store path, so they survive upgrades and garbage collections. Nodes are not in the package yet. Contributed by Kisakay.
   - On NixOS, the **Set up Claude Code** sheet offers Claude Code from nixpkgs instead of Anthropic's installer, whose `claude` does not start there without nix-ld: the line for the configuration (`environment.systemPackages = [ pkgs.claude-code ];`) and a `nix profile install` command, to copy, with what claude-code being unfree asks for, then **Check again**. The installer stays behind **Use Anthropic's installer anyway**.
 
+### Changed
+
+- **The viewers open any file on the computer.** Images, PDFs, Markdown, code, video, web pages and 3D models shown by an agent (`preview_show`, `model_show`) or by you no longer have to be inside the workspace's folders, and a workspace whose folder is not a real path shows files too. What the viewer pages may load stays limited to what was shown (and, for a 3D model, the textures and buffers beside it): a page cannot read the rest of the disk.
+
 ## [2.3.0] - 2026-11-13
 
 ### Added
