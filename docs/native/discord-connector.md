@@ -480,7 +480,10 @@ The official documentation, read from
 [discord/discord-api-docs](https://github.com/discord/discord-api-docs)
 (commit `36adecb`, November 10, 2026): `components/reference`,
 `change-log`, `resources/message`, `resources/webhook`, `resources/channel`,
-`topics/rate-limits`, `interactions/receiving-and-responding`.
+`topics/rate-limits`, `interactions/receiving-and-responding`; and the
+upload limits of `reference` ("Uploading Files") and `change-log` (the
+20 MiB default of September 3, 2026) at commit `f339e92`, November 17,
+2026.
 
 ## Mockups
 
