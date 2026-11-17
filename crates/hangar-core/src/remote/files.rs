@@ -280,7 +280,10 @@ fn judge(copy: &Path) -> (Kind, String) {
     let Some(folder) = copy.parent().and_then(|folder| folder.canonicalize().ok()) else {
         return (Kind::File, OPAQUE.into());
     };
-    match preview::inspect(copy, &[folder]) {
+    // Judged within the copy's own folder, and nowhere else: a copy that
+    // leads out of it is no file to show.
+    let within = model::Grants::default().with_root(&folder);
+    match preview::inspect(copy, model::Within::Granted(&within)) {
         Ok(shown) => {
             // What preview.rs tells the window of a file is all it tells
             // anyone, and what the phone is told too: kind and served type.

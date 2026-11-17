@@ -300,48 +300,77 @@ async fn refuses_what_is_not_a_model_before_asking_anything() {
 }
 
 #[tokio::test]
-async fn refuses_a_model_outside_the_workspace_however_the_path_gets_there() {
+async fn shows_a_model_from_anywhere_on_the_computer_however_the_path_gets_there() {
     let fake = Fake::setup();
-    let refused = refusal(
+    let result = control(
         "model_show",
         with(from_ava(), json!({"path": "D:\\downloads\\chair.glb"})),
         &fake,
     )
-    .await;
-    contains(&refused, "outside your workspace");
-    contains(&refused, "C:\\dev\\hangar, C:\\dev\\hangar-wt\\feature");
-    contains(
-        &refusal(
-            "model_show",
-            with(from_ava(), json!({"path": "..\\shop\\car.glb"})),
-            &fake,
-        )
-        .await,
-        "C:\\dev\\shop\\car.glb is outside your workspace",
+    .await
+    .unwrap();
+    matches(
+        &result,
+        json!({"opened": true, "path": "D:\\downloads\\chair.glb", "format": "glb"}),
     );
-    assert!(fake.logged("show:").is_empty());
+    // Another workspace's folder is no further away.
+    let climbed = control(
+        "model_show",
+        with(from_ava(), json!({"path": "..\\shop\\car.glb"})),
+        &fake,
+    )
+    .await
+    .unwrap();
+    assert_eq!(climbed["path"], "C:\\dev\\shop\\car.glb");
+    let log = fake.log();
+    for line in [
+        "show:D:\\downloads\\chair.glb:chair.glb:Ava:w1",
+        "show:C:\\dev\\shop\\car.glb:car.glb:Ava:w1",
+        // The workspace's own folders are still granted to core, for what a
+        // file shown from them pulls in beside it.
+        "allow:w1:C:\\dev\\hangar|C:\\dev\\hangar-wt\\feature",
+    ] {
+        assert!(log.contains(&line.to_string()), "{line} not in {log:?}");
+    }
 }
 
+/// A workspace whose folder is not a path (one was named "Build anything")
+/// still shows an absolute file. A relative one has nowhere to start from,
+/// and core's own reason says so.
 #[tokio::test]
-async fn refuses_another_workspaces_model_that_core_would_serve() {
-    // Shop showed a model earlier, so its folder is allowed too; Ava's
-    // workspace is still the one that counts for Ava.
+async fn a_workspace_whose_folder_is_not_a_path_still_shows_absolute_files() {
     let fake = Fake::setup();
-    *lock(&fake.stat) = Some(Box::new(|path: &str| {
-        Some(Ok(ModelFileInfo {
-            path: path.into(),
-            size: 10,
-            modified_ms: 1,
-        }))
-    }));
+    fake.patch("w1", |ws| ws.cwd = "Build anything".into());
+    let picture = control(
+        "preview_show",
+        with(
+            from_ava(),
+            json!({"path": "C:\\Users\\me\\Pictures\\shot.png"}),
+        ),
+        &fake,
+    )
+    .await
+    .unwrap();
+    matches(&picture, json!({"kind": "image", "name": "shot.png"}));
+    let model = control(
+        "model_show",
+        with(from_ava(), json!({"path": "C:\\Users\\me\\chair.glb"})),
+        &fake,
+    )
+    .await
+    .unwrap();
+    matches(
+        &model,
+        json!({"opened": true, "path": "C:\\Users\\me\\chair.glb"}),
+    );
     contains(
         &refusal(
-            "model_show",
-            with(from_ava(), json!({"path": "C:\\dev\\shop\\car.glb"})),
+            "preview_show",
+            with(from_ava(), json!({"path": "out\\shot.png"})),
             &fake,
         )
         .await,
-        "outside your workspace",
+        "Build anything/out/shot.png is not an absolute path",
     );
 }
 
@@ -540,7 +569,6 @@ async fn picks_a_model_by_path_or_by_file_name_and_clamps_the_size() {
 #[tokio::test]
 async fn loads_a_file_rewritten_since_it_was_shown_before_rendering_it() {
     let fake = Fake::setup();
-    fake.grant(&["C:\\dev\\hangar"]);
     fake.preview
         .set(vec![open_model("m1", "C:\\dev\\hangar\\a.glb", "w1")]);
     lock(&fake.mtimes).insert("C:\\dev\\hangar\\a.glb".into(), 250);
@@ -925,30 +953,42 @@ async fn sends_a_3d_model_through_model_shows_own_load_and_answers_with_what_the
 }
 
 #[tokio::test]
-async fn refuses_without_a_path_outside_the_workspace_and_what_core_will_not_show_or_no_viewer_draws()
- {
+async fn shows_a_file_from_anywhere_on_the_computer() {
+    let fake = Fake::setup();
+    for (given, path) in [
+        ("D:\\downloads\\shot.png", "D:\\downloads\\shot.png"),
+        ("..\\shop\\logo.png", "C:\\dev\\shop\\logo.png"),
+    ] {
+        let shown = control(
+            "preview_show",
+            with(from_ava(), json!({"path": given})),
+            &fake,
+        )
+        .await
+        .unwrap();
+        matches(&shown, json!({"kind": "image"}));
+        assert!(
+            !fake.logged(&format!("inspect:{path}")).is_empty(),
+            "{given}"
+        );
+    }
+    let opened: Vec<String> = lock(&fake.preview.state)
+        .entries
+        .iter()
+        .map(|(_, entry)| entry.path.clone())
+        .collect();
+    assert_eq!(
+        opened,
+        ["D:\\downloads\\shot.png", "C:\\dev\\shop\\logo.png"]
+    );
+}
+
+#[tokio::test]
+async fn refuses_without_a_path_and_what_core_will_not_show_or_no_viewer_draws() {
     let fake = Fake::setup();
     contains(
         &refusal("preview_show", from_ava(), &fake).await,
         "Give the path of the file",
-    );
-    contains(
-        &refusal(
-            "preview_show",
-            with(from_ava(), json!({"path": "D:\\downloads\\shot.png"})),
-            &fake,
-        )
-        .await,
-        "outside your workspace. The preview only opens files from C:\\dev\\hangar",
-    );
-    contains(
-        &refusal(
-            "preview_show",
-            with(from_ava(), json!({"path": "..\\shop\\logo.png"})),
-            &fake,
-        )
-        .await,
-        "C:\\dev\\shop\\logo.png is outside your workspace",
     );
     assert_eq!(
         refusal(

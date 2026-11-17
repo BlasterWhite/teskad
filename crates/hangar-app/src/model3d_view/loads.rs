@@ -368,11 +368,13 @@ fn evict(st: &mut State, awake: &[&Want]) {
 /// The folders a model's own files — a glTF's textures, an OBJ's `.mtl` — may
 /// be read from, in the canonical form hangar-model3d compares them in.
 ///
-/// hangar-core holds the list of folders it serves for the whole process, but
-/// does not say what it holds; the same folders are worked out here the way
-/// the preview store grants them (`Shared::admit`): the workspace's folders
-/// and every worktree of their repositories, plus the folder the model is in,
-/// which core has already let through.
+/// hangar-core holds what it serves for the whole process, but does not say
+/// what it holds; the same folders are worked out here the way it grants them
+/// (`Shared::admit`, `preview_inspect`): the workspace's folders and every
+/// worktree of their repositories, plus the folder the model is in, which
+/// core serves too once the model is shown. A model may be anywhere on the
+/// computer: its own folder is always one of these, so the textures beside it
+/// load even when the workspace's folder is no path at all.
 pub async fn roots_for(workspace: Option<Workspace>, model: String) -> Vec<PathBuf> {
     let mut folders: Vec<String> = Vec::new();
     if let Some(workspace) = &workspace {
@@ -458,6 +460,21 @@ mod tests {
         assert!(roots.contains(&work.join("lib")), "{roots:?}");
         // Core let the model through, so its own folder is readable too.
         assert!(roots.contains(&other.path().to_path_buf()), "{roots:?}");
+    }
+
+    #[tokio::test]
+    async fn a_workspace_whose_folder_is_not_a_path_still_reads_beside_its_model() {
+        let other = Scratch::new("roots-bad-folder");
+        let workspace = Workspace {
+            id: "w1".into(),
+            cwd: "Build anything".into(),
+            ..Workspace::default()
+        };
+        let model = other.join("chair.glb").to_string_lossy().into_owned();
+        assert_eq!(
+            roots_for(Some(workspace), model).await,
+            vec![other.path().to_path_buf()]
+        );
     }
 
     #[tokio::test]

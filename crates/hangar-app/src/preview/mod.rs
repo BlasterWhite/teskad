@@ -591,17 +591,19 @@ fn read_image(id: &str, revision: u64, path: &str, size: decode::Size) -> Task<M
 }
 
 /// Reads the pictures a Markdown page names from the disk, off the UI thread
-/// and through the checks of `markdown::load_images`.
+/// and through the checks of `markdown::load_images`: beside the page, in
+/// `folder` or below, or among what the preview serves.
 fn markdown_images(
     id: &str,
     revision: u64,
+    folder: std::path::PathBuf,
     wanted: Vec<(String, std::path::PathBuf)>,
 ) -> Task<Message> {
     if wanted.is_empty() {
         return Task::none();
     }
     let id = id.to_string();
-    Task::perform(markdown::load_images(wanted), move |found| {
+    Task::perform(markdown::load_images(folder, wanted), move |found| {
         viewer_message(&id, revision, ViewerMsg::MarkdownImages(found))
     })
 }
@@ -707,7 +709,7 @@ fn viewer_update(
                 let rendered = parsed
                     .take()
                     .unwrap_or_else(|| markdown::Rendered::parse(&ready.text, &entry.path));
-                images = markdown_images(id, revision, rendered.wanted());
+                images = markdown_images(id, revision, rendered.folder(), rendered.wanted());
                 code = markdown_code(id, revision, generation, rendered.code_blocks());
                 viewer.rendered = Some(rendered);
             }

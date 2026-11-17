@@ -422,6 +422,97 @@ async fn a_page_opens_a_window_once_and_says_when_the_helper_is_not_installed() 
     assert_eq!(h.st.windows.state(&id), Some(&WinState::Waiting));
 }
 
+/// The first bytes of a PNG: what core reads to call a `.png` one.
+const PNG_HEAD: &[u8] = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR";
+
+/// What the scheme answers a page that asks for `path`, as the helper's
+/// windows ask: by its address, without an Origin.
+fn served(path: &Path) -> u16 {
+    let real = path.canonicalize().expect("a file");
+    let real = real.to_string_lossy();
+    let plain = real.strip_prefix(r"\\?\").unwrap_or(&real);
+    let request = http::Request::builder()
+        .uri(model::model_url(plain))
+        .body(Vec::new())
+        .expect("a request");
+    hangar_core::model::serve(&request, &[]).status().as_u16()
+}
+
+/// Showing reaches the whole computer: a picture and a model far from every
+/// folder of the workspace open as its panes. The scheme serves them, and the
+/// texture beside the model with it, but never the file beside the picture
+/// that no one showed.
+#[tokio::test]
+async fn a_file_outside_every_workspace_folder_is_shown_and_served_alone() {
+    let mut h = Harness::new("anywhere");
+    let far = scratch("anywhere-far");
+    let write = |name: &str, body: &[u8]| {
+        let path = far.join(name);
+        std::fs::create_dir_all(path.parent().expect("a folder")).expect("a folder");
+        std::fs::write(&path, body).expect("a file");
+        path
+    };
+    let shot = write("shot.png", PNG_HEAD);
+    let never = write("never.png", PNG_HEAD);
+    let chair = write("chair/chair.glb", b"glTF");
+    let texture = write("chair/textures/wood.png", PNG_HEAD);
+    assert_eq!(served(&shot), 403, "nothing is served before it is shown");
+
+    let picture = h.show(&shot.to_string_lossy()).await;
+    let model = h.show(&chair.to_string_lossy()).await;
+
+    assert!(h.ws().has_view(&picture), "the picture is a pane");
+    assert!(h.ws().has_view(&model), "the model is a pane");
+    assert_eq!(served(&shot), 200);
+    assert_eq!(served(&chair), 200);
+    assert_eq!(served(&texture), 200, "a model brings its textures");
+    assert_eq!(served(&never), 403, "a file beside one shown is not");
+}
+
+/// A workspace whose folder is not a path (one was typed as "Build
+/// anything") still shows a file by its absolute path; a relative one has
+/// nowhere to start from, and core's reason says so.
+#[tokio::test]
+async fn a_workspace_whose_folder_is_not_a_path_still_shows_absolute_files() {
+    let far = scratch("bad-folder");
+    let shot = far.join("shot.png");
+    std::fs::write(&shot, PNG_HEAD).expect("a file");
+    let mut model = Model::default();
+    model.hydrate(AppState {
+        workspaces: vec![Workspace {
+            id: WORKSPACE.into(),
+            name: "friend".into(),
+            cwd: "Build anything".into(),
+            ..Workspace::default()
+        }],
+        ..AppState::default()
+    });
+    let (_snapshots, receiver) = watch::channel(Arc::new(crate::state::snapshot_of(&model)));
+    let shared = Shared::new(None);
+    shared.attach(receiver);
+    let request = |path: &str| PreviewRequest {
+        ws: WORKSPACE.into(),
+        path: path.into(),
+        title: None,
+        opened_by: Some("pane-1".into()),
+        reveal: true,
+    };
+
+    let turn = ROOTS.lock().await;
+    let shown = shared.show_request(request(&shot.to_string_lossy())).await;
+    let refused = shared.show_request(request("out/shot.png")).await;
+    drop(turn);
+
+    let id = shown.expect("an absolute path is shown");
+    assert!(shared.owns(WORKSPACE, &id));
+    assert_eq!(served(&shot), 200);
+    let refused = refused.expect_err("a relative path has nowhere to start");
+    assert!(
+        refused.contains("Build anything") && refused.contains("is not an absolute path"),
+        "{refused}"
+    );
+}
+
 #[tokio::test]
 async fn a_file_shown_quietly_is_a_pane_and_opens_no_window_until_it_is_on_screen() {
     let mut h = Harness::new("quiet");

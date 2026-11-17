@@ -462,7 +462,6 @@ pub struct Fake {
     /// Who each queued prompt is from, as the session will read it.
     pub senders: Mutex<Vec<String>>,
     next: Mutex<u32>,
-    allowed: Mutex<Vec<String>>,
     pub mtimes: Mutex<HashMap<String, u64>>,
     pub preview: Arc<FakePreview>,
     /// The window drawing the preview answers.
@@ -529,7 +528,6 @@ impl Fake {
             typed: Arc::new(Mutex::new(Vec::new())),
             senders: Mutex::new(Vec::new()),
             next: Mutex::new(10),
-            allowed: Mutex::new(Vec::new()),
             mtimes: Mutex::new(HashMap::new()),
             preview: Arc::new(FakePreview {
                 state: Mutex::new(PreviewState {
@@ -586,10 +584,6 @@ impl Fake {
         }
     }
 
-    pub fn grant(&self, roots: &[&str]) {
-        *lock(&self.allowed) = roots.iter().map(|root| root.to_string()).collect();
-    }
-
     /// Until everything run in the background has ended, what it started
     /// included.
     pub async fn settle(&self) {
@@ -608,11 +602,15 @@ impl Fake {
         lock(&self.log).push(line);
     }
 
-    fn outside(&self, path: &str) -> bool {
-        let lower = path.to_lowercase();
-        !lock(&self.allowed)
-            .iter()
-            .any(|root| lower.starts_with(&root.to_lowercase()))
+    /// Core refuses a path that does not say where it starts: what is left of
+    /// a relative one whose workspace folder is not a path either.
+    fn relative(&self, path: &str) -> bool {
+        let bytes = path.as_bytes();
+        let drive = bytes.len() >= 3
+            && bytes[0].is_ascii_alphabetic()
+            && bytes[1] == b':'
+            && matches!(bytes[2], b'\\' | b'/');
+        !drive && !matches!(bytes.first(), Some(b'\\' | b'/'))
     }
 
     fn carry_out(&self, cmd: ModelCmd) -> CmdOut {
@@ -823,21 +821,18 @@ impl AppPort for Fake {
 
     fn model_allow_roots(&self, ws: &WsId, roots: Vec<String>) -> BoxFuture<Result<(), String>> {
         self.push(format!("allow:{ws}:{}", roots.join("|")));
-        *lock(&self.allowed) = roots;
         ready(Ok(()))
     }
 
-    // Core's rules, roughly: inside an allowed folder, present, any size.
+    // Core's rules, roughly: an absolute path, anywhere, present, any size.
     fn model_stat(&self, path: &str) -> BoxFuture<Result<ModelFileInfo, String>> {
         if let Some(answer) = lock(&self.stat).as_ref().and_then(|stat| stat(path)) {
             return ready(answer);
         }
         self.push(format!("stat:{path}"));
         let lower = path.to_lowercase();
-        if self.outside(path) {
-            return ready(Err(format!(
-                "{path} is outside every folder the preview may read"
-            )));
+        if self.relative(path) {
+            return ready(Err(format!("{path} is not an absolute path")));
         }
         if lower.contains("missing") {
             return ready(Err(format!("No such file: {path}")));
@@ -888,10 +883,8 @@ impl AppPort for Fake {
     fn preview_inspect(&self, path: &str) -> BoxFuture<Result<Value, String>> {
         self.push(format!("inspect:{path}"));
         let lower = path.to_lowercase();
-        if self.outside(path) {
-            return ready(Err(format!(
-                "{path} is outside every folder the preview may read"
-            )));
+        if self.relative(path) {
+            return ready(Err(format!("{path} is not an absolute path")));
         }
         if lower.contains("missing") {
             return ready(Err(format!("No such file: {path}")));
