@@ -124,6 +124,33 @@ Ideas and questions on [Discord](https://discord.gg/hangarai); bugs and pull req
 GitHub — start with [CONTRIBUTING.md](CONTRIBUTING.md) and the
 [code of conduct](CODE_OF_CONDUCT.md). Security issues: [SECURITY.md](SECURITY.md).
 
+## 💝 Contributors
+
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <img src="https://github.com/simnJS.png" width="100px" style="border-radius:50%" alt="simnJS"/><br/>
+      <b>simnJS</b><br/>
+      <i>Creator</i><br/>
+      <sub>He/Him/Femboy</sub><br/>
+      <a href="https://simnjs.fr">Website</a> / <a href="https://github.com/simnJS">GitHub</a>
+    </td>
+    <td align="center" width="33%">
+      <img src="https://github.com/Kisakay.png" width="100px" style="border-radius:50%" alt="Kisakay"/><br/>
+      <b>Kisakay</b><br/>
+      <i>Contributor · NixOS</i><br/>
+      <sub>She/Her</sub><br/>
+      <a href="https://github.com/Kisakay">GitHub</a>
+    </td>
+    <td align="center" width="33%">
+      <img src="https://github.com/McSon2.png" width="100px" style="border-radius:50%" alt="McSon2"/><br/>
+      <b>McSon2</b><br/>
+      <i>Contributor · macOS</i><br/>
+      <a href="https://github.com/McSon2">GitHub</a>
+    </td>
+  </tr>
+</table>
+
 ## License
 
 [MIT](LICENSE) © simnJS
