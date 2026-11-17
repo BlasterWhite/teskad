@@ -5,7 +5,8 @@
 <h1 align="center">Hangar.AI</h1>
 
 <p align="center">
-  <b>Run a team of Claude Code agents in one native window, and steer them from your phone.</b>
+  <b>Run a team of Claude Code agents in one native window, and steer them from your phone.</b><br>
+  <sub>Made for Claude Code, and only Claude Code.</sub>
 </p>
 
 <p align="center">
@@ -25,9 +26,11 @@
 
 ![The chat view of a Recipes workspace: you talk to Iris, the orchestrator, who split the app into four board tasks and started workers; the side panel shows each task's progress, and the inspector shows Iris's session and context use.](docs/images/chat-view.png)
 
-Hangar is an open-source native desktop app written in Rust (no Electron). It runs the Claude
-Code already on your machine, as many sessions as you need, and gives them a shared board,
-a shared memory and an orchestrator. No telemetry, ever. Everything works with no account; an
+Hangar is an open-source native desktop app written in Rust (no Electron), built for **Claude
+Code only**: it runs the Claude Code already on your machine, as many sessions as you need, and
+gives them a shared board, a shared memory and an orchestrator. Other coding agents (Codex,
+Gemini CLI, OpenCode) are not supported since 2.0; a pane can still be a plain shell.
+No telemetry, ever. Everything works with no account; an
 optional Hangar account (Settings › Hangar account, off by default) links your machines and
 syncs your usage statistics between them. Until you sign in, nothing leaves your PC. Once you
 do, and only if you turn the sync on, Hangar sends totals per machine, day, model and project
