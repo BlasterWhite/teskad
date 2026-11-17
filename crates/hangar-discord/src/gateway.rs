@@ -15,13 +15,16 @@ use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 
-/// What the bot hears: the guild's messages, their content, and the
-/// interactions (which every bot gets).
+/// What the bot hears: the guild's messages, their content, the reactions
+/// put on them (a ⚡ that sends a queued message now), and the interactions
+/// (which every bot gets).
 pub const GUILDS: u64 = 1 << 0;
 pub const GUILD_MESSAGES: u64 = 1 << 9;
+pub const GUILD_MESSAGE_REACTIONS: u64 = 1 << 10;
 pub const DIRECT_MESSAGES: u64 = 1 << 12;
 pub const MESSAGE_CONTENT: u64 = 1 << 15;
-pub const INTENTS: u64 = GUILDS | GUILD_MESSAGES | DIRECT_MESSAGES | MESSAGE_CONTENT;
+pub const INTENTS: u64 =
+    GUILDS | GUILD_MESSAGES | GUILD_MESSAGE_REACTIONS | DIRECT_MESSAGES | MESSAGE_CONTENT;
 
 /// One event: its name (`MESSAGE_CREATE`, `INTERACTION_CREATE`, `READY`…)
 /// and its data.

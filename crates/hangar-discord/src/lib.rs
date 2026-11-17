@@ -1,9 +1,9 @@
 //! The Discord connector (docs/native/discord-connector.md): a Discord
 //! server as one more surface of a Hangar, for whoever would rather not
 //! open the app. A category per folder, a channel per workspace (its
-//! orchestrator's conversation), a worker's thread opened on demand with a
-//! button; cards for what waits on the person; only the paired account is
-//! heard.
+//! orchestrator's conversation), a thread per worker opened when it
+//! starts; cards for what waits on the person; the files agents share with
+//! the phone, attached; only the paired account is heard.
 //!
 //! It serves whichever Hangar runs it (`Hangar`): the desktop app, where it
 //! reaches the same workspaces as the phone, local and on nodes; or a node
@@ -12,9 +12,9 @@
 //! - `rest`, `gateway`: the thin client of Discord's own it speaks with;
 //! - `cards`: the messages, as Components V2; `ids`: what a click acts on;
 //! - `bot`: the connector, the server's structure and the dashboards;
-//!   `follow`: the panes followed; `act`: what the person does; `lanes`:
-//!   what waits on Discord kept in order per agent and channel, side by
-//!   side between them.
+//!   `follow`: the panes followed; `shares`: the files agents share;
+//!   `act`: what the person does; `lanes`: what waits on Discord kept in
+//!   order per agent and channel, side by side between them.
 
 mod act;
 pub mod bot;
@@ -27,6 +27,7 @@ pub mod ids;
 mod lanes;
 pub mod rest;
 pub mod setup;
+pub mod shares;
 pub mod words;
 
 pub use bot::{Options, run};

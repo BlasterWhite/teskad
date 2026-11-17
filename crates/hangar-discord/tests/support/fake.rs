@@ -48,6 +48,9 @@ pub struct Fake {
     gateways: Vec<mpsc::UnboundedSender<Value>>,
     /// How long each REST call takes to answer: the network's round trip.
     latency: Duration,
+    /// The calls refused, as Discord refuses them: by method and a part
+    /// of their path, with the status answered (`Discord::refuse`).
+    refused: Vec<(String, String, u16)>,
 }
 
 type Shared = Arc<Mutex<Fake>>;
@@ -85,6 +88,16 @@ async fn rest(State(fake): State<Shared>, method: Method, uri: Uri, body: Bytes)
     };
     if !latency.is_zero() {
         tokio::time::sleep(latency).await;
+    }
+    let refused = locked(&fake)
+        .refused
+        .iter()
+        .find(|(m, part, _)| *m == method.as_str() && path.contains(part.as_str()))
+        .map(|(_, _, status)| *status);
+    if let Some(status) = refused {
+        let status = StatusCode::from_u16(status).unwrap_or(StatusCode::FORBIDDEN);
+        let said = json!({ "message": "Missing Permissions", "code": 50013 });
+        return (status, axum::Json(said)).into_response();
     }
     let only = path.split('?').next().unwrap_or_default().to_string();
     let answer = match (method.as_str(), only.as_str()) {
@@ -245,6 +258,19 @@ impl Discord {
 
     pub fn identified(&self) -> Option<Value> {
         locked(&self.fake).identified.clone()
+    }
+
+    /// The calls of `method` whose path holds `part` refused from now on,
+    /// answered `status`.
+    pub fn refuse(&self, method: &str, part: &str, status: u16) {
+        locked(&self.fake)
+            .refused
+            .push((method.to_string(), part.to_string(), status));
+    }
+
+    /// Every call answered again.
+    pub fn refuse_nothing(&self) {
+        locked(&self.fake).refused.clear();
     }
 
     /// An event to every bot connected, as the gateway dispatches it.

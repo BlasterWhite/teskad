@@ -3,7 +3,8 @@
 //! it ends, Claude's answer read whole from the transcript; what waits on
 //! the person (a permission, questions, a plan), as a card in the
 //! workspace's channel; and the orchestration's journal: workers started
-//! (with the button that opens their thread) and stopped, deliveries ready,
+//! (their line, and their thread opened on it at once, the button that
+//! opens it left for when Discord refused) and stopped, deliveries ready,
 //! tasks that need the person.
 
 use std::time::Instant;
@@ -14,7 +15,7 @@ use hangar_core::chat::Body;
 use hangar_engine::live::{BridgeEvent, ToolPhase, TurnPhase};
 use hangar_engine::mobile::contract::ChatPending;
 use hangar_engine::mobile::desk;
-use hangar_engine::orchestration::events::{DeliveryOutcome, OrchestratorEvent};
+use hangar_engine::orchestration::events::{DeliveryOutcome, JournalEntry, OrchestratorEvent};
 use hangar_engine::state::AgentActivity;
 use hangar_engine::state::types::PaneRole;
 
@@ -51,6 +52,31 @@ pub(crate) fn describe(tool: &str, input: &Value) -> String {
         ),
         None => tool.to_string(),
     }
+}
+
+/// How far a journal is read once all of `journal` is: the moment of its
+/// last entry, and how many entries share that very millisecond.
+pub(crate) fn read_up_to(journal: &[JournalEntry]) -> (u64, usize) {
+    let last = journal.last().map_or(0, |entry| entry.at);
+    let same = journal.iter().filter(|entry| entry.at == last).count();
+    (last, same)
+}
+
+/// The entries of `journal` past `seen` (`read_up_to`): those of a later
+/// moment, and those of its very millisecond past the ones read already.
+pub(crate) fn fresh_in(journal: Vec<JournalEntry>, seen: (u64, usize)) -> Vec<JournalEntry> {
+    let (at, read) = seen;
+    let mut same = 0;
+    journal
+        .into_iter()
+        .filter(|entry| {
+            if entry.at == at {
+                same += 1;
+                return same > read;
+            }
+            entry.at > at
+        })
+        .collect()
 }
 
 /// What a pending ask is known by: answering it again is refused unless it
@@ -426,15 +452,12 @@ impl Bot {
         let Some(place) = self.place(&ws.id) else {
             return;
         };
-        let seen = self.state().seen.get(&ws.id).copied().unwrap_or(0);
-        let fresh: Vec<_> = self
-            .host()
-            .journal(&ws.id)
-            .into_iter()
-            .filter(|entry| entry.at > seen)
-            .collect();
-        if let Some(last) = fresh.last() {
-            self.state().seen.insert(ws.id.clone(), last.at);
+        let seen = self.state().seen.get(&ws.id).copied().unwrap_or((0, 0));
+        let journal = self.host().journal(&ws.id);
+        let up_to = read_up_to(&journal);
+        let fresh = fresh_in(journal, seen);
+        if !fresh.is_empty() {
+            self.state().seen.insert(ws.id.clone(), up_to);
         }
         for entry in fresh {
             self.on_journal(ws, &place.channel, entry.event).await;
@@ -449,6 +472,12 @@ impl Bot {
     ) {
         let words = self.words();
         match event {
+            // A worker started: its line in the channel, and its thread
+            // opened on that line at once (in turn with the others started
+            // together). A worker the server has already (the same start
+            // told again, or after the connector started again: the layout
+            // keeps its line and its thread) gets neither a second line nor
+            // a second thread: its own is opened again if archived.
             OrchestratorEvent::WorkerStarted { worker, task_id } => {
                 let Some(pane) = ws
                     .panes
@@ -457,25 +486,34 @@ impl Bot {
                 else {
                     return;
                 };
-                let task = task_id
-                    .as_deref()
-                    .and_then(|id| self.task_title(&ws.id, id))
-                    .or(task_id.clone())
-                    .unwrap_or_default();
-                let card = cards::worker_started(words, &worker, &task, &pane.id, None);
-                let line = self.post(channel, card, Vec::new()).await.ok();
-                self.state().layout.workers.insert(
-                    pane.id.clone(),
-                    Worker {
-                        workspace: ws.id.clone(),
-                        name: worker,
-                        task,
-                        channel: channel.to_string(),
-                        line,
-                        thread: None,
-                    },
-                );
-                self.save_layout();
+                let known = self
+                    .state()
+                    .layout
+                    .workers
+                    .get(&pane.id)
+                    .is_some_and(|known| known.workspace == ws.id);
+                if !known {
+                    let task = task_id
+                        .as_deref()
+                        .and_then(|id| self.task_title(&ws.id, id))
+                        .or(task_id.clone())
+                        .unwrap_or_default();
+                    let card = cards::worker_started(words, &worker, &task, &pane.id, None);
+                    let line = self.post(channel, card, Vec::new()).await.ok();
+                    self.state().layout.workers.insert(
+                        pane.id.clone(),
+                        Worker {
+                            workspace: ws.id.clone(),
+                            name: worker,
+                            task,
+                            channel: channel.to_string(),
+                            line,
+                            thread: None,
+                        },
+                    );
+                    self.save_layout();
+                }
+                self.open_soon(channel, &pane.id);
             }
             OrchestratorEvent::WorkerStopped { worker, .. }
             | OrchestratorEvent::WorkerExited { worker, .. } => {
@@ -579,6 +617,31 @@ impl Bot {
         }
     }
 
+    /// Worker `pane`'s thread opened in the threads' lane of `channel`: the
+    /// threads of workers started together are made one after the other,
+    /// [`crate::bot::THREAD_GAP`] apart at least. When Discord refuses
+    /// (its limits, a permission), the line keeps its « Ouvrir le fil »
+    /// button, and the dashboard its own.
+    pub(crate) fn open_soon(&self, channel: &str, pane: &str) {
+        let (bot, pane) = (self.clone(), pane.to_string());
+        self.0.lanes.run(&format!("threads:{channel}"), async move {
+            // Stopped while it waited its turn: no thread for it.
+            if !bot.state().layout.workers.contains_key(&pane) {
+                return;
+            }
+            match bot.open_thread(&pane).await {
+                Ok(crate::act::Thread::Made) => {
+                    tokio::time::sleep(crate::bot::THREAD_GAP).await;
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    eprintln!("discord: the thread of worker {pane} was not opened: {error}");
+                    tokio::time::sleep(crate::bot::THREAD_GAP).await;
+                }
+            }
+        });
+    }
+
     fn task_title(&self, ws: &str, task: &str) -> Option<String> {
         self.host()
             .tasks(ws)
@@ -680,6 +743,44 @@ impl Bot {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn entry(at: u64, worker: &str) -> JournalEntry {
+        JournalEntry {
+            at,
+            event: OrchestratorEvent::WorkerStarted {
+                worker: worker.into(),
+                task_id: None,
+            },
+            quiet: false,
+        }
+    }
+
+    fn workers(entries: &[JournalEntry]) -> Vec<String> {
+        entries
+            .iter()
+            .map(|entry| match &entry.event {
+                OrchestratorEvent::WorkerStarted { worker, .. } => worker.clone(),
+                _ => String::new(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn entries_of_one_millisecond_are_each_read_once() {
+        // Two workers started in the same millisecond, the journal read
+        // between them: the second is still news, the first is not.
+        let first = [entry(5, "Ada")];
+        let seen = read_up_to(&first);
+        assert_eq!(seen, (5, 1));
+        let both = vec![entry(5, "Ada"), entry(5, "Bo"), entry(7, "Cy")];
+        assert_eq!(workers(&fresh_in(both.clone(), seen)), ["Bo", "Cy"]);
+        assert_eq!(
+            workers(&fresh_in(both.clone(), (0, 0))),
+            ["Ada", "Bo", "Cy"]
+        );
+        assert!(fresh_in(both.clone(), read_up_to(&both)).is_empty());
+        assert_eq!(read_up_to(&[]), (0, 0));
+    }
 
     #[test]
     fn a_call_reads_as_its_tool_and_what_it_acts_on() {
