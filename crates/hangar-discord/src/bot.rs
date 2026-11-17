@@ -5,11 +5,12 @@
 //! folder, a channel per workspace with a webhook the agents speak through,
 //! a pinned dashboard), follows the panes (the mod's reports: turns,
 //! answers, what waits on the person; the orchestration's journal: workers
-//! started and stopped, deliveries ready), and carries what the paired
-//! person writes and clicks back through the desk, the chat view's own
-//! calls (follow.rs, act.rs).
+//! started, their threads opened, and stopped, deliveries ready; the files
+//! agents share), and carries what the paired person writes, clicks and
+//! reacts back through the desk, the chat view's own calls (follow.rs,
+//! shares.rs, act.rs).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
@@ -54,6 +55,11 @@ pub(crate) const TURN_LEFT: Duration = Duration::from_secs(20);
 /// How long after Discord refused a channel or a webhook the structure is
 /// looked at again.
 const SYNC_AGAIN: Duration = Duration::from_secs(30);
+/// The least time between two workers' threads started in one channel:
+/// workers started together have their threads opened one after the other
+/// (Discord limits how fast threads are made, and does not say how fast;
+/// its headers and its 429s rule the rest, `rest.rs`).
+pub const THREAD_GAP: Duration = Duration::from_secs(1);
 
 /// A turn under way, its card in a channel or a thread.
 #[derive(Debug, Clone)]
@@ -102,8 +108,10 @@ pub(crate) struct State {
     pub asks: HashMap<String, Ask>,
     /// The wrong pairing codes sent since the bot started, by who sent them.
     pub pair_tries: HashMap<String, u32>,
-    /// The journal's entries posted, by workspace: up to this moment.
-    pub seen: HashMap<String, u64>,
+    /// The journal's entries posted, by workspace: up to this moment, and
+    /// how many of those of that very millisecond (two entries may share
+    /// it: a burst of workers started together).
+    pub seen: HashMap<String, (u64, usize)>,
     /// The deliveries that wait on the person, by task: the channel and
     /// the message of each one's card (`None` while it is being posted).
     pub delivered: HashMap<String, Option<(String, String)>>,
@@ -118,6 +126,15 @@ pub(crate) struct State {
     pub reports: HashMap<String, u64>,
     /// When each pane's ask was last looked at, and what stood then.
     pub looked: HashMap<String, Looked>,
+    /// The workers whose thread is being opened: one look at a time opens
+    /// it (the one at its start, a click on its button).
+    pub opening: HashSet<String>,
+    /// The entries of each pane's queue that a ⚡ put behind the message
+    /// it sends now: queued again under new ids, the old ones are not
+    /// what the person wrote any more (act.rs, `force`).
+    pub retired: HashMap<String, HashSet<String>>,
+    /// The files shared with the phone, as last looked at (shares.rs).
+    pub shares: crate::shares::Seen,
     /// The structure is to be looked at again.
     pub dirty: bool,
     /// A look at the structure left something unmade (Discord refused a
@@ -515,6 +532,7 @@ pub async fn run(host: Arc<dyn Hangar>, options: Options) -> Result<(), String> 
     beside.spawn(hear(bot.clone(), host.events()));
     bot.register_commands().await;
     bot.mark_journals_seen();
+    bot.mark_shares_seen();
     bot.sync().await;
     let mut tick = tokio::time::interval(TICK);
     tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
@@ -607,25 +625,22 @@ impl Bot {
         let snapshot = self.host().snapshot();
         let mut state = self.state();
         for ws in &snapshot.state.workspaces {
-            let last = self
-                .host()
-                .journal(&ws.id)
-                .last()
-                .map(|e| e.at)
-                .unwrap_or(0);
-            state.seen.insert(ws.id.clone(), last);
+            let journal = self.host().journal(&ws.id);
+            state
+                .seen
+                .insert(ws.id.clone(), crate::follow::read_up_to(&journal));
         }
     }
 
     /// What the gateway dispatched, to where it is handled: what the
-    /// person writes, edits or deletes in a channel in that channel's lane
-    /// (two messages sent one after the other reach the agent in that
-    /// order), a click or a command at once (Discord waits 3 s for its
-    /// acknowledgement).
+    /// person writes, edits, deletes or reacts to in a channel in that
+    /// channel's lane (two messages sent one after the other reach the
+    /// agent in that order, a ⚡ comes after the message it is on), a click
+    /// or a command at once (Discord waits 3 s for its acknowledgement).
     fn route(&self, dispatch: Dispatch) {
         let bot = self.clone();
         match dispatch.kind.as_str() {
-            "MESSAGE_CREATE" | "MESSAGE_UPDATE" | "MESSAGE_DELETE" => {
+            "MESSAGE_CREATE" | "MESSAGE_UPDATE" | "MESSAGE_DELETE" | "MESSAGE_REACTION_ADD" => {
                 let channel = dispatch.data["channel_id"].as_str().unwrap_or_default();
                 self.0.lanes.run(&format!("channel:{channel}"), async move {
                     bot.on_dispatch(dispatch).await
@@ -649,7 +664,8 @@ impl Bot {
     }
 
     /// What is due, given to the lanes: the structure after a change, the
-    /// turn cards, the asks, the journals, the dashboards. Waits on nothing.
+    /// turn cards, the asks, the journals, the dashboards, the files shared.
+    /// Waits on nothing.
     pub(crate) fn tick(&self) {
         // The state changed since the structure was last looked at.
         let snapshot = self.host().snapshot();
@@ -688,6 +704,11 @@ impl Bot {
                 bot.check_ask(ws, pane).await
             });
         }
+        self.give(
+            "shares",
+            "look",
+            |bot| async move { bot.look_at_shares().await },
+        );
         for ws in &snapshot.state.workspaces {
             if self.place(&ws.id).is_none() {
                 continue;

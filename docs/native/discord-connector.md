@@ -3,11 +3,12 @@
 A Discord server as another surface of Hangar, for whoever would rather not
 open the app: a category per folder, a channel per workspace (the
 conversation with its orchestrator, as the chat view has it). The workers
-stay out of the way: a line when one starts or delivers, their card when
-they need the person, and a thread of their own only when the person opens
-it with a button. A bot of the person's own reports what happens and
-carries what the person says and decides back to the panes; only the person
-is heard. It runs in the desktop app, beside Hangar Mobile, for the
+stay out of the way of that conversation: a line when one starts or
+delivers, their card when they need the person, and a thread of their own,
+opened on that line when they start. What an agent shares with the phone
+is posted too. A bot of the person's own reports what happens and carries
+what the person says and decides back to the panes; only the person is
+heard. It runs in the desktop app, beside Hangar Mobile, for the
 workspaces the phone reaches (local, and those it drives on nodes); and in a
 node with no desktop, for the workspaces the node runs itself. Built in
 `crates/hangar-discord`; this is its design, the research it rests on, and
@@ -78,13 +79,15 @@ those channels to it (`GET /node/discord` lists them) and leads.
 |---|---|
 | Folder | Category (up to 50 channels each) |
 | Workspace, local or on a node | Text channel: the orchestrator's conversation |
-| Worker | A line when it starts or delivers, and its permission, question or plan card in the workspace's channel when it needs the person, under its name. Its own thread, opened on demand: an « Ouvrir le fil » button on its line and on the dashboard |
+| Worker | A line when it starts or delivers, and its permission, question or plan card in the workspace's channel when it needs the person, under its name. Its own thread, opened on its line when it starts; the line and the dashboard link to it (« Voir le fil »), or keep « Ouvrir le fil » when Discord refused it |
 | Agent (Leo, Ada…) | The bot's own webhook in the channel, with the agent's name and a generated avatar per message |
 | Hangar's news | Short lines with Hangar's icons, as in the chat view |
+| A file an agent shares (`phone_share`) | Attached under the agent's name: in its thread (a worker), in the channel (the orchestrator) |
 | State of the workspace | One pinned dashboard card per channel, edited as it changes |
 
-Decided with the person: a worker's thread only when opened with its
-button; only the paired account is heard; workspaces on nodes are in.
+Decided with the person: each worker's thread opened when it starts
+(November 17, 2026; until then, only when opened with its button); only
+the paired account is heard; workspaces on nodes are in.
 
 ## Messages: Components V2
 
@@ -98,8 +101,8 @@ excludes `content`, `embeds`, `poll` and stickers).
 | Text Display | 10 | Markdown: headings, lists, code with highlighting, `-#` subtext, mentions, `<t:…:R>` times |
 | Section | 9 | 1–3 texts with a Button or a Thumbnail beside them: question options, dashboard rows |
 | Separator | 14 | Spacing, with or without a line |
-| File | 13 | `plan.md`, a delivery's `.diff` (`attachment://` only; 20 MiB) |
-| Media Gallery | 12 | Screenshots (1–10 items) |
+| File | 13 | `plan.md`, a delivery's `.diff`, a file an agent shares (`attachment://` only; 20 MiB) |
+| Media Gallery | 12 | A picture or a video an agent shares (1–10 items) |
 | Action Row + Button / selects | 1, 2, 3… | Up to 5 buttons, or one select of up to 25 options |
 
 At most 40 components per message. Libraries cite about 4000 characters of
@@ -149,9 +152,9 @@ lines green and `-` lines red), the check and the review, the branches, the
 a green one-line card.
 
 **The dashboard.** Pinned, edited at most every ~5 s: the orchestrator and
-each worker with its state and since when, « Ouvrir le fil » or « Voir le
-fil » beside each worker, a link to the card of whoever waits on the person,
-and the counts of the board.
+each worker with its state and since when, « Voir le fil » beside each
+worker (« Ouvrir le fil » while it has no thread), a link to the card of
+whoever waits on the person, and the counts of the board.
 
 ![Delivery and dashboard](../images/discord/5-delivery-dashboard.png)
 
@@ -161,23 +164,53 @@ one; answered there like the orchestrator's.
 
 ![A worker on a node that needs the person](../images/discord/6-node-worker.png)
 
-**A worker's thread, opened on demand.** Nothing is opened by itself. A
-worker's « started » line carries « Ouvrir le fil »; clicking it starts a
-public thread on that line (`POST /channels/{id}/messages/{id}/threads`, the
-thread's id is the line's), named after the worker and its task
-(`ada · search-index`). The thread is filled with the worker's work since
-its start, the way the chat view reads a transcript (its answers, one
-folded card per turn), then follows it live; the line's button becomes
-« Voir le fil » (a link button to the thread), and so does the
-dashboard's. What the person writes in the thread goes to that worker (its
-queue while it works), and the commands there are for it (`/stop`,
+**A worker's thread, opened when it starts.** When the journal says a
+worker started, its « started » line is posted in the workspace's channel
+and a public thread is started on that line at once (`POST
+/channels/{id}/messages/{id}/threads`, the thread's id is the line's),
+named after the worker and its task (`ada · search-index`). The thread is
+filled with the worker's work since its start, the way the chat view reads
+a transcript (its answers, one folded card per turn), then follows it
+live; the line links to it (« Voir le fil », a link button), and so does
+the dashboard. What the person writes in the thread goes to that worker
+(its queue while it works), and the commands there are for it (`/stop`,
 `/model`…). Its permission, question and plan cards still come in the
 workspace's channel, where the person is called. When the worker's work
-ends (landed, stopped, closed) the thread gets a last line and is archived;
-opened again from the dashboard, it is unarchived. A worker on a node opens
-the same way.
+ends (landed, stopped, closed) the thread gets a last line and is
+archived. A worker on a node opens the same way.
 
-![A worker's thread, opened with its button](../images/discord/7-worker-thread.png)
+- **Once.** A worker has one thread: the layout keeps it
+  (`discord-layout.json`), so the same start told again, or told after the
+  connector started again, finds it (unarchived) and opens no other, and
+  posts no second line. One look at a time opens a worker's thread.
+- **In turn.** Workers started together have their threads made one after
+  the other, a second apart at least in a channel (a lane of their own,
+  `threads:<channel>`): Discord limits how fast threads are made without
+  saying how fast, and its headers and 429s are waited out besides.
+- **When Discord refuses.** A thread not made (a permission missing, its
+  limits) leaves the line its « Ouvrir le fil » button, and the dashboard
+  its own: clicked, it opens the thread as above.
+
+![A worker's thread](../images/discord/7-worker-thread.png)
+
+**A file an agent shares.** What an agent shows the person on their phone
+(`phone_share`, Hangar Mobile's shares) is posted on Discord too, under the
+agent's name like its other messages: in its thread for a worker whose
+thread is open, in the workspace's channel for the orchestrator (or a
+worker with no thread). A picture or a video Discord plays (PNG, JPEG, GIF,
+WebP, MP4, WebM, QuickTime) is shown in place (a Media Gallery), anything
+else attached as a File, the agent's caption under it. Past what Discord
+takes from a bot on a server with no boost (20 MiB a file since September
+3, 2026; 10 MiB from January 2025), or refused as too large, it is a line
+with its name and size that says it is on the phone. Only the shares of the
+workspaces this Hangar has channels for, and nothing before the person is
+paired. core announces a share (`remote:shared`) in the desktop's build
+alone, and copies it to `<app data>/remote/shares/<id>/<name>` with its
+record in `shares.json` there (remote/files.rs, `mobile_data::Share`): the
+connector reads that index when it changes, which works with or without
+the desktop's part of core. A share is made only while Hangar Mobile is on
+with a phone paired: core refuses it otherwise, and Discord gets nothing
+either.
 
 **Commands.** Registered on the guild only (so they show at once):
 `/stop`, `/model`, `/effort`, `/plan`, `/status` (ephemeral), for the
@@ -187,7 +220,7 @@ channel's orchestrator, or in a worker's thread for that worker.
 
 Read with the `MESSAGE_CONTENT` intent (privileged; a toggle in the
 Developer Portal under 10,000 users). Sent while the agent works, it waits
-in the bridge queue: the bot reacts ⏳, then ✅ when it is taken. It also
+in the bridge queue: the bot reacts ⏳ and ⚡, then ✅ when it is taken. It also
 waits there behind what already does (the mod takes the queue a moment
 after a turn ends: typed in that moment, it would be read first), and only
 where the agent's mod is there to take it; any other agent is typed to.
@@ -195,6 +228,18 @@ Deleting the Discord message takes it back from the queue; editing it
 changes what waits, unless it was taken meanwhile. Only the paired account
 is heard: anyone else's messages are ignored, and their clicks get an
 ephemeral "only … can answer here".
+
+**⚡ sends it now.** The person's own ⚡ on a message that waits (a
+reaction, heard with the `GUILD_MESSAGE_REACTIONS` intent) does what the
+chat view's « Send now » does, for that message: the agent's turn is
+stopped (`desk::interrupt`, Escape) and that message goes first, the
+person's others waiting after it in their order (taken out of the queue
+and queued again behind it); the mod then takes it, and ⏳ and ⚡ become ✅.
+Agents' messages in the queue stay where they are (the mod takes them in
+the middle of a turn too: one moved as it was taken would be read twice),
+and between two turns, when the mod is about to take the queue anyway,
+nothing is moved. Anyone else's ⚡, or one on a message that waits nowhere,
+does nothing; what fails is said in the channel.
 
 **Never into a question.** An agent that waits on an answer (a permission,
 a question, a plan) has that question open in its terminal: what is typed
@@ -244,7 +289,8 @@ means something.
   Messages in Threads, Embed Links, Attach Files, Read Message History, Add
   Reactions, Use External Emojis, Pin Messages, a separate permission since
   February 2026). The bot archives the threads it started without Manage
-  Threads: their creator may.
+  Threads: their creator may. Without Create Public Threads, a worker's
+  line keeps its « Ouvrir le fil » button.
 - The bot token stays on the server, in `discord.json` (0600) beside the
   node's state.
 - Pairing: `setup` prints a code (`hangar-node discord status` again), the
@@ -274,8 +320,13 @@ means something.
   state lives in the cards and the dashboard.
 - Threads archive after inactivity (60, 1440, 4320 or 10080 minutes): a
   worker's thread is opened with 10080 (a week) and a webhook message with
-  `thread_id` unarchives it; the guild's active threads are limited (1000),
-  which threads opened by hand stay far from.
+  `thread_id` unarchives it, as does the worker's start told again; the
+  guild's active threads are limited (1000), and a worker's thread is
+  archived when its work ends, so only the workers at work hold one.
+- Threads are made one after the other, a second apart at least in a
+  channel, when several workers start together.
+- Files: 20 MiB each from a bot or a webhook on a server with no boost
+  (more on a boosted one), 25 MiB a request. A larger share is a line.
 - Webhook names cannot contain `clyde` or `discord`; a webhook the
   application created can send interactive components, others cannot.
 
@@ -290,24 +341,27 @@ Radio Group; serenity 0.12.5 no Components V2.)
 
 - `rest.rs`: the calls, as the bot or as a webhook; a 429 waited out and a
   spent route waited for (`X-RateLimit-Remaining: 0`).
-- `gateway.rs`: Hello, Identify (guilds, guild messages, DMs, message
-  content), heartbeats, Resume after a cut, a fresh session when Discord
-  asks; a refused token or intent stops it with why.
+- `gateway.rs`: Hello, Identify (guilds, guild messages and their
+  reactions, DMs, message content), heartbeats, Resume after a cut, a fresh
+  session when Discord asks; a refused token or intent stops it with why.
 - `cards.rs`: the turn, the answer (cut under ~3800 characters at
   paragraphs, a code block closed and reopened across a cut), the
   permission, the questions (one: a section per option; several: a modal of
   selects), the plan (an excerpt and `plan.md` past 3000 characters), the
-  settled card, the worker's line with « Ouvrir le fil » / « Voir le fil »,
-  the delivery, the dashboard. `ids.rs`: what a click acts on, in its
-  `custom_id`.
+  settled card, the worker's line with « Voir le fil » / « Ouvrir le fil »,
+  a file shared (attached, or a line when too large), the delivery, the
+  dashboard. `ids.rs`: what a click acts on, in its `custom_id`.
 - `lanes.rs`: what waits on Discord, in order per agent, channel and
-  workspace, side by side between them ("Under load").
+  workspace, and the workers' threads made in turn per channel, side by
+  side between them ("Under load").
 - `bot.rs`: the server's structure (a category per folder, made with the
   bot's own access; a channel and a webhook per workspace; the dashboard,
   pinned), the slash commands on the guild. `follow.rs`: the turns, the
   answers read whole from the transcript, the asks (`desk::pending_now`),
-  the journal (workers, deliveries ready, tasks that need the person).
-  `act.rs`: messages, clicks, modals, commands, the workers' threads.
+  the journal (workers and their threads, deliveries ready, tasks that need
+  the person). `shares.rs`: the files agents share, read from core's
+  index. `act.rs`: messages, ⚡, clicks, modals, commands, the workers'
+  threads.
 - `words.rs`: French or English, after the settings' language.
 - Its files beside the node's state: `discord.json` (token, server, owner,
   pairing code; 0600) and `discord-layout.json` (categories, channels,
@@ -319,12 +373,21 @@ and the pinned dashboard, is paired by the code, carries the owner's
 message to the orchestrator and ignores anyone else's, shows a turn (card,
 call, folded, the answer under the agent's name), posts a permission that
 calls the owner, refuses a stranger's click and acknowledges the owner's,
-shows a worker's line, opens its thread on that line and links to it,
-carries a message in the thread to the worker, archives the thread when the
-worker stops, and makes a workspace from `/workspace`; a message queued
+shows a worker's line, opens its thread on that line unasked and links to
+it, carries a message in the thread to the worker, archives the thread when
+the worker stops, and makes a workspace from `/workspace`; a message queued
 while the agent works, edited, then deleted; and a desktop and its node
 sharing one bot, each answering once in its own channels and the desktop
-where neither made one. A run against discord.com needs the person's bot.
+where neither made one. A worker's thread is made once, the start told
+again and the connector started again opening no other; a thread Discord
+refuses leaves the line its button, which opens it later; three workers
+started together have their threads a second apart. A worker's shared
+picture goes to its thread, the orchestrator's file to the channel, one
+too large becomes a line, and a share from a workspace with no channel is
+not posted. ⚡ from the owner on the third of three queued messages puts it
+first, the two others after it in their order, and stops the turn; anyone
+else's ⚡, or one on a message that waits nowhere, does nothing. A run
+against discord.com needs the person's bot.
 
 Each agent speaks with a face of its own: one of Discord's default
 avatars, picked from its name (nothing of it goes elsewhere). What the
@@ -417,7 +480,10 @@ The official documentation, read from
 [discord/discord-api-docs](https://github.com/discord/discord-api-docs)
 (commit `36adecb`, November 10, 2026): `components/reference`,
 `change-log`, `resources/message`, `resources/webhook`, `resources/channel`,
-`topics/rate-limits`, `interactions/receiving-and-responding`.
+`topics/rate-limits`, `interactions/receiving-and-responding`; and the
+upload limits of `reference` ("Uploading Files") and `change-log` (the
+20 MiB default of September 3, 2026) at commit `f339e92`, November 17,
+2026.
 
 ## Mockups
 

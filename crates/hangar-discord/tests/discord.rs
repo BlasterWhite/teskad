@@ -5,7 +5,7 @@
 //! typed.
 
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
@@ -99,17 +99,95 @@ struct Rig {
     shells: Arc<Shells>,
     discord: Discord,
     dir: PathBuf,
+    bot: tokio::task::JoinHandle<()>,
     _root: tempfile::TempDir,
 }
 
+/// The connector of `host`, its files in `dir`, on `discord`.
+fn start_bot(host: &EngineHost, discord: &Discord, dir: &Path) -> tokio::task::JoinHandle<()> {
+    let options = hangar_discord::Options {
+        api: discord.api(),
+        gateway: Some(discord.gateway_url()),
+        dir: dir.to_path_buf(),
+    };
+    let bot_host = host.clone();
+    tokio::spawn(async move {
+        if let Err(error) = hangar_discord::run(Arc::new(bot_host), options).await {
+            panic!("the connector stopped: {error}");
+        }
+    })
+}
+
+impl Rig {
+    /// The connector stopped, and started again over the same files.
+    async fn restart(&mut self) {
+        self.bot.abort();
+        let _ = (&mut self.bot).await;
+        self.bot = start_bot(&self.host, &self.discord, &self.dir);
+    }
+
+    /// A worker `name` added to the workspace on task `task`: its pane.
+    fn add_worker(&self, name: &str, task: &str) -> String {
+        let task = task.to_string();
+        let added = self
+            .host
+            .apply(ModelCmd::AddPane {
+                ws: "shop".into(),
+                agent: Some(AgentId::Claude),
+                near: None,
+                dir: None,
+                cwd: None,
+                name: Some(name.into()),
+                init: Some(hangar_engine::state::PanePatch::new(move |p: &mut Pane| {
+                    p.role = Some(PaneRole::Worker);
+                    p.task_id = Some(task.clone());
+                })),
+            })
+            .unwrap();
+        added.pane.unwrap()
+    }
+
+    /// The journal tells worker `name` started on task `task`.
+    fn worker_started(&self, name: &str, task: &str) {
+        self.host.orchestration().unwrap().post(
+            "shop",
+            OrchestratorEvent::WorkerStarted {
+                worker: name.into(),
+                task_id: Some(task.into()),
+            },
+        );
+    }
+
+    /// What the layout keeps of the worker of pane `pane`: its `line` or
+    /// its `thread`.
+    fn worker(&self, pane: &str, field: &str) -> Option<String> {
+        layout(&self.dir)
+            .and_then(|layout| layout["workers"][pane][field].as_str().map(str::to_string))
+    }
+}
+
+/// The connector's layout, as saved.
+fn layout(dir: &Path) -> Option<Value> {
+    std::fs::read_to_string(dir.join("discord-layout.json"))
+        .ok()
+        .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
+}
+
 async fn rig() -> Rig {
+    rig_with("leo", None).await
+}
+
+/// Workspace "shop" with its orchestrator Leo (pane `leo`: a pane's queue
+/// is the process's own, and the tests run side by side), its connector
+/// on a Discord of its own, paired with `owner` when given.
+async fn rig_with(leo: &str, owner: Option<&str>) -> Rig {
     let root = tempfile::tempdir().unwrap();
     let state = AppState {
         workspaces: vec![Workspace {
             id: "shop".into(),
             name: "My Shop".into(),
             cwd: root.path().to_string_lossy().into_owned(),
-            panes: vec![pane("leo", "Leo", Some(PaneRole::Orchestrator))],
+            panes: vec![pane(leo, "Leo", Some(PaneRole::Orchestrator))],
             ..Workspace::default()
         }],
         settings: Settings {
@@ -133,26 +211,18 @@ async fn rig() -> Rig {
     hangar_discord::Settings {
         token: "secret".into(),
         guild: "g1".into(),
+        owner: owner.map(str::to_string),
         ..hangar_discord::Settings::default()
     }
     .save(&dir)
     .unwrap();
-    let options = hangar_discord::Options {
-        api: discord.api(),
-        gateway: Some(discord.gateway_url()),
-        dir: dir.clone(),
-    };
-    let bot_host = host.clone();
-    tokio::spawn(async move {
-        if let Err(error) = hangar_discord::run(Arc::new(bot_host), options).await {
-            panic!("the connector stopped: {error}");
-        }
-    });
+    let bot = start_bot(&host, &discord, &dir);
     Rig {
         host,
         shells,
         discord,
         dir,
+        bot,
         _root: root,
     }
 }
@@ -173,6 +243,19 @@ fn interaction(
         i["message"] = json!({ "id": message });
     }
     i
+}
+
+/// How many threads the bots started.
+fn threads_made(d: &Discord) -> usize {
+    d.calls()
+        .iter()
+        .filter(|c| c.method == "POST" && c.path.ends_with("/threads"))
+        .count()
+}
+
+/// Workspace "shop"'s channel, once made.
+async fn shop_channel(rig: &Rig) -> String {
+    eventually("the workspace's channel", || channel_of(&rig.dir, "shop")).await
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -514,51 +597,14 @@ async fn a_workspace_on_discord_from_pairing_to_a_worker_s_thread() {
     })
     .await;
 
-    // A worker started: its line, with the button that opens its thread.
-    let added = rig
-        .host
-        .apply(ModelCmd::AddPane {
-            ws: "shop".into(),
-            agent: Some(AgentId::Claude),
-            near: None,
-            dir: None,
-            cwd: None,
-            name: Some("Ada".into()),
-            init: Some(hangar_engine::state::PanePatch::new(|p: &mut Pane| {
-                p.role = Some(PaneRole::Worker);
-                p.task_id = Some("t1".into());
-            })),
-        })
-        .unwrap();
-    let ada = added.pane.unwrap();
-    rig.host.orchestration().unwrap().post(
-        "shop",
-        OrchestratorEvent::WorkerStarted {
-            worker: "Ada".into(),
-            task_id: Some("t1".into()),
-        },
-    );
+    // A worker started: its line, and its thread opened on that line by
+    // itself (the line's button only until then).
+    let ada = rig.add_worker("Ada", "t1");
+    rig.worker_started("Ada", "t1");
     let line = eventually("the worker's line", || d.find("POST", &format!("t:{ada}"))).await;
     assert!(line.body.to_string().contains("Ouvrir le fil"));
-    let line_id = eventually("its id kept", || {
-        std::fs::read_to_string(rig.dir.join("discord-layout.json"))
-            .ok()
-            .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
-            .and_then(|layout| layout["workers"][&ada]["line"].as_str().map(str::to_string))
-    })
-    .await;
-    d.send(
-        "INTERACTION_CREATE",
-        interaction(
-            "i2",
-            "u1",
-            &channel,
-            3,
-            json!({ "custom_id": format!("t:{ada}") }),
-            Some(&line_id),
-        ),
-    );
-    let thread = eventually("the thread started on the line", || {
+    let line_id = eventually("its id kept", || rig.worker(&ada, "line")).await;
+    let thread = eventually("the thread started on the line, unasked", || {
         d.calls_to(
             "POST",
             &format!("/channels/{channel}/messages/{line_id}/threads"),
@@ -574,17 +620,18 @@ async fn a_workspace_on_discord_from_pairing_to_a_worker_s_thread() {
             .find(|c| c.body.to_string().contains("Voir le fil"))
     })
     .await;
-    let thread_id = eventually("the thread kept", || {
-        std::fs::read_to_string(rig.dir.join("discord-layout.json"))
-            .ok()
-            .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
-            .and_then(|layout| {
-                layout["workers"][&ada]["thread"]
-                    .as_str()
-                    .map(str::to_string)
-            })
+    let thread_id = eventually("the thread kept", || rig.worker(&ada, "thread")).await;
+    // Told again that Ada started: neither a second line nor a second
+    // thread; its own is opened again, should it be archived.
+    rig.worker_started("Ada", "t1");
+    eventually("the thread unarchived", || {
+        d.calls_to("PATCH", &format!("/channels/{thread_id}"))
+            .into_iter()
+            .find(|c| c.body["archived"] == false)
     })
     .await;
+    assert_eq!(d.count("POST", &format!("t:{ada}")), 1);
+    assert_eq!(threads_made(d), 1);
     // What the owner writes in the thread goes to the worker.
     d.send(
         "MESSAGE_CREATE",
@@ -900,4 +947,382 @@ async fn a_desktop_and_its_node_share_one_bot() {
     let shop_status = eventually("the desktop's status", || said("c2")).await;
     assert!(shop_status.contains("shop"), "{shop_status}");
     let _ = (&desktop.host, &node.host);
+}
+
+/// A worker's thread is opened when it starts, once: the start told again
+/// opens no other, and neither does the connector started again, which
+/// finds the thread its layout kept.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_worker_s_thread_is_opened_once_even_after_a_restart() {
+    let mut rig = rig_with("leo-again", Some("u1")).await;
+    let channel = shop_channel(&rig).await;
+    let ada = rig.add_worker("Ada", "t1");
+    rig.worker_started("Ada", "t1");
+    let thread = eventually("Ada's thread kept", || rig.worker(&ada, "thread")).await;
+    let line = rig.worker(&ada, "line").expect("Ada's line");
+    let on_line = format!("/channels/{channel}/messages/{line}/threads");
+    assert_eq!(rig.discord.calls_to("POST", &on_line).len(), 1);
+    assert_eq!(threads_made(&rig.discord), 1);
+
+    // Hangar's connector started again: once it is up (its commands
+    // registered again, what the journal holds marked as read)…
+    rig.restart().await;
+    eventually("the connector up again", || {
+        (rig.discord
+            .calls_to("PUT", "/applications/app1/guilds/g1/commands")
+            .len()
+            >= 2)
+            .then_some(())
+    })
+    .await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    // …what the person writes in Ada's thread still reaches Ada,
+    rig.discord.send(
+        "MESSAGE_CREATE",
+        json!({ "id": "m1", "channel_id": thread, "guild_id": "g1",
+        "content": "Pense aux tests", "author": { "id": "u1" } }),
+    );
+    eventually("Ada given the message", || {
+        let queued = !rig
+            .discord
+            .calls_to(
+                "PUT",
+                &format!("/channels/{thread}/messages/m1/reactions/%E2%8F%B3"),
+            )
+            .is_empty();
+        (queued || rig.shells.typed_into(&ada).contains("Pense aux tests")).then_some(())
+    })
+    .await;
+    // …and Ada's start told again finds its thread: unarchived, not made
+    // again, no second line.
+    rig.worker_started("Ada", "t1");
+    eventually("the thread unarchived", || {
+        rig.discord
+            .calls_to("PATCH", &format!("/channels/{thread}"))
+            .into_iter()
+            .find(|c| c.body["archived"] == false)
+    })
+    .await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(threads_made(&rig.discord), 1);
+    assert_eq!(rig.discord.count("POST", &format!("t:{ada}")), 1);
+    assert_eq!(rig.worker(&ada, "thread").as_deref(), Some(thread.as_str()));
+}
+
+/// Discord refusing the thread (a permission, its limits): the worker's
+/// line keeps its « Ouvrir le fil » button, which opens it once Discord
+/// takes it.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_thread_discord_refuses_leaves_its_button_on_the_line() {
+    let rig = rig_with("leo-refused", Some("u1")).await;
+    let d = &rig.discord;
+    let channel = shop_channel(&rig).await;
+    d.refuse("POST", "/threads", 403);
+    let ada = rig.add_worker("Ada", "t1");
+    rig.worker_started("Ada", "t1");
+    let line = eventually("Ada's line", || rig.worker(&ada, "line")).await;
+    let on_line = format!("/channels/{channel}/messages/{line}/threads");
+    eventually("the thread asked for", || {
+        d.calls_to("POST", &on_line).pop()
+    })
+    .await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert_eq!(rig.worker(&ada, "thread"), None);
+    let posted = d.find("POST", &format!("t:{ada}")).unwrap();
+    assert!(posted.body.to_string().contains("Ouvrir le fil"));
+    let linked = |d: &Discord| {
+        d.calls_to("PATCH", &format!("/channels/{channel}/messages/{line}"))
+            .into_iter()
+            .find(|c| c.body.to_string().contains("Voir le fil"))
+    };
+    assert!(linked(d).is_none());
+
+    // The button, clicked once Discord takes the thread, opens it.
+    d.refuse_nothing();
+    d.send(
+        "INTERACTION_CREATE",
+        interaction(
+            "i1",
+            "u1",
+            &channel,
+            3,
+            json!({ "custom_id": format!("t:{ada}") }),
+            Some(&line),
+        ),
+    );
+    eventually("the thread opened by the button", || {
+        rig.worker(&ada, "thread")
+    })
+    .await;
+    eventually("the line links to it", || linked(d)).await;
+    assert_eq!(d.calls_to("POST", &on_line).len(), 2);
+}
+
+/// Workers started together have their threads opened one after the
+/// other, apart: Discord limits how fast threads are made.
+#[tokio::test(flavor = "multi_thread")]
+async fn workers_started_together_have_their_threads_opened_in_turn() {
+    let rig = rig_with("leo-many", Some("u1")).await;
+    let d = &rig.discord;
+    let channel = shop_channel(&rig).await;
+    let names = ["Ada", "Bo", "Cy"];
+    let panes: Vec<String> = names
+        .iter()
+        .map(|name| rig.add_worker(name, "t1"))
+        .collect();
+    for name in names {
+        rig.worker_started(name, "t1");
+    }
+    let made = eventually("the three threads", || {
+        let made: Vec<_> = d
+            .calls_to("POST", &format!("/channels/{channel}/messages/"))
+            .into_iter()
+            .filter(|c| c.path.ends_with("/threads"))
+            .collect();
+        (made.len() == 3).then_some(made)
+    })
+    .await;
+    for pair in made.windows(2) {
+        let apart = pair[1].at.duration_since(pair[0].at);
+        assert!(
+            apart >= hangar_discord::bot::THREAD_GAP,
+            "two threads {apart:?} apart"
+        );
+    }
+    // Each on its own worker's line, named after it.
+    for (pane, name) in panes.iter().zip(names) {
+        let line = eventually("the line kept", || rig.worker(pane, "line")).await;
+        let on_line = made
+            .iter()
+            .find(|c| c.path.contains(&format!("/messages/{line}/threads")))
+            .unwrap_or_else(|| panic!("{name}'s thread on its line"));
+        assert!(
+            on_line.body["name"]
+                .as_str()
+                .is_some_and(|thread| thread.starts_with(name)),
+            "{on_line:?}"
+        );
+        eventually("the thread kept", || rig.worker(pane, "thread")).await;
+    }
+    assert_eq!(threads_made(d), 3);
+}
+
+/// A share's record in the index core keeps beside the copies.
+fn share_record(
+    id: &str,
+    at: u64,
+    (workspace, pane): (&str, &str),
+    (name, mime, size): (&str, &str, u64),
+) -> hangar_core::mobile_data::Share {
+    hangar_core::mobile_data::Share {
+        id: id.into(),
+        at,
+        workspace: workspace.into(),
+        pane: pane.into(),
+        name: name.into(),
+        mime: mime.into(),
+        kind: Default::default(),
+        size,
+        caption: None,
+    }
+}
+
+/// What agents share with the phone (`phone_share`) is posted under their
+/// name: a worker's in its thread, the orchestrator's in the channel, one
+/// too large for Discord as a line that says it is on the phone; nothing
+/// from a workspace this Hangar has no channel for.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_file_an_agent_shares_is_posted_where_it_speaks() {
+    let rig = rig_with("leo-shares", Some("u1")).await;
+    let d = &rig.discord;
+    shop_channel(&rig).await;
+    let ada = rig.add_worker("Ada", "t1");
+    rig.worker_started("Ada", "t1");
+    let thread = eventually("Ada's thread", || rig.worker(&ada, "thread")).await;
+
+    // core's copies and their index (remote/files.rs), as phone_share
+    // leaves them.
+    let shares = rig._root.path().join("data").join("remote").join("shares");
+    let folder = rig._root.path().to_string_lossy().into_owned();
+    let picture = b"\x89PNG not quite a picture".to_vec();
+    let notes = b"# Notes\n".to_vec();
+    for (id, name, bytes) in [("s1", "ecran.png", &picture), ("s2", "notes.md", &notes)] {
+        std::fs::create_dir_all(shares.join(id)).unwrap();
+        std::fs::write(shares.join(id).join(name), bytes).unwrap();
+    }
+    let mut from_ada = share_record(
+        "s1",
+        1,
+        (folder.as_str(), "Ada"),
+        ("ecran.png", "image/png", picture.len() as u64),
+    );
+    from_ada.caption = Some("Le panier".into());
+    let index = vec![
+        from_ada,
+        share_record(
+            "s2",
+            2,
+            (folder.as_str(), "Leo"),
+            ("notes.md", "text/markdown", notes.len() as u64),
+        ),
+        share_record(
+            "s3",
+            3,
+            (folder.as_str(), "Leo"),
+            (
+                "demo.mp4",
+                "video/mp4",
+                hangar_discord::shares::UPLOAD_LIMIT + 1,
+            ),
+        ),
+        share_record(
+            "s4",
+            4,
+            ("/somewhere/else", "Zed"),
+            ("secret.txt", "text/plain", 6),
+        ),
+    ];
+    let written = shares.join("shares.json.tmp");
+    std::fs::write(&written, serde_json::to_vec(&index).unwrap()).unwrap();
+    std::fs::rename(&written, shares.join("shares.json")).unwrap();
+
+    // Ada's picture, in her thread, shown in place, with its caption.
+    let hers = eventually("Ada's picture", || d.find("POST", "ecran.png")).await;
+    assert!(
+        hers.path.contains(&format!("thread_id={thread}")),
+        "{hers:?}"
+    );
+    assert_eq!(hers.body["username"], "Ada");
+    let said = hers.body.to_string();
+    assert!(said.contains("\"type\":12"), "{said}");
+    assert!(said.contains("attachment://ecran.png"), "{said}");
+    assert!(said.contains("Le panier"), "{said}");
+    // Leo's notes, in the channel, as a file.
+    let his = eventually("Leo's notes", || d.find("POST", "notes.md")).await;
+    assert!(!his.path.contains("thread_id"), "{his:?}");
+    assert_eq!(his.body["username"], "Leo");
+    assert!(his.body.to_string().contains("\"type\":13"), "{his:?}");
+    // Too large for Discord: a line, no file.
+    let large = eventually("the video said", || d.find("POST", "demo.mp4")).await;
+    let said = large.body.to_string();
+    assert!(said.contains("téléphone"), "{said}");
+    assert!(!said.contains("attachment://"), "{said}");
+    assert!(!large.path.contains("thread_id"), "{large:?}");
+    // From a workspace this Hangar does not follow: nothing.
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert!(d.find("POST", "secret.txt").is_none());
+    // Each once.
+    assert_eq!(d.count("POST", "ecran.png"), 1);
+    assert_eq!(d.count("POST", "notes.md"), 1);
+}
+
+/// ⚡ on what the person wrote that waits in the agent's queue sends it
+/// now: it goes first, the others after it in their order, and the
+/// agent's turn is stopped; anyone else's ⚡, or one on a message that
+/// waits nowhere, does nothing.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_lightning_bolt_sends_a_waiting_message_now() {
+    const LEO: &str = "leo-zap";
+    let rig = rig_with(LEO, Some("u1")).await;
+    let d = &rig.discord;
+    let channel = shop_channel(&rig).await;
+    let core = rig.host.core().clone();
+    let bridge = |event: Value| {
+        core.emit(hangar_core::Event::BridgeEvent {
+            pane_id: LEO.into(),
+            event,
+        })
+        .unwrap();
+    };
+    bridge(json!({ "kind": "hello", "sessionId": "s1", "model": null, "version": "2.1" }));
+    bridge(json!({ "kind": "turn", "phase": "start" }));
+    eventually("Leo working", || {
+        rig.host
+            .snapshot()
+            .activity
+            .get(LEO)
+            .is_some_and(|a| a.activity == hangar_engine::state::AgentActivity::Working)
+            .then_some(())
+    })
+    .await;
+    for (id, word) in [("q1", "un"), ("q2", "deux"), ("q3", "trois")] {
+        d.send(
+            "MESSAGE_CREATE",
+            json!({ "id": id, "channel_id": channel, "guild_id": "g1",
+            "content": word, "author": { "id": "u1" } }),
+        );
+    }
+    // What the person wrote that waits for Leo (Hangar's own news for an
+    // orchestrator wait there too, and are taken in the middle of a turn).
+    let queue = || -> Vec<String> {
+        hangar_core::bridge::bridge_queue(LEO.into())
+            .into_iter()
+            .filter(|entry| entry.from.is_none())
+            .map(|entry| entry.text)
+            .collect()
+    };
+    // What Leo's mod hands to Claude Code next of the person's.
+    let take = || loop {
+        let next =
+            hangar_core::bridge::take_next(rig.host.core(), LEO, false).expect("a message waits");
+        if next.from.is_none() {
+            break next.text;
+        }
+    };
+    eventually("the three waiting", || {
+        (queue() == ["un", "deux", "trois"]).then_some(())
+    })
+    .await;
+    // Each with ⏳ and ⚡.
+    eventually("each marked ⚡", || {
+        (d.count("PUT", "/reactions/%E2%9A%A1/@me") == 3).then_some(())
+    })
+    .await;
+    // The queue's entries told to the connector.
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    let zap = |user: &str, message: &str| {
+        json!({ "user_id": user, "channel_id": channel, "message_id": message,
+        "guild_id": "g1", "emoji": { "id": null, "name": "\u{26a1}" } })
+    };
+    // Someone else's ⚡, and the owner's on a message that waits nowhere.
+    d.send("MESSAGE_REACTION_ADD", zap("intruder", "q3"));
+    d.send("MESSAGE_REACTION_ADD", zap("u1", "nowhere"));
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert_eq!(queue(), ["un", "deux", "trois"]);
+    assert!(!rig.shells.typed_into(LEO).contains('\u{1b}'));
+
+    // The owner's ⚡ on the third: first now, and Leo's turn stopped.
+    d.send("MESSAGE_REACTION_ADD", zap("u1", "q3"));
+    eventually("the third first, the others after it", || {
+        (queue() == ["trois", "un", "deux"]).then_some(())
+    })
+    .await;
+    eventually("Leo's turn stopped", || {
+        rig.shells.typed_into(LEO).contains('\u{1b}').then_some(())
+    })
+    .await;
+
+    // Its mod takes it: ✅ on it, ⏳ and ⚡ taken off; the others wait on.
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(take(), "trois");
+    let check = |message: &str| {
+        d.calls_to(
+            "PUT",
+            &format!("/channels/{channel}/messages/{message}/reactions/%E2%9C%85"),
+        )
+    };
+    eventually("✅ on the third", || check("q3").pop()).await;
+    assert!(
+        !d.calls_to(
+            "DELETE",
+            &format!("/channels/{channel}/messages/q3/reactions/%E2%9A%A1")
+        )
+        .is_empty()
+    );
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert!(check("q1").is_empty() && check("q2").is_empty());
+    // The next one taken is the first that waited, and is marked so.
+    assert_eq!(take(), "un");
+    eventually("✅ on the first", || check("q1").pop()).await;
+    assert!(check("q2").is_empty());
 }

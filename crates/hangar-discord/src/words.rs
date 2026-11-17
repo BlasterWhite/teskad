@@ -123,6 +123,34 @@ impl Words {
             "Thread opened: this worker's work since it started, then live. What you write here goes to it.",
         )
     }
+    /// An agent shared a file: « Ada a partagé « shot.png » ».
+    pub fn shared(&self) -> &'static str {
+        self.pick("a partagé", "shared")
+    }
+    /// A file shared that Discord does not take.
+    pub fn on_the_phone(&self) -> &'static str {
+        self.pick(
+            "trop lourd pour Discord : il est sur le téléphone, dans Hangar Mobile.",
+            "too large for Discord: it is on the phone, in Hangar Mobile.",
+        )
+    }
+    /// A file's size, as the person reads it: `1,5 Mo`, `1.5 MB`.
+    pub fn size(&self, bytes: u64) -> String {
+        const KB: u64 = 1024;
+        let (value, unit) = if bytes >= KB * KB {
+            (bytes as f64 / (KB * KB) as f64, self.pick("Mo", "MB"))
+        } else if bytes >= KB {
+            (bytes as f64 / KB as f64, self.pick("Ko", "KB"))
+        } else {
+            return format!("{bytes} {}", self.pick("o", "B"));
+        };
+        let shown = format!("{value:.1}");
+        if self.fr {
+            format!("{} {unit}", shown.replace('.', ","))
+        } else {
+            format!("{shown} {unit}")
+        }
+    }
     pub fn thread_ended(&self) -> &'static str {
         self.pick(
             "Le travail de ce worker est fini : le fil est archivé.",
@@ -280,5 +308,16 @@ mod tests {
             Words::of(Some(Locale::En)).actions(3, 6),
             "3 actions · 6 min"
         );
+    }
+
+    #[test]
+    fn a_size_reads_in_the_person_s_units() {
+        let (fr, en) = (Words::of(Some(Locale::Fr)), Words::of(Some(Locale::En)));
+        assert_eq!(fr.size(512), "512 o");
+        assert_eq!(en.size(512), "512 B");
+        assert_eq!(fr.size(1_536), "1,5 Ko");
+        assert_eq!(en.size(1_536), "1.5 KB");
+        assert_eq!(fr.size(21 << 20), "21,0 Mo");
+        assert_eq!(en.size(3 * 1024 * 1024 / 2), "1.5 MB");
     }
 }

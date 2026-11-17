@@ -5,10 +5,11 @@
 //!
 //! The connector reads the snapshot and acts through the control port and
 //! the desk, the chat view's and the phone's own calls; it follows core's
-//! events (the mods' reports) and the orchestration's journal.
+//! events (the mods' reports), the orchestration's journal, and the files
+//! agents share with the phone.
 
 use std::collections::HashSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use tokio::sync::broadcast;
@@ -67,6 +68,15 @@ pub trait Hangar: Send + Sync + 'static {
         let _ = (name, folder);
         None
     }
+
+    /// Where the files agents share with the phone are copied (`phone_share`;
+    /// core's remote/files.rs: `<app data>/remote/shares/`, their records
+    /// in `shares.json` there). `None`: beside the connector's own folder,
+    /// as the desktop keeps both in its app data folder (`discord/` and
+    /// `remote/shares/`).
+    fn shares(&self) -> Option<PathBuf> {
+        None
+    }
 }
 
 /// A node's own workspaces.
@@ -101,6 +111,14 @@ impl Hangar for EngineHost {
 
     fn make_workspace(&self, name: &str, folder: &str) -> Option<Result<String, String>> {
         Some(EngineHost::add_workspace(self, name, folder.trim(), true))
+    }
+
+    fn shares(&self) -> Option<PathBuf> {
+        self.core()
+            .paths()
+            .app_data_dir()
+            .ok()
+            .map(|dir| dir.join("remote").join("shares"))
     }
 }
 

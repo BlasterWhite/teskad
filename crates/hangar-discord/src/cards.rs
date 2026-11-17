@@ -441,8 +441,8 @@ pub fn settled(said: &str, by: Option<&str>, at_secs: u64, words: Words) -> Valu
     )
 }
 
-/// A worker that started: its line, and the button that opens its thread,
-/// or the link to it once open.
+/// A worker that started: its line, the link to its thread once open, or
+/// the button that opens it when it could not be at the worker's start.
 pub fn worker_started(
     words: Words,
     worker: &str,
@@ -472,6 +472,96 @@ pub fn worker_started(
         )],
         true,
     )
+}
+
+/// A file an agent shared with the phone, as said on Discord.
+pub struct Shared<'a> {
+    /// The agent's name.
+    pub name: &'a str,
+    /// The file's name.
+    pub file: &'a str,
+    /// Its size, in bytes.
+    pub size: u64,
+    pub caption: Option<&'a str>,
+}
+
+/// The first line said of a share: who shared what, how large.
+fn shared_head(words: Words, s: &Shared<'_>) -> String {
+    format!(
+        "📎 **{}** {} « {} » ({})",
+        clip(s.name, 60),
+        words.shared(),
+        clip(s.file, 100),
+        words.size(s.size)
+    )
+}
+
+/// A name Discord keeps as it is, to name the file in `attachment://`:
+/// ASCII letters, digits, dots, dashes and underscores (Discord changes
+/// the others in the names of the files it is sent).
+pub fn attachment_name(file: &str) -> String {
+    let kept: String = file
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_') {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    if kept.trim_matches(['.', '_']).is_empty() {
+        "file".into()
+    } else {
+        kept
+    }
+}
+
+/// Whether Discord shows a file of this type in place (a media gallery):
+/// pictures and videos it plays; anything else is a file to download.
+pub fn shown_in_place(mime: &str) -> bool {
+    let mime = mime.split(';').next().unwrap_or_default().trim();
+    matches!(
+        mime,
+        "image/png"
+            | "image/jpeg"
+            | "image/gif"
+            | "image/webp"
+            | "video/mp4"
+            | "video/webm"
+            | "video/quicktime"
+    )
+}
+
+/// A file an agent shared, attached (`attachment`, its name in the
+/// upload): shown in place when it is a picture or a video Discord plays
+/// (`in_place`), as a file to download otherwise.
+pub fn shared(words: Words, s: &Shared<'_>, attachment: &str, in_place: bool) -> Value {
+    let mut parts = vec![text(shared_head(words, s))];
+    if let Some(caption) = s.caption.map(str::trim).filter(|c| !c.is_empty()) {
+        parts.push(text(clip(caption, 1_000)));
+    }
+    let url = format!("attachment://{attachment}");
+    parts.push(if in_place {
+        json!({ "type": 12, "items": [{ "media": { "url": url } }] })
+    } else {
+        json!({ "type": 13, "file": { "url": url } })
+    });
+    message(parts, true)
+}
+
+/// A file an agent shared that Discord does not take (too large for it):
+/// its name and size, and where it is.
+pub fn shared_away(words: Words, s: &Shared<'_>) -> Value {
+    let mut parts = vec![text(format!(
+        "{} — {}",
+        shared_head(words, s),
+        words.on_the_phone()
+    ))];
+    if let Some(caption) = s.caption.map(str::trim).filter(|c| !c.is_empty()) {
+        parts.push(text(clip(caption, 1_000)));
+    }
+    message(parts, true)
 }
 
 /// What a delivery brings, to land or send back.
@@ -680,6 +770,26 @@ mod tests {
             ),
             plan(w, "Leo", "# Plan\n- un", "p1", None).0,
             worker_started(w, "Ada", "search-index", "p2", None),
+            shared(
+                w,
+                &Shared {
+                    name: "Ada",
+                    file: "shot.png",
+                    size: 2_048,
+                    caption: Some("Le panier"),
+                },
+                "shot.png",
+                true,
+            ),
+            shared_away(
+                w,
+                &Shared {
+                    name: "Ada",
+                    file: "demo.mp4",
+                    size: 40 << 20,
+                    caption: None,
+                },
+            ),
             dashboard(
                 w,
                 "Shop",
@@ -812,6 +922,45 @@ mod tests {
             assert_eq!(piece.matches("```").count() % 2, 0, "{piece}");
         }
         assert!(pieces.last().unwrap().ends_with("Done."));
+    }
+
+    #[test]
+    fn a_shared_file_is_attached_or_said_to_be_on_the_phone() {
+        let picture = Shared {
+            name: "Ada",
+            file: "mon écran (1).png",
+            size: 1_536,
+            caption: Some("La page du panier"),
+        };
+        let name = attachment_name(picture.file);
+        assert_eq!(name, "mon__cran__1_.png");
+        let card = shared(fr(), &picture, &name, shown_in_place("image/png")).to_string();
+        assert!(card.contains("« mon écran (1).png »"), "{card}");
+        assert!(card.contains("1,5 Ko"), "{card}");
+        assert!(card.contains("La page du panier"));
+        assert!(card.contains("\"type\":12"));
+        assert!(card.contains("attachment://mon__cran__1_.png"));
+        let notes = Shared {
+            name: "Leo",
+            file: "notes.md",
+            size: 10,
+            caption: None,
+        };
+        let card = shared(fr(), &notes, "notes.md", shown_in_place("text/markdown")).to_string();
+        assert!(card.contains("\"type\":13"), "{card}");
+        let video = Shared {
+            name: "Ada",
+            file: "demo.mp4",
+            size: 52 << 20,
+            caption: None,
+        };
+        let away = shared_away(fr(), &video).to_string();
+        assert!(away.contains("« demo.mp4 » (52,0 Mo)"), "{away}");
+        assert!(away.contains("téléphone"), "{away}");
+        assert!(!away.contains("attachment://"));
+        assert!(shown_in_place("image/jpeg; charset=binary"));
+        assert!(!shown_in_place("image/svg+xml"));
+        assert_eq!(attachment_name("..."), "file");
     }
 
     #[test]

@@ -1,9 +1,10 @@
 //! What the person does on Discord, carried back to the panes through the
 //! desk (the chat view's own calls): what they write in a workspace's
 //! channel (to its orchestrator) or in a worker's thread (to that worker),
-//! what they click on a card, what they type in a modal, and the slash
-//! commands. Only the paired account is heard; until one is, `pair <code>`
-//! pairs whoever sends it.
+//! the ⚡ they put on what waits in a queue (sent now), what they click on
+//! a card, what they type in a modal, and the slash commands. Only the
+//! paired account is heard; until one is, `pair <code>` pairs whoever
+//! sends it.
 //!
 //! A click is acknowledged at once (`DEFERRED_UPDATE_MESSAGE`, Discord
 //! waits 3 s at most), then the card is edited with what was done; a
@@ -34,9 +35,12 @@ mod reply {
     pub const MODAL: u8 = 9;
 }
 
-/// ⏳ and ✅, as a reaction's path wants them.
+/// ⏳, ⚡ and ✅, as a reaction's path wants them.
 const HOURGLASS: &str = "%E2%8F%B3";
+const ZAP: &str = "%E2%9A%A1";
 const CHECK: &str = "%E2%9C%85";
+/// ⚡ as the gateway names it.
+const ZAP_NAME: &str = "\u{26a1}";
 
 /// The wrong pairing codes one person may send, and everyone together,
 /// while Hangar's Discord connection runs.
@@ -61,6 +65,26 @@ enum Clicked {
     Settled,
     /// The card of an ask that no longer stands.
     Stale,
+}
+
+/// What became of a worker's thread asked open (`Bot::open_thread`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Thread {
+    /// Started now, on the worker's line.
+    Made,
+    /// Open already: unarchived.
+    Known,
+    /// Being opened by another look: there in a moment.
+    Opening,
+}
+
+/// A worker's thread being opened, until this is dropped.
+struct Opening(Bot, String);
+
+impl Drop for Opening {
+    fn drop(&mut self) {
+        self.0.state().opening.remove(&self.1);
+    }
 }
 
 /// What is said on Discord of a modal, once its work is done in Hangar.
@@ -188,6 +212,7 @@ impl Bot {
             "INTERACTION_CREATE" => self.on_interaction(&dispatch.data).await,
             "MESSAGE_DELETE" => self.on_deleted(&dispatch.data).await,
             "MESSAGE_UPDATE" => self.on_edited(&dispatch.data).await,
+            "MESSAGE_REACTION_ADD" => self.on_reaction(&dispatch.data).await,
             _ => {}
         }
     }
@@ -339,7 +364,10 @@ impl Bot {
                 if let Some(pending) = known {
                     self.match_queue(&pane.id, &pending);
                 }
-                self.react(&channel, &message, HOURGLASS).await
+                // ⏳ while it waits, and ⚡: put by the person too, it is
+                // sent now (`on_reaction`).
+                self.react(&channel, &message, HOURGLASS).await;
+                self.react(&channel, &message, ZAP).await
             }
             Ok(_) => self.react(&channel, &message, CHECK).await,
             Err(error) => self.say(&channel, Some(&message), &error).await,
@@ -347,21 +375,32 @@ impl Bot {
     }
 
     /// The agent's queue changed: what the person wrote finds its entry,
-    /// and what left the queue was taken (⏳ becomes ✅).
+    /// and what left the queue was taken (⏳ and ⚡ become ✅).
     pub(crate) async fn on_queue(&self, pane: &str, pending: &[hangar_core::bridge::Queued]) {
-        self.state()
-            .queues
-            .insert(pane.to_string(), pending.to_vec());
+        {
+            let mut state = self.state();
+            state.queues.insert(pane.to_string(), pending.to_vec());
+            // An entry put behind a ⚡'s message that left the queue never
+            // comes back to it.
+            if let Some(retired) = state.retired.get_mut(pane) {
+                retired.retain(|id| pending.iter().any(|entry| &entry.id == id));
+                if retired.is_empty() {
+                    state.retired.remove(pane);
+                }
+            }
+        }
         let taken = self.match_queue(pane, pending);
         for (message, channel) in taken {
-            let _ = self
-                .http()
-                .call(
-                    "DELETE",
-                    &format!("/channels/{channel}/messages/{message}/reactions/{HOURGLASS}/@me"),
-                    None,
-                )
-                .await;
+            for emoji in [HOURGLASS, ZAP] {
+                let _ = self
+                    .http()
+                    .call(
+                        "DELETE",
+                        &format!("/channels/{channel}/messages/{message}/reactions/{emoji}/@me"),
+                        None,
+                    )
+                    .await;
+            }
             self.react(&channel, &message, CHECK).await;
         }
     }
@@ -375,9 +414,15 @@ impl Bot {
     ) -> Vec<(String, String)> {
         let mut taken = Vec::new();
         {
-            let mut state = self.state();
+            let mut guard = self.state();
+            let state = &mut *guard;
             let mut claimed: HashSet<String> =
                 state.queued.values().filter_map(|q| q.id.clone()).collect();
+            // The old entries of what a ⚡ put behind its message: queued
+            // again, they are found under their new ids.
+            if let Some(retired) = state.retired.get(pane) {
+                claimed.extend(retired.iter().cloned());
+            }
             for (message, queued) in state.queued.iter_mut().filter(|(_, q)| q.pane == pane) {
                 match &queued.id {
                     None => {
@@ -402,6 +447,111 @@ impl Bot {
             }
         }
         taken
+    }
+
+    /// A reaction put on a message: ⚡ from the paired account on what it
+    /// wrote that waits in an agent's queue sends it now (`force`). Anyone
+    /// else's, the bot's own, any other emoji, or a ⚡ on a message that
+    /// waits nowhere, is nothing.
+    async fn on_reaction(&self, data: &Value) {
+        let emoji = data["emoji"]["name"].as_str().unwrap_or_default();
+        if emoji.trim_end_matches('\u{fe0f}') != ZAP_NAME {
+            return;
+        }
+        let user = data["user_id"].as_str().unwrap_or_default();
+        let (owner, me) = {
+            let state = self.state();
+            (state.settings.owner.clone(), state.me.clone())
+        };
+        if user.is_empty() || user == me || owner.as_deref() != Some(user) {
+            return;
+        }
+        let message = data["message_id"].as_str().unwrap_or_default();
+        let Some(queued) = self.state().queued.get(message).cloned() else {
+            return;
+        };
+        if let Err(error) = self.force(message, &queued).await {
+            self.say(&queued.channel, Some(message), &error).await;
+        }
+    }
+
+    /// What the person wrote that waits in an agent's queue, sent now: the
+    /// chat view's « Send now » for that message rather than the first in
+    /// line. It goes first among the person's (those that waited before it
+    /// are queued again after it, the others after them, in their order),
+    /// and the agent's turn is stopped (`desk::interrupt`, Escape, as Send
+    /// now does): its mod then takes the queue's first. Agents' messages in
+    /// the queue are left where they are: the mod takes them in the middle
+    /// of a turn too, and one taken while moved would be read twice. ⏳ and
+    /// ⚡ become ✅ when it is taken, as for any message that waited.
+    async fn force(&self, message: &str, queued: &crate::bot::Queued) -> Result<(), String> {
+        let Some(desk_) = self.host().desk() else {
+            return Ok(());
+        };
+        let port = self.host().port();
+        let pane = queued.pane.clone();
+        let activity = self
+            .host()
+            .snapshot()
+            .activity
+            .get(&pane)
+            .map(|a| a.activity);
+        // Between two turns its mod takes the queue's first any moment:
+        // moved then, an entry could be taken and queued again, read
+        // twice. It goes in its turn.
+        if !matches!(
+            activity,
+            Some(AgentActivity::Working | AgentActivity::Waiting)
+        ) {
+            return Ok(());
+        }
+        // Its entry in the queue, once core told it; and the queue as core
+        // holds it now.
+        let Some(id) = self
+            .state()
+            .queued
+            .get(message)
+            .and_then(|noted| noted.id.clone())
+        else {
+            return Ok(());
+        };
+        let live = hangar_core::bridge::bridge_queue(pane.clone());
+        let theirs: Vec<&hangar_core::bridge::Queued> =
+            live.iter().filter(|entry| entry.from.is_none()).collect();
+        let Some(at) = theirs.iter().position(|entry| entry.id == id) else {
+            return Ok(());
+        };
+        if at > 0 {
+            // Those around it go behind it: taken out and queued again in
+            // their order. What the connector noted of them is found again
+            // under their new ids.
+            let moved: Vec<&hangar_core::bridge::Queued> = theirs
+                .iter()
+                .enumerate()
+                .filter(|(n, _)| *n != at)
+                .map(|(_, entry)| *entry)
+                .collect();
+            {
+                let mut state = self.state();
+                let ids: HashSet<String> = moved.iter().map(|entry| entry.id.clone()).collect();
+                for noted in state.queued.values_mut().filter(|q| q.pane == pane) {
+                    if noted.id.as_ref().is_some_and(|id| ids.contains(id)) {
+                        noted.id = None;
+                    }
+                }
+                state.retired.entry(pane.clone()).or_default().extend(ids);
+            }
+            for entry in &moved {
+                port.unqueue(&pane, &entry.id).await?;
+            }
+            for entry in &moved {
+                port.enqueue(&pane, &entry.text, None).await?;
+            }
+        }
+        if activity == Some(AgentActivity::Working) {
+            desk::interrupt(&port, &desk_, &queued.ws, &pane).await?;
+        }
+        Ok(())
     }
 
     /// A message the person deleted while it waited: taken back from the
@@ -821,6 +971,8 @@ impl Bot {
                     Err(error) => self.whisper(i, &error).await,
                 }
             }
+            // The button left on a worker's line (or on the dashboard) when
+            // its thread could not be opened at its start.
             Click::Thread { pane } => {
                 self.respond(i, reply::DEFERRED_UPDATE, None).await;
                 match self.open_thread(&pane).await {
@@ -1057,10 +1209,16 @@ impl Bot {
 
     /// The worker's thread: started on its line in the workspace's channel
     /// (or in the channel when the line is gone), filled with its work so
-    /// far; its id. One open already is unarchived.
-    pub(crate) async fn open_thread(&self, pane: &str) -> Result<String, String> {
+    /// far, the line then linking to it. One open already (the layout keeps
+    /// it across restarts) is unarchived, never made twice: one look at a
+    /// time opens a worker's thread.
+    pub(crate) async fn open_thread(&self, pane: &str) -> Result<Thread, String> {
         let words = self.words();
         let (ws, found) = self.located(pane).ok_or("This worker is gone.")?;
+        if !self.state().opening.insert(pane.to_string()) {
+            return Ok(Thread::Opening);
+        }
+        let _opening = Opening(self.clone(), pane.to_string());
         let known = self.state().layout.workers.get(pane).cloned();
         let worker = match known {
             Some(worker) => worker,
@@ -1085,7 +1243,7 @@ impl Bot {
                     Some(json!({ "archived": false })),
                 )
                 .await;
-            return Ok(thread.clone());
+            return Ok(Thread::Known);
         }
         let name = cards::clip(&format!("{} · {}", worker.name, worker.task), 100);
         let made = match &worker.line {
@@ -1110,6 +1268,9 @@ impl Bot {
         }
         .map_err(|err| err.to_string())?;
         let thread = made["id"].as_str().unwrap_or_default().to_string();
+        if thread.is_empty() {
+            return Err("Discord made no thread.".into());
+        }
         {
             let mut state = self.state();
             let mut worker = worker.clone();
@@ -1131,7 +1292,7 @@ impl Bot {
             );
             self.edit(&worker.channel, line, card).await;
         }
-        Ok(thread)
+        Ok(Thread::Made)
     }
 
     /// The worker's work so far, in its new thread: what it was told, what
