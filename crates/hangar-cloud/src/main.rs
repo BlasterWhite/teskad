@@ -1,14 +1,14 @@
 //! The server of the optional Hangar account (docs/native/cloud.md).
 //!
 //! One process, one SQLite file, behind a reverse proxy that terminates TLS.
-//! It signs people in with GitHub or Google, keeps the machines linked to
-//! each account and the usage totals those machines choose to send: nothing
-//! else, and nothing a Hangar without an account ever talks to.
+//! It signs people in with GitHub, keeps the machines linked to each account
+//! and the usage totals those machines choose to send: nothing else, and
+//! nothing a Hangar without an account ever talks to.
 //!
 //! `routes.rs` is the router and what surrounds every route; each part of
 //! the protocol is a module beside it: `auth.rs` (link codes, the exchange,
-//! the token's check), `signin.rs` (the sign-in with GitHub or Google, with
-//! `provider.rs` for the calls to them and `pages.rs` for what a browser is
+//! the token's check), `signin.rs` (the sign-in with GitHub, with
+//! `provider.rs` for the calls to it and `pages.rs` for what a browser is
 //! shown when it stops), `account.rs`, `devices.rs`, `stats.rs`.
 //!
 //! Nothing here writes a token, a link code or an email address anywhere but

@@ -18,31 +18,29 @@ pub struct AppState {
     /// How many reverse proxies are in front of the server, which is how far
     /// `X-Forwarded-For` is believed (`limit::client_ip`).
     pub trusted_proxies: usize,
-    /// What the sign-in with the providers needs.
+    /// What the sign-in with the provider needs.
     pub sign_in: Arc<SignIn>,
     /// Milliseconds since the Unix epoch. The tests hand in their own, to
     /// let five minutes pass.
     clock: Arc<dyn Fn() -> i64 + Send + Sync>,
 }
 
-/// The server's side of the sign-in: its public address, its OAuth clients,
-/// and where the providers are.
+/// The server's side of the sign-in: its public address, its OAuth client,
+/// and where the provider is.
 #[derive(Debug, Clone)]
 pub struct SignIn {
     /// Without a trailing slash; the redirect URIs are built from it.
     pub base_url: String,
     pub github: Option<OAuthClient>,
-    pub google: Option<OAuthClient>,
     pub endpoints: Endpoints,
 }
 
 impl SignIn {
-    /// The configuration's clients, at the real providers.
+    /// The configuration's client, at the real provider.
     pub fn from_config(config: &Config) -> Self {
         Self {
             base_url: config.base_url.clone(),
             github: config.github.clone(),
-            google: config.google.clone(),
             endpoints: Endpoints::default(),
         }
     }
@@ -51,7 +49,6 @@ impl SignIn {
     pub fn client(&self, provider: Provider) -> Option<&OAuthClient> {
         match provider {
             Provider::Github => self.github.as_ref(),
-            Provider::Google => self.google.as_ref(),
         }
     }
 

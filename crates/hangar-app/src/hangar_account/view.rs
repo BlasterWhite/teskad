@@ -73,13 +73,8 @@ fn signed_out<'a>(ctx: Ctx<'a>) -> Element<'a, Message> {
     form::group(
         t,
         vec![padded(
-            row![
-                ui_button::primary(t, ctx.t(Key::HangarAccountSignInGithub).into_owned())
-                    .on_press(say(Msg::SignIn(hangar_core::cloud::Provider::Github))),
-                ui_button::secondary(t, ctx.t(Key::HangarAccountSignInGoogle).into_owned())
-                    .on_press(say(Msg::SignIn(hangar_core::cloud::Provider::Google))),
-            ]
-            .spacing(space::MD),
+            ui_button::primary(t, ctx.t(Key::HangarAccountSignInGithub).into_owned())
+                .on_press(say(Msg::SignIn(hangar_core::cloud::Provider::Github))),
         )],
     )
 }

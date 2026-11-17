@@ -1176,8 +1176,6 @@ pub enum Key {
     HangarAccountRenameSave,
     /// `hangarAccount.signInGithub`
     HangarAccountSignInGithub,
-    /// `hangarAccount.signInGoogle`
-    HangarAccountSignInGoogle,
     /// `hangarAccount.signOut`
     HangarAccountSignOut,
     /// `hangarAccount.signOutHint`
@@ -4425,7 +4423,7 @@ pub enum Key {
 }
 
 /// How many keys there are.
-pub const KEY_COUNT: usize = 2204;
+pub const KEY_COUNT: usize = 2203;
 
 impl Key {
     /// Every key, in the order of their ids.
@@ -5011,7 +5009,6 @@ impl Key {
         Key::HangarAccountRename,
         Key::HangarAccountRenameSave,
         Key::HangarAccountSignInGithub,
-        Key::HangarAccountSignInGoogle,
         Key::HangarAccountSignOut,
         Key::HangarAccountSignOutHint,
         Key::HangarAccountSignedInAs,
@@ -7196,10 +7193,10 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "hangarAccount.deleteType", en: Text::plain("Type {word} to confirm"), fr: Text::plain("Tape {word} pour confirmer") },
     Message { id: "hangarAccount.deleteWord", en: Text::plain("DELETE"), fr: Text::plain("SUPPRIMER") },
     Message { id: "hangarAccount.errBusy", en: Text::plain("The server asks for a little patience. Hangar will try again soon."), fr: Text::plain("Le serveur demande un peu de patience. Hangar réessaiera bientôt.") },
-    Message { id: "hangarAccount.errDenied", en: Text::plain("The sign-in was refused on the provider’s page."), fr: Text::plain("La connexion a été refusée sur la page du fournisseur.") },
+    Message { id: "hangarAccount.errDenied", en: Text::plain("The sign-in was refused on GitHub’s page."), fr: Text::plain("La connexion a été refusée sur la page de GitHub.") },
     Message { id: "hangarAccount.errKeychain", en: Text::plain("Your system’s keychain did not answer, so Hangar cannot keep the sign-in: {detail}"), fr: Text::plain("Le trousseau de ton système n’a pas répondu, Hangar ne peut donc pas garder la connexion\u{202f}: {detail}") },
     Message { id: "hangarAccount.errOther", en: Text::plain("Something went wrong: {detail}"), fr: Text::plain("Quelque chose s’est mal passé\u{202f}: {detail}") },
-    Message { id: "hangarAccount.errProvider", en: Text::plain("The provider could not sign you in. Try again, or use the other one."), fr: Text::plain("Le fournisseur n’a pas pu te connecter. Réessaie, ou utilise l’autre.") },
+    Message { id: "hangarAccount.errProvider", en: Text::plain("GitHub could not sign you in. Try again in a moment."), fr: Text::plain("GitHub n’a pas pu te connecter. Réessaie dans un instant.") },
     Message { id: "hangarAccount.errSignedOut", en: Text::plain("This PC was signed out of your Hangar account, from another machine or because the account was deleted. Sign in again to link it."), fr: Text::plain("Ce PC a été déconnecté de ton compte Hangar, depuis une autre machine ou parce que le compte a été supprimé. Reconnecte-toi pour le relier.") },
     Message { id: "hangarAccount.errTimedOut", en: Text::plain("Nobody came back from the browser in time. Try again."), fr: Text::plain("Personne n’est revenu du navigateur à temps. Réessaie.") },
     Message { id: "hangarAccount.errUnreachable", en: Text::plain("The Hangar account server could not be reached. Check your connection; Hangar will try again later."), fr: Text::plain("Impossible de joindre le serveur du compte Hangar. Vérifie ta connexion\u{202f}; Hangar réessaiera plus tard.") },
@@ -7220,7 +7217,6 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "hangarAccount.rename", en: Text::plain("Rename"), fr: Text::plain("Renommer") },
     Message { id: "hangarAccount.renameSave", en: Text::plain("Save"), fr: Text::plain("Enregistrer") },
     Message { id: "hangarAccount.signInGithub", en: Text::plain("Sign in with GitHub"), fr: Text::plain("Se connecter avec GitHub") },
-    Message { id: "hangarAccount.signInGoogle", en: Text::plain("Sign in with Google"), fr: Text::plain("Se connecter avec Google") },
     Message { id: "hangarAccount.signOut", en: Text::plain("Sign out"), fr: Text::plain("Se déconnecter") },
     Message { id: "hangarAccount.signOutHint", en: Text::plain("Signs this PC out of your account. Its statistics stay on the account."), fr: Text::plain("Déconnecte ce PC de ton compte. Ses statistiques restent sur le compte.") },
     Message { id: "hangarAccount.signedInAs", en: Text::plain("Signed in as {name}"), fr: Text::plain("Connecté en tant que {name}") },

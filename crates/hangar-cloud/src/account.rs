@@ -46,8 +46,8 @@ pub fn create(conn: &mut Connection, identity: &NewIdentity, now: i64) -> Result
     Ok(id)
 }
 
-/// One more way to sign in to an account that exists.
-pub fn add_identity(
+/// The identity that signs in to an account.
+fn add_identity(
     conn: &Connection,
     account_id: &str,
     identity: &NewIdentity,
@@ -69,28 +69,14 @@ pub fn add_identity(
     Ok(())
 }
 
-/// The account of the person a provider just vouched for. The caller holds
-/// the transaction. In order:
+/// The account of the person a provider just vouched for: the one this
+/// identity (the provider and its id for the person) already belongs to, or
+/// a new one. The caller holds the transaction.
 ///
-/// 1. The account this identity (the provider and its id for the person)
-///    already belongs to. What the provider says today replaces what it said
-///    at the last sign-in, the address included: one it no longer vouches
-///    for is forgotten.
-/// 2. Otherwise, when the provider says the address is verified: the account
-///    that holds an identity of the *other* provider with the same verified
-///    address. This identity joins it: same person, same account.
-/// 3. Otherwise a new account.
-///
-/// The second step never runs on an address the provider did not verify, and
-/// only ever matches an address another provider verified: `identities.email`
-/// holds nothing else. It is also declined, for a new account, whenever it
-/// would have to guess:
-///
-/// - the account already has an identity of this provider. A provider gives
-///   a verified address to one person at a time, so two of its identities
-///   with the same address means the stored one is out of date, and whoever
-///   holds the address now is not known to be whoever held it then;
-/// - more than one account matches.
+/// What the provider says today replaces what it said at the last sign-in,
+/// the address included: one it no longer vouches for is forgotten. An
+/// address never finds an account: the same one at another identity is
+/// another account.
 pub fn resolve(conn: &Connection, identity: &NewIdentity, now: i64) -> Result<String, Refusal> {
     let provider = identity.provider.as_str();
     let known: Option<String> = conn
@@ -109,33 +95,15 @@ pub fn resolve(conn: &Connection, identity: &NewIdentity, now: i64) -> Result<St
             |row| row.get(0),
         )
         .optional()?;
-    if let Some(account_id) = known {
-        return Ok(account_id);
+    match known {
+        Some(account_id) => Ok(account_id),
+        None => insert(conn, identity, now),
     }
-
-    if let Some(email) = &identity.email {
-        let matching: Vec<String> = conn
-            .prepare_cached(
-                "SELECT DISTINCT account_id FROM identities AS other \
-                 WHERE other.email = ?1 AND other.provider <> ?2 \
-                 AND NOT EXISTS (SELECT 1 FROM identities AS same \
-                     WHERE same.account_id = other.account_id AND same.provider = ?2) \
-                 LIMIT 2",
-            )?
-            .query_map(params![email, provider], |row| row.get(0))?
-            .collect::<Result<_, _>>()?;
-        if let [account_id] = matching.as_slice() {
-            add_identity(conn, account_id, identity, now)?;
-            return Ok(account_id.clone());
-        }
-    }
-
-    insert(conn, identity, now)
 }
 
 /// The account as the protocol shows it: the profile of its first identity,
-/// and every provider it can sign in with. Nothing when there is no such
-/// account.
+/// and every provider it can sign in with (a provider this server no longer
+/// knows is left out). Nothing when there is no such account.
 pub fn load(conn: &Connection, account_id: &str) -> Result<Option<Account>, Refusal> {
     let mut statement = conn.prepare_cached(
         "SELECT provider, display_name, email, avatar_url FROM identities \

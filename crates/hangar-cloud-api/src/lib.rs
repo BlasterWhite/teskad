@@ -39,22 +39,20 @@ pub const BASE_URL_ENV: &str = "HANGAR_CLOUD_URL";
 /// recognised for what it is.
 pub const TOKEN_PREFIX: &str = "hgr_";
 
-/// Who vouches for the person at sign-in.
+/// Who vouches for the person at sign-in: GitHub, the one provider there is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Provider {
     Github,
-    Google,
 }
 
 impl Provider {
-    pub const ALL: [Provider; 2] = [Provider::Github, Provider::Google];
+    pub const ALL: [Provider; 1] = [Provider::Github];
 
     /// The name the protocol uses, in `?provider=` and in `providers`.
     pub fn as_str(self) -> &'static str {
         match self {
             Provider::Github => "github",
-            Provider::Google => "google",
         }
     }
 
@@ -229,7 +227,7 @@ mod tests {
             display_name: "Ada".into(),
             email: Some("ada@example.org".into()),
             avatar_url: None,
-            providers: vec![Provider::Github, Provider::Google],
+            providers: vec![Provider::Github],
         }
     }
 
@@ -248,14 +246,14 @@ mod tests {
     fn the_start_query_round_trips() {
         round_trip(
             &AuthStartQuery {
-                provider: Provider::Google,
+                provider: Provider::Github,
                 port: 49152,
                 state: "s".into(),
                 challenge: "c".into(),
                 machine: "Atelier".into(),
             },
             json!({
-                "provider": "google",
+                "provider": "github",
                 "port": 49152,
                 "state": "s",
                 "challenge": "c",
@@ -314,7 +312,7 @@ mod tests {
                     "id": "acc_1",
                     "display_name": "Ada",
                     "email": "ada@example.org",
-                    "providers": ["github", "google"],
+                    "providers": ["github"],
                 },
                 "device": {
                     "id": "dev_1",
@@ -335,7 +333,7 @@ mod tests {
         };
         round_trip(
             &bare,
-            json!({ "id": "acc_1", "display_name": "Ada", "providers": ["github", "google"] }),
+            json!({ "id": "acc_1", "display_name": "Ada", "providers": ["github"] }),
         );
         // A server that writes them as null is read the same way.
         let with_nulls = json!({
@@ -343,7 +341,7 @@ mod tests {
             "display_name": "Ada",
             "email": null,
             "avatar_url": null,
-            "providers": ["github", "google"],
+            "providers": ["github"],
         });
         assert_eq!(serde_json::from_value::<Account>(with_nulls).unwrap(), bare);
     }
@@ -366,7 +364,7 @@ mod tests {
                 device: device(),
             },
             json!({
-                "account": { "id": "acc_1", "display_name": "Ada", "providers": ["github", "google"] },
+                "account": { "id": "acc_1", "display_name": "Ada", "providers": ["github"] },
                 "device": wire_device,
             }),
         );

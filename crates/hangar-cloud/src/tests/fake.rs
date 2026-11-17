@@ -1,6 +1,6 @@
-//! A stand-in for GitHub and Google: a real HTTP server on the loopback, which
-//! the server under test calls as it calls the real ones (`provider.rs`), and
-//! which is as strict as they are about what it is sent: the client's id and
+//! A stand-in for GitHub: a real HTTP server on the loopback, which the
+//! server under test calls as it calls the real one (`provider.rs`), and
+//! which is as strict as it is about what it is sent: the client's id and
 //! secret, the redirect URI, the scope, a code that works once, and the PKCE
 //! verifier checked against the challenge the consent page was asked with.
 //!
@@ -21,23 +21,22 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
-/// The OAuth applications the stand-in knows: an id and its secret.
+/// The OAuth application the stand-in knows: an id and its secret.
 pub const GITHUB_CLIENT: (&str, &str) = ("gh-client", "gh-secret-7f3a");
-pub const GOOGLE_CLIENT: (&str, &str) = ("g-client.apps.test", "g-secret-91bc");
+/// What the consent page must be asked for.
+const SCOPE: &str = "read:user user:email";
 
-/// Somebody with an account at the stand-in, as each provider describes them.
+/// Somebody with an account at the stand-in, as GitHub describes them.
 #[derive(Debug, Clone)]
 pub struct Person {
     /// GitHub's `/user`.
     pub github_user: Value,
     /// GitHub's `/user/emails`.
     pub github_emails: Value,
-    /// Google's userinfo.
-    pub google_userinfo: Value,
     /// Says no on the consent page.
     pub denies: bool,
-    /// The step at which the provider breaks for them: `token`, `user`,
-    /// `emails` or `userinfo`.
+    /// The step at which the provider breaks for them: `token`, `user` or
+    /// `emails`.
     pub breaks_at: Option<&'static str>,
 }
 
@@ -46,7 +45,6 @@ impl Default for Person {
         Self {
             github_user: Value::Null,
             github_emails: json!([]),
-            google_userinfo: Value::Null,
             denies: false,
             breaks_at: None,
         }
@@ -94,7 +92,7 @@ impl Fake {
         key
     }
 
-    /// Replaces what the providers say about a person.
+    /// Replaces what the provider says about a person.
     pub fn update(&self, key: &str, person: Person) {
         self.inner
             .lock()
@@ -141,7 +139,6 @@ pub fn provider() -> &'static Fake {
                     .route("/{provider}/token", post(token))
                     .route("/github/api/user", get(github_user))
                     .route("/github/api/user/emails", get(github_emails))
-                    .route("/google/userinfo", get(google_userinfo))
                     .with_state(served);
                 axum::serve(listener, router).await.unwrap();
             });
@@ -168,18 +165,7 @@ fn listen() -> TcpListener {
 }
 
 fn client_of(provider: &str) -> Option<(&'static str, &'static str)> {
-    match provider {
-        "github" => Some(GITHUB_CLIENT),
-        "google" => Some(GOOGLE_CLIENT),
-        _ => None,
-    }
-}
-
-fn scope_of(provider: &str) -> &'static str {
-    match provider {
-        "github" => "read:user user:email",
-        _ => "openid email profile",
-    }
+    (provider == "github").then_some(GITHUB_CLIENT)
 }
 
 fn refuse(status: StatusCode, why: &str) -> Response {
@@ -187,7 +173,7 @@ fn refuse(status: StatusCode, why: &str) -> Response {
 }
 
 /// The consent page. The tests' browser adds `login_as`, who it is at the
-/// provider. Answers as the real ones do once the person has chosen: `302`
+/// provider. Answers as the real one does once the person has chosen: `302`
 /// to the redirect URI with a code, or with `error=access_denied`.
 async fn authorize(
     State(fake): State<Arc<Fake>>,
@@ -200,7 +186,7 @@ async fn authorize(
     let get = |name: &str| query.get(name).map(String::as_str).unwrap_or("");
     if get("response_type") != "code"
         || get("client_id") != client_id
-        || get("scope") != scope_of(&provider)
+        || get("scope") != SCOPE
         || get("code_challenge_method") != "S256"
         || get("code_challenge").len() != 43
         || get("state").is_empty()
@@ -260,15 +246,8 @@ async fn token(
     };
     let get = |name: &str| fields.get(name).map(String::as_str).unwrap_or("");
 
-    // GitHub says no with a 200, Google with a 400.
-    let refused = |error: &str| {
-        let status = if provider == "github" {
-            StatusCode::OK
-        } else {
-            StatusCode::BAD_REQUEST
-        };
-        (status, Json(json!({ "error": error }))).into_response()
-    };
+    // GitHub says no with a 200.
+    let refused = |error: &str| (StatusCode::OK, Json(json!({ "error": error }))).into_response();
 
     let mut inner = fake.inner.lock().unwrap();
     // A code works once, whatever comes with it.
@@ -296,11 +275,11 @@ async fn token(
     let access_token = format!("at-{}", uuid::Uuid::new_v4().simple());
     inner
         .tokens
-        .insert(access_token.clone(), (provider.clone(), grant.person));
+        .insert(access_token.clone(), (provider, grant.person));
     Json(json!({
         "access_token": access_token,
-        "token_type": if provider == "github" { "bearer" } else { "Bearer" },
-        "scope": scope_of(&provider),
+        "token_type": "bearer",
+        "scope": SCOPE,
     }))
     .into_response()
 }
@@ -344,11 +323,5 @@ async fn github_user(State(fake): State<Arc<Fake>>, headers: HeaderMap) -> Respo
 async fn github_emails(State(fake): State<Arc<Fake>>, headers: HeaderMap) -> Response {
     profile(&fake, &headers, "github", "emails", |person| {
         person.github_emails.clone()
-    })
-}
-
-async fn google_userinfo(State(fake): State<Arc<Fake>>, headers: HeaderMap) -> Response {
-    profile(&fake, &headers, "google", "userinfo", |person| {
-        person.google_userinfo.clone()
     })
 }

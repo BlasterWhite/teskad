@@ -1,6 +1,6 @@
 [package]
 name = "hangar-cloud"
-description = "The server of the optional Hangar account: sign-in with GitHub or Google, the machines linked to an account, their usage statistics"
+description = "The server of the optional Hangar account: sign-in with GitHub, the machines linked to an account, their usage statistics"
 version.workspace = true
 authors.workspace = true
 license.workspace = true
@@ -30,9 +30,9 @@ serde_json.workspace = true
 # The database, one file in the image's volume. `bundled` compiles SQLite in:
 # the runtime image carries no library for it.
 rusqlite.workspace = true
-# The calls to GitHub and Google at sign-in (the code exchanged for a token,
-# the profile read once). Rustls with its own roots, as everywhere in the
-# workspace: the runtime image has no system TLS library or certificate store.
+# The calls to GitHub at sign-in (the code exchanged for a token, the profile
+# read once). Rustls with its own roots, as everywhere in the workspace: the
+# runtime image has no system TLS library or certificate store.
 ureq = { version = "3.3", default-features = false, features = ["json", "rustls", "rustls-webpki-roots"] }
 # Device tokens are stored as their SHA-256, and PKCE's S256 is one too.
 sha2.workspace = true

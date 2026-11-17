@@ -10,7 +10,7 @@ pub const HEALTH: &str = "/health";
 /// The page the desktop opens in the system browser.
 pub const AUTH_START: &str = "/v1/auth/start";
 /// Where the provider sends the browser back: the redirect URI registered
-/// with GitHub and with Google. Never called by the desktop.
+/// with GitHub. Never called by the desktop.
 pub const AUTH_CALLBACK: &str = "/v1/auth/callback/{provider}";
 pub const AUTH_EXCHANGE: &str = "/v1/auth/exchange";
 pub const ME: &str = "/v1/me";

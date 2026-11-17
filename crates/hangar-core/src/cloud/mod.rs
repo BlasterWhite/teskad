@@ -1,6 +1,6 @@
 //! The optional Hangar account ("Compte Hangar"), seen from the desktop:
-//! signing in with GitHub or Google, the machines linked to the account, and
-//! the usage statistics they share (docs/native/cloud.md).
+//! signing in with GitHub, the machines linked to the account, and the usage
+//! statistics they share (docs/native/cloud.md).
 //!
 //! Not `accounts`: that module is the Claude accounts a pane runs under, and
 //! has nothing to do with this one.

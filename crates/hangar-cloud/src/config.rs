@@ -40,7 +40,6 @@ pub struct Config {
     /// address the caller wrote; too low counts everybody as the proxy.
     pub trusted_proxies: usize,
     pub github: Option<OAuthClient>,
-    pub google: Option<OAuthClient>,
 }
 
 /// The OAuth application registered with a provider.
@@ -130,7 +129,6 @@ impl Config {
             base_url,
             trusted_proxies,
             github: client(Provider::Github)?,
-            google: client(Provider::Google)?,
         })
     }
 
@@ -138,7 +136,6 @@ impl Config {
     pub fn provider(&self, provider: Provider) -> Option<&OAuthClient> {
         match provider {
             Provider::Github => self.github.as_ref(),
-            Provider::Google => self.google.as_ref(),
         }
     }
 }
@@ -163,7 +160,6 @@ mod tests {
         assert_eq!(config.base_url, "https://account.hangar.simnjs.fr");
         assert_eq!(config.trusted_proxies, 1);
         assert_eq!(config.provider(Provider::Github), None);
-        assert_eq!(config.provider(Provider::Google), None);
     }
 
     #[test]
@@ -175,8 +171,6 @@ mod tests {
             (TRUSTED_PROXIES, "0"),
             ("GITHUB_CLIENT_ID", "gh-id"),
             ("GITHUB_CLIENT_SECRET", "gh-secret"),
-            ("GOOGLE_CLIENT_ID", "g-id"),
-            ("GOOGLE_CLIENT_SECRET", "g-secret"),
         ])
         .unwrap();
         assert_eq!(config.bind, "127.0.0.1:21120".parse().unwrap());
@@ -187,9 +181,6 @@ mod tests {
         let github = config.provider(Provider::Github).unwrap();
         assert_eq!(github.client_id, "gh-id");
         assert_eq!(github.client_secret, "gh-secret");
-        let google = config.provider(Provider::Google).unwrap();
-        assert_eq!(google.client_id, "g-id");
-        assert_eq!(google.client_secret, "g-secret");
     }
 
     #[test]
@@ -223,8 +214,8 @@ mod tests {
     fn half_an_oauth_client_is_refused() {
         let err = config(&[("GITHUB_CLIENT_ID", "id")]).unwrap_err();
         assert!(err.contains("GITHUB_CLIENT_SECRET"), "{err}");
-        let err = config(&[("GOOGLE_CLIENT_SECRET", "secret")]).unwrap_err();
-        assert!(err.contains("GOOGLE_CLIENT_ID"), "{err}");
+        let err = config(&[("GITHUB_CLIENT_SECRET", "secret")]).unwrap_err();
+        assert!(err.contains("GITHUB_CLIENT_ID"), "{err}");
     }
 
     #[test]
