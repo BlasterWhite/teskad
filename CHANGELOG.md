@@ -10,6 +10,8 @@ Every release, with its installers, is on the
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-11-17
+
 ### Added
 
 - **An optional Hangar account.** Settings › Hangar account (« Compte Hangar ») lets you sign in with GitHub, in your system browser, to link your machines. It is off by default: Hangar works as before without one, never calls the account server until you sign in, and still sends no telemetry. Signed in, the page shows who you are, your machines (name, system, last seen, « This PC »; rename one, remove another with a confirmation), Sign out, and Delete my account (type the word to confirm; it deletes everything on the server, then signs this PC out). A « Sync statistics » switch, off until you turn it on, sends totals per machine, day, model and project name (tokens, active time and cost; never a path, a prompt or any code) at once, every 15 minutes, when you open Statistics, and on « Sync now », without ever waiting on the network in the window. A day's totals already sent are never replaced by lower ones, so Claude Code cleaning old transcripts does not shrink your history. Errors read as plain sentences (server unreachable, signed out from another machine). The token stays in your system's keychain. The details are on the [privacy page](https://hangar.simnjs.fr/privacy.html) and in docs/native/cloud.md.
@@ -20,6 +22,7 @@ Every release, with its installers, is on the
 
 ### Changed
 
+- **Discord: a thread per worker, shared files, and ⚡ to send now.** A worker's thread opens by itself when it starts (its « Ouvrir le fil » button stays only if Discord refuses it), a file an agent shares (`phone_share`) is posted in its thread, or the workspace's channel for the orchestrator (one too big for Discord becomes a line saying it is on the phone), and a message waiting for the agent's turn to end gets a ⚡ that you click to stop the turn and send it at once, as « Send now » does in the chat view.
 - **The viewers open any file on the computer.** Images, PDFs, Markdown, code, video, web pages and 3D models shown by an agent (`preview_show`, `model_show`) or by you no longer have to be inside the workspace's folders, and a workspace whose folder is not a real path shows files too. What the viewer pages may load stays limited to what was shown (and, for a 3D model, the textures and buffers beside it): a page cannot read the rest of the disk.
 
 ## [2.3.0] - 2026-11-13
@@ -803,6 +806,7 @@ statistics, workspace sleep and per-workspace MCP servers.
 - Automatic updates from signed GitHub releases.
 - An interface in English and French (0.1.1).
 
+[2.4.0]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.0
 [2.3.0]: https://github.com/simnJS/hangar-ai/releases/tag/v2.3.0
 [2.2.1]: https://github.com/simnJS/hangar-ai/releases/tag/v2.2.1
 [2.2.0]: https://github.com/simnJS/hangar-ai/releases/tag/v2.2.0
