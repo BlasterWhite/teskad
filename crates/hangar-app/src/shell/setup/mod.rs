@@ -8,11 +8,17 @@
 //! (`shellsOnly`) and undone there; with it, the new-workspace dialog falls
 //! back to a shell as it always did.
 //!
+//! On NixOS the installer's `claude` does not start ([`nixos`]): there the
+//! sheet says Claude Code comes from nixpkgs, shows the lines that install it
+//! to copy, and « Check again » looks for it once they are run. The installer
+//! is still there, behind « Use Anthropic's installer anyway ».
+//!
 //! The sheet is an overlay of the shell's (`Overlay::ClaudeSetup`), with no
 //! close button and deaf to Escape. Its state is `Packages::setup`; its
 //! messages ride in `shell::Action::Setup`.
 
 pub mod install;
+pub mod nixos;
 mod view;
 
 #[cfg(test)]
@@ -28,11 +34,20 @@ use crate::state::{Model, Patch, StoreAction};
 pub use view::view;
 
 /// The setup's state.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct State {
     /// Whether `claude_installed` has answered: before it does,
     /// `ui.claude_installed` is `false` for every machine.
     pub detected: bool,
+    /// This machine runs NixOS ([`nixos::here`], looked at once, with the
+    /// state): the sheet offers nixpkgs rather than the installer.
+    pub nixos: bool,
+    /// On NixOS, « Use Anthropic's installer anyway » was chosen: the sheet
+    /// is the installer's, as everywhere else.
+    pub installer_anyway: bool,
+    /// « Check again » found no `claude`: the sheet says so until the next
+    /// look.
+    pub still_missing: bool,
     pub step: Step,
     /// The installer's output so far, its last [`install::KEPT_LINES`].
     pub output: Vec<String>,
@@ -43,13 +58,40 @@ pub struct State {
     run: u64,
 }
 
+impl Default for State {
+    /// The state at start, with this machine looked at for NixOS.
+    fn default() -> Self {
+        State {
+            detected: false,
+            nixos: nixos::here(),
+            installer_anyway: false,
+            still_missing: false,
+            step: Step::Offer,
+            output: Vec::new(),
+            then_create: false,
+            run: 0,
+        }
+    }
+}
+
+impl State {
+    /// Whether the sheet offers Claude Code from nixpkgs: on NixOS, unless
+    /// the installer was chosen anyway.
+    pub fn offers_nixpkgs(&self) -> bool {
+        self.nixos && !self.installer_anyway
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum Step {
-    /// What Claude Code is, and the button that installs it.
+    /// What Claude Code is, and the button that installs it; on NixOS, the
+    /// lines that install it from nixpkgs and « Check again ».
     #[default]
     Offer,
     /// The installer is running.
     Installing,
+    /// « Check again »: the PATH asked again, after an install from nixpkgs.
+    Checking,
     /// It ran and is done: why it did not work.
     Failed(Failure),
     /// Installed: sign in, or done.
@@ -76,8 +118,18 @@ pub enum Msg {
     Output(u64, String),
     /// The installer of run `.0` ended.
     Exited(u64, install::Exit),
-    /// After the install, the PATH asked again: whether `claude` is on it.
+    /// After the install, or « Check again », the PATH asked again: whether
+    /// `claude` is on it.
     Found(u64, bool),
+    /// « Check again », on NixOS: Claude Code installed from nixpkgs looked
+    /// for.
+    Recheck,
+    /// « Use Anthropic's installer anyway », on NixOS.
+    InstallerAnyway,
+    /// « Install from nixpkgs instead »: back from the installer, on NixOS.
+    Nixpkgs,
+    /// A line to copy, on the clipboard.
+    Copy(&'static str),
     /// « Use Hangar with shells only ».
     ShellsOnly,
     /// « Sign in »: Claude Code in a pane, where it asks for the account.
@@ -138,7 +190,7 @@ pub fn signed_in(m: &Model) -> bool {
 pub fn update(st: &mut State, m: &mut Model, message: Msg) -> Task<Message> {
     match message {
         Msg::Install => {
-            if st.step == Step::Installing {
+            if busy(st) {
                 return Task::none();
             }
             st.run += 1;
@@ -178,17 +230,39 @@ pub fn update(st: &mut State, m: &mut Model, message: Msg) -> Task<Message> {
             }
         }
         Msg::Found(run, found) => {
-            if run != st.run {
+            if run != st.run || !busy(st) {
                 return Task::none();
             }
+            let checked = st.step == Step::Checking;
+            st.still_missing = checked && !found;
             st.step = if found {
                 m.ui.claude_installed = true;
                 Step::SignIn
+            } else if checked {
+                Step::Offer
             } else {
                 Step::Failed(Failure::NotFound)
             };
             Task::none()
         }
+        Msg::Recheck => {
+            if busy(st) {
+                return Task::none();
+            }
+            st.run += 1;
+            st.step = Step::Checking;
+            let run = st.run;
+            Task::perform(redetect(), move |found| msg(Msg::Found(run, found)))
+        }
+        Msg::InstallerAnyway => {
+            choose_installer(st, true);
+            Task::none()
+        }
+        Msg::Nixpkgs => {
+            choose_installer(st, false);
+            Task::none()
+        }
+        Msg::Copy(line) => crate::services::clipboard::write(line.to_owned()),
         Msg::ShellsOnly => {
             m.apply(StoreAction::UpdateSettings(Patch::new(|s| {
                 crate::settings::set_shells_only(s, true)
@@ -242,6 +316,24 @@ pub fn update(st: &mut State, m: &mut Model, message: Msg) -> Task<Message> {
     }
 }
 
+/// Whether the installer or a look for `claude` is under way: the sheet
+/// waits for it.
+fn busy(st: &State) -> bool {
+    matches!(st.step, Step::Installing | Step::Checking)
+}
+
+/// On NixOS, the installer's sheet (`true`) or nixpkgs' (`false`), from its
+/// start; not while the installer or a look runs.
+fn choose_installer(st: &mut State, installer: bool) {
+    if busy(st) {
+        return;
+    }
+    st.installer_anyway = installer;
+    st.still_missing = false;
+    st.step = Step::Offer;
+    st.output.clear();
+}
+
 /// The sheet closes, and the new-workspace dialog opens when the sheet stood
 /// in its way.
 fn finish(st: &mut State) -> Task<Message> {
@@ -256,6 +348,8 @@ fn closing(st: &mut State) -> Vec<Intent> {
     let then_create = std::mem::take(&mut st.then_create);
     st.step = Step::Offer;
     st.output.clear();
+    st.installer_anyway = false;
+    st.still_missing = false;
     let mut intents = vec![Intent::CloseOverlay];
     if then_create {
         intents.push(Intent::OpenOverlay(Overlay::WorkspaceDialog));
@@ -263,7 +357,8 @@ fn closing(st: &mut State) -> Vec<Intent> {
     intents
 }
 
-/// The PATH repaired again (`path_env::refresh`), then `claude` looked for.
+/// The PATH repaired again (`path_env::refresh`), then `claude` looked for:
+/// after the installer, and on « Check again ».
 async fn redetect() -> bool {
     tokio::task::spawn_blocking(|| {
         hangar_core::path_env::refresh();
