@@ -3566,6 +3566,26 @@ pub enum Key {
     SetupInstallingHint,
     /// `setup.lead`
     SetupLead,
+    /// `setup.nixAnyway`
+    SetupNixAnyway,
+    /// `setup.nixAnywayHint`
+    SetupNixAnywayHint,
+    /// `setup.nixBack`
+    SetupNixBack,
+    /// `setup.nixCheck`
+    SetupNixCheck,
+    /// `setup.nixChecking`
+    SetupNixChecking,
+    /// `setup.nixLead`
+    SetupNixLead,
+    /// `setup.nixMissing`
+    SetupNixMissing,
+    /// `setup.nixProfile`
+    SetupNixProfile,
+    /// `setup.nixSystem`
+    SetupNixSystem,
+    /// `setup.nixUnfree`
+    SetupNixUnfree,
     /// `setup.noOutput`
     SetupNoOutput,
     /// `setup.notFound`
@@ -4423,7 +4443,7 @@ pub enum Key {
 }
 
 /// How many keys there are.
-pub const KEY_COUNT: usize = 2203;
+pub const KEY_COUNT: usize = 2213;
 
 impl Key {
     /// Every key, in the order of their ids.
@@ -6204,6 +6224,16 @@ impl Key {
         Key::SetupInstalling,
         Key::SetupInstallingHint,
         Key::SetupLead,
+        Key::SetupNixAnyway,
+        Key::SetupNixAnywayHint,
+        Key::SetupNixBack,
+        Key::SetupNixCheck,
+        Key::SetupNixChecking,
+        Key::SetupNixLead,
+        Key::SetupNixMissing,
+        Key::SetupNixProfile,
+        Key::SetupNixSystem,
+        Key::SetupNixUnfree,
         Key::SetupNoOutput,
         Key::SetupNotFound,
         Key::SetupRetry,
@@ -8412,6 +8442,16 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "setup.installing", en: Text::plain("Installing Claude Code…"), fr: Text::plain("Installation de Claude Code…") },
     Message { id: "setup.installingHint", en: Text::plain("The installer shows no progress while it downloads Claude Code: this can take a minute."), fr: Text::plain("L'installeur n'affiche rien pendant qu'il télécharge Claude Code\u{202f}: ça peut prendre une minute.") },
     Message { id: "setup.lead", en: Text::plain("Hangar runs Claude Code, Anthropic's coding agent, in its panes, and it is not installed on this machine yet."), fr: Text::plain("Hangar fait tourner Claude Code, l'agent de code d'Anthropic, dans ses panneaux, et il n'est pas encore installé sur cette machine.") },
+    Message { id: "setup.nixAnyway", en: Text::plain("Use Anthropic's installer anyway"), fr: Text::plain("Utiliser quand même l'installeur d'Anthropic") },
+    Message { id: "setup.nixAnywayHint", en: Text::plain("If your system has nix-ld."), fr: Text::plain("Si ton système a nix-ld.") },
+    Message { id: "setup.nixBack", en: Text::plain("Install from nixpkgs instead"), fr: Text::plain("Installer plutôt depuis nixpkgs") },
+    Message { id: "setup.nixCheck", en: Text::plain("Check again"), fr: Text::plain("Vérifier à nouveau") },
+    Message { id: "setup.nixChecking", en: Text::plain("Checking…"), fr: Text::plain("Vérification…") },
+    Message { id: "setup.nixLead", en: Text::plain("On NixOS, Claude Code comes from nixpkgs: the program Anthropic's installer downloads does not start here without nix-ld."), fr: Text::plain("Sur NixOS, Claude Code vient de nixpkgs\u{202f}: le programme que télécharge l'installeur d'Anthropic n'y démarre pas sans nix-ld.") },
+    Message { id: "setup.nixMissing", en: Text::plain("Hangar still cannot find claude on this machine. Once the rebuild or the install is done, check again."), fr: Text::plain("Hangar ne trouve toujours pas claude sur cette machine. Une fois la reconstruction ou l'installation terminée, vérifie à nouveau.") },
+    Message { id: "setup.nixProfile", en: Text::plain("Or, to have it right away, install it in your profile:"), fr: Text::plain("Ou, pour l'avoir tout de suite, installe-le dans ton profil\u{202f}:") },
+    Message { id: "setup.nixSystem", en: Text::plain("To keep it, add it to your NixOS configuration (or to home.packages with Home Manager) and rebuild:"), fr: Text::plain("Pour le garder, ajoute-le à ta configuration NixOS (ou à home.packages avec Home Manager) et reconstruis-la\u{202f}:") },
+    Message { id: "setup.nixUnfree", en: Text::plain("nixpkgs marks claude-code unfree: a configuration needs nixpkgs.config.allowUnfree = true, and the profile command allows it with NIXPKGS_ALLOW_UNFREE=1 and --impure."), fr: Text::plain("nixpkgs classe claude-code comme non libre\u{202f}: une configuration a besoin de nixpkgs.config.allowUnfree = true, et la commande du profil l'autorise avec NIXPKGS_ALLOW_UNFREE=1 et --impure.") },
     Message { id: "setup.noOutput", en: Text::plain("(the installer printed nothing)"), fr: Text::plain("(l'installeur n'a rien affiché)") },
     Message { id: "setup.notFound", en: Text::plain("The installer finished, but Hangar still cannot find claude on this machine."), fr: Text::plain("L'installeur a terminé, mais Hangar ne trouve toujours pas claude sur cette machine.") },
     Message { id: "setup.retry", en: Text::plain("Try again"), fr: Text::plain("Réessayer") },

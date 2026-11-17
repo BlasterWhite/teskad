@@ -63,6 +63,15 @@ hangar` and rebuild for a new version. The MCP configs and the login item it wri
 store path, so they keep working across upgrades and garbage collections. Claude Code
 itself comes from nixpkgs (`claude-code`) or its own installer.
 
+On NixOS, the **Set up Claude Code** sheet points to nixpkgs instead of Anthropic's installer,
+whose `claude` does not start there without nix-ld. It shows, to copy, the line for your
+configuration (`environment.systemPackages = [ pkgs.claude-code ];`, or `home.packages` with
+Home Manager) and a command that installs it in your profile right away
+(`NIXPKGS_ALLOW_UNFREE=1 nix profile install --impure nixpkgs#claude-code`): claude-code is
+unfree in nixpkgs, so a configuration needs `nixpkgs.config.allowUnfree = true`. **Check
+again** then looks for `claude`. **Use Anthropic's installer anyway** is still there, for a
+system with nix-ld.
+
 Nodes (the experiment that runs workspaces on another Linux machine) are not available from
 the flake yet: the package does not carry the `hangar-node` binaries a node is set up with.
 

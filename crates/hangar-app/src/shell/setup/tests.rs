@@ -1,5 +1,6 @@
 //! The Claude Code setup: when it shows, what « shells only » does, the
-//! installer it runs, what follows the install, and the sheet drawn.
+//! installer it runs, what follows the install, the sheet drawn, and NixOS,
+//! where it offers nixpkgs instead.
 //!
 //! `HANGAR_P8_SNAPSHOTS=<folder>` writes the sheet's pictures there, as the
 //! new-workspace dialog's tests do (workspace_dialog/testing.rs).
@@ -8,19 +9,29 @@ use hangar_i18n::Locale;
 use iced::futures::StreamExt;
 
 use super::install::{self, Installer, Os};
+use super::nixos;
 use super::*;
 use crate::message::Message;
 use crate::shell::Action;
 use crate::workspace_dialog::testing::Harness;
 
-/// A window whose detection found no Claude Code.
+/// A window whose detection found no Claude Code, on a system other than
+/// NixOS (whatever the machine running the tests is).
 fn missing(locale: Locale) -> (Harness, State) {
     let mut h = Harness::new(locale, "graphite");
     h.model.ui.claude_installed = false;
     let st = State {
         detected: true,
+        nixos: false,
         ..State::default()
     };
+    (h, st)
+}
+
+/// The same window, on NixOS.
+fn missing_on_nixos(locale: Locale) -> (Harness, State) {
+    let (h, mut st) = missing(locale);
+    st.nixos = true;
     (h, st)
 }
 
@@ -466,4 +477,250 @@ fn a_debug_build_takes_a_stand_in_installer() {
     );
     assert_eq!(install::fake(Some("  ".into())), None);
     assert_eq!(install::fake(None), None);
+}
+
+// ── NixOS ─────────────────────────────────────────────────────────────
+
+/// A folder standing for `/`, with these files in it.
+fn root_with(files: &[(&str, &str)]) -> tempfile::TempDir {
+    let root = tempfile::tempdir().expect("a folder");
+    for (path, text) in files {
+        let path = root.path().join(path);
+        std::fs::create_dir_all(path.parent().expect("a parent")).expect("its folder");
+        std::fs::write(path, text).expect("the file written");
+    }
+    root
+}
+
+#[test]
+fn nixos_is_known_by_its_marker_or_its_os_release() {
+    let marker = root_with(&[("etc/NIXOS", "")]);
+    assert!(nixos::is_nixos(marker.path()));
+    let release = root_with(&[(
+        "etc/os-release",
+        "BUILD_ID=\"25.11\"\nNAME=NixOS\nID=nixos\nVERSION_ID=\"25.11\"\n",
+    )]);
+    assert!(nixos::is_nixos(release.path()));
+    let quoted = root_with(&[("etc/os-release", "ID=\"nixos\"\n")]);
+    assert!(nixos::is_nixos(quoted.path()));
+
+    let ubuntu = root_with(&[(
+        "etc/os-release",
+        "NAME=\"Ubuntu\"\nID=ubuntu\nID_LIKE=debian\n",
+    )]);
+    assert!(!nixos::is_nixos(ubuntu.path()));
+    // Only the ID counts, not another key that names NixOS.
+    let variant = root_with(&[("etc/os-release", "ID=debian\nVARIANT_ID=nixos\n")]);
+    assert!(!nixos::is_nixos(variant.path()));
+    let bare = root_with(&[]);
+    assert!(!nixos::is_nixos(bare.path()));
+}
+
+#[test]
+fn the_os_release_id_is_read_without_its_quotes() {
+    assert_eq!(nixos::os_release_id("ID=nixos"), Some("nixos"));
+    assert_eq!(nixos::os_release_id("ID='nixos'"), Some("nixos"));
+    assert_eq!(
+        nixos::os_release_id("NAME=x\n  ID=\"arch\"\n"),
+        Some("arch")
+    );
+    assert_eq!(nixos::os_release_id("ID_LIKE=nixos"), None);
+}
+
+#[test]
+fn on_nixos_the_setup_offers_nixpkgs_and_no_installer() {
+    for (locale, texts, name) in [
+        (
+            Locale::En,
+            [
+                "Check again",
+                "Use Anthropic's installer anyway",
+                "Use Hangar with shells only",
+            ],
+            "setup-nixos-en-graphite",
+        ),
+        (
+            Locale::Fr,
+            [
+                "Vérifier à nouveau",
+                "Utiliser quand même l'installeur d'Anthropic",
+                "Utiliser Hangar avec des shells uniquement",
+            ],
+            "setup-nixos-fr-graphite",
+        ),
+    ] {
+        let (h, st) = missing_on_nixos(locale);
+        assert!(st.offers_nixpkgs());
+        let mut ui = h.show(view(&st, h.ctx()));
+        for text in texts
+            .into_iter()
+            .chain([nixos::SYSTEM_PACKAGES, nixos::PROFILE_INSTALL])
+        {
+            assert!(ui.find(text).is_ok(), "{text}");
+        }
+        assert!(ui.find(install::UNIX_COMMAND).is_err());
+        if locale == Locale::En {
+            assert!(ui.find("Install Claude Code").is_err());
+        }
+        h.shot(&mut ui, name);
+    }
+}
+
+#[test]
+fn on_nixos_check_again_and_shells_only_are_clicks() {
+    let (h, st) = missing_on_nixos(Locale::En);
+    let clicked = |label: &str| {
+        let mut ui = h.show(view(&st, h.ctx()));
+        assert!(ui.click(label).is_ok(), "{label}");
+        crate::workspace_dialog::testing::messages(ui)
+    };
+    let messages = clicked("Check again");
+    assert!(
+        messages
+            .iter()
+            .any(|m| matches!(m, Message::Shell(Action::Setup(Msg::Recheck)))),
+        "{messages:?}"
+    );
+    let messages = clicked("Use Hangar with shells only");
+    assert!(
+        messages
+            .iter()
+            .any(|m| matches!(m, Message::Shell(Action::Setup(Msg::ShellsOnly)))),
+        "{messages:?}"
+    );
+}
+
+#[test]
+fn off_nixos_the_offer_is_the_installers_as_before() {
+    let (h, st) = missing(Locale::En);
+    assert!(!st.offers_nixpkgs());
+    let mut ui = h.show(view(&st, h.ctx()));
+    assert!(ui.find("Install Claude Code").is_ok());
+    for text in [
+        nixos::SYSTEM_PACKAGES,
+        nixos::PROFILE_INSTALL,
+        "Check again",
+        "Use Anthropic's installer anyway",
+        "Install from nixpkgs instead",
+    ] {
+        assert!(ui.find(text).is_err(), "{text}");
+    }
+}
+
+#[test]
+fn on_nixos_the_installer_is_still_there_behind_a_link() {
+    let (mut h, mut st) = missing_on_nixos(Locale::En);
+    {
+        let mut ui = h.show(view(&st, h.ctx()));
+        assert!(ui.click("Use Anthropic's installer anyway").is_ok());
+        let messages = crate::workspace_dialog::testing::messages(ui);
+        assert!(
+            messages
+                .iter()
+                .any(|m| matches!(m, Message::Shell(Action::Setup(Msg::InstallerAnyway)))),
+            "{messages:?}"
+        );
+    }
+
+    // Chosen: the installer's sheet, as anywhere else, with the way back.
+    let _ = update(&mut st, &mut h.model, Msg::InstallerAnyway);
+    assert!(!st.offers_nixpkgs());
+    assert_eq!(st.step, Step::Offer);
+    {
+        let mut ui = h.show(view(&st, h.ctx()));
+        assert!(ui.find("Install from nixpkgs instead").is_ok());
+        assert!(ui.find("Check again").is_err());
+        assert!(ui.click("Install Claude Code").is_ok());
+        let messages = crate::workspace_dialog::testing::messages(ui);
+        assert!(
+            messages
+                .iter()
+                .any(|m| matches!(m, Message::Shell(Action::Setup(Msg::Install)))),
+            "{messages:?}"
+        );
+    }
+
+    // It runs the installer, whose failure says so and keeps the way back.
+    let run = installing(&mut h, &mut st);
+    let _ = update(&mut st, &mut h.model, Msg::Exited(run, Ok(Some(1))));
+    assert_eq!(st.step, Step::Failed(Failure::Exit(1)));
+    {
+        let mut ui = h.show(view(&st, h.ctx()));
+        assert!(ui.find("Install from nixpkgs instead").is_ok());
+        assert!(ui.find("Try again").is_ok());
+    }
+
+    // Back to nixpkgs, from the start.
+    let _ = update(&mut st, &mut h.model, Msg::Nixpkgs);
+    assert!(st.offers_nixpkgs());
+    assert_eq!(st.step, Step::Offer);
+
+    // The sheet closed starts again from nixpkgs.
+    let _ = update(&mut st, &mut h.model, Msg::InstallerAnyway);
+    let _ = closing(&mut st);
+    assert!(st.offers_nixpkgs());
+}
+
+#[test]
+fn check_again_looks_for_claude_and_moves_on_once_found() {
+    let (mut h, mut st) = missing_on_nixos(Locale::En);
+    let _ = update(&mut st, &mut h.model, Msg::Recheck);
+    assert_eq!(st.step, Step::Checking);
+    let first = st.run;
+
+    // Not there yet: the sheet says so, and stays.
+    let _ = update(&mut st, &mut h.model, Msg::Found(first, false));
+    assert_eq!(st.step, Step::Offer);
+    assert!(st.still_missing);
+    assert!(st.offers_nixpkgs());
+    assert!(!h.model.ui.claude_installed);
+    assert!(needed(&st, &h.model));
+    {
+        let mut ui = h.show(view(&st, h.ctx()));
+        assert!(
+            ui.find(
+                "Hangar still cannot find claude on this machine. Once the rebuild or the install is done, check again."
+            )
+            .is_ok()
+        );
+    }
+
+    // Again: while it looks, the sheet waits, with no way out.
+    let _ = update(&mut st, &mut h.model, Msg::Recheck);
+    let again = st.run;
+    assert_ne!(again, first);
+    {
+        let mut ui = h.show(view(&st, h.ctx()));
+        assert!(ui.find("Checking…").is_ok());
+        assert!(ui.find("Use Hangar with shells only").is_err());
+        assert!(ui.find("Use Anthropic's installer anyway").is_err());
+    }
+    // A second click while it looks, and an earlier look's late answer, do
+    // nothing.
+    let _ = update(&mut st, &mut h.model, Msg::Recheck);
+    let _ = update(&mut st, &mut h.model, Msg::InstallerAnyway);
+    assert_eq!(st.run, again);
+    assert!(st.offers_nixpkgs());
+    let _ = update(&mut st, &mut h.model, Msg::Found(first, true));
+    assert_eq!(st.step, Step::Checking);
+
+    // Installed by now: on to signing in.
+    let _ = update(&mut st, &mut h.model, Msg::Found(again, true));
+    assert_eq!(st.step, Step::SignIn);
+    assert!(!st.still_missing);
+    assert!(h.model.ui.claude_installed);
+    assert!(!needed(&st, &h.model));
+}
+
+/// An answer that comes when nothing is looked for any more (the sheet
+/// closed meanwhile) changes nothing.
+#[test]
+fn a_late_answer_after_the_sheet_closed_is_ignored() {
+    let (mut h, mut st) = missing_on_nixos(Locale::En);
+    let _ = update(&mut st, &mut h.model, Msg::Recheck);
+    let run = st.run;
+    let _ = closing(&mut st);
+    let _ = update(&mut st, &mut h.model, Msg::Found(run, true));
+    assert_eq!(st.step, Step::Offer);
+    assert!(!h.model.ui.claude_installed);
 }
