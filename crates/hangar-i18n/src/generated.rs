@@ -40,12 +40,40 @@ pub enum Key {
     AccountsSettingsAddPlaceholder,
     /// `accounts.settings.addTitle`
     AccountsSettingsAddTitle,
+    /// `accounts.settings.badge`
+    AccountsSettingsBadge,
+    /// `accounts.settings.badges`
+    AccountsSettingsBadges,
+    /// `accounts.settings.badgesHint`
+    AccountsSettingsBadgesHint,
     /// `accounts.settings.cancel`
     AccountsSettingsCancel,
     /// `accounts.settings.default`
     AccountsSettingsDefault,
     /// `accounts.settings.failed`
     AccountsSettingsFailed,
+    /// `accounts.settings.iconBolt`
+    AccountsSettingsIconBolt,
+    /// `accounts.settings.iconBookmark`
+    AccountsSettingsIconBookmark,
+    /// `accounts.settings.iconCube`
+    AccountsSettingsIconCube,
+    /// `accounts.settings.iconFlag`
+    AccountsSettingsIconFlag,
+    /// `accounts.settings.iconFolder`
+    AccountsSettingsIconFolder,
+    /// `accounts.settings.iconGamepad`
+    AccountsSettingsIconGamepad,
+    /// `accounts.settings.iconLock`
+    AccountsSettingsIconLock,
+    /// `accounts.settings.iconMoon`
+    AccountsSettingsIconMoon,
+    /// `accounts.settings.iconNone`
+    AccountsSettingsIconNone,
+    /// `accounts.settings.iconTerminal`
+    AccountsSettingsIconTerminal,
+    /// `accounts.settings.iconWorkspace`
+    AccountsSettingsIconWorkspace,
     /// `accounts.settings.intro`
     AccountsSettingsIntro,
     /// `accounts.settings.listLabel`
@@ -82,6 +110,16 @@ pub enum Key {
     AccountsSettingsSetDefault,
     /// `accounts.settings.title`
     AccountsSettingsTitle,
+    /// `accounts.settings.toneAccent`
+    AccountsSettingsToneAccent,
+    /// `accounts.settings.toneDanger`
+    AccountsSettingsToneDanger,
+    /// `accounts.settings.toneNone`
+    AccountsSettingsToneNone,
+    /// `accounts.settings.toneSuccess`
+    AccountsSettingsToneSuccess,
+    /// `accounts.settings.toneWarning`
+    AccountsSettingsToneWarning,
     /// `accounts.settings.unsupportedBody`
     AccountsSettingsUnsupportedBody,
     /// `accounts.settings.unsupportedTitle`
@@ -4443,7 +4481,7 @@ pub enum Key {
 }
 
 /// How many keys there are.
-pub const KEY_COUNT: usize = 2213;
+pub const KEY_COUNT: usize = 2232;
 
 impl Key {
     /// Every key, in the order of their ids.
@@ -4461,9 +4499,23 @@ impl Key {
         Key::AccountsSettingsAddName,
         Key::AccountsSettingsAddPlaceholder,
         Key::AccountsSettingsAddTitle,
+        Key::AccountsSettingsBadge,
+        Key::AccountsSettingsBadges,
+        Key::AccountsSettingsBadgesHint,
         Key::AccountsSettingsCancel,
         Key::AccountsSettingsDefault,
         Key::AccountsSettingsFailed,
+        Key::AccountsSettingsIconBolt,
+        Key::AccountsSettingsIconBookmark,
+        Key::AccountsSettingsIconCube,
+        Key::AccountsSettingsIconFlag,
+        Key::AccountsSettingsIconFolder,
+        Key::AccountsSettingsIconGamepad,
+        Key::AccountsSettingsIconLock,
+        Key::AccountsSettingsIconMoon,
+        Key::AccountsSettingsIconNone,
+        Key::AccountsSettingsIconTerminal,
+        Key::AccountsSettingsIconWorkspace,
         Key::AccountsSettingsIntro,
         Key::AccountsSettingsListLabel,
         Key::AccountsSettingsLogIn,
@@ -4482,6 +4534,11 @@ impl Key {
         Key::AccountsSettingsSave,
         Key::AccountsSettingsSetDefault,
         Key::AccountsSettingsTitle,
+        Key::AccountsSettingsToneAccent,
+        Key::AccountsSettingsToneDanger,
+        Key::AccountsSettingsToneNone,
+        Key::AccountsSettingsToneSuccess,
+        Key::AccountsSettingsToneWarning,
         Key::AccountsSettingsUnsupportedBody,
         Key::AccountsSettingsUnsupportedTitle,
         Key::AccountsSettingsUsedBy,
@@ -6679,9 +6736,23 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "accounts.settings.addName", en: Text::plain("Name"), fr: Text::plain("Nom") },
     Message { id: "accounts.settings.addPlaceholder", en: Text::plain("Work, Personal…"), fr: Text::plain("Travail, Perso…") },
     Message { id: "accounts.settings.addTitle", en: Text::plain("Add an account"), fr: Text::plain("Ajouter un compte") },
+    Message { id: "accounts.settings.badge", en: Text::plain("Badge, where the account is named"), fr: Text::plain("Badge, là où le compte est nommé") },
+    Message { id: "accounts.settings.badges", en: Text::plain("Colour the account badges"), fr: Text::plain("Colorer les badges des comptes") },
+    Message { id: "accounts.settings.badgesHint", en: Text::plain("Give each account a colour and an icon, to tell them apart at a glance. The toolbar's account button and its menu show them for every account, the default one included; the navigator and pane headers name only an account other than the default. Off, accounts keep their plain labels."), fr: Text::plain("Donne à chaque compte une couleur et une icône, pour les distinguer d'un coup d'œil. Le bouton du compte dans la barre d'outils et son menu les montrent pour chaque compte, celui par défaut compris\u{202f}; le navigateur et les en-têtes de volet ne nomment qu'un compte autre que celui par défaut. Désactivé, les comptes gardent leur libellé simple.") },
     Message { id: "accounts.settings.cancel", en: Text::plain("Cancel"), fr: Text::plain("Annuler") },
     Message { id: "accounts.settings.default", en: Text::plain("Default"), fr: Text::plain("Par défaut") },
     Message { id: "accounts.settings.failed", en: Text::plain("Could not do that: {detail}"), fr: Text::plain("Impossible\u{202f}: {detail}") },
+    Message { id: "accounts.settings.iconBolt", en: Text::plain("Bolt"), fr: Text::plain("Éclair") },
+    Message { id: "accounts.settings.iconBookmark", en: Text::plain("Bookmark"), fr: Text::plain("Signet") },
+    Message { id: "accounts.settings.iconCube", en: Text::plain("Cube"), fr: Text::plain("Cube") },
+    Message { id: "accounts.settings.iconFlag", en: Text::plain("Flag"), fr: Text::plain("Drapeau") },
+    Message { id: "accounts.settings.iconFolder", en: Text::plain("Folder"), fr: Text::plain("Dossier") },
+    Message { id: "accounts.settings.iconGamepad", en: Text::plain("Game controller"), fr: Text::plain("Manette") },
+    Message { id: "accounts.settings.iconLock", en: Text::plain("Lock"), fr: Text::plain("Cadenas") },
+    Message { id: "accounts.settings.iconMoon", en: Text::plain("Moon"), fr: Text::plain("Lune") },
+    Message { id: "accounts.settings.iconNone", en: Text::plain("No icon"), fr: Text::plain("Sans icône") },
+    Message { id: "accounts.settings.iconTerminal", en: Text::plain("Terminal"), fr: Text::plain("Terminal") },
+    Message { id: "accounts.settings.iconWorkspace", en: Text::plain("Workspace"), fr: Text::plain("Workspace") },
     Message { id: "accounts.settings.intro", en: Text::plain("Each account is a separate Claude subscription. Choose one per workspace; Hangar never switches on its own when a limit is reached."), fr: Text::plain("Chaque compte est un abonnement Claude distinct. Choisis-en un par workspace\u{202f}; Hangar ne bascule jamais tout seul quand une limite est atteinte.") },
     Message { id: "accounts.settings.listLabel", en: Text::plain("Accounts"), fr: Text::plain("Comptes") },
     Message { id: "accounts.settings.logIn", en: Text::plain("Log in"), fr: Text::plain("Se connecter") },
@@ -6700,6 +6771,11 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "accounts.settings.save", en: Text::plain("Save"), fr: Text::plain("Enregistrer") },
     Message { id: "accounts.settings.setDefault", en: Text::plain("Make default"), fr: Text::plain("Définir par défaut") },
     Message { id: "accounts.settings.title", en: Text::plain("Claude accounts"), fr: Text::plain("Comptes Claude") },
+    Message { id: "accounts.settings.toneAccent", en: Text::plain("Accent"), fr: Text::plain("Accent") },
+    Message { id: "accounts.settings.toneDanger", en: Text::plain("Red"), fr: Text::plain("Rouge") },
+    Message { id: "accounts.settings.toneNone", en: Text::plain("Plain"), fr: Text::plain("Sans couleur") },
+    Message { id: "accounts.settings.toneSuccess", en: Text::plain("Green"), fr: Text::plain("Vert") },
+    Message { id: "accounts.settings.toneWarning", en: Text::plain("Amber"), fr: Text::plain("Ambre") },
     Message { id: "accounts.settings.unsupportedBody", en: Text::plain("Logging in to one account here may log another one out. You may have to log in again after switching."), fr: Text::plain("Se connecter à un compte ici peut en déconnecter un autre. Tu devras peut-être te reconnecter après un changement.") },
     Message { id: "accounts.settings.unsupportedTitle", en: Text::plain("Logins are not kept apart on this computer"), fr: Text::plain("Les connexions ne sont pas séparées sur cet ordinateur") },
     Message { id: "accounts.settings.usedBy", en: Text::plain("Used by {names}"), fr: Text::plain("Utilisé par {names}") },
