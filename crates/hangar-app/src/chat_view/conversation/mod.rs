@@ -71,6 +71,9 @@ use crate::state::{AgentActivity, AgentId, Model, Pane, PaneId, Workspace, WsId}
 
 pub use thread::{Sent, Thread};
 pub use view::view;
+// The composer's id, which a test of another package finds it by.
+#[cfg(test)]
+pub(crate) use view::input_id;
 
 /// How often the tick looks whether to read again.
 const TICK: Duration = Duration::from_secs(2);
@@ -581,6 +584,27 @@ impl State {
     #[cfg(test)]
     fn chat_mut(&mut self, ws: &str, pane: &str) -> &mut Chat {
         chat_of(self, ws, pane)
+    }
+
+    /// The conversation of `pane` in `ws` as read from `view`, the desk up:
+    /// what a test of another package draws the chat view with.
+    #[cfg(test)]
+    pub(crate) fn read_for_test(&mut self, m: &mut Model, ws: &str, pane: &str, view: ChatView) {
+        self.chat_mut(ws, pane).reading = true;
+        let _ = handle(
+            self,
+            m,
+            Msg::Read {
+                ws: ws.into(),
+                pane: pane.into(),
+                older: false,
+                result: Ok(Box::new(view)),
+            },
+        );
+        self.chat_mut(ws, pane).desk = DeskState {
+            ready: true,
+            ..DeskState::default()
+        };
     }
 
     /// The desk calls asked so far, oldest first.
