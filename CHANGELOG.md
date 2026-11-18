@@ -10,6 +10,16 @@ Every release, with its installers, is on the
 
 ## [Unreleased]
 
+## [2.4.2] - 2026-11-18
+
+### Changed
+
+- A quieter orchestrator on big projects. A worker waiting on a job of its own (a build, a benchmark, a CI run it watches) is no longer reported idle every ten minutes. A worker that is really idle is reported once, then again only after it did something or half an hour later. News that can wait (plain comments, idle workers) comes as one digest every five minutes at most, while deliveries, questions, a worker waiting for you or a crash still arrive at once.
+
+### Fixed
+
+- Enabling a kit works again. With its activation sheet open over a workspace's Kits dialog or over Settings, the click on "Accept and enable" went to the dialog underneath: the sheet closed and nothing was enabled, and in Settings the click could flip another switch. Only the dialog in front now takes the mouse and the keyboard.
+
 ## [2.4.1] - 2026-11-17
 
 ### Fixed
@@ -812,6 +822,7 @@ statistics, workspace sleep and per-workspace MCP servers.
 - Automatic updates from signed GitHub releases.
 - An interface in English and French (0.1.1).
 
+[2.4.2]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.2
 [2.4.1]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.1
 [2.4.0]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.0
 [2.3.0]: https://github.com/simnJS/hangar-ai/releases/tag/v2.3.0
