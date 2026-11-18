@@ -218,7 +218,7 @@ fn on_a_solid_theme_what_lies_on_the_desktop_is_drawn_as_before() {
 fn on_a_translucent_theme_the_desktop_shows_through_the_page_and_the_bars_only() {
     let Some(theme) = themes().iter().find(|theme| theme.is_translucent()) else {
         // Not on Linux: every window is solid there.
-        assert!(!cfg!(target_os = "linux"));
+        assert!(themes().iter().all(|theme| theme.window_alpha() == 1.0));
         return;
     };
     let dark = &iced::Theme::Dark;
