@@ -175,6 +175,11 @@ fn send(
 }
 
 pub fn update(st: &mut State, m: &mut Model, _sv: &Services, msg: Msg) -> Task<Message> {
+    step(st, m, msg)
+}
+
+/// What a message does; nothing of it needs the services.
+pub(crate) fn step(st: &mut State, m: &mut Model, msg: Msg) -> Task<Message> {
     match msg {
         Msg::Input(window, value) => {
             st.set_broadcast_text(window, value);
@@ -490,25 +495,28 @@ fn broadcast<'a>(
         _ => None,
     });
     // The keymap goes first: Ctrl+Shift+Enter typed in the field splits the
-    // pane behind it, and must not also send the line.
-    let input = crate::keymap::guard(ctx, input);
+    // pane behind it, and must not also send the line. While the field has
+    // the keyboard the status bar does, as after F6: no terminal takes what
+    // is typed here, and a click in a pane takes the keyboard back.
+    let input = crate::keymap::guard_in(ctx, Region::Status, input);
     // The placeholder is drawn by hand, in the secondary grey the stylesheet
-    // gave it, since the field's own is a step fainter.
-    let shown: Element<'a, Message> = if value.is_empty() {
-        iced::widget::stack![
-            input,
-            container(
-                text(placeholder)
-                    .size(font_size::UI)
-                    .style(style::text::secondary(t))
-            )
-            .align_y(Alignment::Center)
-            .height(Length::Fill)
-        ]
+    // gave it, since the field's own is a step fainter. The field keeps its
+    // place under it whether it shows or not: drawn without the stack once
+    // something was typed, the field was a new widget to iced, whose own
+    // state (the keyboard with it) started again after the first character.
+    let placeholder: Element<'a, Message> = if value.is_empty() {
+        container(
+            text(placeholder)
+                .size(font_size::UI)
+                .style(style::text::secondary(t)),
+        )
+        .align_y(Alignment::Center)
+        .height(Length::Fill)
         .into()
     } else {
-        input
+        Space::new().into()
     };
+    let shown = iced::widget::stack![input, placeholder];
 
     let mut field = row![shown].align_y(Alignment::Center).spacing(space::SM);
     if !hint.is_empty() {
