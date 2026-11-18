@@ -126,12 +126,13 @@ impl Theme {
             .get_or_init(Mutex::default)
             .lock()
             .unwrap_or_else(PoisonError::into_inner);
-        *copies.entry(key).or_insert_with(|| {
+        let &mut copy = copies.entry(key).or_insert_with(|| {
             Box::leak(Box::new(Theme {
                 window_opacity,
                 ..*self
             }))
-        })
+        });
+        copy
     }
 
     /// Whether the desktop shows through the window here.
