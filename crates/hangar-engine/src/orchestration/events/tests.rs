@@ -572,6 +572,7 @@ fn drops_a_wait_or_an_idle_the_moment_has_overtaken() {
         worker: w.into(),
         task_id: Some(t.into()),
         for_ms: 700_000,
+        job: None,
     };
     let batch = [
         entry(waiting("w1", "a"), BASE, false),
