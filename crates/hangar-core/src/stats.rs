@@ -1,10 +1,11 @@
 //! Usage statistics: tokens, active time and their API-equivalent cost, read
-//! from the transcripts Claude Code already keeps on disk.
+//! from the transcripts the agents already keep on disk.
 //!
 //! Claude Code writes every exchange to `~/.claude/projects/<project>/` —
 //! its subagents to a `subagents` folder under the session — and stamps each
-//! answer with its token usage. It is the only agent Hangar runs (owner's
-//! decision, 2026-11-03), so it is the only one read.
+//! answer with its token usage. Codex keeps rollouts under
+//! `~/.codex/sessions/` and `archived_sessions/`, plain or compressed, with
+//! the usage of every response (sessions/codex.rs).
 //!
 //! That is gigabytes for a busy machine, so nothing is read twice: every file
 //! leaves a digest (parse.rs) in a cache keyed by its path, size and
@@ -30,14 +31,18 @@ use serde::{Deserialize, Serialize};
 
 use crate::host::Host;
 
+pub use crate::sessions::AgentKind;
 pub use aggregate::{Bucket, ModelInfo, SessionInfo, Window, ACTIVE_GAP_CAP_MS};
 use parse::Digest;
+
+use crate::sessions::codex;
 
 /// Bumped whenever a digest would come out differently for the same file —
 /// a parser fix — so the caches written before it are dropped, not trusted.
 /// 3: digests no longer name an agent, and Codex's are gone with it.
 /// 4: prompts carry their message's key, so a copied history counts once.
-const CACHE_VERSION: u32 = 4;
+/// 5: digests name their agent again, and Codex's rollouts are read.
+const CACHE_VERSION: u32 = 5;
 const CACHE_FILE: &str = "usage-stats-cache.json";
 /// Bytes hashed at the head of a file to tell an appended one from a
 /// rewritten one.
@@ -51,17 +56,20 @@ const SAVE_EVERY: Duration = Duration::from_secs(30);
 // Finding the transcripts
 // ---------------------------------------------------------------------------
 
-/// Where Claude Code keeps its transcripts.
+/// Where each agent keeps its transcripts.
 #[derive(Debug, Clone)]
 pub struct Roots {
     pub claude: Vec<PathBuf>,
+    pub codex: Vec<PathBuf>,
 }
 
 impl Roots {
-    /// Claude Code's default, and the variable it reads to move it: the main
-    /// account's `projects/`, which every Claude account's profile shares, so
-    /// a turn made on any account is counted once — plus the folder of a
-    /// profile that could not share it (accounts.rs).
+    /// The agents' own defaults, and the variables each one reads to move
+    /// them. Claude Code's are the main account's `projects/`, which every
+    /// Claude account's profile shares, so a turn made on any account is
+    /// counted once — plus the folder of a profile that could not share it
+    /// (accounts.rs). Codex's are `sessions/` and `archived_sessions/` under
+    /// `CODEX_HOME`.
     pub fn from_env() -> Self {
         let mut claude = crate::accounts::projects_dirs();
         if claude.is_empty() {
@@ -71,15 +79,27 @@ impl Roots {
                 .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".claude"));
             claude.push(config.join("projects"));
         }
-        Self { claude }
+        let codex = codex::home()
+            .map(|home| {
+                vec![
+                    home.join(codex::SESSIONS),
+                    home.join(codex::ARCHIVED_SESSIONS),
+                ]
+            })
+            .unwrap_or_default();
+        Self { claude, codex }
     }
 }
 
 #[derive(Debug, Clone)]
 struct Found {
     path: PathBuf,
-    /// A Claude subagent's transcript.
+    agent: AgentKind,
+    /// A Claude subagent's transcript. A Codex sub-agent's rollout says so
+    /// inside, read with the rest.
     sub: bool,
+    /// A `.jsonl.zst` rollout, read whole every time it changes.
+    compressed: bool,
     modified: u64,
     size: u64,
 }
@@ -108,10 +128,11 @@ fn walk(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// What each root holds, for the page to say what it could read.
+/// What each root holds, for the page to say which agents it could read.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Source {
+    pub agent: AgentKind,
     pub root: String,
     pub found: bool,
     pub files: usize,
@@ -120,10 +141,19 @@ pub struct Source {
 fn discover(roots: &Roots) -> (Vec<Found>, Vec<Source>) {
     let mut found = Vec::new();
     let mut sources = Vec::new();
-    for root in &roots.claude {
+    let all = roots
+        .claude
+        .iter()
+        .map(|root| (AgentKind::Claude, root))
+        .chain(roots.codex.iter().map(|root| (AgentKind::Codex, root)));
+    for (agent, root) in all {
         let mut files = Vec::new();
-        walk(root, 0, &mut files);
+        match agent {
+            AgentKind::Claude => walk(root, 0, &mut files),
+            AgentKind::Codex => codex::collect_rollouts(root, &mut files),
+        }
         sources.push(Source {
+            agent,
             root: root.to_string_lossy().into_owned(),
             found: root.is_dir(),
             files: files.len(),
@@ -138,9 +168,12 @@ fn discover(roots: &Roots) -> (Vec<Found>, Vec<Source>) {
                 .and_then(|at| at.duration_since(UNIX_EPOCH).ok())
                 .map_or(0, |since| since.as_millis() as u64);
             found.push(Found {
-                sub: path
-                    .components()
-                    .any(|part| part.as_os_str() == "subagents"),
+                sub: agent == AgentKind::Claude
+                    && path
+                        .components()
+                        .any(|part| part.as_os_str() == "subagents"),
+                compressed: codex::is_compressed(&path),
+                agent,
                 path,
                 modified,
                 size: meta.len(),
@@ -178,13 +211,19 @@ fn head_hash(path: &Path) -> std::io::Result<u64> {
 }
 
 /// The session a file belongs to when none of its lines said: its own name,
-/// which is the session id.
-fn session_from_name(path: &Path) -> String {
+/// which for both agents carries the session id.
+fn session_from_name(agent: AgentKind, path: &Path) -> String {
+    if let Some(thread) = (agent == AgentKind::Codex)
+        .then(|| codex::thread_id_of(path))
+        .flatten()
+    {
+        return thread;
+    }
     let stem = path
         .file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default();
-    let stem = stem.trim_end_matches(".jsonl");
+    let stem = stem.trim_end_matches(".zst").trim_end_matches(".jsonl");
     stem.to_string()
 }
 
@@ -193,7 +232,11 @@ fn session_from_name(path: &Path) -> String {
 fn read_file(found: &Found, previous: Option<&Entry>) -> std::io::Result<Entry> {
     let head = head_hash(&found.path)?;
     let resumable = previous.filter(|entry| {
-        entry.head == head && found.size >= entry.size && entry.digest.offset <= found.size
+        !found.compressed
+            && entry.head == head
+            && found.size >= entry.size
+            && entry.digest.offset <= found.size
+            && entry.digest.agent == found.agent
     });
     let mut file = fs::File::open(&found.path)?;
     let mut digest = match resumable {
@@ -201,12 +244,19 @@ fn read_file(found: &Found, previous: Option<&Entry>) -> std::io::Result<Entry> 
             file.seek(SeekFrom::Start(entry.digest.offset))?;
             entry.digest.clone()
         }
-        None => Digest::new(found.sub),
+        None => Digest::new(found.agent, found.sub),
     };
-    let consumed = parse::read_into(&mut digest, file, false)?;
+    let consumed = if found.compressed {
+        drop(file);
+        // A compressed rollout is finished: its last line counts even
+        // without a newline.
+        parse::read_into(&mut digest, codex::open_rollout(&found.path)?, true)?
+    } else {
+        parse::read_into(&mut digest, file, false)?
+    };
     digest.offset += consumed;
     if digest.session.is_empty() {
-        digest.session = session_from_name(&found.path);
+        digest.session = session_from_name(found.agent, &found.path);
     }
     Ok(Entry {
         modified: found.modified,
@@ -395,7 +445,7 @@ fn refresh(roots: &Roots, disk: Option<&Path>) -> (ScanInfo, Vec<Source>) {
     let bytes: u64 = todo
         .iter()
         .map(|(file, previous)| match previous {
-            Some(entry) if file.size >= entry.size => {
+            Some(entry) if !file.compressed && file.size >= entry.size => {
                 file.size - entry.digest.offset.min(file.size)
             }
             _ => file.size,
@@ -485,6 +535,16 @@ pub struct UsageStats {
     pub buckets: Vec<Bucket>,
 }
 
+/// `UsageStats` with the agent each of its sessions ran, for what splits the
+/// figures by agent: `session_agents[i]` is `stats.sessions[i]`'s.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageStatsByAgent {
+    #[serde(flatten)]
+    pub stats: UsageStats,
+    pub session_agents: Vec<AgentKind>,
+}
+
 /// The start of the local hour holding `at`. The offset is looked up once
 /// per UTC hour: it only changes on the hour, at a daylight-saving switch,
 /// and zones half an hour off UTC still get their own hour boundaries.
@@ -506,23 +566,26 @@ fn local_hours() -> impl Fn(i64) -> i64 {
     }
 }
 
-fn answer(scan: ScanInfo, sources: Vec<Source>, window: Window) -> UsageStats {
+fn answer(scan: ScanInfo, sources: Vec<Source>, window: Window) -> UsageStatsByAgent {
     let cache = cache().lock().unwrap_or_else(|e| e.into_inner());
     let result = aggregate::aggregate(
         cache.files.values().map(|entry| &entry.digest),
         window,
         local_hours(),
     );
-    UsageStats {
-        generated_at: SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_or(0, |since| since.as_millis() as i64),
-        scan,
-        sources,
-        active_gap_cap_ms: ACTIVE_GAP_CAP_MS,
-        sessions: result.sessions,
-        models: result.models,
-        buckets: result.buckets,
+    UsageStatsByAgent {
+        stats: UsageStats {
+            generated_at: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_or(0, |since| since.as_millis() as i64),
+            scan,
+            sources,
+            active_gap_cap_ms: ACTIVE_GAP_CAP_MS,
+            sessions: result.sessions,
+            models: result.models,
+            buckets: result.buckets,
+        },
+        session_agents: result.session_agents,
     }
 }
 
@@ -539,6 +602,16 @@ pub fn usage_stats_at(
     window: Window,
     cached_only: bool,
 ) -> UsageStats {
+    usage_stats_by_agent_at(roots, disk, window, cached_only).stats
+}
+
+/// `usage_stats_at`, with the agent of each session.
+pub fn usage_stats_by_agent_at(
+    roots: &Roots,
+    disk: Option<&Path>,
+    window: Window,
+    cached_only: bool,
+) -> UsageStatsByAgent {
     if cached_only {
         let started = Instant::now();
         let files = {
@@ -571,9 +644,21 @@ pub async fn usage_stats(
     to: Option<i64>,
     cached_only: Option<bool>,
 ) -> Result<UsageStats, String> {
+    usage_stats_by_agent(host, from, to, cached_only)
+        .await
+        .map(|answer| answer.stats)
+}
+
+/// `usage_stats`, with the agent of each session.
+pub async fn usage_stats_by_agent(
+    host: Host,
+    from: Option<i64>,
+    to: Option<i64>,
+    cached_only: Option<bool>,
+) -> Result<UsageStatsByAgent, String> {
     let disk = cache_path(&host);
     crate::git::off_thread(move || {
-        Ok(usage_stats_at(
+        Ok(usage_stats_by_agent_at(
             &Roots::from_env(),
             disk.as_deref(),
             Window { from, to },
@@ -632,6 +717,7 @@ mod tests {
         Fixture {
             roots: Roots {
                 claude: vec![root.join("claude")],
+                codex: vec![root.join("codex")],
             },
             disk: root.join("cache.json"),
             transcript,
@@ -690,7 +776,14 @@ mod tests {
         assert_eq!((first.scan.parsed, first.scan.reused), (1, 0));
         assert_eq!(total_output(&first), 100);
         assert!(f.disk.is_file());
-        assert!(first.sources.iter().all(|s| s.found));
+        assert!(first
+            .sources
+            .iter()
+            .any(|s| s.agent == AgentKind::Claude && s.found));
+        assert!(first
+            .sources
+            .iter()
+            .any(|s| s.agent == AgentKind::Codex && !s.found));
 
         let second = usage_stats_at(&f.roots, Some(&f.disk), Window::default(), false);
         assert_eq!((second.scan.parsed, second.scan.reused), (0, 1));
@@ -802,6 +895,115 @@ mod tests {
         fs::remove_dir_all(&f.root).ok();
     }
 
+    /// Today's Codex rollouts, one of them compressed, beside a Claude Code
+    /// transcript: each session counted once under its agent, the sub-agent
+    /// inside the thread that spawned it, every model priced.
+    #[test]
+    fn codex_rollouts_plain_and_compressed_are_read_beside_claude() {
+        use crate::sessions::codex::tests::{
+            compress, put, LEGACY, LEGACY_ID, LEGACY_NAME, PAGINATED, PAGINATED_ID, PAGINATED_NAME,
+            SUBAGENT, SUBAGENT_NAME,
+        };
+        let _turn = serial();
+        reset_cache();
+        let f = fixture("codex");
+        let sessions = f.root.join("codex");
+        put(&sessions, LEGACY_NAME, LEGACY.as_bytes());
+        put(&sessions, SUBAGENT_NAME, SUBAGENT.as_bytes());
+        put(
+            &sessions,
+            &format!("{PAGINATED_NAME}.zst"),
+            &compress(PAGINATED),
+        );
+
+        let answer = usage_stats_by_agent_at(&f.roots, Some(&f.disk), Window::default(), false);
+        let stats = &answer.stats;
+        assert_eq!(stats.scan.files, 4);
+        assert_eq!(stats.scan.failed, 0);
+        // 100 from Claude Code; 412 + 655 + 300 from the thread, 240 from its
+        // sub-agent, 520 from the paginated thread.
+        assert_eq!(total_output(stats), 100 + 1367 + 240 + 520);
+        assert_eq!(stats.sessions.len(), 3);
+        let agent_of = |id: &str| {
+            let at = stats.sessions.iter().position(|s| s.id == id).unwrap();
+            answer.session_agents[at]
+        };
+        assert_eq!(agent_of("s-1"), AgentKind::Claude);
+        assert_eq!(agent_of(LEGACY_ID), AgentKind::Codex);
+        assert_eq!(agent_of(PAGINATED_ID), AgentKind::Codex);
+        let legacy = stats.sessions.iter().find(|s| s.id == LEGACY_ID).unwrap();
+        assert_eq!(legacy.cwd, "/home/dev/shop");
+        assert_eq!(legacy.title, "Add a cart total to the checkout page");
+        let turns: u32 = stats.buckets.iter().map(|row| row.turns).sum();
+        assert_eq!(turns, 2 + 1);
+        for model in ["gpt-6.1-sol", "gpt-6-luna", "gpt-5.6-sol"] {
+            assert!(
+                stats.models.iter().any(|m| m.id == model && m.priced),
+                "{model} is priced"
+            );
+        }
+
+        // The thread's three responses at gpt-6.1-sol's rates: $2 fresh
+        // input, $0.10 cached, $2.50 a 30-minute cache write, $10 output.
+        let model = stats
+            .models
+            .iter()
+            .position(|m| m.id == "gpt-6.1-sol")
+            .unwrap() as i32;
+        let cost: f64 = stats
+            .buckets
+            .iter()
+            .filter(|row| row.model == model)
+            .map(|row| row.cost)
+            .sum();
+        let expected = (754.0 * 2.0 + 37632.0 * 0.10 + 19456.0 * 2.5 + 1367.0 * 10.0) / 1e6;
+        assert!((cost - expected).abs() < 1e-12, "{cost} != {expected}");
+
+        // Read again: nothing changed, nothing parsed.
+        let again = usage_stats_at(&f.roots, Some(&f.disk), Window::default(), false);
+        assert_eq!((again.scan.parsed, again.scan.reused), (0, 4));
+        assert_eq!(total_output(&again), total_output(stats));
+        fs::remove_dir_all(&f.root).ok();
+    }
+
+    /// A Codex rollout that grew is read from where it stopped, like a Claude
+    /// Code transcript; once compressed it is read whole, and counted once.
+    #[test]
+    fn a_growing_rollout_is_read_on_and_its_compressed_copy_counts_once() {
+        use crate::sessions::codex::tests::{compress, put, LEGACY, LEGACY_NAME};
+        let _turn = serial();
+        reset_cache();
+        let f = fixture("codex-grow");
+        fs::remove_file(&f.transcript).unwrap();
+        let cut = LEGACY[..LEGACY.len() / 2].rfind('\n').unwrap() + 1;
+        let path = put(
+            &f.root.join("codex"),
+            LEGACY_NAME,
+            &LEGACY.as_bytes()[..cut],
+        );
+        let early = usage_stats_at(&f.roots, Some(&f.disk), Window::default(), false);
+
+        let mut file = fs::OpenOptions::new().append(true).open(&path).unwrap();
+        file.write_all(&LEGACY.as_bytes()[cut..]).unwrap();
+        drop(file);
+        let grown = usage_stats_at(&f.roots, Some(&f.disk), Window::default(), false);
+        assert_eq!(grown.scan.bytes, (LEGACY.len() - cut) as u64);
+        assert_eq!(total_output(&grown), 1367);
+        assert!(total_output(&early) < 1367);
+
+        // Codex compresses it a week later: the plain file goes.
+        fs::write(
+            path.with_file_name(format!("{LEGACY_NAME}.zst")),
+            compress(LEGACY),
+        )
+        .unwrap();
+        fs::remove_file(&path).unwrap();
+        let compressed = usage_stats_at(&f.roots, Some(&f.disk), Window::default(), false);
+        assert_eq!(compressed.scan.files, 1);
+        assert_eq!(total_output(&compressed), 1367);
+        fs::remove_dir_all(&f.root).ok();
+    }
+
     /// The real transcripts of this machine, for timings and totals:
     /// `cargo test --release stats::tests::real -- --ignored --nocapture`.
     /// Prints sums and durations only — never a line of a conversation.
@@ -856,8 +1058,8 @@ mod tests {
         );
         for source in &cold.sources {
             println!(
-                "source {} found={} files={}",
-                source.root, source.found, source.files
+                "source {:?} {} found={} files={}",
+                source.agent, source.root, source.found, source.files
             );
         }
         assert_eq!(from_disk.buckets.len(), cold.buckets.len());

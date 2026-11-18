@@ -1,37 +1,48 @@
 //! What the tokens of the usage statistics would have cost at API list
 //! prices — the « coût équivalent API » of the stats page.
 //!
-//! It is an equivalent, not a bill. A Claude Pro or Max subscriber pays a
-//! flat fee, and the page says so next to every figure this module produces.
-//! What it answers is "how much work did the agents do", in the one unit that
-//! weighs an output token against a cached one the way Anthropic itself does.
-//! Claude Code is the only agent Hangar runs (owner's decision, 2026-11-03),
-//! so only Anthropic's models are priced.
+//! It is an equivalent, not a bill. A Claude Pro or Max subscriber, or a
+//! ChatGPT plan running Codex, pays a flat fee, and the page says so next to
+//! every figure this module produces. What it answers is "how much work did
+//! the agents do", in the one unit that weighs an output token against a
+//! cached one the way the providers themselves do.
 //!
-//! Prices are configuration, kept in one table rather than spread through the
+//! Prices are configuration, kept in tables rather than spread through the
 //! code: they move with every model release, and this is the one place to
-//! correct when they do. A model the table does not know costs nothing rather
+//! correct when they do. A model the tables do not know costs nothing rather
 //! than a guess — the page lists those apart, so a missing price shows as one.
 //!
-//! Sources, read on 2026-10-26:
-//! - platform.claude.com/docs/en/about-claude/pricing (model pricing, fast
-//!   mode, and long context pricing).
+//! Sources:
+//! - Claude, read on 2026-10-26: platform.claude.com/docs/en/about-claude/pricing
+//!   (model pricing, fast mode, and long context pricing).
+//! - OpenAI, read on 2026-11-19: developers.openai.com/api/docs/pricing
+//!   (Standard tier: input, cached input, output, and the 30-minute and
+//!   12-hour cache writes; the long-context columns, past 272K input tokens;
+//!   gpt-5.3-codex under "Specialized models") and
+//!   developers.openai.com/api/docs/guides/prompt-caching (writes billed from
+//!   GPT-5.6 on, at 1.25× input for 30 minutes and 2.5× for 12 hours; none
+//!   before). GPT-5.6 Sol's price is promotional until 2026-11-30, and the
+//!   page does not say what follows: its row is to be read again then.
+//!   Codex's fast and "ultrafast" tiers are not in its rollouts, so every
+//!   Codex call is priced at Standard.
 
 /// US dollars per million tokens.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Rates {
     pub input: f64,
     pub output: f64,
-    /// Writing a prefix to the five-minute prompt cache.
+    /// Writing a prefix to the shorter-lived prompt cache: Anthropic's five
+    /// minutes, OpenAI's thirty.
     pub cache_write_5m: f64,
-    /// Writing it to the one-hour cache, which Claude Code also uses.
+    /// Writing it to the longer-lived one: Anthropic's hour, which Claude Code
+    /// also uses, OpenAI's twelve hours.
     pub cache_write_1h: f64,
     /// Reading a prefix back from the cache.
     pub cache_read: f64,
 }
 
 /// Higher rates for a request whose prompt is over a threshold, counted the
-/// way Anthropic does: every input token of the request, cached or not.
+/// provider's way: every input token of the request, cached or not.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LongContext {
     pub over: u64,
@@ -63,6 +74,43 @@ const fn standard(rates: Rates) -> Pricing {
     Pricing {
         rates,
         long: None,
+        fast: 1.0,
+    }
+}
+
+/// OpenAI's grid before GPT-5.6: no cache-write charge, so a prefix that
+/// lands in the cache costs what any input token costs.
+const fn openai(input: f64, cached: f64, output: f64) -> Rates {
+    Rates {
+        input,
+        output,
+        cache_write_5m: input,
+        cache_write_1h: input,
+        cache_read: cached,
+    }
+}
+
+/// From GPT-5.6 on, writes are billed: 1.25× input for 30 minutes, 2.5× for
+/// 12 hours (the price page lists them; this is the ratio they all follow).
+const fn openai_writes(input: f64, cached: f64, output: f64) -> Rates {
+    Rates {
+        input,
+        output,
+        cache_write_5m: input * 1.25,
+        cache_write_1h: input * 2.5,
+        cache_read: cached,
+    }
+}
+
+/// GPT models with a long-context grid: over 272K input tokens, the whole
+/// request is billed at it.
+const fn openai_long(rates: Rates, long: Rates) -> Pricing {
+    Pricing {
+        rates,
+        long: Some(LongContext {
+            over: 272_000,
+            rates: long,
+        }),
         fast: 1.0,
     }
 }
@@ -126,23 +174,136 @@ const CLAUDE: &[(&str, Pricing)] = &[
     ("3-5-haiku", standard(claude(0.80, 4.0, 0.08))),
 ];
 
-/// The price grid of a model, or `None` when the table does not know it.
+/// OpenAI model ids, matched whole (a dated snapshot of one counts as it):
+/// a `-codex` variant the price page does not list is not borrowed its
+/// base model's rates — that would be a guess presented as a price. The Pro
+/// models take no cached input: their cached rate is the input one.
+const OPENAI: &[(&str, Pricing)] = &[
+    (
+        "gpt-6.2-astra",
+        openai_long(
+            openai_writes(8.0, 0.40, 40.0),
+            openai_writes(16.0, 0.80, 60.0),
+        ),
+    ),
+    (
+        "gpt-6.2-sol",
+        openai_long(
+            openai_writes(2.0, 0.10, 10.0),
+            openai_writes(4.0, 0.20, 15.0),
+        ),
+    ),
+    (
+        "gpt-6-astra",
+        openai_long(
+            openai_writes(10.0, 1.0, 50.0),
+            openai_writes(20.0, 2.0, 75.0),
+        ),
+    ),
+    (
+        "gpt-6.1-sol",
+        openai_long(
+            openai_writes(2.0, 0.10, 10.0),
+            openai_writes(4.0, 0.20, 15.0),
+        ),
+    ),
+    (
+        "gpt-6.1-terra",
+        openai_long(openai_writes(1.0, 0.05, 5.0), openai_writes(2.0, 0.10, 7.5)),
+    ),
+    (
+        "gpt-6-luna",
+        openai_long(
+            openai_writes(0.10, 0.01, 0.50),
+            openai_writes(0.20, 0.02, 0.75),
+        ),
+    ),
+    (
+        "gpt-6-sol",
+        openai_long(
+            openai_writes(2.0, 0.20, 10.0),
+            openai_writes(4.0, 0.40, 15.0),
+        ),
+    ),
+    (
+        "gpt-5.6-sol",
+        openai_long(
+            openai_writes(4.0, 0.40, 20.0),
+            openai_writes(8.0, 0.80, 30.0),
+        ),
+    ),
+    (
+        "gpt-5.6-terra",
+        openai_long(
+            openai_writes(2.0, 0.20, 12.0),
+            openai_writes(4.0, 0.40, 18.0),
+        ),
+    ),
+    (
+        "gpt-5.6-luna",
+        openai_long(
+            openai_writes(0.20, 0.02, 1.20),
+            openai_writes(0.40, 0.04, 1.80),
+        ),
+    ),
+    (
+        "gpt-5.5",
+        openai_long(openai(5.0, 0.50, 30.0), openai(10.0, 1.0, 45.0)),
+    ),
+    (
+        "gpt-5.5-pro",
+        openai_long(openai(30.0, 30.0, 180.0), openai(60.0, 60.0, 270.0)),
+    ),
+    (
+        "gpt-5.4",
+        openai_long(openai(2.50, 0.25, 15.0), openai(5.0, 0.50, 22.5)),
+    ),
+    (
+        "gpt-5.4-pro",
+        openai_long(openai(30.0, 30.0, 180.0), openai(60.0, 60.0, 270.0)),
+    ),
+    ("gpt-5.4-mini", standard(openai(0.75, 0.075, 4.50))),
+    ("gpt-5.4-nano", standard(openai(0.20, 0.02, 1.25))),
+    ("gpt-5.3-codex", standard(openai(1.75, 0.175, 14.0))),
+    ("gpt-5.2", standard(openai(1.75, 0.175, 14.0))),
+    ("gpt-5.2-pro", standard(openai(21.0, 21.0, 168.0))),
+    ("gpt-5.1", standard(openai(1.25, 0.125, 10.0))),
+    ("gpt-5", standard(openai(1.25, 0.125, 10.0))),
+    ("gpt-5-mini", standard(openai(0.25, 0.025, 2.0))),
+    ("gpt-5-nano", standard(openai(0.05, 0.005, 0.40))),
+    ("gpt-5-pro", standard(openai(15.0, 15.0, 120.0))),
+];
+
+/// `-2026-08-07`, the date a snapshot id ends with.
+fn is_date_suffix(rest: &str) -> bool {
+    let bytes = rest.as_bytes();
+    bytes.len() == 11
+        && bytes[0] == b'-'
+        && bytes[5] == b'-'
+        && bytes[8] == b'-'
+        && rest[1..].chars().all(|c| c.is_ascii_digit() || c == '-')
+}
+
+/// The price grid of a model, or `None` when the tables do not know it.
 pub fn pricing(model: &str) -> Option<&'static Pricing> {
     // `claude-opus-5-5[1m]` names the same model with its long context on.
     let id = model.trim().to_ascii_lowercase();
     let id = id.split('[').next().unwrap_or_default();
     // A fragment is only looked for in a Claude id: another provider's model
     // that happens to contain one is not priced as Claude.
-    if !id.contains("claude") && !CLAUDE.iter().any(|(name, _)| id == *name) {
-        return None;
+    if id.contains("claude") || CLAUDE.iter().any(|(name, _)| id == *name) {
+        return CLAUDE
+            .iter()
+            .find(|(fragment, _)| id.contains(fragment))
+            .map(|(_, pricing)| pricing);
     }
-    CLAUDE
+    OPENAI
         .iter()
-        .find(|(fragment, _)| id.contains(fragment))
+        .find(|(name, _)| id == *name || id.strip_prefix(name).is_some_and(is_date_suffix))
         .map(|(_, pricing)| pricing)
 }
 
-/// The tokens of one API call, split the way Anthropic bills them.
+/// The tokens of one API call, split the way providers bill them.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct CallTokens {
     /// Input that was neither read from nor written to the cache.
@@ -225,10 +386,46 @@ mod tests {
     }
 
     #[test]
-    fn a_model_of_another_provider_has_no_price() {
-        assert!(pricing("gpt-5.5").is_none());
-        // A Claude fragment inside another id does not make it Claude.
+    fn a_claude_fragment_inside_another_id_does_not_make_it_claude() {
         assert!(pricing("my-sonnet-5-finetune").is_none());
+    }
+
+    #[test]
+    fn openai_ids_match_whole_or_as_a_dated_snapshot() {
+        assert_eq!(pricing("gpt-5.5").unwrap().rates.input, 5.0);
+        assert_eq!(pricing("gpt-5.4-mini").unwrap().rates.input, 0.75);
+        assert_eq!(pricing("gpt-5-2025-08-07").unwrap().rates.input, 1.25);
+        assert_eq!(pricing("GPT-6.2-Sol").unwrap().rates.output, 10.0);
+        assert_eq!(pricing("gpt-5.3-codex").unwrap().rates.cache_read, 0.175);
+        // Not on the price page: no price rather than its neighbour's.
+        assert!(pricing("gpt-5.5-codex").is_none());
+        assert!(pricing("gpt-5.4-extra").is_none());
+        assert!(pricing("gpt-6.1-sol-2026").is_none());
+    }
+
+    /// The writes the price page lists for GPT-5.6 and GPT-6 models, at the
+    /// short and long context: 1.25× and 2.5× their input rate.
+    #[test]
+    fn openai_cache_writes_follow_the_price_page() {
+        let rates = |id: &str| pricing(id).expect(id);
+        let astra = rates("gpt-6.2-astra");
+        assert_eq!(
+            (astra.rates.cache_write_5m, astra.rates.cache_write_1h),
+            (10.0, 20.0)
+        );
+        let long = astra.long.unwrap();
+        assert_eq!(long.over, 272_000);
+        assert_eq!(
+            (long.rates.cache_write_5m, long.rates.cache_write_1h),
+            (20.0, 40.0)
+        );
+        let luna = rates("gpt-6-luna").rates;
+        assert_eq!((luna.cache_write_5m, luna.cache_write_1h), (0.125, 0.25));
+        let sol = rates("gpt-5.6-sol").rates;
+        assert_eq!((sol.cache_write_5m, sol.cache_write_1h), (5.0, 10.0));
+        // Before GPT-5.6 a write costs what input does.
+        let older = rates("gpt-5.5").rates;
+        assert_eq!((older.cache_write_5m, older.cache_write_1h), (5.0, 5.0));
     }
 
     #[test]
@@ -279,6 +476,30 @@ mod tests {
         assert!(close(
             call_cost("claude-haiku-5-5", &long).unwrap().total(),
             at_long
+        ));
+
+        let codex = CallTokens {
+            input: 10_000,
+            cache_read: 270_000,
+            output: 2_000,
+            ..CallTokens::default()
+        };
+        // 280K of prompt: gpt-5.5's long-context grid for all of it.
+        let expected = 0.01 * 10.0 + 0.27 * 1.0 + 0.002 * 45.0;
+        assert!(close(
+            call_cost("gpt-5.5", &codex).unwrap().total(),
+            expected
+        ));
+        let short = CallTokens {
+            cache_read: 200_000,
+            cache_write_5m: 50_000,
+            ..codex
+        };
+        // gpt-6.1-sol under 272K: $2 input, $0.10 cached, $2.50 written, $10 out.
+        let expected = 0.01 * 2.0 + 0.2 * 0.10 + 0.05 * 2.5 + 0.002 * 10.0;
+        assert!(close(
+            call_cost("gpt-6.1-sol", &short).unwrap().total(),
+            expected
         ));
     }
 }
