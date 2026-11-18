@@ -102,8 +102,22 @@ jobs:
       # reads the caches of its own ref and main's, so what a pull request
       # saved would serve that pull request only, while pushing main's out of
       # the repository's 10 GB.
+      # On Windows the key also names the runner image. whisper.cpp's CMake
+      # cache, kept in target/ with the rest, records the full path of the
+      # MSVC compiler, and that path changes with each image's toolset
+      # (14.51.36231 one week, 14.52.37025 the next; GitHub rolls images out
+      # gradually, so both can be live at once). Restored on a runner with the
+      # other image, the build script reruns in that folder and stops at
+      # "CMAKE_ASM_COMPILER … is not a full path to an existing compiler tool".
+      # Linux keeps its compilers at fixed paths and its key unchanged.
+      - name: Name the runner image in the cache key
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo "IMAGE_KEY=image-$ImageVersion" >> "$GITHUB_ENV"
+
       - uses: swatinem/rust-cache@v2
         with:
+          key: ${{ env.IMAGE_KEY }}
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
       # remote/assets.rs embeds Hangar Mobile's dist-mobile/. The Rust checks
