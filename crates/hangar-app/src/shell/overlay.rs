@@ -10,7 +10,9 @@
 //! pane); the overlay's own state lives in its package, which sets it up when
 //! `Intent::OpenOverlay` reaches its `on_intent`. The package draws the whole
 //! overlay, backdrop included (hangar-ui's modal); the shell puts it over the
-//! window and keeps the clicks from reaching what is under it.
+//! window and keeps the clicks from reaching what is under it, the overlays
+//! under the top one included: those are drawn inert (`layer::inert`,
+//! frame.rs), so that a click on the top one is never taken by one under it.
 
 use iced::Element;
 use iced::widget::opaque;

@@ -7,6 +7,8 @@
 
 pub mod activation;
 pub mod activation_model;
+#[cfg(test)]
+mod clicks;
 pub mod gallery;
 pub mod settings;
 #[cfg(test)]

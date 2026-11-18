@@ -370,7 +370,15 @@ impl ActivationModel {
             setup: Self::setup(t, input, steps),
             runs: Self::runs(t, kit, inspection, &groups, entry.is_some(), hooks_new),
             commands: Self::commands(t, kit, inspection, entry.is_some(), commands_new),
-            error: input.error.map(str::to_owned),
+            // A kit that cannot be used cannot be accepted: the button is off,
+            // and the dialog says why rather than leaving it greyed out.
+            error: input.error.map(str::to_owned).or_else(|| {
+                requested.is_none().then(|| {
+                    kit.error
+                        .clone()
+                        .unwrap_or_else(|| t.t(Key::KitsManageBroken).into_owned())
+                })
+            }),
             footer: if needs_accept {
                 Footer::Decide {
                     refuse: t.t(Key::KitsManageActRefuse).into_owned(),
