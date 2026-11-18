@@ -2156,3 +2156,170 @@ fn opening_a_repository_elsewhere_readies_the_clone_form() {
     assert_eq!(st.source, Source::Folder);
     assert_eq!(st.place.node, None);
 }
+
+// ── a workspace made from a navigator folder ──────────────────────────
+
+/// The harness with the folders « Games » on `account` and « Work » on
+/// « pro », and the dialog in front.
+fn with_games(account: Option<&str>) -> Harness {
+    let account = account.map(str::to_string);
+    let mut h = Harness::new(Locale::En, "graphite").edit(move |state| {
+        state.folders = vec![
+            crate::state::types::WorkspaceFolder {
+                id: "games".into(),
+                name: "Games".into(),
+                claude_account: account.clone(),
+                ..Default::default()
+            },
+            crate::state::types::WorkspaceFolder {
+                id: "work".into(),
+                name: "Work".into(),
+                claude_account: Some("pro".into()),
+                ..Default::default()
+            },
+        ];
+    });
+    h.model
+        .ui
+        .overlays
+        .push(crate::shell::Overlay::WorkspaceDialog);
+    h
+}
+
+/// The form as the « + » of `folder` opens it: the shell's opening, then
+/// the folder.
+fn opened_in(h: &Harness, folder: &str) -> State {
+    let mut st = State::default();
+    opened(&mut st);
+    open_in_folder(&mut st, &h.model, folder);
+    st
+}
+
+/// The workspace the form made in `cwd`.
+fn made<'a>(h: &'a Harness, cwd: &str) -> &'a crate::state::Workspace {
+    h.model
+        .state()
+        .workspaces
+        .iter()
+        .find(|ws| ws.cwd == cwd)
+        .expect("the workspace is made")
+}
+
+/// The account `ws` runs on, by the rule every launch follows.
+fn runs_on(h: &Harness, ws: &crate::state::Workspace) -> String {
+    let accounts = h.model.live.accounts.accounts.clone().unwrap_or_default();
+    hangar_engine::accounts::AccountLevels::of(h.model.state(), ws, None)
+        .resolve(&accounts)
+        .id
+}
+
+#[test]
+fn opened_from_a_folder_the_form_files_the_workspace_there_on_its_account() {
+    let mut h = with_games(Some("perso"));
+    let mut st = opened_in(&h, "games");
+    assert_eq!(st.in_folder.as_deref(), Some("games"));
+    assert_eq!(
+        st.target_folder(&h.model).map(|f| f.name.as_str()),
+        Some("Games")
+    );
+    // Nothing chosen: the workspace reads the folder's account, the form
+    // keeps no choice of its own.
+    assert_eq!(st.folder.claude_account, None);
+    assert_eq!(st.inherited_account(&h.model), Some("perso"));
+
+    let _ = form(&mut st, &mut h.model, Msg::Cwd("/home/me/dev/game".into()));
+    let _ = submit_folder(&mut st, &mut h.model, &[]);
+    let ws = made(&h, "/home/me/dev/game");
+    assert_eq!(ws.folder_id.as_deref(), Some("games"));
+    assert_eq!(ws.claude_account, None, "read from the folder, not copied");
+    assert_eq!(runs_on(&h, ws), "perso");
+}
+
+#[test]
+fn the_default_picked_inside_a_folder_with_an_account_sticks() {
+    let mut h = with_games(Some("perso"));
+    let mut st = opened_in(&h, "games");
+    // « Default (Principal) », under « Folder default (Perso) ».
+    let _ = form(
+        &mut st,
+        &mut h.model,
+        Msg::Account(Some(DEFAULT_CHOICE.into())),
+    );
+    let _ = form(&mut st, &mut h.model, Msg::Cwd("/home/me/dev/game".into()));
+    let _ = submit_folder(&mut st, &mut h.model, &[]);
+    let ws = made(&h, "/home/me/dev/game");
+    assert_eq!(ws.claude_account.as_deref(), Some(DEFAULT_CHOICE));
+    assert_eq!(runs_on(&h, ws), "main", "the settings' default");
+
+    // Back to « Folder default »: no choice of its own.
+    let mut st = opened_in(&h, "games");
+    let _ = form(&mut st, &mut h.model, Msg::Account(Some("pro".into())));
+    let _ = form(&mut st, &mut h.model, Msg::Account(None));
+    assert_eq!(st.folder.claude_account, None);
+}
+
+#[test]
+fn a_workspace_for_a_node_reads_no_folder_account() {
+    let h = with_games(Some("perso"));
+    let mut st = opened_in(&h, "games");
+    // Its account is its machine's: no folder level to offer.
+    st.place.node = Some("n1".into());
+    assert_eq!(st.inherited_account(&h.model), None);
+}
+
+#[test]
+fn opened_the_usual_way_the_form_files_nothing() {
+    let h = with_games(Some("perso"));
+    let mut st = opened_in(&h, "games");
+    opened(&mut st);
+    assert_eq!(st.in_folder, None);
+    assert_eq!(st.inherited_account(&h.model), None);
+}
+
+#[test]
+fn a_folder_is_not_noted_when_the_dialog_did_not_open_or_is_gone() {
+    let mut h = with_games(Some("perso"));
+    let st = opened_in(&h, "gone");
+    assert_eq!(st.in_folder, None);
+    // The setup came first: no dialog to file anything.
+    h.model.ui.overlays.clear();
+    let st = opened_in(&h, "games");
+    assert_eq!(st.in_folder, None);
+}
+
+#[test]
+fn a_folder_removed_while_the_form_was_open_files_the_workspace_nowhere() {
+    let mut h = with_games(Some("perso"));
+    let mut st = opened_in(&h, "games");
+    h.model.apply(StoreAction::RemoveFolder("games".into()));
+    assert!(st.target_folder(&h.model).is_none());
+    let _ = form(&mut st, &mut h.model, Msg::Cwd("/home/me/dev/game".into()));
+    let _ = submit_folder(&mut st, &mut h.model, &[]);
+    assert_eq!(made(&h, "/home/me/dev/game").folder_id, None);
+}
+
+#[test]
+fn a_clone_still_running_keeps_its_folder_when_another_folders_plus_is_clicked() {
+    let h = with_games(Some("perso"));
+    let mut st = running("job-1");
+    st.in_folder = Some("games".into());
+    // « + » on Work: the shell opens the dialog, then the folder is told.
+    opened(&mut st);
+    open_in_folder(&mut st, &h.model, "work");
+    assert!(st.git.running);
+    assert_eq!(st.in_folder.as_deref(), Some("games"));
+    assert_eq!(
+        st.target_folder(&h.model).map(|f| f.name.as_str()),
+        Some("Games")
+    );
+    assert_eq!(st.inherited_account(&h.model), Some("perso"));
+}
+
+#[test]
+fn the_dialog_says_which_folder_the_workspace_goes_in() {
+    let h = with_games(Some("perso"));
+    let st = opened_in(&h, "games");
+    let mut ui = h.show(view(&st, h.ctx()));
+    assert!(ui.find("In the Games folder").is_ok());
+    h.shot(&mut ui, "create-in-folder-en-graphite");
+}

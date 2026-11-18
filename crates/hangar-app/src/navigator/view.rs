@@ -538,6 +538,19 @@ fn more_button<'a>(f: &Frame<'a>, kind: RowKind, id: &str) -> Element<'a, Messag
         .into()
 }
 
+/// A new workspace filed in this folder, beside its « … » on hover: the same
+/// line its menu has, a click closer.
+fn new_in_button<'a>(f: &Frame<'a>, folder: &str) -> Element<'a, Message> {
+    ui_button::icon_button(f.ctx.theme, Icon::Plus)
+        .small()
+        .icon_size(14.0)
+        .tip(f.ctx.t(Key::SidebarFolderNewWorkspace).into_owned())
+        .on_press(Message::Intent(Intent::NewWorkspaceInFolder(
+            folder.to_string(),
+        )))
+        .into()
+}
+
 /// A name typed over a row's: Enter saves, Escape cancels.
 fn rename_field<'a>(f: &Frame<'a>, draft: &'a str) -> Element<'a, Message> {
     let t = f.ctx.theme;
@@ -652,7 +665,10 @@ fn workspace_row<'a>(f: &Frame<'a>, ws: &'a Workspace) -> Element<'a, Message> {
             } else if let Some(words) = repos::also_on(model, tr, ws) {
                 end = end.push(mark_in(t, Icon::Machines, t.colors.fg_subtle, words));
             }
-            if ws.claude_account.is_some() {
+            // Its own account, or the one it reads from its folder.
+            if ws.claude_account.is_some()
+                || crate::state::folders::account_of(&model.state().folders, ws).is_some()
+            {
                 end = end.push(crate::accounts::badge(f.ctx, &ws.id));
             }
             if let Some(orchestrator) = orchestrator_of(ws) {
@@ -814,6 +830,7 @@ fn folder_block<'a>(f: &Frame<'a>, entry: &NavFolder<'a>) -> Element<'a, Message
                     .as_ref()
                     .is_some_and(|menu| menu.kind == RowKind::Folder && menu.id == folder.id);
             if f.st.hover.as_deref() == Some(key.as_str()) || menu_open {
+                head = head.push(new_in_button(f, &folder.id));
                 head = head.push(more_button(f, RowKind::Folder, &folder.id));
             }
             head.into()

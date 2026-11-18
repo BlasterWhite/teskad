@@ -660,7 +660,18 @@ fn reduce(model: &mut Store, action: StoreAction) -> StoreOutcome {
     let mut outcome = StoreOutcome::default();
     match action {
         StoreAction::AddWorkspace(draft) => {
-            let ws = make_workspace(&draft, all_pane_names(&model.state.workspaces));
+            let mut ws = make_workspace(&draft, all_pane_names(&model.state.workspaces));
+            // Filed in a folder that is gone (removed while the dialog or a
+            // clone was on its way): at the top level, as a move does. Its
+            // account is not copied from the folder: it is read from it
+            // (`folders::account_of`), for as long as it is filed there.
+            if ws
+                .folder_id
+                .as_ref()
+                .is_some_and(|folder| !model.state.folders.iter().any(|entry| &entry.id == folder))
+            {
+                ws.folder_id = None;
+            }
             outcome.workspace = Some(ws.id.clone());
             let state = model.state_mut();
             state.active_workspace_id = Some(ws.id.clone());
@@ -769,7 +780,10 @@ fn reduce(model: &mut Store, action: StoreAction) -> StoreOutcome {
                 && before.as_deref() != Some(id.as_str())
             {
                 // A folder deleted while the workspace was on its way leaves it
-                // at the top level rather than filed under nothing.
+                // at the top level rather than filed under nothing. Only the
+                // filing changes: a workspace without an account of its own
+                // follows its new folder's by reading it, and one its node
+                // runs is told nothing (`folder_id` is the mirror's own).
                 ws.folder_id = folder
                     .filter(|folder| model.state.folders.iter().any(|entry| &entry.id == folder));
                 let mut workspaces = model.state.workspaces.clone();

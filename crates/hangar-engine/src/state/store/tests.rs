@@ -3,6 +3,7 @@
 //! tests.
 
 use super::*;
+use crate::accounts::{AccountLevels, AccountSource, ClaudeAccount, DEFAULT_CHOICE};
 use crate::state::layout::{leaf_ids, normalize_tree};
 use crate::state::types::{PaneRole, WindowBounds};
 
@@ -240,6 +241,174 @@ fn a_workspace_moved_into_a_folder_deleted_meanwhile_lands_at_the_top_level() {
     let order: Vec<&str> = m.state().workspaces.iter().map(|w| w.id.as_str()).collect();
     assert_eq!(order, [b.as_str(), a.as_str()]);
     assert_eq!(ws(&m, &b).folder_id, None);
+}
+
+/// A folder « Games » whose account is `account`; answers its id.
+fn folder_on(m: &mut Store, account: Option<&str>) -> String {
+    let id = m
+        .apply(StoreAction::AddFolder("Games".into()))
+        .folder
+        .unwrap();
+    let account = account.map(str::to_string);
+    m.apply(StoreAction::UpdateFolder(
+        id.clone(),
+        Patch::new(move |folder: &mut WorkspaceFolder| folder.claude_account = account.clone()),
+    ));
+    id
+}
+
+/// The account workspace `id` runs on, and the level that decided it, among
+/// the accounts « perso » and « pro ».
+fn account_of(m: &Store, id: &str) -> (String, AccountSource) {
+    let accounts: Vec<ClaudeAccount> = ["main", "perso", "pro"]
+        .into_iter()
+        .map(|id| ClaudeAccount {
+            id: id.into(),
+            label: id.into(),
+            is_main: id == "main",
+            logged_in: true,
+            email: None,
+            plan: None,
+        })
+        .collect();
+    let resolved = AccountLevels::of(m.state(), ws(m, id), None).resolve(&accounts);
+    (resolved.id, resolved.source)
+}
+
+fn made_in(m: &mut Store, folder: Option<&str>, account: Option<&str>) -> WsId {
+    m.apply(StoreAction::AddWorkspace(WorkspaceDraft {
+        folder_id: folder.map(str::to_string),
+        claude_account: account.map(str::to_string),
+        ..draft(1, &[])
+    }))
+    .workspace
+    .unwrap()
+}
+
+fn move_to(m: &mut Store, id: &str, folder: Option<&str>) {
+    m.apply(StoreAction::MoveWorkspace {
+        id: id.to_string(),
+        folder: folder.map(str::to_string),
+        before: None,
+    });
+}
+
+#[test]
+fn a_workspace_made_in_a_folder_runs_on_its_account_without_copying_it() {
+    let mut m = model();
+    let games = folder_on(&mut m, Some("perso"));
+    let plain = made_in(&mut m, Some(&games), None);
+    assert_eq!(ws(&m, &plain).claude_account, None, "nothing copied");
+    assert_eq!(
+        account_of(&m, &plain),
+        ("perso".into(), AccountSource::Folder)
+    );
+    let chosen = made_in(&mut m, Some(&games), Some("pro"));
+    assert_eq!(
+        account_of(&m, &chosen),
+        ("pro".into(), AccountSource::Workspace)
+    );
+    // The folder's account changed: the workspaces that follow it follow.
+    m.apply(StoreAction::UpdateFolder(
+        games.clone(),
+        Patch::new(|folder: &mut WorkspaceFolder| folder.claude_account = Some("pro".into())),
+    ));
+    assert_eq!(
+        account_of(&m, &plain),
+        ("pro".into(), AccountSource::Folder)
+    );
+    // A folder without an account leaves the default.
+    let loose = folder_on(&mut m, None);
+    let w = made_in(&mut m, Some(&loose), None);
+    assert_eq!(account_of(&m, &w), ("main".into(), AccountSource::Default));
+}
+
+#[test]
+fn a_workspace_made_in_a_folder_that_is_gone_lands_at_the_top_level() {
+    let mut m = model();
+    let w = made_in(&mut m, Some("gone"), None);
+    assert_eq!(ws(&m, &w).folder_id, None);
+    let games = folder_on(&mut m, None);
+    let w = made_in(&mut m, Some(&games), None);
+    assert_eq!(ws(&m, &w).folder_id, Some(games));
+}
+
+#[test]
+fn a_workspace_moved_between_folders_follows_each_unless_it_chose_an_account() {
+    let mut m = model();
+    let games = folder_on(&mut m, Some("perso"));
+    let work = folder_on(&mut m, Some("pro"));
+    let free = with_workspace(&mut m, 1, &[]);
+    let own = made_in(&mut m, None, Some("perso"));
+    move_to(&mut m, &free, Some(&games));
+    move_to(&mut m, &own, Some(&work));
+    assert_eq!(
+        account_of(&m, &free),
+        ("perso".into(), AccountSource::Folder)
+    );
+    assert_eq!(
+        account_of(&m, &own),
+        ("perso".into(), AccountSource::Workspace)
+    );
+    move_to(&mut m, &free, Some(&work));
+    assert_eq!(account_of(&m, &free), ("pro".into(), AccountSource::Folder));
+    // Back at the top level: the default again. Nothing was written.
+    move_to(&mut m, &free, None);
+    assert_eq!(
+        account_of(&m, &free),
+        ("main".into(), AccountSource::Default)
+    );
+    assert_eq!(ws(&m, &free).claude_account, None);
+    assert_eq!(ws(&m, &own).claude_account.as_deref(), Some("perso"));
+}
+
+#[test]
+fn a_workspace_that_chose_the_default_keeps_it_inside_a_folder_that_names_another() {
+    let mut m = model();
+    let games = folder_on(&mut m, Some("perso"));
+    let w = made_in(&mut m, Some(&games), Some(DEFAULT_CHOICE));
+    assert_eq!(ws(&m, &w).claude_account.as_deref(), Some(DEFAULT_CHOICE));
+    assert_eq!(account_of(&m, &w), ("main".into(), AccountSource::Default));
+    m.apply(StoreAction::UpdateSettings(Patch::new(
+        |s: &mut Settings| {
+            s.claude_account = Some("pro".into());
+        },
+    )));
+    assert_eq!(account_of(&m, &w), ("pro".into(), AccountSource::Default));
+    // Moved elsewhere, it still says the same.
+    let work = folder_on(&mut m, Some("perso"));
+    move_to(&mut m, &w, Some(&work));
+    assert_eq!(account_of(&m, &w), ("pro".into(), AccountSource::Default));
+}
+
+#[test]
+fn moving_a_hosted_workspace_into_a_folder_tells_its_node_nothing() {
+    let mut m = model();
+    let mut site = theirs("site", &[("p1", "Nia")]);
+    site.claude_account = Some("their-own".into());
+    sync(&mut m, "n1", &[&site]);
+    let games = folder_on(&mut m, Some("perso"));
+    let before = ws(&m, "site").clone();
+    move_to(&mut m, "site", Some(&games));
+    let after = ws(&m, "site");
+    assert_eq!(after.folder_id, Some(games));
+    assert_eq!(after.claude_account.as_deref(), Some("their-own"));
+    assert!(hosted::diff(&before, Some(after), m.respawns()).is_empty());
+    // Nor does it read the folder's account: its own is its machine's.
+    assert_eq!(AccountLevels::of(m.state(), after, None).folder, None);
+}
+
+#[test]
+fn a_folders_account_is_written_only_when_set_and_read_back() {
+    let mut m = model();
+    let plain = folder_on(&mut m, None);
+    let games = folder_on(&mut m, Some("perso"));
+    let written = serde_json::to_value(m.state()).unwrap();
+    let folders = written["folders"].as_array().unwrap();
+    let of = |id: &str| folders.iter().find(|f| f["id"] == id).unwrap().clone();
+    assert!(of(&plain).get("claudeAccount").is_none());
+    assert_eq!(of(&games)["claudeAccount"], "perso");
+    assert_eq!(crate::state::read_state(written), *m.state());
 }
 
 // presets and tidying
