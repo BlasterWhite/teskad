@@ -71,7 +71,7 @@ crates/hangar-update/    the updater
 mobile/                  Hangar Mobile, the phone app, built into dist-mobile/ and embedded in the binary
 examples/kits/           example kits, among them hello-native, a native tab
 assets/                  the logo, the README's images and the sample 3D models
-site/                    the website at hangar.simnjs.fr
+site/                    the website at hangarai.dev
 scripts/                 the dev launcher, the kits' stylesheet generator, logo and installer art
 docs/                    kits, Hangar UI, and the native rewrite's plan, status and contracts (docs/native/)
 .github/workflows/       CI (checks on pushes and pull requests) and Release (builds and publishes on a tag)

@@ -1,6 +1,6 @@
 # site
 
-The Hangar.AI landing page, served at https://hangar.simnjs.fr. Plain HTML, CSS
+The Hangar.AI landing page, served at https://hangarai.dev. Plain HTML, CSS
 and JavaScript, no framework, no build step for the page itself, and nothing
 loaded from another origin.
 
@@ -288,8 +288,8 @@ the page uses right (`image/avif`, `image/webp`, `font/woff2`, `image/x-icon`,
 refuses the file. After a change of server or of image format, check them:
 
 ```bash
-curl -sI https://hangar.simnjs.fr/img/hero-1280.avif | grep -i content-type
+curl -sI https://hangarai.dev/img/hero-1280.avif | grep -i content-type
 ```
 
-The canonical address is https://hangar.simnjs.fr, which the canonical link and
+The canonical address is https://hangarai.dev, which the canonical link and
 the Open Graph tags name.

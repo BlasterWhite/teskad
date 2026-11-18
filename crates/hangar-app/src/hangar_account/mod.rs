@@ -50,7 +50,7 @@ use crate::state::Model;
 use crate::stats::time;
 
 /// Where the privacy page lives, for « Read the privacy page ».
-pub const PRIVACY_URL: &str = "https://hangar.simnjs.fr/privacy.html";
+pub const PRIVACY_URL: &str = "https://hangarai.dev/privacy.html";
 
 /// How often the schedule is looked at while the sync is on. The sync itself
 /// is due every 15 minutes (`SYNC_EVERY`); this is only how often to ask.
