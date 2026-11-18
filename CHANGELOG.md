@@ -10,6 +10,8 @@ Every release, with its installers, is on the
 
 ## [Unreleased]
 
+## [2.4.3] - 2026-11-18
+
 ### Added
 
 - Coloured badges for Claude accounts (Settings › Accounts, off by default): a colour and an icon per account, shown on the toolbar's account button and its menu, and wherever an account other than the default is named. Contributed by SimonB44470.
@@ -832,6 +834,7 @@ statistics, workspace sleep and per-workspace MCP servers.
 - Automatic updates from signed GitHub releases.
 - An interface in English and French (0.1.1).
 
+[2.4.3]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.3
 [2.4.2]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.2
 [2.4.1]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.1
 [2.4.0]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.0
