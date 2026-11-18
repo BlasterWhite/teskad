@@ -1006,7 +1006,7 @@ fn assert_enabled(m: &Model, ws: Option<&str>, ci: &KitInfo) {
     );
     let installed = vec![ci.clone()];
     let panes = pane_kits(workspace, Some(installed.as_slice()), Some(m.settings()));
-    assert_eq!(panes.ids, [ci.id.clone()], "{ws:?}");
+    assert_eq!(panes.ids, [ci.id.as_str()], "{ws:?}");
     assert!(panes.held.is_empty(), "{ws:?}");
     let tabs = workspace_kit_tabs(&kits, Some(installed.as_slice()));
     assert_eq!(tabs.len(), 1, "{ws:?}");
