@@ -31,8 +31,19 @@ carry it out. You follow everything from one window.
    If a step fails, the worker receives what failed and fixes it. Hangar never pushes, and
    a landing that would overwrite your uncommitted changes is held back.
 4. **Wake on events.** The orchestrator does not poll. When it is between turns, Hangar
-   sends it one batched message: a worker commented, is waiting, or exited; a delivery
-   landed or failed.
+   sends it one batched message: a worker commented, is waiting, idle or exited; a delivery
+   landed or failed. Only what is urgent comes within seconds: deliveries, a worker
+   waiting for you or gone, a task that needs you, is blocked or is done, your own
+   comments and the ones that ask a question or say blocked. The rest (plain comments,
+   idle workers, unblocked tasks) comes as one digest at most every 5 minutes, or with
+   the next urgent message, several comments on one task folded into one line. Nothing is
+   dropped: the board and the orchestrator's journal keep every event.
+
+   A worker is called idle when it ended its turn 10 minutes ago without delivering and
+   has nothing of its own running in its pane: one waiting on a build, a benchmark or a
+   CI watch it started in the background is not idle until that ends (on this machine;
+   for a pane on a node Hangar cannot look). It is called idle once, and again only after
+   it did something (a comment, progress, a commit, a delivery) or 30 minutes later.
 5. **Needs you.** One list, across workspaces, shows what waits for you:
    - agents asking for a permission or an answer;
    - questions the orchestrator handed back to you;

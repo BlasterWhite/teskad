@@ -9,6 +9,7 @@
 //!   with, at start and after every compaction;
 //! - `projects`: every project summarized, for the manager;
 //! - `heard`: the lines written to an orchestrator, read back for the person;
+//! - `head`: how far a worker's checkout moved, for telling it committed;
 //! - `checks`: the last delivery check of each workspace;
 //! - `port`: the shapes shared with the agents' operations.
 //!
@@ -19,6 +20,7 @@ pub mod brief;
 pub mod brief_text;
 pub mod checks;
 pub mod events;
+pub mod head;
 pub mod heard;
 pub mod manager_feed;
 pub mod port;

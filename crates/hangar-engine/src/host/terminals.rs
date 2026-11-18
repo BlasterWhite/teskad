@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 
-use hangar_core::pty::{self, PtyEvent, PtyManager};
+use hangar_core::pty::{self, PaneJob, PtyEvent, PtyManager};
 
 use super::screen::{Screen, Screens};
 use crate::state::PaneId;
@@ -75,6 +75,13 @@ pub trait Terminals: Send + Sync + 'static {
     fn application_cursor(&self, pane: &str) -> bool {
         let _ = pane;
         false
+    }
+    /// What its agent has running of its own between two turns: a build, a
+    /// benchmark, a watch on its CI it started in the background
+    /// (`pty::pane_job`). Terminals that cannot look cannot tell.
+    fn job(&self, pane: &str) -> PaneJob {
+        let _ = pane;
+        PaneJob::Unknown
     }
     /// Every shell, on the way out.
     fn kill_all(&self);
@@ -183,6 +190,10 @@ impl Terminals for CorePtys {
         self.screens
             .read(pane, Screen::application_cursor)
             .unwrap_or(false)
+    }
+
+    fn job(&self, pane: &str) -> PaneJob {
+        pty::pane_job(&self.pty, pane)
     }
 
     fn kill_all(&self) {

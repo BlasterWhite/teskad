@@ -10,6 +10,7 @@ use hangar_core::git::{
     Changes, CopyResult, DeleteBranchResult, HookReport, RemoveResult, RepoInfo, Worktree,
 };
 use hangar_core::memory::MemoryEntry;
+use hangar_core::pty::PaneJob;
 
 use super::{EngineHost, Orchestration};
 use crate::control::port::{ModelCmd, open_in};
@@ -138,6 +139,14 @@ impl EngineIo for HostPorts {
     fn enqueue(&self, pane: &str, text: &str, from: &str) -> Result<(), String> {
         self.enqueue_now(pane, text, from);
         Ok(())
+    }
+
+    fn pane_job(&self, pane: &str) -> PaneJob {
+        self.host.terminals().job(pane)
+    }
+
+    fn head_moves(&self, cwd: &str) -> Option<u64> {
+        crate::orchestration::head::moves(cwd)
     }
 }
 

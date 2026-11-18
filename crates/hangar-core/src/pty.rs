@@ -34,8 +34,11 @@ use std::time::Duration;
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use serde::Serialize;
 
+mod jobs;
 mod scope;
 mod windows;
+
+pub use jobs::{job_below, pane_job, PaneJob, ProcCommand};
 
 /// A pane's input, shared out of the registry: `pty_write` takes a clone of
 /// it under the registry's lock and writes once that lock is released, so a
@@ -1080,6 +1083,11 @@ pub fn pty_history(manager: &PtyManager, id: String) -> Result<PtyHistory, Strin
 
 pub fn pty_alive(manager: &PtyManager, id: String) -> bool {
     manager.lock().sessions.contains_key(&id)
+}
+
+/// The process id of pane `id`'s shell, while it runs.
+fn shell_pid(manager: &PtyManager, id: &str) -> Option<u32> {
+    manager.lock().sessions.get(id)?.child.process_id()
 }
 
 /// The panes among `ids` whose shell still runs a process of its own — a dev
