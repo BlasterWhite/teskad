@@ -233,6 +233,15 @@ package `@openai/codex`, and the Codex docs (`learn.chatgpt.com/docs/`, where
 drives `codex app-server` in production. "Source only" marks what the code
 does but the docs do not say.
 
+**Where the `codex` binary runs for Hangar's own work.** Codex is not
+installed on the person's PC either, and the person has no Codex or ChatGPT
+subscription (2026-11-19). So everything the implementation tasks need the
+binary for — generating the protocol schema (T3a), recording fixtures (T3b,
+T4c, T12), the weekly canary (T12) — runs on the Vast build box, where Codex
+is installed with `npm i -g @openai/codex`. Generating the schema
+(`codex app-server generate-json-schema`) needs no login; recording real
+sessions does, and waits for decision 1 of §7.
+
 | Fact | Value at 0.170.0 | Source |
 |---|---|---|
 | Latest stable | **0.170.0**, 2026-11-18; 40 stable releases from 2026-08-19 to 2026-11-19 (≈ 3 a week) plus ≈ 270 alphas | GitHub releases, npm `latest` |
@@ -278,7 +287,8 @@ whether a skill folder can be added per launch.
 folder), with the pane's environment and Hangar's per-launch settings as `-c`
 arguments, and types `codex --remote unix://<socket>` (plus `resume <id>`)
 into the pane's shell. The person gets Codex's own TUI, unchanged; Hangar is
-a second client of the same threads.
+a second client of the same threads. *Decided by the person, 2026-11-19:*
+the attached mode is on by default, the plain TUI (D6) is the fallback.
 
 *Why.* It gives Hangar, for Codex, everything the hangar-bridge mod gives it
 for Claude Code — live turn state, held approvals answered from anywhere
@@ -927,8 +937,9 @@ What does **not** work with Codex alone, said where it shows:
 Each task below is one worker's: an outcome, the files it owns, what it waits
 for, and a size (changed lines, tests included, generated code excluded).
 The person's rules apply to every one: nothing compiled on the PC (checks on
-Vast through `scripts/remote`), a PR per task, no CHANGELOG entry, no Claude
-attribution.
+Vast through `scripts/remote`), nothing that needs the `codex` binary run on
+the PC either (it is not installed there: the Vast build box, §4.0), a PR per
+task, no CHANGELOG entry, no Claude attribution.
 
 **Who holds what now** (from the board, 2026-11-19), and what it blocks:
 
@@ -953,8 +964,8 @@ with its own kind type (a string or an enum), T1 adopts it as
 |---|---|---|---|---|---|
 | **T1** | `AgentKind`, `AgentInfo`, `Capabilities` (static levels per kind), `info(kind)`, detection facade (Claude's existing check, Codex's from c48c7086), PATH repair for npm's and Homebrew's global bins | `hangar-core/src/agent/{mod,caps}.rs`, `lib.rs` (one line), `path_env.rs` | c48c7086 for the Codex detection call | 300 | — (first) |
 | **T2** | One launch builder: `LaunchRequest` → `LaunchSpec`; Claude Code's flags moved here from `hangar-engine/src/panes/agents.rs` with their tests (the engine switches in T14a) | `hangar-core/src/agent/{launch,claude}.rs` | T1 | 400 | T3a, T5, T8 |
-| **T3a** | Protocol types: a generator script over `codex app-server generate-json-schema` at the pinned release, the checked-in subset Hangar uses, a README of how to bump | `scripts/codex-protocol/`, `hangar-core/src/codex_app/generated.rs` | T1 | 200 + generated | T2, T5, T8 |
-| **T3b** | The JSON-RPC client: spawn (stdio, or `proxy --sock`), `initialize`, requests, notification stream, server requests with responses, version gate, lenient decoding; replay tests on recorded transcripts | `hangar-core/src/codex_app/{mod,client,gate}.rs`, `hangar-core/tests/fixtures/codex/app-server/` | T3a; **recorded fixtures (open decision 1)** | 400 | T4a, T5, T6 |
+| **T3a** | Protocol types: a generator script over `codex app-server generate-json-schema` at the pinned release, run on the Vast build box (no login needed), the checked-in subset Hangar uses, a README of how to bump | `scripts/codex-protocol/`, `hangar-core/src/codex_app/generated.rs` | T1 | 200 + generated | T2, T5, T8 |
+| **T3b** | The JSON-RPC client: spawn (stdio, or `proxy --sock`), `initialize`, requests, notification stream, server requests with responses, version gate, lenient decoding; replay tests on recorded transcripts | `hangar-core/src/codex_app/{mod,client,gate}.rs`, `hangar-core/tests/fixtures/codex/app-server/` | T3a; **recorded fixtures (decision 1, pending)** | 400 | T4a, T5, T6 |
 | **T4a** | Codex launch spec: the pane server's arguments (`-c` MCP, role, permissions, roots, model, effort, trust of Hangar's worktrees), the typed `--remote` line, the floor's typed line, per-shell quoting; tests per shell | `hangar-core/src/agent/codex.rs` | T1, T2 | 350 | T3b, T5 |
 | **T4b** | The pane's Codex server lives with the pane: spawned with the pane's environment, socket in Hangar's runtime folder, killed and restarted with the pane (close, restart, hibernation, `worker_stop`), WSL through `proxy`; `pty/jobs.rs` walks its tree; `apply_account` for `CODEX_HOME` | `hangar-core/src/pty.rs` (Codex parts), `pty/jobs.rs`, `pty/codex_server.rs` (new) | T4a | 350 | T3b, T6 |
 | **T4c** | Attach: per pane, Hangar's client finds and follows the pane's threads and turns protocol events into the bridge events the engine reads (hello, turn, permission/ask, settings, usage, edit, session, end); the inbox drained by `turn/start` / `turn/steer`; held asks answered as protocol responses; briefing by `thread/inject_items`, again after compaction | `hangar-core/src/agent/codex_attach.rs` (new), `bridge.rs` (a delivery seam for panes without a mod), `server.rs` if a route changes | T3b, T4b | 450 | T5, T6, T9 |
@@ -966,7 +977,7 @@ with its own kind type (a string or an enum), T1 adopts it as
 | **T10** | Generated images: `Event::ImageGenerated` from attached panes, headless children and the floor's rollout; an image chat item for Mobile | `hangar-core/src/agent/images.rs` (new), `host.rs` (event), `chat/` (item kind) after T9 | T4c, T9 | 250 | T11a |
 | **T11a** | `delegate` runner, Codex side: children as app-server threads, the delegation registry, `shared`/`worktree` isolation, results (message, files, images, branch), events to the caller's inbox | `hangar-core/src/delegate.rs`, `delegate/` (new) | T3b, T4c, T5 | 350 | T10 |
 | **T11b** | `delegate` runner, Claude side: `claude -p` stream-json children, their asks held for the person | `hangar-core/src/delegate/claude.rs` | T11a | 200 | T12 |
-| **T12** | The recorder and the canary: scripts that record the shared scenarios from a real Codex (app-server transcripts, rollouts, screens of the floor's dialogs), a weekly job on the latest release that diffs them and opens an issue | `scripts/codex/`, `.github/workflows/codex-canary.yml` | T3b, T4c; **open decisions 1–2** | 300 | T11 |
+| **T12** | The recorder and the canary: scripts that record the shared scenarios from a real Codex (app-server transcripts, rollouts, screens of the floor's dialogs), a weekly job on the latest Codex release, run on the Vast build box, that diffs them and opens an issue (how it is scheduled follows the remote-build tooling of `scripts/remote/`) | `scripts/codex/`, `.github/workflows/codex-canary.yml` | T3b, T4c; **an API key (decision 1, pending)** | 300 | T11 |
 
 ### Wave B — hangar-engine, after Wren's pin-pane task lands
 
@@ -1010,18 +1021,20 @@ T24a. Wave A runs entirely before the holders of the engine and the app
 finish, so nothing waits idle: sixteen core tasks, four or five of them in
 parallel at its widest.
 
-### Open decisions for the person
+### Decisions taken by the person (2026-11-19), and the one still open
 
-1. **Where real Codex sessions are recorded** for the fixtures (T3b, T4c, T12)
-   — it needs a logged-in Codex and spends its quota: the person's machine,
-   or a Vast box with a dedicated API key kept as a secret. Until decided,
-   those tasks stop at the point where a fixture is needed rather than write
-   frames by hand (T3's rule: hand-written frames are a guess).
-2. **The canary's account and cadence** (T12): weekly on the latest release
-   is proposed.
-3. **The README stance** (D21): neutral is proposed.
-4. **The attached mode on by default** (D5), on an app-server Codex calls
-   experimental, with the plain TUI as the floor: proposed yes.
+1. **Fixtures — open.** The person has no Codex or ChatGPT subscription, so
+   recording real sessions (T3b, T4c, T12) needs an OpenAI API key with a
+   spending cap, on the Vast build box; the orchestrator is asking the person
+   for it. Until it exists, those tasks stop at the point where a recorded
+   fixture is needed — the code before that point lands — and never write
+   frames by hand instead (T3's rule: hand-written frames are a guess).
+   Generating the schema (T3a) needs no login and is not blocked.
+2. **Canary — decided:** weekly, on the latest Codex release (T12), on the
+   Vast build box; it starts once decision 1 gives it a key.
+3. **README — decided:** neutral (D21).
+4. **Attached mode — decided:** on by default (D5), the plain TUI as the
+   fallback (D6).
 
 ## 8. Risks, and how they are contained
 
@@ -1029,7 +1042,7 @@ parallel at its widest.
 |---|---|
 | **Codex changes often**: 40 stable releases in three months; recent ones removed `codex mcp-server` (0.154), `-a untrusted` (0.149), `--full-auto`, profile tables (0.134), and changed what a rollout holds (paginated history, 0.158) | One version range in `agent/codex.rs` (D12): `CODEX_TESTED` and `CODEX_ATTACH_MIN`, measured by the fixtures. The protocol types are generated from the pinned release, checked in, and regenerated only by a deliberate bump. A release known to break is listed, and Hangar runs the floor for it. |
 | **The app-server is "experimental"** in Codex's docs, and two clients answering one thread's approvals is in the source, not the docs | Hangar uses the non-experimental surface (`experimentalApi: false`) unless a method it needs is gated, which the pin records. The TUI itself has been an app-server client since 0.157 (the daemon is a stable feature), so the protocol is exercised by OpenAI's own TUI on every release; the server and the TUI Hangar runs are always the same binary. If the attached mode breaks, every pane still runs on the floor (D6), and hooks are plan B (D7). |
-| A change Hangar did not see breaks a feature silently | **Replay fixtures** recorded from the real Codex (T3's discipline, `docs/internals/adding-a-provider.md` "Tests"): app-server transcripts, rollouts (`.jsonl`, `.jsonl.zst`, legacy and paginated), screens of the floor's dialogs, for the shared scenarios (simple turn, multi-turn, interrupt, approval allowed and denied, question, resume, compaction, image, steer). Tests replay them through the real parsers. The **canary** (T12) installs each new release weekly, records the same scenarios and diffs them; a diff opens an issue rather than failing a release. |
+| A change Hangar did not see breaks a feature silently | **Replay fixtures** recorded from the real Codex (T3's discipline, `docs/internals/adding-a-provider.md` "Tests"): app-server transcripts, rollouts (`.jsonl`, `.jsonl.zst`, legacy and paginated), screens of the floor's dialogs, for the shared scenarios (simple turn, multi-turn, interrupt, approval allowed and denied, question, resume, compaction, image, steer). Tests replay them through the real parsers. The **canary** (T12) installs each new release weekly on the Vast build box, records the same scenarios and diffs them; a diff opens an issue rather than failing a release. |
 | Rollout drift ("the transcript format isn't a stable interface", Codex's hooks docs) | Lenient readers: unknown line types skipped, unknown fields ignored, a line that fails to parse counted and reported once, never a crash or a silent zero. Live views read the protocol, not the files; the files serve history and statistics. |
 | Screen-reading fallbacks break on a redraw | Used only on the floor; every key is checked against the screen first and nothing is submitted that the screen does not show, as `mobile/answer.rs` does for Claude Code. |
 | **Two agents double the maintenance** | The capability rule (D3) keeps per-kind code in a few files: `agent/claude.rs`, `agent/codex.rs`, `agent/codex_attach.rs`, the Claude mod, the rollout reader, the app-server client. Features stay single-path. The Codex-only tasks of §7 add up to roughly 3 500–4 000 hand-written lines, plus the generated types. |
@@ -1041,7 +1054,8 @@ parallel at its widest.
 
 ## 9. What the README and the site say
 
-**Decision D21.** Neutral, with an honest table.
+**Decision D21.** Neutral, with an honest table. *Decided by the person,
+2026-11-19.*
 
 > Hangar runs your coding agents — **Claude Code** and **Codex** — side by
 > side in real terminals, and lets them work together: an orchestrator of
