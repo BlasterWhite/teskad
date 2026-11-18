@@ -855,6 +855,51 @@ mod tests {
         );
     }
 
+    /// The pinned panes are read one by one: a pin this version cannot read
+    /// (an edge it does not know, an entry that is not one) is set aside
+    /// and written back, the others read, a key of a newer version kept.
+    #[test]
+    fn pins_read_one_by_one_and_one_this_version_cannot_read_is_kept() {
+        use crate::state::types::PinEdge;
+
+        let good = json!({"id": "b", "edge": "right", "px": 640.0, "fraction": 0.4, "since": 3});
+        let (state, kept) = read(json!({
+            "workspaces": [{
+                "id": "w", "panes": [{"id": "a"}, {"id": "b"}],
+                "pins": [good.clone(), {"id": "a", "edge": "middle"}, 5]
+            }]
+        }));
+        let ws = &state.workspaces[0];
+        assert_eq!(ws.panes.len(), 2, "the workspace reads");
+        assert_eq!(ws.pins.len(), 1);
+        assert_eq!(ws.pins[0].edge, PinEdge::Right);
+        assert_eq!(ws.pins[0].px, Some(640.0));
+        assert_eq!(ws.pins[0].fraction, Some(0.4));
+        assert_eq!(ws.pins[0].extra["since"], json!(3));
+        for raw in [json!({"id": "a", "edge": "middle"}), json!(5)] {
+            assert!(
+                kept.contains(&Kept::Item {
+                    owner: Owner::Workspace("w".into()),
+                    list: "pins".into(),
+                    raw,
+                }),
+                "{kept:?}"
+            );
+        }
+        let written = serde_json::to_value(&state).unwrap();
+        assert_eq!(written["workspaces"][0]["pins"], json!([good]));
+        // A pin without its size reads, its size taken from the grid.
+        let (state, kept) = read(json!({
+            "workspaces": [{"id": "w", "panes": [{"id": "a"}], "pins": [{"id": "a", "edge": "top"}]}]
+        }));
+        assert!(kept.is_empty());
+        assert_eq!(state.workspaces[0].pins[0].px, None);
+        // No pin, no key: a file from before is written back as it was.
+        let (state, _) = read(json!({"workspaces": [{"id": "w", "panes": [{"id": "a"}]}]}));
+        let written = serde_json::to_value(&state).unwrap();
+        assert!(written["workspaces"][0].get("pins").is_none());
+    }
+
     #[test]
     fn anything_but_an_object_is_the_empty_state() {
         assert_eq!(app_state(json!([1, 2])), AppState::default());
