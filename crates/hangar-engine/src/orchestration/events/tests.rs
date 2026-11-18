@@ -999,10 +999,13 @@ fn tells_an_idle_worker_again_only_half_an_hour_later_when_a_nudge_is_all_it_had
     assert_eq!(idle_alerts(&r), 2);
 }
 
+/// Something a worker does, to its rig.
+type Doing = fn(&mut Rig);
+
 #[test]
 fn tells_an_idle_worker_again_once_it_commented_reported_or_committed() {
     // What it did, done after it was told; then a turn and ten quiet minutes.
-    let cases: [(&str, fn(&mut Rig)); 3] = [
+    let cases: [(&str, Doing); 3] = [
         ("a comment", |r: &mut Rig| {
             r.io.tasks[0].comments.push(comment(
                 "c9",
