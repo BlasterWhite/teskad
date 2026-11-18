@@ -7,7 +7,7 @@ on:
     # and nothing after it: no release, no packaging, no upload. What it is
     # for is the Rust caches it leaves, which are the only ones a tag can
     # restore (see the `build` job's rust-cache).
-    branches: [main, hangar/ci-cd-speed-rust-caches-that-4c9cf4] # TEMP: test of the warm mode, removed before merge
+    branches: [main]
   workflow_dispatch:
     inputs:
       tag:

@@ -101,7 +101,7 @@ jobs:
       # the repository's 10 GB.
       - uses: swatinem/rust-cache@v2
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' || github.head_ref == 'hangar/ci-cd-speed-rust-caches-that-4c9cf4' }} # TEMP: warm-run timings, removed before merge
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       # remote/assets.rs embeds Hangar Mobile's dist-mobile/. The Rust checks
       # do not care about its contents, and the mobile job below builds it; an
