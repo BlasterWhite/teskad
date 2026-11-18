@@ -26,8 +26,11 @@ env:
   # compile, link and cache. The test profile inherits it.
   CARGO_PROFILE_DEV_DEBUG: line-tables-only
   # Windows links with the LLVM linker rustup ships (the MSVC flavour of lld,
-  # found beside rustc), which is markedly faster than link.exe on the test
-  # binaries. Only read for that target; Linux has mold, set up in the job.
+  # found beside rustc). Every build script, proc macro and test binary is a
+  # link: building the tests from scratch took 6 min 50 with it and 11 min 12
+  # with link.exe (PR #17). Only read for that target; Linux has mold, set up
+  # in the job. The linker is part of cargo's fingerprints, so changing it
+  # rebuilds everything once.
   CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER: rust-lld.exe
 
 jobs:
