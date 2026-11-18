@@ -7,6 +7,7 @@ use super::super::run::{DISABLED, caller_workspace};
 use super::super::types::Caller;
 use super::{contains, control, from_ava, from_shop, matches, refusal, with};
 use crate::state::layout::preset_tree;
+use crate::state::types::{PanePin, PinEdge};
 
 fn caller(pane: Option<&str>, cwd: Option<&str>) -> Caller {
     Caller {
@@ -94,6 +95,26 @@ async fn lists_the_panes_in_the_order_they_are_read_on_screen() {
     });
     let result = control("pane_list", from_ava(), &fake).await.unwrap();
     assert_eq!(names(&result), vec![json!("Max"), json!("Ava")]);
+}
+
+#[tokio::test]
+async fn says_which_panes_are_pinned_and_to_which_edge() {
+    let fake = Fake::setup();
+    fake.patch("w1", |ws| {
+        ws.pins = vec![PanePin::new("p2", PinEdge::Right)];
+    });
+    let result = control("pane_list", from_ava(), &fake).await.unwrap();
+    let pinned: Vec<_> = result["panes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|pane| json!([pane["name"], pane.get("pinned")]))
+        .collect();
+    assert_eq!(
+        pinned,
+        vec![json!(["Ava", null]), json!(["Max", "right"])],
+        "only a pinned pane says it"
+    );
 }
 
 #[tokio::test]

@@ -74,7 +74,7 @@ pub async fn pane_list(ws: &Workspace, caller: &Caller, port: &Port) -> Result<V
     for pane in ordered(ws) {
         let running = open && port.alive(&pane.id).await;
         let activity = activity_of(&snapshot, &pane.id).map(|seen| json!(seen.activity));
-        panes.push(object([
+        let mut entry = object([
             ("name", json!(pane.name)),
             ("agent", json!(pane.agent)),
             ("cwd", json!(effective_cwd(ws, pane))),
@@ -85,7 +85,13 @@ pub async fn pane_list(ws: &Workspace, caller: &Caller, port: &Port) -> Result<V
                 json!(caller.pane_id.as_deref() == Some(pane.id.as_str())),
             ),
             ("id", json!(pane.id)),
-        ]));
+        ]);
+        // A pane the person pinned keeps its edge and its size whatever
+        // opens or closes: said only of those, the edge it keeps to.
+        if let Some(pin) = ws.pin_of(&pane.id) {
+            entry["pinned"] = json!(pin.edge.as_str());
+        }
+        panes.push(entry);
     }
     let asleep = !open && is_asleep(&snapshot, &ws.id);
     let mut workspace = json!({ "name": ws.name, "cwd": ws.cwd, "open": open });

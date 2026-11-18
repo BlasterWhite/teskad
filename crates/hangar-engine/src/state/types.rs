@@ -211,6 +211,18 @@ pub struct Workspace {
     /// it does not know, laying its terminals out again as an even grid.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub view_panes: Vec<ViewPane>,
+    /// The panes of the grid pinned to one of its edges, terminals or views,
+    /// the first pinned the outermost: each keeps its edge and its size
+    /// there while the other panes open, close, move or are laid out again,
+    /// which lay themselves out in the room the pins leave
+    /// (`layout::pinned_tree`). `tree` holds them where they are, so a
+    /// Hangar that does not know pins draws them in their place. Written
+    /// only while there is one; 1.x and the versions before keep the field
+    /// as it was (they spread the workspace) and lay the grid out as if
+    /// there were none. The mirror's own for a hosted workspace, as its
+    /// tree is: its node is told nothing of them (`hosted.rs`).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub pins: Vec<PanePin>,
     pub saved_commands: Vec<SavedCommand>,
     /// The navigator folder it is filed under.
     pub folder_id: Option<String>,
@@ -308,6 +320,99 @@ impl ViewPane {
     }
 }
 
+/// An edge of the grid a pinned pane keeps to (`PanePin::edge`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PinEdge {
+    Left,
+    Right,
+    Top,
+    Bottom,
+}
+
+impl PinEdge {
+    /// Every edge, in the order a tie between two is settled: the sides
+    /// first, which keep a terminal's columns, the right one first, where
+    /// the agents' layout leaves room beside the lead.
+    pub const ALL: [PinEdge; 4] = [PinEdge::Right, PinEdge::Left, PinEdge::Bottom, PinEdge::Top];
+
+    /// The split that carves a pane out on this edge: side by side for the
+    /// left and the right, stacked for the top and the bottom.
+    pub fn dir(self) -> SplitDir {
+        match self {
+            PinEdge::Left | PinEdge::Right => SplitDir::Row,
+            PinEdge::Top | PinEdge::Bottom => SplitDir::Col,
+        }
+    }
+
+    /// Whether the pinned pane is its split's first side (`a`): on the left
+    /// or at the top.
+    pub fn leads(self) -> bool {
+        matches!(self, PinEdge::Left | PinEdge::Top)
+    }
+
+    /// The name `state.json` and the pane tools write it under.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            PinEdge::Left => "left",
+            PinEdge::Right => "right",
+            PinEdge::Top => "top",
+            PinEdge::Bottom => "bottom",
+        }
+    }
+}
+
+/// A pane pinned to an edge of its workspace's grid (`Workspace::pins`).
+///
+/// Its size is along the edge's axis (a width on the left or the right, a
+/// height at the top or the bottom), kept two ways: in logical pixels when
+/// the grid's size was known as it was set, which is what the grid draws
+/// (a terminal keeps its columns as the window grows), and as its share of
+/// the room it is carved from, which lays it out where no size is known
+/// (the agents' layout, a Hangar with no window) and stands in for the
+/// pixels when there are none. Both are kept within bounds where they are
+/// read (`layout::sized_tree`), never in the file, so a window that grows
+/// back gives a pane back the size it was pinned at.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PanePin {
+    /// The terminal's or the view's id; a respawn carries the pin over.
+    pub id: PaneId,
+    pub edge: PinEdge,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub px: Option<f64>,
+    /// Its share, 0 to 1, of the room the pins before it leave, along its
+    /// axis: of the whole grid for the first.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fraction: Option<f64>,
+    #[serde(flatten)]
+    pub extra: Extra,
+}
+
+impl PanePin {
+    pub fn new(id: impl Into<PaneId>, edge: PinEdge) -> PanePin {
+        PanePin {
+            id: id.into(),
+            edge,
+            px: None,
+            fraction: None,
+            extra: Extra::new(),
+        }
+    }
+
+    /// Its size in pixels, when it has one that reads as a size.
+    pub fn pixels(&self) -> Option<f64> {
+        self.px.filter(|px| px.is_finite() && *px > 0.0)
+    }
+
+    /// Its share of its room, when it has one that reads as a share (above
+    /// 0, below 1); not yet within `layout`'s bounds.
+    pub fn share(&self) -> Option<f64> {
+        self.fraction
+            .filter(|share| share.is_finite() && *share > 0.0 && *share < 1.0)
+    }
+}
+
 impl Workspace {
     /// Every pane of the grid, terminals first, then the views, in the order
     /// they were made: what the tree is normalized against
@@ -338,6 +443,15 @@ impl Workspace {
     /// A terminal or a view of this workspace's grid.
     pub fn has_leaf(&self, id: &str) -> bool {
         self.panes.iter().any(|pane| pane.id == id) || self.has_view(id)
+    }
+
+    /// The pin of pane `id` of the grid, if it is pinned: its first, should
+    /// the file hold two.
+    pub fn pin_of(&self, id: &str) -> Option<&PanePin> {
+        self.pins
+            .iter()
+            .find(|pin| pin.id == id)
+            .filter(|_| self.has_leaf(id))
     }
 }
 

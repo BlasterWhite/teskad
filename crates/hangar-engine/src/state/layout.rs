@@ -6,12 +6,19 @@
 //! shells. Rectangles are fractions of the grid, so the grid can place every
 //! pane from four numbers and never rebuild a terminal when the arrangement
 //! changes.
+//!
+//! A pane can be pinned to an edge of the grid (`Workspace::pins`). The tree
+//! then carves the pinned panes out first, each on its edge across the room
+//! the pins before it leave, and the unpinned panes share what is left
+//! ([`with_pins`]): whatever lays them out again (a pane added, closed or
+//! moved, a preset, the agents' layout) works on that part alone, and the
+//! pinned panes keep their place and their size.
 
 use std::collections::{HashMap, HashSet};
 
 use serde_json::Value;
 
-use super::types::{DropZone, Pane, PaneId, SplitDir, SplitNode, Workspace};
+use super::types::{DropZone, Pane, PaneId, PanePin, PinEdge, SplitDir, SplitNode, Workspace};
 
 pub use super::types::MAX_PANES;
 
@@ -363,10 +370,24 @@ pub fn normalize_tree(panes: &[Pane], tree: Option<&SplitNode>) -> SplitNode {
 }
 
 /// The workspace's grid, made to cover exactly its terminals and its views
-/// (`Workspace::leaf_ids`), by the rules of [`normalize_tree`]: what is
-/// drawn, moved, resized, numbered and laid out again.
+/// (`Workspace::leaf_ids`), by the rules of [`normalize_tree`], its pinned
+/// panes on their edges ([`pinned_tree`]): what is drawn, moved, resized,
+/// numbered and laid out again.
 pub fn grid_tree(ws: &Workspace) -> SplitNode {
-    normalize_tree_ids(&ws.leaf_ids(), ws.tree.as_ref())
+    pinned_grid(ws).0
+}
+
+/// [`grid_tree`], and the pins that hold in it ([`live_pins`]), each with
+/// its share of its room: what an arrangement of the unpinned panes is put
+/// back into ([`with_pins`]).
+pub fn pinned_grid(ws: &Workspace) -> (SplitNode, Vec<PanePin>) {
+    let tree = normalize_tree_ids(&ws.leaf_ids(), ws.tree.as_ref());
+    if ws.pins.is_empty() {
+        return (tree, Vec::new());
+    }
+    let pins = with_shares(&tree, live_pins(ws));
+    let tree = with_pins(&pins, unpinned_tree(&tree, &pins));
+    (tree, pins)
 }
 
 /// Every pane of the grid, terminals and views, in the order they are read
@@ -441,12 +462,30 @@ pub fn preset_terminals(count: usize, views: usize) -> usize {
         .max(1)
 }
 
+/// How many unpinned terminals a preset asking for `count` leaves workspace
+/// `ws`: a preset sets the number of the terminals that are not pinned, and
+/// keeps every pinned pane and every view, so those have the room
+/// `MAX_PANES` leaves them ([`preset_terminals`] with no pin), and at least
+/// one when no terminal is pinned.
+pub fn preset_terminals_in(ws: &Workspace, count: usize) -> usize {
+    let pinned = ws
+        .panes
+        .iter()
+        .filter(|pane| ws.pin_of(&pane.id).is_some())
+        .count();
+    preset_size(count)
+        .min(MAX_PANES.saturating_sub(ws.view_panes.len() + pinned))
+        .max(usize::from(pinned == 0))
+}
+
 /// The terminals a preset of `count` closes in workspace `ws`, in reading
-/// order: [`closed_by_preset`] with the room its views take.
+/// order: [`closed_by_preset`] with the room its views and its pinned panes
+/// take. A pinned pane is never one of them.
 pub fn closed_by_preset_in(ws: &Workspace, count: usize) -> Vec<&Pane> {
     reading_order(&ws.panes, ws.tree.as_ref())
         .into_iter()
-        .skip(preset_terminals(count, ws.view_panes.len()))
+        .filter(|pane| ws.pin_of(&pane.id).is_none())
+        .skip(preset_terminals_in(ws, count))
         .collect()
 }
 
@@ -633,6 +672,475 @@ pub fn preferred_dir(size: Option<(f32, f32)>) -> SplitDir {
         Some((width, height)) if width < height * 1.15 => SplitDir::Col,
         _ => SplitDir::Row,
     }
+}
+
+// ---- Pinned panes
+
+/// The most of its room a pinned pane takes, whatever size it was pinned
+/// at: what is left stays usable, and a window that shrinks takes from the
+/// pinned pane past that point.
+pub const MAX_PIN_SHARE: f64 = 0.7;
+
+/// The least of its room a pinned pane takes, as little as
+/// [`compute_layout`] leaves any pane.
+pub const MIN_PIN_SHARE: f64 = 0.05;
+
+/// The share of a pin that says none, and whose pane the tree does not show.
+const DEFAULT_PIN_SHARE: f64 = 0.3;
+
+fn bounded_share(share: f64) -> f64 {
+    if share.is_nan() {
+        return DEFAULT_PIN_SHARE;
+    }
+    share.clamp(MIN_PIN_SHARE, MAX_PIN_SHARE)
+}
+
+/// A pin's share of its room, within bounds.
+fn share_of(pin: &PanePin) -> f64 {
+    pin.share().map_or(DEFAULT_PIN_SHARE, bounded_share)
+}
+
+/// The ratio of a pin's split that gives the pinned pane `share` of it.
+fn pin_ratio(edge: PinEdge, share: f64) -> f64 {
+    if edge.leads() { share } else { 1.0 - share }
+}
+
+/// The pinned pane's share of its split at `ratio`: [`pin_ratio`] turned
+/// back, which is the same turn.
+fn pin_share(edge: PinEdge, ratio: f64) -> f64 {
+    pin_ratio(edge, ratio)
+}
+
+fn is_pinned(pins: &[PanePin], id: &str) -> bool {
+    pins.iter().any(|pin| pin.id == id)
+}
+
+/// `rect`'s extent along `dir`: its width for a row, its height for a
+/// column.
+fn along(rect: &Rect, dir: SplitDir) -> f64 {
+    match dir {
+        SplitDir::Row => rect.width,
+        SplitDir::Col => rect.height,
+    }
+}
+
+/// `room` without what a pin of `share` takes of it on its edge.
+fn room_left(room: Rect, edge: PinEdge, share: f64) -> Rect {
+    match edge {
+        PinEdge::Left => {
+            let taken = room.width * share;
+            Rect {
+                left: room.left + taken,
+                width: room.width - taken,
+                ..room
+            }
+        }
+        PinEdge::Right => Rect {
+            width: room.width * pin_ratio(edge, share),
+            ..room
+        },
+        PinEdge::Top => {
+            let taken = room.height * share;
+            Rect {
+                top: room.top + taken,
+                height: room.height - taken,
+                ..room
+            }
+        }
+        PinEdge::Bottom => Rect {
+            height: room.height * pin_ratio(edge, share),
+            ..room
+        },
+    }
+}
+
+/// The pins of `ws` that hold, in order, the first the outermost: each of a
+/// pane of its grid, each pane once (its first pin).
+pub fn live_pins(ws: &Workspace) -> Vec<PanePin> {
+    let mut seen = HashSet::new();
+    ws.pins
+        .iter()
+        .filter(|pin| ws.has_leaf(&pin.id) && seen.insert(pin.id.as_str()))
+        .cloned()
+        .collect()
+}
+
+/// `pins`, each with a share of its room: its own, within bounds, or
+/// failing that the one `tree` gives its pane now, of the room the pins
+/// before it leave.
+fn with_shares(tree: &SplitNode, mut pins: Vec<PanePin>) -> Vec<PanePin> {
+    if pins.iter().all(|pin| pin.share().is_some()) {
+        return pins;
+    }
+    let layout = compute_layout(tree);
+    let mut room = Rect::FULL;
+    for pin in &mut pins {
+        let share = match pin.share() {
+            Some(share) => bounded_share(share),
+            None => {
+                let dir = pin.edge.dir();
+                let share = layout.rects.get(&pin.id).map_or(DEFAULT_PIN_SHARE, |rect| {
+                    along(rect, dir) / along(&room, dir).max(f64::EPSILON)
+                });
+                let share = bounded_share(share);
+                pin.fraction = Some(share);
+                share
+            }
+        };
+        room = room_left(room, pin.edge, share);
+    }
+    pins
+}
+
+/// `tree` without the leaves of `pins`, each sibling taking the room: the
+/// unpinned panes, as `tree` arranges them. None when every pane is pinned.
+pub fn unpinned_tree(tree: &SplitNode, pins: &[PanePin]) -> Option<SplitNode> {
+    pins.iter()
+        .try_fold(tree.clone(), |tree, pin| remove_leaf(&tree, &pin.id))
+}
+
+/// `inner`, the unpinned panes' tree, with `pins` carved out around it in
+/// order, the first the outermost: each pinned pane on its edge, across the
+/// whole of the room the pins before it leave, at its share of that room.
+/// Two pins on one edge stand side by side, the first against the edge.
+/// With no unpinned pane, the last pin takes the room the others leave.
+pub fn with_pins(pins: &[PanePin], inner: Option<SplitNode>) -> SplitNode {
+    pins.iter()
+        .rev()
+        .fold(inner, |inner, pin| {
+            let pinned = leaf(pin.id.clone());
+            Some(match inner {
+                None => pinned,
+                Some(rest) => {
+                    let ratio = pin_ratio(pin.edge, share_of(pin));
+                    if pin.edge.leads() {
+                        split(pin.edge.dir(), ratio, pinned, rest)
+                    } else {
+                        split(pin.edge.dir(), ratio, rest, pinned)
+                    }
+                }
+            })
+        })
+        .unwrap_or_else(|| leaf(""))
+}
+
+/// `tree` with `pins` holding ([`with_pins`]), the unpinned panes keeping
+/// the arrangement they have in it. A tree that holds them already comes
+/// back as it is.
+pub fn pinned_tree(tree: &SplitNode, pins: &[PanePin]) -> SplitNode {
+    if pins.is_empty() {
+        return tree.clone();
+    }
+    let pins = with_shares(tree, pins.to_vec());
+    with_pins(&pins, unpinned_tree(tree, &pins))
+}
+
+/// The sides of `node` when it is `pin`'s split as [`with_pins`] makes it:
+/// the pinned leaf, and the room it leaves.
+fn carved<'a>(node: &'a SplitNode, pin: &PanePin) -> Option<(&'a SplitNode, &'a SplitNode)> {
+    let SplitNode::Split { dir, a, b, .. } = node else {
+        return None;
+    };
+    let (pinned, rest) = if pin.edge.leads() {
+        (&**a, &**b)
+    } else {
+        (&**b, &**a)
+    };
+    let holds = *dir == pin.edge.dir() && matches!(pinned, SplitNode::Pane { id } if *id == pin.id);
+    holds.then_some((pinned, rest))
+}
+
+/// What a pin takes of a room `span` pixels long, as a share of it: its
+/// pixels (its share of the room when it has none), within `MIN_PANE_PX`
+/// and [`MAX_PIN_SHARE`] of the room; the most when the room is too small
+/// for both.
+fn sized_share(pin: &PanePin, span: f64) -> f64 {
+    if !(span.is_finite() && span > 0.0) {
+        return share_of(pin);
+    }
+    let wanted = pin.pixels().unwrap_or_else(|| share_of(pin) * span);
+    let most = span * MAX_PIN_SHARE;
+    let least = f64::from(MIN_PANE_PX).min(most);
+    wanted.clamp(least, most) / span
+}
+
+/// The grid's tree for a grid of `size` logical pixels: each pin's split
+/// gives its pane the pixels it was pinned at ([`sized_share`]) of the room
+/// the pins before it leave, so a terminal keeps its columns however the
+/// window and the other panes change. The rest of the tree is as it was.
+/// `tree` is a pinned tree of these `pins` ([`pinned_tree`]); a split that
+/// is not one is left as it is, and those inside it too.
+pub fn sized_tree(tree: &SplitNode, pins: &[PanePin], size: (f32, f32)) -> SplitNode {
+    fn walk(node: &SplitNode, pins: &[PanePin], room: (f64, f64)) -> SplitNode {
+        let Some((pin, inside)) = pins.split_first() else {
+            return node.clone();
+        };
+        let Some((pinned, rest)) = carved(node, pin) else {
+            return node.clone();
+        };
+        let dir = pin.edge.dir();
+        let span = match dir {
+            SplitDir::Row => room.0,
+            SplitDir::Col => room.1,
+        };
+        let share = sized_share(pin, span);
+        let taken = span * share;
+        let room = match dir {
+            SplitDir::Row => (room.0 - taken, room.1),
+            SplitDir::Col => (room.0, room.1 - taken),
+        };
+        let rest = walk(rest, inside, room);
+        let ratio = pin_ratio(pin.edge, share);
+        if pin.edge.leads() {
+            split(dir, ratio, pinned.clone(), rest)
+        } else {
+            split(dir, ratio, rest, pinned.clone())
+        }
+    }
+    walk(tree, pins, (f64::from(size.0), f64::from(size.1)))
+}
+
+/// The workspace's grid as it is drawn at `size` logical pixels, once the
+/// grid knows its size ([`sized_tree`]); its tree ([`grid_tree`]) until
+/// then.
+pub fn drawn_tree(ws: &Workspace, size: Option<(f32, f32)>) -> SplitNode {
+    let (tree, pins) = pinned_grid(ws);
+    match size {
+        Some(size) if !pins.is_empty() => sized_tree(&tree, &pins, size),
+        _ => tree,
+    }
+}
+
+/// `pins` without pane `id`'s (unpinned, or closed), the pins inside it
+/// keeping the size `tree`, a pinned tree of `pins`, gives them now: their
+/// share of a room that grew is made smaller.
+pub fn pins_without(tree: &SplitNode, pins: &[PanePin], id: &str) -> Vec<PanePin> {
+    let Some(at) = pins.iter().position(|pin| pin.id == id) else {
+        return pins.to_vec();
+    };
+    let mut rest = pins.to_vec();
+    rest.remove(at);
+    for pin in &mut rest[at..] {
+        pin.fraction = None;
+    }
+    with_shares(tree, rest)
+}
+
+/// The edge a pane at `rect` is pinned to in `room`, the room the other
+/// pins leave: among the edges of the room it lies along, the one it covers
+/// the most of, so that pinning it changes it the least; the nearest when
+/// it lies along none. [`PinEdge::ALL`] settles a tie: a pane alone in its
+/// room goes to the right.
+pub fn pin_edge(rect: Rect, room: Rect) -> PinEdge {
+    const EPSILON: f64 = 1e-6;
+    let gap = |edge: PinEdge| match edge {
+        PinEdge::Left => rect.left - room.left,
+        PinEdge::Right => (room.left + room.width) - (rect.left + rect.width),
+        PinEdge::Top => rect.top - room.top,
+        PinEdge::Bottom => (room.top + room.height) - (rect.top + rect.height),
+    };
+    let cover = |edge: PinEdge| match edge.dir() {
+        SplitDir::Row => rect.height / room.height.max(EPSILON),
+        SplitDir::Col => rect.width / room.width.max(EPSILON),
+    };
+    let mut best = PinEdge::ALL[0];
+    let mut best_score = f64::NEG_INFINITY;
+    let touching = PinEdge::ALL.iter().any(|edge| gap(*edge).abs() < EPSILON);
+    for edge in PinEdge::ALL {
+        let score = if touching {
+            if gap(edge).abs() >= EPSILON {
+                continue;
+            }
+            cover(edge)
+        } else {
+            -gap(edge)
+        };
+        if score > best_score + EPSILON {
+            best = edge;
+            best_score = score;
+        }
+    }
+    best
+}
+
+/// The smallest rectangle holding both.
+fn bounding(a: Rect, b: Rect) -> Rect {
+    let left = a.left.min(b.left);
+    let top = a.top.min(b.top);
+    Rect {
+        left,
+        top,
+        width: (a.left + a.width).max(b.left + b.width) - left,
+        height: (a.top + a.height).max(b.top + b.height) - top,
+    }
+}
+
+/// The pins of workspace `ws` once pane `id` (a terminal or a view) is
+/// pinned to `edge`, or to the edge it lies along when none is given
+/// ([`pin_edge`]), last of them, so innermost: its size is its size along
+/// that axis as the grid shows it now, in pixels when the grid's `size` is
+/// known, and as its share of the room the other pins leave. A pane pinned
+/// already is taken as unpinned first: pinned again, it moves inside the
+/// others. None when it is no pane of the grid.
+pub fn pinned_with(
+    ws: &Workspace,
+    id: &str,
+    edge: Option<PinEdge>,
+    size: Option<(f32, f32)>,
+) -> Option<Vec<PanePin>> {
+    if !ws.has_leaf(id) {
+        return None;
+    }
+    let (tree, pins) = pinned_grid(ws);
+    let mut pins = pins_without(&tree, &pins, id);
+    let tree = with_pins(&pins, unpinned_tree(&tree, &pins));
+    let drawn = match size {
+        Some(size) => sized_tree(&tree, &pins, size),
+        None => tree,
+    };
+    let layout = compute_layout(&drawn);
+    let rect = *layout.rects.get(id)?;
+    // The room the other pins leave is what the unpinned panes cover.
+    let room = layout
+        .rects
+        .iter()
+        .filter(|(pane, _)| !is_pinned(&pins, pane))
+        .map(|(_, rect)| *rect)
+        .reduce(bounding)
+        .unwrap_or(rect);
+    let edge = edge.unwrap_or_else(|| pin_edge(rect, room));
+    let dir = edge.dir();
+    let extent = along(&rect, dir);
+    let span = |(width, height): (f32, f32)| match dir {
+        SplitDir::Row => f64::from(width),
+        SplitDir::Col => f64::from(height),
+    };
+    pins.push(PanePin {
+        px: size.map(|size| extent * span(size)),
+        fraction: Some(bounded_share(extent / along(&room, dir).max(f64::EPSILON))),
+        ..PanePin::new(id, edge)
+    });
+    Some(pins)
+}
+
+/// The pins after the grid's tree went from `before` to `after` (a divider
+/// dragged), both pinned trees of `pins`: a pin whose split the drag moved
+/// takes its new share, within bounds, its pixels following in proportion
+/// (here the grid's size is not known; [`pin_resized`] knows it). The
+/// others are as they were.
+pub fn pins_dragged(before: &SplitNode, after: &SplitNode, pins: &[PanePin]) -> Vec<PanePin> {
+    let mut out = pins.to_vec();
+    let (mut before, mut after) = (before, after);
+    for pin in &mut out {
+        let (Some((_, was)), Some((_, now))) = (carved(before, pin), carved(after, pin)) else {
+            break;
+        };
+        let (SplitNode::Split { ratio: old, .. }, SplitNode::Split { ratio: new, .. }) =
+            (before, after)
+        else {
+            break;
+        };
+        if old != new {
+            let old_share = pin_share(pin.edge, old.clamp(0.05, 0.95));
+            let share = bounded_share(pin_share(pin.edge, *new));
+            pin.px = pin.pixels().map(|px| px * share / old_share);
+            pin.fraction = Some(share);
+        }
+        before = was;
+        after = now;
+    }
+    out
+}
+
+/// `pins` with the one whose split lies at `path` of `tree`, a pinned tree
+/// of them, dragged to `ratio` in a grid of `size` logical pixels: it takes
+/// that share of its room, within bounds, and the pixels that is when the
+/// size is known (in proportion to those it had when not). None when no
+/// pin's split lies at `path`.
+pub fn pin_resized(
+    tree: &SplitNode,
+    pins: &[PanePin],
+    path: &[Side],
+    ratio: f64,
+    size: Option<(f32, f32)>,
+) -> Option<Vec<PanePin>> {
+    let mut node = tree;
+    let mut room = size.map(|(width, height)| (f64::from(width), f64::from(height)));
+    let mut at: Path = Vec::new();
+    for (index, pin) in pins.iter().enumerate() {
+        let (_, rest) = carved(node, pin)?;
+        let dir = pin.edge.dir();
+        let span = room.map(|(width, height)| match dir {
+            SplitDir::Row => width,
+            SplitDir::Col => height,
+        });
+        if at == path {
+            let share = bounded_share(pin_share(pin.edge, ratio));
+            let mut out = pins.to_vec();
+            out[index].px = match span {
+                Some(span) => Some(share * span),
+                None => pin.pixels().map(|px| px * share / share_of(pin)),
+            };
+            out[index].fraction = Some(share);
+            return Some(out);
+        }
+        if let (Some(room), Some(span)) = (room.as_mut(), span) {
+            let taken = span * sized_share(pin, span);
+            match dir {
+                SplitDir::Row => room.0 -= taken,
+                SplitDir::Col => room.1 -= taken,
+            }
+        }
+        at.push(if pin.edge.leads() { Side::B } else { Side::A });
+        node = rest;
+    }
+    None
+}
+
+/// `tree`, a pinned tree of `pins`, with a new leaf `id` beside pane `near`
+/// on the side `zone` says, among the unpinned panes: a pane added never
+/// takes a pinned pane's room. Beside a pinned pane, it lands beside the
+/// unpinned pane next to it, towards the middle of the grid; without
+/// `near`, or with one that is not in the tree, beside the unpinned pane
+/// read last; with every pane pinned, it takes the room they leave.
+pub fn add_beside(
+    tree: &SplitNode,
+    pins: &[PanePin],
+    near: Option<&str>,
+    id: &str,
+    zone: DropZone,
+) -> SplitNode {
+    let Some(inner) = unpinned_tree(tree, pins) else {
+        return with_pins(pins, Some(leaf(id)));
+    };
+    let target = landing(tree, pins, near)
+        .or_else(|| leaf_ids(&inner).pop())
+        .unwrap_or_default();
+    with_pins(pins, Some(insert_leaf(&inner, &target, id, zone)))
+}
+
+/// The unpinned pane a pane added beside `near` goes beside ([`add_beside`]).
+fn landing(tree: &SplitNode, pins: &[PanePin], near: Option<&str>) -> Option<PaneId> {
+    let near = near?;
+    let Some(pin) = pins.iter().find(|pin| pin.id == near) else {
+        return leaf_ids(tree).into_iter().find(|id| id == near);
+    };
+    let inwards = match pin.edge {
+        PinEdge::Left => Direction::Right,
+        PinEdge::Right => Direction::Left,
+        PinEdge::Top => Direction::Down,
+        PinEdge::Bottom => Direction::Up,
+    };
+    // Across the pins stacked on the way.
+    let mut from = near.to_string();
+    for _ in 0..pins.len() {
+        let next = neighbor_of(tree, &from, inwards)?;
+        if !is_pinned(pins, &next) {
+            return Some(next);
+        }
+        from = next;
+    }
+    None
 }
 
 #[cfg(test)]
@@ -1323,5 +1831,370 @@ mod view_tests {
             .map(|pane| pane.id.as_str())
             .collect();
         assert_eq!(closed, ["e", "f"]);
+    }
+}
+
+#[cfg(test)]
+mod pin_tests {
+    //! Pinned panes: carved out first, each on its edge at its size, the
+    //! others laid out in the room they leave.
+
+    use super::*;
+
+    const GRID: (f32, f32) = (1600.0, 900.0);
+
+    fn close(a: f64, b: f64) -> bool {
+        (a - b).abs() < 1e-9
+    }
+
+    fn ids(list: &[&str]) -> Vec<PaneId> {
+        list.iter().map(|id| (*id).to_string()).collect()
+    }
+
+    fn row(a: SplitNode, b: SplitNode) -> SplitNode {
+        split(SplitDir::Row, 0.5, a, b)
+    }
+
+    fn pin(id: &str, edge: PinEdge, fraction: f64) -> PanePin {
+        PanePin {
+            fraction: Some(fraction),
+            ..PanePin::new(id, edge)
+        }
+    }
+
+    fn pin_px(id: &str, edge: PinEdge, px: f64, fraction: f64) -> PanePin {
+        PanePin {
+            px: Some(px),
+            ..pin(id, edge, fraction)
+        }
+    }
+
+    fn rect_of(tree: &SplitNode, id: &str) -> Rect {
+        compute_layout(tree).rects[id]
+    }
+
+    fn assert_rect(rect: Rect, left: f64, top: f64, width: f64, height: f64) {
+        assert!(
+            close(rect.left, left)
+                && close(rect.top, top)
+                && close(rect.width, width)
+                && close(rect.height, height),
+            "{rect:?} is not ({left}, {top}, {width}, {height})"
+        );
+    }
+
+    fn workspace(terminals: &[&str], pins: Vec<PanePin>, tree: Option<SplitNode>) -> Workspace {
+        Workspace {
+            panes: terminals
+                .iter()
+                .map(|id| Pane {
+                    id: (*id).into(),
+                    ..Pane::default()
+                })
+                .collect(),
+            pins,
+            tree,
+            ..Workspace::default()
+        }
+    }
+
+    #[test]
+    fn a_pin_carves_its_pane_out_on_its_edge_across_the_whole_room() {
+        let inner = Some(row(leaf("a"), leaf("b")));
+        for (edge, expected) in [
+            (PinEdge::Left, (0.0, 0.0, 0.3, 1.0)),
+            (PinEdge::Right, (0.7, 0.0, 0.3, 1.0)),
+            (PinEdge::Top, (0.0, 0.0, 1.0, 0.3)),
+            (PinEdge::Bottom, (0.0, 0.7, 1.0, 0.3)),
+        ] {
+            let tree = with_pins(&[pin("t", edge, 0.3)], inner.clone());
+            let (left, top, width, height) = expected;
+            assert_rect(rect_of(&tree, "t"), left, top, width, height);
+        }
+        // Alone, it has the grid; with nothing at all, the empty leaf.
+        assert_eq!(with_pins(&[pin("t", PinEdge::Right, 0.3)], None), leaf("t"));
+        assert_eq!(with_pins(&[], None), leaf(""));
+    }
+
+    #[test]
+    fn the_first_pin_is_the_outermost_and_two_on_one_edge_stand_side_by_side() {
+        // The left one takes the whole height, the top one what it leaves.
+        let tree = with_pins(
+            &[pin("l", PinEdge::Left, 0.2), pin("t", PinEdge::Top, 0.25)],
+            Some(leaf("a")),
+        );
+        assert_rect(rect_of(&tree, "l"), 0.0, 0.0, 0.2, 1.0);
+        assert_rect(rect_of(&tree, "t"), 0.2, 0.0, 0.8, 0.25);
+        assert_rect(rect_of(&tree, "a"), 0.2, 0.25, 0.8, 0.75);
+        // Two on the left: the first against the edge, the second beside it,
+        // at its share of what the first leaves.
+        let tree = with_pins(
+            &[pin("x", PinEdge::Left, 0.2), pin("y", PinEdge::Left, 0.25)],
+            Some(leaf("a")),
+        );
+        assert_rect(rect_of(&tree, "x"), 0.0, 0.0, 0.2, 1.0);
+        assert_rect(rect_of(&tree, "y"), 0.2, 0.0, 0.2, 1.0);
+        assert_rect(rect_of(&tree, "a"), 0.4, 0.0, 0.6, 1.0);
+        assert_eq!(leaf_ids(&tree), ["x", "y", "a"]);
+    }
+
+    #[test]
+    fn a_tree_is_carved_once_and_one_that_holds_its_pins_comes_back_as_it_is() {
+        // An even grid with the pinned pane in it, as an older Hangar wrote it.
+        let tree = preset_tree(&ids(&["a", "t", "b"]));
+        let pins = [pin("t", PinEdge::Right, 0.4)];
+        let carved = pinned_tree(&tree, &pins);
+        assert_eq!(
+            carved,
+            with_pins(&pins, Some(split(SplitDir::Col, 0.5, leaf("a"), leaf("b"))))
+        );
+        assert_eq!(pinned_tree(&carved, &pins), carved, "the same tree");
+        // A pin with no share takes the one its pane has on screen.
+        let no_size = [PanePin::new("t", PinEdge::Right)];
+        assert!(close(
+            rect_of(&pinned_tree(&tree, &no_size), "t").width,
+            0.5
+        ));
+        assert_eq!(pinned_tree(&tree, &[]), tree);
+    }
+
+    #[test]
+    fn a_pinned_pane_keeps_its_rect_however_many_panes_open_beside_it() {
+        let pins = [pin_px("t", PinEdge::Right, 480.0, 0.3)];
+        for n in 0..=8 {
+            let mut order = ids(&["lead"]);
+            order.extend((0..n).map(|i| format!("w{i}")));
+            for tree in [
+                with_pins(&pins, Some(arranged_tree(&order, Some("lead")))),
+                with_pins(&pins, Some(preset_tree(&order))),
+            ] {
+                // Laid out where the size is unknown: its share.
+                let layout = compute_layout(&tree);
+                assert_rect(layout.rects["t"], 0.7, 0.0, 0.3, 1.0);
+                for id in &order {
+                    let rect = layout.rects[id];
+                    assert!(rect.left + rect.width <= 0.7 + 1e-9, "{n}: {id} {rect:?}");
+                }
+                // Drawn: its pixels.
+                let drawn = rect_of(&sized_tree(&tree, &pins, GRID), "t");
+                assert!(close(drawn.width * 1600.0, 480.0), "{n}: {drawn:?}");
+                assert!(close(drawn.left + drawn.width, 1.0));
+                assert_eq!((drawn.top, drawn.height), (0.0, 1.0));
+            }
+        }
+    }
+
+    #[test]
+    fn a_window_that_shrinks_takes_from_a_pinned_pane_past_70_percent_only() {
+        let pins = [pin_px("t", PinEdge::Right, 800.0, 0.5)];
+        let tree = with_pins(&pins, Some(row(leaf("a"), leaf("b"))));
+        let width_at = |width: f32| rect_of(&sized_tree(&tree, &pins, (width, 900.0)), "t").width;
+        assert!(close(width_at(1600.0) * 1600.0, 800.0));
+        // 70 % of 1000 is 700: what is left stays usable.
+        assert!(close(width_at(1000.0), MAX_PIN_SHARE));
+        assert!(close(width_at(400.0), MAX_PIN_SHARE));
+        // The window grows back: the pane has its 800 pixels again.
+        assert!(close(width_at(3200.0) * 3200.0, 800.0));
+        // Never under `MIN_PANE_PX`, while the window has the room.
+        let small = [pin_px("t", PinEdge::Right, 50.0, 0.1)];
+        let tree = with_pins(&small, Some(leaf("a")));
+        let drawn = rect_of(&sized_tree(&tree, &small, GRID), "t");
+        assert!(close(drawn.width * 1600.0, f64::from(MIN_PANE_PX)));
+        // A height for a pane pinned at the top; a share where no pixels.
+        let top = [pin_px("t", PinEdge::Top, 300.0, 0.2)];
+        let tree = with_pins(&top, Some(leaf("a")));
+        let drawn = rect_of(&sized_tree(&tree, &top, GRID), "t");
+        assert!(close(drawn.height * 900.0, 300.0));
+        let share = [pin("t", PinEdge::Right, 0.3)];
+        let tree = with_pins(&share, Some(leaf("a")));
+        let drawn = rect_of(&sized_tree(&tree, &share, (1000.0, 900.0)), "t");
+        assert!(close(drawn.width, 0.3));
+    }
+
+    #[test]
+    fn two_pins_keep_their_pixels_each_out_of_the_room_the_first_leaves() {
+        let pins = [
+            pin_px("l", PinEdge::Left, 300.0, 0.2),
+            pin_px("r", PinEdge::Right, 400.0, 0.3),
+        ];
+        let tree = with_pins(&pins, Some(preset_tree(&ids(&["a", "b", "c"]))));
+        let drawn = compute_layout(&sized_tree(&tree, &pins, GRID));
+        assert!(close(drawn.rects["l"].width * 1600.0, 300.0));
+        assert!(close(drawn.rects["r"].width * 1600.0, 400.0));
+        assert!(close(drawn.rects["r"].left + drawn.rects["r"].width, 1.0));
+        // At 800: the left one fits (under 560), the right one gets 70 % of
+        // the 500 left, and the others the rest.
+        let drawn = compute_layout(&sized_tree(&tree, &pins, (800.0, 900.0)));
+        assert!(close(drawn.rects["l"].width * 800.0, 300.0));
+        assert!(close(drawn.rects["r"].width * 800.0, 350.0));
+        // What is not a pin's split is left as it is.
+        assert_eq!(sized_tree(&leaf("a"), &pins, GRID), leaf("a"));
+    }
+
+    #[test]
+    fn a_pane_is_pinned_to_the_edge_it_covers_the_most_of() {
+        let room = Rect::FULL;
+        let at = |left, top, width, height| Rect {
+            left,
+            top,
+            width,
+            height,
+        };
+        // The column on the right: the right.
+        assert_eq!(pin_edge(at(0.6, 0.0, 0.4, 1.0), room), PinEdge::Right);
+        // A corner: the edge it covers more of.
+        assert_eq!(pin_edge(at(0.6, 0.5, 0.4, 0.5), room), PinEdge::Right);
+        assert_eq!(pin_edge(at(0.0, 0.5, 1.0, 0.5), room), PinEdge::Bottom);
+        assert_eq!(pin_edge(at(0.0, 0.0, 0.3, 0.2), room), PinEdge::Top);
+        // Alone in its room: the right.
+        assert_eq!(pin_edge(room, room), PinEdge::Right);
+        // Along none: the nearest.
+        assert_eq!(pin_edge(at(0.1, 0.3, 0.3, 0.3), room), PinEdge::Left);
+        assert_eq!(pin_edge(at(0.4, 0.6, 0.2, 0.35), room), PinEdge::Bottom);
+        // Within the room the other pins leave.
+        let left = at(0.3, 0.0, 0.7, 1.0);
+        assert_eq!(pin_edge(at(0.3, 0.0, 0.3, 1.0), left), PinEdge::Left);
+    }
+
+    #[test]
+    fn a_pane_pinned_keeps_its_size_and_says_it_in_pixels_when_the_grid_knows_them() {
+        let tree = arranged_tree(&ids(&["lead", "t"]), Some("lead"));
+        let ws = workspace(&["lead", "t"], Vec::new(), Some(tree));
+        let pins = pinned_with(&ws, "t", None, Some(GRID)).unwrap();
+        assert_eq!(pins.len(), 1);
+        assert_eq!(pins[0].edge, PinEdge::Right);
+        assert!(close(pins[0].fraction.unwrap(), 0.4));
+        assert!(close(pins[0].px.unwrap(), 640.0));
+        let no_size = pinned_with(&ws, "t", Some(PinEdge::Bottom), None).unwrap();
+        assert_eq!(no_size[0].edge, PinEdge::Bottom);
+        assert_eq!(no_size[0].px, None);
+        assert!(
+            close(no_size[0].fraction.unwrap(), MAX_PIN_SHARE),
+            "its whole height, bounded"
+        );
+        assert_eq!(pinned_with(&ws, "gone", None, None), None);
+    }
+
+    #[test]
+    fn a_pane_added_never_takes_a_pinned_pane_s_room() {
+        let pins = [pin("t", PinEdge::Right, 0.3)];
+        let tree = with_pins(&pins, Some(row(leaf("a"), leaf("b"))));
+        for near in [Some("t"), None, Some("b"), Some("gone")] {
+            let next = add_beside(&tree, &pins, near, "n", DropZone::Right);
+            let layout = compute_layout(&next);
+            assert_rect(layout.rects["t"], 0.7, 0.0, 0.3, 1.0);
+            // Beside the pane next to the pinned one, or the last one read.
+            let n = layout.rects["n"];
+            assert!(close(n.left + n.width, 0.7), "{near:?}: {n:?}");
+        }
+        // Beside a pane named that is not pinned, as ever.
+        let next = add_beside(&tree, &pins, Some("a"), "n", DropZone::Bottom);
+        assert_eq!(leaf_ids(&next), ["a", "n", "b", "t"]);
+        // Every pane pinned: the new one takes the room they leave.
+        let alone = add_beside(&leaf("t"), &pins, Some("t"), "n", DropZone::Right);
+        assert_eq!(alone, with_pins(&pins, Some(leaf("n"))));
+    }
+
+    #[test]
+    fn dragging_a_pinned_pane_s_divider_sets_the_size_it_keeps() {
+        let pins = [pin_px("t", PinEdge::Right, 300.0, 0.3)];
+        let before = with_pins(&pins, Some(row(leaf("a"), leaf("b"))));
+        // Dragged to 40 %: its pixels in proportion, the grid's size unknown.
+        let after = with_ratio(&before, &[], 0.6);
+        let dragged = pins_dragged(&before, &after, &pins);
+        assert!(close(dragged[0].fraction.unwrap(), 0.4));
+        assert!(close(dragged[0].px.unwrap(), 400.0));
+        // A divider between the others moves no pin.
+        let inner = with_ratio(&before, &[Side::A], 0.3);
+        assert_eq!(pins_dragged(&before, &inner, &pins), pins);
+        // With the grid's size, the pixels themselves.
+        let resized = pin_resized(&before, &pins, &[], 0.6, Some(GRID)).unwrap();
+        assert!(close(resized[0].px.unwrap(), 640.0));
+        assert!(close(resized[0].fraction.unwrap(), 0.4));
+        assert_eq!(
+            pin_resized(&before, &pins, &[Side::A], 0.3, Some(GRID)),
+            None
+        );
+        // Past 70 %, it stops there.
+        let wide = pin_resized(&before, &pins, &[], 0.1, None).unwrap();
+        assert!(close(wide[0].fraction.unwrap(), MAX_PIN_SHARE));
+        // The second pin's split, out of the room the first leaves.
+        let two = [
+            pin_px("l", PinEdge::Left, 300.0, 0.2),
+            pin_px("r", PinEdge::Right, 400.0, 0.3),
+        ];
+        let tree = with_pins(&two, Some(leaf("a")));
+        let resized = pin_resized(&tree, &two, &[Side::B], 0.6, Some(GRID)).unwrap();
+        assert_eq!(resized[0], two[0]);
+        assert!(close(resized[1].px.unwrap(), 0.4 * 1300.0));
+    }
+
+    #[test]
+    fn a_pin_that_goes_leaves_those_inside_it_their_size() {
+        let pins = [pin("l", PinEdge::Left, 0.2), pin("r", PinEdge::Right, 0.25)];
+        let tree = with_pins(&pins, Some(leaf("a")));
+        assert!(close(rect_of(&tree, "r").width, 0.2));
+        let rest = pins_without(&tree, &pins, "l");
+        assert_eq!(rest.len(), 1);
+        assert!(close(rest[0].fraction.unwrap(), 0.2), "{rest:?}");
+        // The inner one going leaves the outer one as it was.
+        assert_eq!(pins_without(&tree, &pins, "r"), [pins[0].clone()]);
+        assert_eq!(pins_without(&tree, &pins, "a"), pins);
+    }
+
+    #[test]
+    fn only_the_pins_of_panes_of_the_grid_hold_each_pane_once() {
+        let ws = workspace(
+            &["a", "b"],
+            vec![
+                pin("gone", PinEdge::Left, 0.2),
+                pin("b", PinEdge::Right, 0.3),
+                pin("b", PinEdge::Top, 0.3),
+            ],
+            None,
+        );
+        assert_eq!(live_pins(&ws), [pin("b", PinEdge::Right, 0.3)]);
+        assert_eq!(ws.pin_of("b").map(|pin| pin.edge), Some(PinEdge::Right));
+        assert_eq!(ws.pin_of("gone"), None);
+        // The grid holds them, whatever tree the file had.
+        assert_eq!(grid_tree(&ws), with_pins(&live_pins(&ws), Some(leaf("a"))));
+        assert_eq!(grid_order(&ws), ["a", "b"]);
+    }
+
+    #[test]
+    fn a_preset_counts_the_unpinned_terminals_and_never_closes_a_pinned_one() {
+        let pins = vec![pin("b", PinEdge::Right, 0.3)];
+        let tree = with_pins(&pins, Some(preset_tree(&ids(&["a", "c", "d"]))));
+        let ws = workspace(&["a", "b", "c", "d"], pins, Some(tree));
+        assert_eq!(preset_terminals_in(&ws, 2), 2);
+        let closed: Vec<&str> = closed_by_preset_in(&ws, 2)
+            .iter()
+            .map(|pane| pane.id.as_str())
+            .collect();
+        assert_eq!(closed, ["d"]);
+        let closed: Vec<&str> = closed_by_preset_in(&ws, 1)
+            .iter()
+            .map(|pane| pane.id.as_str())
+            .collect();
+        assert_eq!(closed, ["c", "d"]);
+        // The pinned terminal takes its room among the 16.
+        assert_eq!(preset_terminals_in(&ws, 16), 15);
+        let unpinned = workspace(&["a"], Vec::new(), None);
+        assert_eq!(
+            preset_terminals_in(&unpinned, 0),
+            preset_terminals(0, 0),
+            "without a pin, as before"
+        );
+    }
+
+    #[test]
+    fn the_grid_is_drawn_at_its_pixels_once_its_size_is_known() {
+        let pins = vec![pin_px("b", PinEdge::Right, 500.0, 0.3)];
+        let ws = workspace(&["a", "b"], pins.clone(), None);
+        assert_eq!(drawn_tree(&ws, None), grid_tree(&ws));
+        let drawn = drawn_tree(&ws, Some(GRID));
+        assert!(close(rect_of(&drawn, "b").width * 1600.0, 500.0));
+        let plain = workspace(&["a", "b"], Vec::new(), None);
+        assert_eq!(drawn_tree(&plain, Some(GRID)), grid_tree(&plain));
     }
 }
