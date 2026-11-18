@@ -41,13 +41,13 @@ fn the_font_cards_are_those_of_the_web_app() {
 }
 
 #[test]
-fn there_are_twenty_five_dark_themes_and_eight_light_ones_to_pick_from() {
+fn there_are_twenty_six_dark_themes_and_eight_light_ones_to_pick_from() {
     let themes = hangar_theme::themes();
     let dark = themes
         .iter()
         .filter(|theme| theme.appearance == Appearance::Dark)
         .count();
-    assert_eq!((dark, themes.len() - dark), (25, 8));
+    assert_eq!((dark, themes.len() - dark), (26, 8));
 }
 
 #[test]

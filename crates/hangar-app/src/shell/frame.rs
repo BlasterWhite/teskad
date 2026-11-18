@@ -484,8 +484,10 @@ mod tests {
         theme: &Theme,
         name: &str,
     ) -> ::image::RgbaImage {
+        // The simulator clears to the page of the extended palette.
         let iced = hangar_theme::to_iced(theme);
-        let extended = *iced.extended_palette();
+        let mut extended = *iced.extended_palette();
+        extended.background.base.color = Color::TRANSPARENT;
         let palette = Palette {
             background: Color::TRANSPARENT,
             ..iced.palette()
