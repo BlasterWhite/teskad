@@ -498,3 +498,143 @@ mod focus {
         );
     }
 }
+
+/// Two dialogs as the shell stacks them: siblings in a `stack`, the later one
+/// in front. iced hands each event to both, the one under first; the one under
+/// is drawn through [`inert`], and only the one in front answers.
+mod covered {
+    use iced::widget::{Space, button, column, container, stack, text_input};
+    use iced::{Element, Event, window};
+
+    use super::*;
+    use crate::testing::{Drive, simulate};
+
+    #[derive(Debug, Clone, PartialEq)]
+    enum Msg {
+        Under,
+        UnderTyped(String),
+        CloseUnder,
+        Accept,
+        FrontTyped(String),
+        CloseFront,
+    }
+
+    /// The dialog under: a button 300 x 120 in the middle of the 800 x 600
+    /// window (x 250 to 550, y 240 to 360), and nothing else.
+    fn under<'a>() -> Element<'a, Msg> {
+        let card = button("under").width(300).height(120).on_press(Msg::Under);
+        modal(Element::from(container("")), Some(card.into()))
+            .on_dismiss(Msg::CloseUnder)
+            .into()
+    }
+
+    /// The dialog in front: taller than the one under it (300 x 400, y 100 to
+    /// 500), its button at its foot (y 440 to 480), below the card under it,
+    /// as an activation's Accept is below a workspace's Kits dialog.
+    fn front<'a>() -> Element<'a, Msg> {
+        let card = container(column![
+            Space::new().height(340.0),
+            button("accept").width(200).height(40).on_press(Msg::Accept),
+        ])
+        .width(300)
+        .height(400);
+        modal(Element::from(container("")), Some(card.into()))
+            .on_dismiss(Msg::CloseFront)
+            .into()
+    }
+
+    fn both<'a>(covered: bool) -> Element<'a, Msg> {
+        stack![inert(under()).when(covered), front()].into()
+    }
+
+    fn messages(ui: iced_test::Simulator<'_, Msg>) -> Vec<Msg> {
+        ui.into_messages().collect()
+    }
+
+    #[test]
+    fn bare_the_dialog_under_takes_a_click_below_its_card_and_asks_to_close() {
+        // What the shell had before: the veil under, pressed outside its own
+        // card, takes the press from the button in front.
+        let mut ui = simulate(both(false));
+        ui.click_at(350.0, 460.0);
+        assert_eq!(messages(ui), [Msg::CloseUnder]);
+    }
+
+    #[test]
+    fn covered_the_button_in_front_gets_its_click() {
+        let mut ui = simulate(both(true));
+        ui.click_at(350.0, 460.0);
+        assert_eq!(messages(ui), [Msg::Accept]);
+    }
+
+    #[test]
+    fn covered_a_button_under_the_card_in_front_is_not_reached() {
+        let mut ui = simulate(both(true));
+        // On the card in front, over the button of the one under it.
+        ui.click_at(400.0, 300.0);
+        assert_eq!(messages(ui), Vec::<Msg>::new());
+    }
+
+    #[test]
+    fn covered_escape_closes_the_one_in_front() {
+        let mut ui = simulate(both(true));
+        ui.key(iced::keyboard::key::Named::Escape);
+        assert_eq!(messages(ui), [Msg::CloseFront]);
+    }
+
+    #[test]
+    fn covered_the_veil_in_front_closes_the_one_in_front() {
+        let mut ui = simulate(both(true));
+        ui.click_at(40.0, 40.0);
+        assert_eq!(messages(ui), [Msg::CloseFront]);
+    }
+
+    #[test]
+    fn uncovered_it_is_left_as_it_is() {
+        let ui_alone = |covered: bool| {
+            let mut ui = simulate(Element::from(inert(under()).when(covered)));
+            ui.click_at(400.0, 300.0);
+            messages(ui)
+        };
+        assert_eq!(ui_alone(false), [Msg::Under]);
+        assert_eq!(ui_alone(true), Vec::<Msg>::new());
+    }
+
+    /// Two fields, one in each dialog, both holding the keyboard: each dialog
+    /// gives it to its first field when it opens.
+    fn fields<'a>() -> Element<'a, Msg> {
+        let under = modal(
+            Element::from(container("")),
+            Some(
+                text_input("under", "")
+                    .on_input(Msg::UnderTyped)
+                    .width(300)
+                    .into(),
+            ),
+        )
+        .on_dismiss(Msg::CloseUnder);
+        let front = modal(
+            Element::from(container("")),
+            Some(
+                text_input("front", "")
+                    .on_input(Msg::FrontTyped)
+                    .width(300)
+                    .into(),
+            ),
+        )
+        .on_dismiss(Msg::CloseFront);
+        stack![inert(under), front].into()
+    }
+
+    #[test]
+    fn covered_its_field_types_nothing_and_the_field_in_front_types() {
+        let mut ui = simulate(fields());
+        // A frame drawn: the one under is told to redraw, which is when a
+        // dialog that never had an event takes the keyboard for its field.
+        ui.simulate([Event::Window(window::Event::RedrawRequested(
+            iced_test::core::time::Instant::now(),
+        ))]);
+        let _ = ui.typewrite("a");
+        assert_eq!(messages(ui), [Msg::FrontTyped("a".into())]);
+    }
+}

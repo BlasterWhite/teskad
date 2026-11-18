@@ -1031,6 +1031,25 @@ fn waits_to_accept_until_the_inspection_has_loaded_and_the_kit_is_usable() {
 }
 
 #[test]
+fn says_why_a_kit_that_cannot_be_used_cannot_be_accepted() {
+    // Accept is off for it: the dialog says why rather than leave it greyed.
+    let mut broken = roblox();
+    broken.error = Some("needs a newer Hangar".into());
+    assert_eq!(
+        setup_case(&broken).en().error.as_deref(),
+        Some("needs a newer Hangar")
+    );
+    let mut unread = roblox();
+    unread.manifest = None;
+    assert_eq!(
+        setup_case(&unread).en().error.as_deref(),
+        Some("This kit cannot be used")
+    );
+    // A kit that can be used has nothing to say.
+    assert_eq!(setup_case(&roblox()).en().error, None);
+}
+
+#[test]
 fn titles_the_dialog_for_a_new_kit_or_a_review() {
     let kit = roblox();
     assert_eq!(setup_case(&kit).en().title, "Enable Roblox");

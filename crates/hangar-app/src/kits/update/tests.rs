@@ -9,8 +9,12 @@ use hangar_core::kits::{Inspection, KitInfo, StepStatus};
 use hangar_core::paths::Paths;
 
 use super::*;
+use crate::kit_tabs::tabs::workspace_kit_tabs;
+use crate::kits::activation::{KitState, kit_requested, kit_state};
+use crate::kits::model::{effective_kits, pane_kits};
 use crate::kits::testing::{
-    COMMANDS, HOOKS, OTHER_HOOKS, entry, folder, git_kit, inspection, installed, kit, tab,
+    CI_GRANTED, COMMANDS, HOOKS, OTHER_COMMANDS, OTHER_HOOKS, ci_inspection, ci_status, entry,
+    folder, git_kit, inspection, installed, kit, tab,
 };
 use crate::state::types::{AppState, Pane};
 
@@ -979,4 +983,249 @@ fn updating_from_the_library_marks_the_kit_busy_until_the_update_ends() {
     // For a kit that is gone there is nothing to update, and nothing stays busy.
     send(&mut st, &mut m, Msg::GalleryUpdate("ghost".into()));
     assert_eq!(st.page.gallery_busy, None);
+}
+
+// -- a kit shaped like ci-status: its tab's permissions, a hook, commands ---------------
+//
+// Accepting it stores the three at once, each as `kit_inspect` showed it, and
+// what decides the switch, the next pane and the tab compares against those
+// very hashes. Each path the bug was reported on ends with the kit enabled.
+
+/// What accepting ci-status must leave on a workspace (`None`: one being
+/// created, or any that has no entry of its own): its switch on, nothing to
+/// review, the next pane starting with it, and its tab running its commands
+/// under what was accepted.
+fn assert_enabled(m: &Model, ws: Option<&str>, ci: &KitInfo) {
+    let workspace = ws.and_then(|id| m.workspace(id));
+    let kits = effective_kits(workspace, Some(m.settings()));
+    let held = kits.iter().find(|kit| kit.id == ci.id);
+    assert_eq!(
+        kit_state(held, kit_requested(ci).as_deref()),
+        KitState::On,
+        "{ws:?}: {kits:?}"
+    );
+    let installed = vec![ci.clone()];
+    let panes = pane_kits(workspace, Some(installed.as_slice()), Some(m.settings()));
+    assert_eq!(panes.ids, [ci.id.clone()], "{ws:?}");
+    assert!(panes.held.is_empty(), "{ws:?}");
+    let tabs = workspace_kit_tabs(&kits, Some(installed.as_slice()));
+    assert_eq!(tabs.len(), 1, "{ws:?}");
+    assert_eq!(tabs[0].commands_accepted.as_deref(), Some(COMMANDS));
+    assert_eq!(
+        tabs[0].permissions,
+        [
+            "notify",
+            "command:ci-list",
+            "command:ci-log",
+            "command:ci-run"
+        ]
+    );
+}
+
+/// Opens the activation of ci-status by way of `open` and answers its
+/// inspection with what the person is shown.
+fn read_ci_status(st: &mut State, m: &mut Model, open: Msg) {
+    send(st, m, open);
+    send(
+        st,
+        m,
+        Msg::Inspected("ci-status".into(), Ok(Box::new(ci_inspection()))),
+    );
+    send(st, m, Msg::StepsRead("ci-status".into(), Ok(Vec::new())));
+}
+
+#[test]
+fn accepting_ci_status_on_a_workspace_stores_its_permissions_its_hook_and_its_commands() {
+    let ci = ci_status();
+    let mut m = model_with(vec![ci.clone()]);
+    let mut st = State::default();
+    read_ci_status(
+        &mut st,
+        &mut m,
+        Msg::Toggle {
+            ws: Some("w1".into()),
+            kit: ci.id.clone(),
+            on: true,
+        },
+    );
+    send(&mut st, &mut m, Msg::Accept);
+
+    assert!(
+        st.activation.is_none(),
+        "the dialog closes once it is stored"
+    );
+    assert_eq!(
+        workspace_kits(m.workspace("w1")),
+        vec![entry("ci-status", &CI_GRANTED)]
+    );
+    assert_enabled(&m, Some("w1"), &ci);
+    // Its Claude Code pane started without it: a restart is offered.
+    assert_eq!(
+        st.restart.as_ref().map(|restart| restart.kit_name.as_str()),
+        Some("CI status")
+    );
+}
+
+#[test]
+fn accepting_ci_status_everywhere_enables_it_on_every_workspace() {
+    let ci = ci_status();
+    let mut m = model_with(vec![ci.clone()]);
+    let mut st = State::default();
+    read_ci_status(
+        &mut st,
+        &mut m,
+        Msg::ToggleEverywhere {
+            kit: ci.id.clone(),
+            on: true,
+        },
+    );
+    send(&mut st, &mut m, Msg::Accept);
+
+    assert!(st.activation.is_none());
+    assert_eq!(
+        everywhere_kits(Some(m.settings())),
+        vec![entry("ci-status", &CI_GRANTED)]
+    );
+    assert_eq!(
+        workspace_kits(m.workspace("w1")),
+        Vec::<WorkspaceKit>::new()
+    );
+    assert_enabled(&m, Some("w1"), &ci);
+    assert_enabled(&m, None, &ci);
+    assert_eq!(st.page.restart_for.as_deref(), Some("CI status"));
+}
+
+#[test]
+fn accepting_what_an_update_of_ci_status_changed_leaves_nothing_to_review() {
+    let ci = ci_status();
+    let mut m = model_with(vec![ci.clone()]);
+    // Enabled before an update changed its hook and its commands, and asked
+    // for notifications.
+    let before = vec![entry(
+        "ci-status",
+        &[
+            "command:ci-list",
+            "command:ci-log",
+            "command:ci-run",
+            OTHER_HOOKS,
+            OTHER_COMMANDS,
+        ],
+    )];
+    m.apply(StoreAction::UpdateWorkspace(
+        "w1".into(),
+        Patch::new(move |workspace: &mut Workspace| workspace.kits = Some(before.clone())),
+    ));
+    let own = workspace_kits(m.workspace("w1"));
+    assert_eq!(
+        kit_state(own.first(), kit_requested(&ci).as_deref()),
+        KitState::Review
+    );
+
+    let mut st = State::default();
+    read_ci_status(
+        &mut st,
+        &mut m,
+        Msg::Open {
+            ws: Some("w1".into()),
+            kit: ci.id.clone(),
+        },
+    );
+    send(&mut st, &mut m, Msg::Accept);
+
+    assert_eq!(
+        workspace_kits(m.workspace("w1")),
+        vec![entry("ci-status", &CI_GRANTED)]
+    );
+    assert_enabled(&m, Some("w1"), &ci);
+}
+
+#[test]
+fn accepting_after_a_setup_step_was_marked_done_enables_the_kit() {
+    let ci = ci_status();
+    let mut m = model_with(vec![ci.clone()]);
+    let mut st = State::default();
+    read_ci_status(
+        &mut st,
+        &mut m,
+        Msg::Toggle {
+            ws: Some("w1".into()),
+            kit: ci.id.clone(),
+            on: true,
+        },
+    );
+    send(
+        &mut st,
+        &mut m,
+        Msg::StepsRead("ci-status".into(), Ok(vec![step("login", "gh auth login")])),
+    );
+    // The step ran in a pane, and the person said it worked.
+    if let Some(act) = st.activation.as_mut() {
+        act.ran = Some(StepRun {
+            step: "login".into(),
+            pane_name: "Shell".into(),
+        });
+    }
+    let done = StepStatus {
+        done: true,
+        ..step("login", "gh auth login")
+    };
+    send(
+        &mut st,
+        &mut m,
+        Msg::Marked("ci-status".into(), Ok(vec![done])),
+    );
+    let act = st.activation.as_ref().expect("the dialog is still open");
+    assert!(act.ran.is_none());
+    assert!(act.inspection.is_some());
+
+    send(&mut st, &mut m, Msg::Accept);
+    assert!(st.activation.is_none());
+    assert_eq!(
+        workspace_kits(m.workspace("w1")),
+        vec![entry("ci-status", &CI_GRANTED)]
+    );
+    assert_enabled(&m, Some("w1"), &ci);
+}
+
+// -- an accept never does nothing without a word -------------------------------------
+
+#[test]
+fn accept_before_the_kit_is_read_stores_nothing_and_keeps_the_dialog() {
+    let ci = ci_status();
+    let mut m = model_with(vec![ci.clone()]);
+    let mut st = State::default();
+    send(
+        &mut st,
+        &mut m,
+        Msg::Toggle {
+            ws: Some("w1".into()),
+            kit: ci.id.clone(),
+            on: true,
+        },
+    );
+    // `kit_inspect` has not answered: Accept is off, and a late click on it
+    // stores no empty grant.
+    send(&mut st, &mut m, Msg::Accept);
+    assert!(st.activation.is_some(), "the dialog stays, still reading");
+    assert_eq!(m.workspace("w1").and_then(|ws| ws.kits.clone()), None);
+}
+
+#[test]
+fn a_kit_removed_before_accept_takes_its_dialog_with_it_and_stores_nothing() {
+    let ci = ci_status();
+    let mut m = model_with(vec![ci.clone()]);
+    let mut st = State::default();
+    read_ci_status(
+        &mut st,
+        &mut m,
+        Msg::Toggle {
+            ws: Some("w1".into()),
+            kit: ci.id.clone(),
+            on: true,
+        },
+    );
+    m.live.kits.installed = Some(Vec::new());
+    send(&mut st, &mut m, Msg::Accept);
+    assert!(st.activation.is_none());
+    assert_eq!(m.workspace("w1").and_then(|ws| ws.kits.clone()), None);
 }

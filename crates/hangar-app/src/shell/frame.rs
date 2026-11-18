@@ -21,6 +21,7 @@ use iced::widget::{Space, column, container, mouse_area, opaque, row, rule, stac
 use iced::{Alignment, Element, Length};
 
 use hangar_theme::{style, tokens};
+use hangar_ui::layer;
 
 use crate::ctx::Ctx;
 use crate::message::Message;
@@ -304,8 +305,17 @@ fn layered<'a>(ctx: Ctx<'a>, frame: Element<'a, Message>) -> Element<'a, Message
         );
     }
 
-    for overlay in ctx.model.overlays_in(ctx.window) {
-        layers = layers.push(overlay::view(ctx, overlay));
+    // Only the overlay in front takes the pointer and the keys. iced hands an
+    // event to every overlay of the window, the lowest first: a dialog under
+    // another would answer a click meant for the one in front (its veil
+    // closing the front one instead, `CloseOverlay` closing the top, or a
+    // widget of its own under the click taking it). The ones under are drawn
+    // as they are, inert; each overlay keeps the wrapper, so that the widget
+    // tree keeps its shape as overlays open and close over it.
+    let overlays = ctx.model.overlays_in(ctx.window);
+    let front = overlays.len().saturating_sub(1);
+    for (at, overlay) in overlays.iter().enumerate() {
+        layers = layers.push(layer::inert(overlay::view(ctx, overlay)).when(at < front));
     }
     // Over everything, an open sheet's backdrop included: a window is
     // resized from its edges whatever it shows.
