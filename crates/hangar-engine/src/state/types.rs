@@ -586,6 +586,14 @@ pub struct Settings {
     pub agent_pane_control: bool,
     /// `"main"` by default; `null` is kept as the person wrote it.
     pub claude_account: Option<String>,
+    /// Ask « restart the running agents now? » when an account is chosen,
+    /// as before. Off, each agent moves to the new account by itself, on its
+    /// conversation, once Hangar knows it has nothing to lose: its turn over
+    /// as its mod reports it, nothing typed, no command of its own running
+    /// (`accounts::switch::follow`). Written only when on, so a file from
+    /// before stays as it was.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub account_switch_ask: bool,
     pub experiments: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kits_everywhere: Option<Vec<WorkspaceKit>>,
@@ -777,6 +785,7 @@ impl Default for Settings {
             inspector_collapsed: Vec::new(),
             ui_scale: 100.0,
             system_title_bar: false,
+            account_switch_ask: false,
             agent_pane_control: true,
             claude_account: Some("main".into()),
             experiments: Vec::new(),
