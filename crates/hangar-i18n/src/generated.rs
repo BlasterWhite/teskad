@@ -3504,8 +3504,6 @@ pub enum Key {
     SettingsThemeDark,
     /// `settings.themeHint`
     SettingsThemeHint,
-    /// `settings.themeHintTranslucent`
-    SettingsThemeHintTranslucent,
     /// `settings.themeLight`
     SettingsThemeLight,
     /// `settings.themePerWorkspace`
@@ -3616,6 +3614,10 @@ pub enum Key {
     SettingsVoiceVocabularyHint,
     /// `settings.voiceVocabularyPlaceholder`
     SettingsVoiceVocabularyPlaceholder,
+    /// `settings.windowOpacity`
+    SettingsWindowOpacity,
+    /// `settings.windowOpacityHint`
+    SettingsWindowOpacityHint,
     /// `setup.docs`
     SetupDocs,
     /// `setup.done`
@@ -4523,7 +4525,7 @@ pub enum Key {
 }
 
 /// How many keys there are.
-pub const KEY_COUNT: usize = 2253;
+pub const KEY_COUNT: usize = 2254;
 
 impl Key {
     /// Every key, in the order of their ids.
@@ -6273,7 +6275,6 @@ impl Key {
         Key::SettingsTheme,
         Key::SettingsThemeDark,
         Key::SettingsThemeHint,
-        Key::SettingsThemeHintTranslucent,
         Key::SettingsThemeLight,
         Key::SettingsThemePerWorkspace,
         Key::SettingsThemePerWorkspaceHint,
@@ -6329,6 +6330,8 @@ impl Key {
         Key::SettingsVoiceVocabulary,
         Key::SettingsVoiceVocabularyHint,
         Key::SettingsVoiceVocabularyPlaceholder,
+        Key::SettingsWindowOpacity,
+        Key::SettingsWindowOpacityHint,
         Key::SetupDocs,
         Key::SetupDone,
         Key::SetupFailedExit,
@@ -8531,7 +8534,6 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "settings.theme", en: Text::plain("Theme"), fr: Text::plain("Thème") },
     Message { id: "settings.themeDark", en: Text::plain("Dark"), fr: Text::plain("Sombres") },
     Message { id: "settings.themeHint", en: Text::plain("Terminal palette — the whole window follows it"), fr: Text::plain("Palette des terminaux — toute la fenêtre la suit") },
-    Message { id: "settings.themeHintTranslucent", en: Text::plain("Terminal palette — the whole window follows it. This one lets the desktop show through the window; blurring it is up to your desktop: KDE does, GNOME with an extension such as Blur my Shell."), fr: Text::plain("Palette des terminaux — toute la fenêtre la suit. Celui-ci laisse voir le bureau à travers la fenêtre\u{202f}; le flou dépend de ton bureau\u{202f}: KDE le fait, GNOME avec une extension comme Blur my Shell.") },
     Message { id: "settings.themeLight", en: Text::plain("Light"), fr: Text::plain("Clairs") },
     Message { id: "settings.themePerWorkspace", en: Text::plain("Specific to this workspace"), fr: Text::plain("Propre à ce workspace") },
     Message { id: "settings.themePerWorkspaceHint", en: Text::plain("{name} keeps its own theme"), fr: Text::plain("{name} garde son propre thème") },
@@ -8587,6 +8589,8 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "settings.voiceVocabulary", en: Text::plain("Project vocabulary"), fr: Text::plain("Vocabulaire du projet") },
     Message { id: "settings.voiceVocabularyHint", en: Text::plain("Names and spellings the cleanup should keep — one per line"), fr: Text::plain("Les noms et orthographes que la relecture doit respecter — un par ligne") },
     Message { id: "settings.voiceVocabularyPlaceholder", en: Text::plain("Hangar.AI, pnpm, Tauri, simnJS"), fr: Text::plain("Hangar.AI, pnpm, Tauri, simnJS") },
+    Message { id: "settings.windowOpacity", en: Text::plain("Window opacity"), fr: Text::plain("Opacité de la fenêtre") },
+    Message { id: "settings.windowOpacityHint", en: Text::plain("How much of the desktop shows through the window, behind the page, the bars and the terminals. Text, menus and dialogs stay opaque, and the theme's colours stay as they are. Blurring what shows through is up to your desktop: KDE does, GNOME with an extension such as Blur my Shell."), fr: Text::plain("Ce qu'on voit du bureau à travers la fenêtre, derrière la page, les barres et les terminaux. Le texte, les menus et les dialogues restent opaques, et les couleurs du thème restent les siennes. Le flou dépend de ton bureau\u{202f}: KDE le fait, GNOME avec une extension comme Blur my Shell.") },
     Message { id: "setup.docs", en: Text::plain("Open the install guide"), fr: Text::plain("Ouvrir le guide d'installation") },
     Message { id: "setup.done", en: Text::plain("Done"), fr: Text::plain("Terminé") },
     Message { id: "setup.failedExit", en: Text::plain("The installation failed (exit code {code})."), fr: Text::plain("L'installation a échoué (code de sortie {code}).") },

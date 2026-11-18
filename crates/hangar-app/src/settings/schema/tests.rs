@@ -199,6 +199,8 @@ fn appearance_terminal_shell_and_notifications_have_every_row_too() {
     if crate::shell::title_bar::has_own_bar() {
         appearance.push("systemTitleBar: toggle SystemTitleBar = false");
     }
+    // Linux's, the platform of the world these tests build.
+    appearance.push(r#"windowOpacity: slider WindowOpacity = 100 [50..100 by 1] "100 %""#);
     appearance.push(r#"themePick: custom Themes { active: "graphite" }"#);
     assert_eq!(table(&built, SettingsCategory::Appearance), appearance);
     assert_eq!(
@@ -428,35 +430,35 @@ fn the_theme_row_is_found_by_the_name_of_any_theme() {
 }
 
 #[test]
-fn a_theme_the_desktop_shows_through_says_so_where_it_is_picked() {
-    let theme_hint = |world: &World| {
+fn the_window_opacity_is_offered_on_linux_only_whatever_the_theme() {
+    let mut world = World::new();
+    world.settings.window_opacity = 0.854;
+    world.settings.theme_id = "tokyo-night".into();
+    let built = world.build();
+    let row = find(&built, "windowOpacity");
+    assert_eq!(
+        describe(row),
+        r#"slider WindowOpacity = 85 [50..100 by 1] "85 %""#
+    );
+    assert!(
+        row.hint
+            .as_deref()
+            .is_some_and(|hint| hint.contains("Blur my Shell"))
+    );
+    assert!(row.keywords.contains("transparent"));
+    // Out of range in the file: shown within the slider's bounds.
+    world.settings.window_opacity = 0.2;
+    assert_eq!(
+        describe(find(&world.build(), "windowOpacity")),
+        r#"slider WindowOpacity = 50 [50..100 by 1] "50 %""#
+    );
+    // Windows and macOS draw their windows opaque: no row there.
+    for platform in [Platform::Windows, Platform::Macos] {
+        world.platform = Some(platform);
         let built = world.build();
-        category(&built, SettingsCategory::Appearance)
-            .sections
-            .iter()
-            .find(|section| section.items.iter().any(|item| item.id == "themePick"))
-            .and_then(|section| section.hint.clone())
-            .unwrap_or_default()
-    };
-    let solid = World::new();
-    let usual = theme_hint(&solid);
-    assert!(usual.contains("the whole window follows it"), "{usual}");
-    assert!(!usual.contains("Blur my Shell"), "{usual}");
-    let mut glass = World::new();
-    glass.settings.theme_id = "nightglass".into();
-    let hint = theme_hint(&glass);
-    // Only where windows are drawn see-through: Linux.
-    if cfg!(target_os = "linux") {
-        assert!(hint.contains("Blur my Shell"), "{hint}");
-    } else {
-        assert_eq!(hint, usual);
+        let rows = ids(category(&built, SettingsCategory::Appearance));
+        assert!(!rows.contains(&"windowOpacity"), "{platform:?}");
     }
-    // A workspace's own theme is the one that counts.
-    let mut pinned = World::new();
-    let mut ws = workspace("Shop");
-    ws.theme_id = Some("nightglass".into());
-    pinned.workspace = Some(ws);
-    assert_eq!(theme_hint(&pinned), hint);
 }
 
 #[test]

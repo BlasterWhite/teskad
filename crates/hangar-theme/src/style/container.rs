@@ -58,7 +58,7 @@ pub fn page(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 
 /// `style` laid straight on the desktop: its fill at the window's alpha
 /// ([`Theme::see_through`]), so that the desktop shows through it on a
-/// translucent theme, and as it is on a solid one. Only for the window's own
+/// see-through window, and as it is on a solid one. Only for the window's own
 /// regions, which nothing else is drawn under: the navigator, the toolbar,
 /// the status bar, a docked side panel. What floats (menus, dialogs, cards)
 /// stays opaque.

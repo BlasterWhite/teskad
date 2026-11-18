@@ -1,6 +1,9 @@
 //! What a theme is: an identity, a terminal palette and every colour token of
 //! the window.
 
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock, PoisonError};
+
 use iced::Color;
 
 use crate::data::THEMES;
@@ -64,14 +67,15 @@ pub struct Theme {
     /// default background and the chrome's bars. Text, cards, menus, dialogs
     /// and popovers stay opaque whatever it is. Only Linux, where the window
     /// is transparent already, honours it: see [`Theme::window_alpha`].
+    ///
+    /// 1 for every bundled theme: the person's setting (Settings ›
+    /// Appearance › Window opacity) makes it less, for whatever theme is
+    /// shown, through [`Theme::with_window_opacity`].
     pub window_opacity: f32,
-    /// How opaque the terminal of a pane without the focus is drawn over the
-    /// page's colour, so the pane being typed into stands out.
-    pub unfocused_opacity: f32,
 }
 
-/// The least opaque a window is drawn, whatever a theme asks: below it, text
-/// on the desktop's own colours stops reading.
+/// The least opaque a window is drawn, whatever is asked: below it, text on
+/// the desktop's own colours stops reading.
 pub const MIN_WINDOW_OPACITY: f32 = 0.5;
 
 impl Theme {
@@ -99,6 +103,35 @@ impl Theme {
         } else {
             1.0
         }
+    }
+
+    /// This theme with its window drawn at `opacity` (the person's setting,
+    /// held within [`MIN_WINDOW_OPACITY`] and 1; a value that is not a number
+    /// is 1). Nothing but the alpha of the window's backgrounds changes: the
+    /// accent, the text, the borders and the terminal's palette stay the
+    /// theme's.
+    ///
+    /// Themes are handed out as `&'static`, so a theme at an opacity of its
+    /// own is made once and kept: in whole percents, at most 51 of each.
+    pub fn with_window_opacity(&'static self, opacity: f64) -> &'static Theme {
+        let opacity = if opacity.is_finite() { opacity } else { 1.0 };
+        let percent = (opacity.clamp(f64::from(MIN_WINDOW_OPACITY), 1.0) * 100.0).round() as u8;
+        let window_opacity = f32::from(percent) / 100.0;
+        if window_opacity == self.window_opacity {
+            return self;
+        }
+        static COPIES: OnceLock<Mutex<HashMap<(usize, u8), &'static Theme>>> = OnceLock::new();
+        let key = (std::ptr::from_ref(self) as usize, percent);
+        let mut copies = COPIES
+            .get_or_init(Mutex::default)
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        *copies.entry(key).or_insert_with(|| {
+            Box::leak(Box::new(Theme {
+                window_opacity,
+                ..*self
+            }))
+        })
     }
 
     /// Whether the desktop shows through the window here.

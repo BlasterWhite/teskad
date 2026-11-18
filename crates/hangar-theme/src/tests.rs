@@ -75,7 +75,7 @@ mod the_bundled_themes {
 
     #[test]
     fn cover_every_theme() {
-        assert_eq!(themes().len(), 34);
+        assert_eq!(themes().len(), 33);
     }
 
     #[test]
@@ -192,31 +192,17 @@ mod window_opacity {
     use super::*;
     use crate::theme::window_alpha_of;
 
-    #[test]
-    fn every_theme_but_nightglass_is_a_solid_window() {
-        for theme in themes() {
-            if theme.id == "nightglass" {
-                continue;
-            }
-            assert_eq!(theme.window_opacity, 1.0, "{}", theme.id);
-            assert!(!theme.is_translucent(), "{}", theme.id);
-            assert_eq!(theme.window_alpha(), 1.0, "{}", theme.id);
-        }
+    fn tokyo() -> &'static Theme {
+        by_id("tokyo-night").unwrap()
     }
 
     #[test]
-    fn every_opacity_is_one_the_window_is_drawn_at() {
+    fn every_bundled_theme_is_a_solid_window_until_the_person_says_otherwise() {
         for theme in themes() {
-            assert!(
-                (MIN_WINDOW_OPACITY..=1.0).contains(&theme.window_opacity),
-                "{}",
-                theme.id
-            );
-            assert!(
-                (0.0..=1.0).contains(&theme.unfocused_opacity) && theme.unfocused_opacity > 0.5,
-                "{}",
-                theme.id
-            );
+            assert_eq!(theme.window_opacity, 1.0, "{}", theme.id);
+            assert!(!theme.is_translucent(), "{}", theme.id);
+            assert_eq!(theme.window_alpha(), 1.0, "{}", theme.id);
+            assert_eq!(theme.see_through(theme.colors.bg), theme.colors.bg);
         }
     }
 
@@ -231,83 +217,56 @@ mod window_opacity {
     }
 
     #[test]
-    fn shows_the_desktop_through_on_linux_only() {
-        let glass = by_id("nightglass").unwrap();
-        assert_eq!(glass.window_opacity, 0.92);
-        if cfg!(target_os = "linux") {
-            assert!(glass.is_translucent());
-            assert_eq!(glass.window_alpha(), 0.92);
-            let page = glass.see_through(glass.colors.bg);
-            assert_eq!(page.a, 0.92);
-            assert_eq!(
-                Color { a: 1.0, ..page },
-                glass.colors.bg,
-                "the colour itself does not change"
-            );
-        } else {
-            assert!(!glass.is_translucent());
-            assert_eq!(glass.see_through(glass.colors.bg), glass.colors.bg);
+    fn at_1_a_theme_is_the_bundled_one() {
+        let theme = default_theme();
+        assert!(std::ptr::eq(theme.with_window_opacity(1.0), theme));
+        assert!(std::ptr::eq(theme.with_window_opacity(f64::NAN), theme));
+        assert!(std::ptr::eq(theme.with_window_opacity(7.0), theme));
+    }
+
+    #[test]
+    fn applies_to_any_theme_and_changes_nothing_but_the_alpha() {
+        for theme in [default_theme(), tokyo()] {
+            let solid = theme.with_window_opacity(1.0);
+            let glass = theme.with_window_opacity(0.85);
+            assert_eq!(glass.window_opacity, 0.85, "{}", theme.id);
+            // The same theme at 1 and at 0.85: its accent, its text, its
+            // borders, its terminal's palette.
+            assert_eq!(glass.id, solid.id);
+            assert_eq!(glass.accent(), solid.accent(), "{}", theme.id);
+            assert_eq!(glass.colors.fg, solid.colors.fg, "{}", theme.id);
+            assert_eq!(glass.colors, solid.colors, "{}", theme.id);
+            assert_eq!(glass.terminal, solid.terminal, "{}", theme.id);
+            if cfg!(target_os = "linux") {
+                assert!(glass.is_translucent());
+                assert_eq!(glass.window_alpha(), 0.85, "{}", theme.id);
+                // Only the alpha of a background goes down.
+                assert_eq!(
+                    glass.see_through(glass.colors.chrome),
+                    solid.colors.chrome.scale_alpha(0.85)
+                );
+            } else {
+                assert!(!glass.is_translucent());
+                assert_eq!(glass.window_alpha(), 1.0, "{}", theme.id);
+            }
         }
-        // A solid theme's colours go through as they are.
-        let solid = default_theme();
-        assert_eq!(solid.see_through(solid.colors.chrome), solid.colors.chrome);
-    }
-}
-
-mod nightglass {
-    use super::*;
-
-    fn hex(color: Color) -> String {
-        Rgb::from(color).to_hex()
+        // Tokyo Night keeps its own accent, not Graphite's.
+        assert_ne!(
+            tokyo().with_window_opacity(0.85).accent(),
+            default_theme().with_window_opacity(0.85).accent()
+        );
     }
 
     #[test]
-    fn is_a_dark_theme_with_its_palette_and_a_pink_accent() {
-        let theme = by_id("nightglass").unwrap();
-        assert_eq!(theme.name, "Nightglass");
-        assert!(theme.is_dark());
-        let t = &theme.terminal;
-        assert_eq!(hex(t.background), "#101016");
-        assert_eq!(hex(t.foreground), "#dcdce4");
-        assert_eq!(hex(t.cursor), "#f5a3c7");
-        assert_eq!(hex(t.cursor_text), "#101016");
-        assert_eq!(hex(t.selection), "#3a3a55");
-        let ansi: Vec<String> = t.ansi.iter().map(|&c| hex(c)).collect();
+    fn is_held_to_whole_percents_from_the_floor_and_made_once() {
+        let theme = tokyo();
+        let once = theme.with_window_opacity(0.854);
+        assert_eq!(once.window_opacity, 0.85);
+        assert!(std::ptr::eq(once, theme.with_window_opacity(0.85)));
         assert_eq!(
-            ansi,
-            [
-                "#1c1c24", "#f07a8c", "#9fd8a4", "#f2d38a", "#8fb4f5", "#f5a3c7", "#8fd8e0",
-                "#c8c8d4", "#5c5c6e", "#ff92a3", "#b5e8b9", "#f7e0a6", "#a8c6fa", "#fbbfd8",
-                "#a9e6ec", "#f0f0f6",
-            ]
+            theme.with_window_opacity(0.1).window_opacity,
+            MIN_WINDOW_OPACITY
         );
-        assert_eq!(hex(theme.accent()), "#f5a3c7");
-        // Dark text on the pink, as on every dark theme.
-        assert!(
-            perceived_lightness(Rgb::from(theme.colors.accent_fg)) < 0.3,
-            "{}",
-            hex(theme.colors.accent_fg)
-        );
-        assert_eq!(theme.unfocused_opacity, 0.75);
-    }
-
-    #[test]
-    fn has_its_borders_near_the_split_divider_of_the_palette_it_comes_from() {
-        // Ghostty's `split-divider-color = 2a2a3a`: the hairlines a theme
-        // derives from its page land within a few steps of it.
-        let c = &by_id("nightglass").unwrap().colors;
-        let divider = Rgb(0x2a, 0x2a, 0x3a);
-        let border = Rgb::from(c.border);
-        let distance = [
-            (border.0, divider.0),
-            (border.1, divider.1),
-            (border.2, divider.2),
-        ]
-        .iter()
-        .map(|&(a, b)| a.abs_diff(b))
-        .max()
-        .unwrap();
-        assert!(distance <= 12, "{} is {distance} away", hex(c.border));
     }
 }
 

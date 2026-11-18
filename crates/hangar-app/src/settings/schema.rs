@@ -220,6 +220,21 @@ pub struct Context<'a> {
     pub keymap: &'a KeymapIndex,
 }
 
+/// The least opaque the window opacity slider goes, in percent
+/// (`hangar_theme::MIN_WINDOW_OPACITY`).
+pub const WINDOW_OPACITY_MIN: f64 = 50.0;
+
+/// The window opacity of the settings as the slider shows it: a whole
+/// percent from [`WINDOW_OPACITY_MIN`] to 100, and 100 for a value that is
+/// not a number.
+pub fn window_opacity_percent(opacity: f64) -> f64 {
+    if opacity.is_finite() {
+        (opacity * 100.0).round().clamp(WINDOW_OPACITY_MIN, 100.0)
+    } else {
+        100.0
+    }
+}
+
 /// The delays the settings offer for hibernation, in minutes.
 pub const HIBERNATE_DELAYS: [f64; 5] = [5.0, 10.0, 20.0, 30.0, 60.0];
 
@@ -453,6 +468,24 @@ pub fn build_categories(ctx: &Context) -> Vec<Category> {
                             "title bar barre de titre fenêtre window decorations décorations buttons boutons gnome kde windows",
                         )
                     }))
+                    // Linux's only: its windows are made transparent, the
+                    // others' are not and stay opaque.
+                    .chain((ctx.platform == Some(Platform::Linux)).then(|| {
+                        let percent = window_opacity_percent(settings.window_opacity);
+                        slider(
+                            "windowOpacity",
+                            tx(Key::SettingsWindowOpacity),
+                            percent,
+                            (WINDOW_OPACITY_MIN, 100.0),
+                            1.0,
+                            format!("{} %", plain(percent)),
+                            Target::WindowOpacity,
+                        )
+                        .hint(tx(Key::SettingsWindowOpacityHint))
+                        .keywords(
+                            "opacity opacité transparency transparence transparent translucent translucide window fenêtre desktop bureau blur flou",
+                        )
+                    }))
                     .collect(),
                 ),
                 section("theme", tx(Key::SettingsTheme), {
@@ -486,23 +519,11 @@ pub fn build_categories(ctx: &Context) -> Vec<Category> {
                                 },
                             },
                         )
-                        .keywords(format!(
-                            "theme thème transparent translucent translucide opacity opacité {}",
-                            names.join(" ")
-                        )),
+                        .keywords(format!("theme {}", names.join(" "))),
                     );
                     items
                 })
-                // A theme the desktop shows through says so, and that the
-                // blur is the desktop's to give (only on Linux, the one place
-                // a window is drawn see-through).
-                .hint(tx(
-                    if hangar_theme::by_id_or_default(effective_theme).is_translucent() {
-                        Key::SettingsThemeHintTranslucent
-                    } else {
-                        Key::SettingsThemeHint
-                    },
-                )),
+                .hint(tx(Key::SettingsThemeHint)),
             ],
         },
         terminal(ctx, locale),

@@ -13,7 +13,7 @@ use crate::app::Packages;
 use crate::ctx::{Ctx, Metrics};
 use crate::state::types::{AppState, Workspace};
 
-fn model(theme: &str) -> Model {
+fn model() -> Model {
     let mut model = Model::default();
     model.hydrate(AppState {
         workspaces: vec![Workspace {
@@ -37,8 +37,6 @@ fn model(theme: &str) -> Model {
                     ..Default::default()
                 })
                 .collect(),
-            // The theme the sheet is drawn in is the one it shows chosen.
-            theme_id: theme.into(),
             ..crate::state::Settings::default()
         },
         ..AppState::default()
@@ -84,7 +82,7 @@ fn sheet(
     query: &str,
     size: Size,
 ) {
-    let mut model = model(theme);
+    let mut model = model();
     model.ui.overlays = vec![Overlay::Settings(category)];
     let pkg = Packages::default();
     let st = State {
@@ -174,11 +172,4 @@ fn the_small_window_the_shell_allows_can_hold_the_sheet() {
         "",
         Size::new(900.0, 560.0),
     );
-}
-
-#[test]
-fn the_appearance_page_can_be_laid_out_in_a_theme_the_desktop_shows_through() {
-    for locale in hangar_i18n::Locale::ALL {
-        sheet(SettingsCategory::Appearance, locale, "nightglass", "", MAIN);
-    }
 }

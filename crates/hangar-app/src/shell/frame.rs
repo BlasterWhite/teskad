@@ -17,8 +17,8 @@
 //! each side panel goes (docked, drawer, hidden) is `ctx.panels()`
 //! (side_panels.rs).
 //!
-//! A theme the desktop shows through (`Theme::is_translucent`, on Linux)
-//! changes who paints the page: two translucent coats on top of each other
+//! A window the desktop shows through (the window opacity of the settings
+//! under 1, on Linux: `Theme::is_translucent`) changes who paints the page: two translucent coats on top of each other
 //! add up to an opaque one, so the window's surface paints nothing and each
 //! region lays its own surface straight on the desktop, at the window's
 //! alpha (the navigator, the toolbar, the status bar, the separators, a
@@ -428,8 +428,8 @@ fn horizontal_sep<'a>(ctx: Ctx<'a>) -> Element<'a, Message> {
 
 #[cfg(test)]
 mod tests {
-    //! The window in a theme the desktop shows through, drawn over nothing
-    //! at all: the alpha of each pixel says where the desktop would show.
+    //! The window at a window opacity under 1, drawn over nothing at all:
+    //! the alpha of each pixel says where the desktop would show.
     //! `HANGAR_P8_SNAPSHOTS=<folder>` keeps the pictures there, each twice:
     //! as on a dark desktop (`<name>-<renderer>.png`) and with the desktop
     //! left out (`<name>-desktop-<renderer>.png`, translucent).
@@ -454,11 +454,12 @@ mod tests {
         \x1b[32m??\x1b[0m notes.md\r\n\
         \x1b[30;41m red \x1b[42m green \x1b[43m yellow \x1b[44m blue \x1b[45m pink \x1b[46m cyan \x1b[0m\r\n$ ";
 
-    /// The harness's model in Nightglass, a few lines in each pane of the
-    /// active workspace.
-    fn glass(locale: Locale) -> (Harness, &'static Theme) {
-        let theme = hangar_theme::by_id("nightglass").expect("a bundled theme");
-        let mut h = Harness::new(locale, theme.id);
+    /// The harness's model in `theme` at the window `opacity` of the
+    /// settings, a few lines in each pane of the active workspace.
+    fn glass(locale: Locale, theme: &str, opacity: f64) -> (Harness, &'static Theme) {
+        let mut h =
+            Harness::new(locale, theme).edit(|state| state.settings.window_opacity = opacity);
+        let theme = h.model.theme();
         let ws = h.model.state().workspaces[0].clone();
         h.pkg.panes.mount_for_test(&ws);
         for pane in &ws.panes {
@@ -555,16 +556,26 @@ mod tests {
         Rectangle::new(iced::Point::new(x, y), iced::Size::new(width, height))
     }
 
-    /// Nightglass's 0.92, give or take the rounding of eight bits.
-    const SEE_THROUGH: (u8, u8) = (228, 242);
+    /// The alpha of a surface drawn at `opacity`, give or take the rounding
+    /// of eight bits and the veil over a pane without the focus.
+    fn see_through(opacity: f32) -> (u8, u8) {
+        let alpha = opacity * 255.0;
+        ((alpha - 6.0) as u8, (alpha + 6.0).min(255.0) as u8)
+    }
     const OPAQUE: (u8, u8) = (255, 255);
 
-    #[test]
-    fn the_desktop_shows_through_the_page_and_the_bars_and_not_through_the_pane_heads() {
-        let (h, theme) = glass(Locale::En);
+    /// The main window in `theme` at `opacity`: the desktop shows under the
+    /// navigator and the terminals on Linux, not under a pane's header, and
+    /// nowhere through a hole. Its colours are the theme's.
+    fn main_window_lets_the_desktop_through(theme: &str, opacity: f64, name: &str) {
+        let (h, theme) = glass(Locale::En, theme, opacity);
+        assert_eq!(
+            theme.colors,
+            hangar_theme::by_id_or_default(theme.id).colors
+        );
         let mut ui = show(main(h.ctx()));
-        h.shot(&mut ui, "frame-main-en-nightglass");
-        let picture = over_nothing(&mut ui, theme, "frame-main-en-nightglass");
+        h.shot(&mut ui, name);
+        let picture = over_nothing(&mut ui, theme, name);
 
         let navigator = area(0.0, 300.0, tokens::size::SIDEBAR_WIDTH - 2.0, 400.0);
         // The first pane's terminal, below the lines printed in it.
@@ -576,18 +587,12 @@ mod tests {
             300.0,
             tokens::size::PANE_HEAD_HEIGHT - 8.0,
         );
-        if cfg!(target_os = "linux") {
-            assert!(theme.is_translucent());
-            for (name, region) in [("navigator", navigator), ("terminal", terminal)] {
-                let part = share(&picture, region, SEE_THROUGH);
-                assert!(part > 0.6, "{name}: {part}");
-            }
-        } else {
-            // A solid window everywhere else.
-            for (name, region) in [("navigator", navigator), ("terminal", terminal)] {
-                let part = share(&picture, region, OPAQUE);
-                assert!(part > 0.99, "{name}: {part}");
-            }
+        let through = see_through(theme.window_alpha());
+        // A solid window everywhere but on Linux.
+        assert_eq!(theme.is_translucent(), cfg!(target_os = "linux"));
+        for (part, region) in [("navigator", navigator), ("terminal", terminal)] {
+            let got = share(&picture, region, through);
+            assert!(got > 0.6, "{part}: {got}");
         }
         let part = share(&picture, head, OPAQUE);
         assert!(part > 0.9, "head: {part}");
@@ -595,17 +600,39 @@ mod tests {
         // hairline Hangar's title bar outlines the window with on Linux (a
         // faint line over the desktop whatever the theme).
         let whole = area(2.0, 2.0, MAIN_SIZE.width - 4.0, MAIN_SIZE.height - 4.0);
-        let holes = share(&picture, whole, (0, SEE_THROUGH.0 - 1));
+        let holes = share(&picture, whole, (0, through.0 - 1));
         assert!(holes < 0.001, "holes: {holes}");
     }
 
     #[test]
+    fn graphite_at_0_9_lets_the_desktop_through_the_page_and_the_bars() {
+        main_window_lets_the_desktop_through("graphite", 0.9, "frame-main-en-graphite-90");
+    }
+
+    #[test]
+    fn tokyo_night_at_0_85_lets_the_desktop_through_the_page_and_the_bars() {
+        main_window_lets_the_desktop_through("tokyo-night", 0.85, "frame-main-en-tokyo-night-85");
+    }
+
+    #[test]
+    fn by_default_the_window_is_as_opaque_as_it_always_was() {
+        let (h, theme) = glass(Locale::En, "graphite", 1.0);
+        assert!(!theme.is_translucent());
+        let mut ui = show(main(h.ctx()));
+        let picture = over_nothing(&mut ui, theme, "frame-main-en-graphite-100");
+        let inside = area(2.0, 2.0, MAIN_SIZE.width - 4.0, MAIN_SIZE.height - 4.0);
+        let part = share(&picture, inside, OPAQUE);
+        assert!(part > 0.999, "opaque: {part}");
+    }
+
+    #[test]
     fn a_sheet_over_a_see_through_window_is_opaque_and_so_is_its_veil_almost() {
-        let (mut h, theme) = glass(Locale::Fr);
+        let (mut h, theme) = glass(Locale::Fr, "tokyo-night", 0.85);
         h.model.ui.overlays = vec![Overlay::Settings(SettingsCategory::Appearance)];
         let mut ui = show(main(h.ctx()));
-        h.shot(&mut ui, "frame-settings-appearance-fr-nightglass");
-        let picture = over_nothing(&mut ui, theme, "frame-settings-appearance-fr-nightglass");
+        let name = "frame-settings-appearance-fr-tokyo-night-85";
+        h.shot(&mut ui, name);
+        let picture = over_nothing(&mut ui, theme, name);
         // The middle of the sheet.
         let sheet = area(
             MAIN_SIZE.width / 2.0 - 100.0,
@@ -617,17 +644,18 @@ mod tests {
         assert!(part > 0.99, "sheet: {part}");
         // The veil darkens the window and lets less of the desktop through.
         let corner = area(4.0, MAIN_SIZE.height / 2.0, 20.0, 20.0);
-        let part = share(&picture, corner, (SEE_THROUGH.0, 255));
+        let part = share(&picture, corner, (see_through(theme.window_alpha()).0, 255));
         assert!(part > 0.99, "veil: {part}");
     }
 
     #[test]
     fn the_new_workspace_dialog_draws_over_a_see_through_window() {
-        let (mut h, theme) = glass(Locale::En);
+        let (mut h, theme) = glass(Locale::En, "graphite", 0.9);
         h.model.ui.overlays = vec![Overlay::WorkspaceDialog];
         let mut ui = show(main(h.ctx()));
-        h.shot(&mut ui, "frame-workspace-dialog-en-nightglass");
-        let picture = over_nothing(&mut ui, theme, "frame-workspace-dialog-en-nightglass");
+        let name = "frame-workspace-dialog-en-graphite-90";
+        h.shot(&mut ui, name);
+        let picture = over_nothing(&mut ui, theme, name);
         let middle = area(
             MAIN_SIZE.width / 2.0 - 50.0,
             MAIN_SIZE.height / 2.0 - 25.0,

@@ -5,15 +5,12 @@
 
 use crate::{Appearance, Colors, TerminalColors, Theme, rgb, rgba};
 
-/// A window the desktop does not show through.
+/// A window the desktop does not show through: every bundled theme's, until
+/// the person's setting says otherwise (`Theme::with_window_opacity`).
 const SOLID: f32 = 1.0;
 
-/// How opaque an unfocused pane's terminal is in most themes: a step back,
-/// not out of sight (`.pane:not(.pane--focused) .pane__term { opacity: 0.94 }`).
-const UNFOCUSED: f32 = 0.94;
-
 #[rustfmt::skip]
-pub(crate) static THEMES: [Theme; 34] = [
+pub(crate) static THEMES: [Theme; 33] = [
     Theme {
         id: "graphite",
         name: "Graphite",
@@ -82,7 +79,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x6c6d71),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "tokyo-night",
@@ -152,7 +148,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x6e738c),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "catppuccin-mocha",
@@ -222,7 +217,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x73778c),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "dracula",
@@ -292,7 +286,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x88898d),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "one-dark",
@@ -362,7 +355,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x7e858e),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "nord",
@@ -432,7 +424,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x878d98),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "gruvbox-dark",
@@ -502,7 +493,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x87806e),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "github-dark",
@@ -572,7 +562,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x666c72),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "ayu-dark",
@@ -642,7 +631,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x696969),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "rose-pine",
@@ -712,7 +700,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x767484),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "solarized-dark",
@@ -782,7 +769,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x6b8287),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "vscode-dark",
@@ -852,7 +838,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x777777),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "night-owl",
@@ -922,7 +907,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x657382),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "monokai-pro",
@@ -992,7 +976,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x8d8b8c),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "material-palenight",
@@ -1062,7 +1045,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x80859d),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "synthwave-84",
@@ -1132,7 +1114,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x87858d),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "cobalt2",
@@ -1202,7 +1183,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x83929d),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "shades-of-purple",
@@ -1272,7 +1252,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x8e8da3),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "andromeda",
@@ -1342,7 +1321,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x7e7d87),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "ayu-mirage",
@@ -1412,7 +1390,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x7b7c7d),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "horizon",
@@ -1482,7 +1459,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x75777c),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "panda",
@@ -1552,7 +1528,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x818282),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "kanagawa",
@@ -1622,7 +1597,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x7a7870),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "everforest-dark",
@@ -1692,7 +1666,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x918d80),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "poimandres",
@@ -1762,82 +1735,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x71768c),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
-    },
-    // Night glass: a dark, cool grey page with pastel colours and a pink
-    // accent, and the one bundled theme the desktop shows through (on Linux;
-    // see `Theme::window_alpha`). Whether what shows through is blurred is
-    // the compositor's business: KDE can, GNOME only with an extension such
-    // as Blur my Shell.
-    Theme {
-        id: "nightglass",
-        name: "Nightglass",
-        appearance: Appearance::Dark,
-        terminal: TerminalColors {
-            foreground: rgb(0xdcdce4),
-            background: rgb(0x101016),
-            cursor: rgb(0xf5a3c7),
-            cursor_text: rgb(0x101016),
-            selection: rgb(0x3a3a55),
-            ansi: [rgb(0x1c1c24), rgb(0xf07a8c), rgb(0x9fd8a4), rgb(0xf2d38a), rgb(0x8fb4f5), rgb(0xf5a3c7), rgb(0x8fd8e0), rgb(0xc8c8d4), rgb(0x5c5c6e), rgb(0xff92a3), rgb(0xb5e8b9), rgb(0xf7e0a6), rgb(0xa8c6fa), rgb(0xfbbfd8), rgb(0xa9e6ec), rgb(0xf0f0f6)],
-        },
-        colors: Colors {
-            chrome: rgb(0x1a1a1f),
-            chrome_bar: rgb(0x1e1e24),
-            pane_head: rgb(0x16161c),
-            pane_head_focus: rgb(0x1b1b20),
-            raised: rgb(0x212126),
-            card: rgb(0x212126),
-            sep: rgb(0x08080b),
-            line: rgba(255, 255, 255, 0.07),
-            line_strong: rgba(255, 255, 255, 0.12),
-            accent_hi: rgb(0xf7b7d3),
-            state_working: rgb(0x9fd8a4),
-            state_working_fill: rgb(0x9fd8a4),
-            state_waiting: rgb(0xf2d38a),
-            state_waiting_fill: rgb(0xf2d38a),
-            state_yours: rgb(0x8fd8e0),
-            state_yours_fill: rgb(0x8fd8e0),
-            state_idle: rgb(0x98989f),
-            state_idle_fill: rgb(0x7a7a80),
-            bg: rgb(0x101016),
-            bg_sunken: rgb(0x0a0a0e),
-            surface: rgb(0x1a1a1f),
-            surface_hover: rgb(0x232329),
-            surface_active: rgb(0x2f2f34),
-            border: rgb(0x2a2a30),
-            border_strong: rgb(0x404045),
-            fg: rgb(0xdcdce4),
-            fg_secondary: rgb(0xababb3),
-            fg_muted: rgb(0x9999a0),
-            fg_subtle: rgb(0x88888f),
-            accent: rgb(0xf5a3c7),
-            accent_soft: rgba(245, 163, 199, 0.14),
-            accent_ring: rgba(245, 163, 199, 0.45),
-            accent_fg: rgb(0x2c1d24),
-            danger: rgb(0xf07a8c),
-            danger_soft: rgba(240, 122, 140, 0.14),
-            success: rgb(0x9fd8a4),
-            warning: rgb(0xf2d38a),
-            shadow: rgba(0, 0, 0, 0.45),
-            float_ring: rgba(0, 0, 0, 0.55),
-            seg_track: rgb(0x101016),
-            seg_thumb: rgb(0x3e3e45),
-            viz_1: rgb(0x765969),
-            viz_2: rgb(0x9f7589),
-            viz_3: rgb(0xc990ab),
-            viz_4: rgb(0xf5aece),
-            viz_heat_0: rgb(0x2c2c31),
-            viz_heat_1: rgb(0x54434e),
-            viz_heat_2: rgb(0x795c6c),
-            viz_heat_3: rgb(0xa2768b),
-            viz_heat_4: rgb(0xcb92ac),
-            viz_heat_5: rgb(0xf6aece),
-            viz_mute: rgb(0x4a4a50),
-            viz_line: rgb(0x707076),
-        },
-        window_opacity: 0.92,
-        unfocused_opacity: 0.75,
     },
     Theme {
         id: "catppuccin-latte",
@@ -1907,7 +1804,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x888a9c),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "github-light",
@@ -1977,7 +1873,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x929598),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "one-light",
@@ -2047,7 +1942,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x919196),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "solarized-light",
@@ -2117,7 +2011,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x87908e),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "quiet-light",
@@ -2187,7 +2080,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x8e8e8e),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "ayu-light",
@@ -2257,7 +2149,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x909397),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "rose-pine-dawn",
@@ -2327,7 +2218,6 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x908ba2),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
     Theme {
         id: "night-owl-light",
@@ -2397,6 +2287,5 @@ pub(crate) static THEMES: [Theme; 34] = [
             viz_line: rgb(0x92919c),
         },
         window_opacity: SOLID,
-        unfocused_opacity: UNFOCUSED,
     },
 ];

@@ -185,7 +185,7 @@ fn a_front_tab_takes_the_panels_surface_in_every_state() {
 
 #[test]
 fn on_a_solid_theme_what_lies_on_the_desktop_is_drawn_as_before() {
-    for theme in themes().iter().filter(|theme| !theme.is_translucent()) {
+    for theme in themes() {
         let dark = &iced::Theme::Dark;
         assert_eq!(
             container_style::backdrop(theme)(dark),
@@ -215,12 +215,13 @@ fn on_a_solid_theme_what_lies_on_the_desktop_is_drawn_as_before() {
 }
 
 #[test]
-fn on_a_translucent_theme_the_desktop_shows_through_the_page_and_the_bars_only() {
-    let Some(theme) = themes().iter().find(|theme| theme.is_translucent()) else {
+fn on_a_translucent_window_the_desktop_shows_through_the_page_and_the_bars_only() {
+    let theme = default_theme().with_window_opacity(0.9);
+    if !theme.is_translucent() {
         // Not on Linux: every window is solid there.
-        assert!(themes().iter().all(|theme| theme.window_alpha() == 1.0));
+        assert_eq!(theme.window_alpha(), 1.0);
         return;
-    };
+    }
     let dark = &iced::Theme::Dark;
     let alpha = theme.window_alpha();
     assert!(alpha < 1.0);
