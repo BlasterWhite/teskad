@@ -10,6 +10,16 @@ Every release, with its installers, is on the
 
 ## [Unreleased]
 
+### Added
+
+- Coloured badges for Claude accounts (Settings › Accounts, off by default): a colour and an icon per account, shown on the toolbar's account button and its menu, and wherever an account other than the default is named. Contributed by SimonB44470.
+- A Claude account per navigator folder: workspaces without an account of their own run on their folder's, and follow it when moved; an explicit choice, "Default" included, still wins. A "+" on a folder's heading creates a workspace in it. Contributed by SimonB44470.
+- With two Claude accounts or more, the navigator's plan block shows each account's own limits and next reset. Contributed by SimonB44470.
+
+### Changed
+
+- Choosing another Claude account no longer asks to restart running agents: each one moves by itself, on the same conversation, as soon as Hangar knows it has nothing to lose (its turn over, no draft in its prompt, no command of its own still running); meanwhile its header shows where it is going and why it waits. "Ask before moving running agents" in Settings › Accounts brings back the question. Contributed by SimonB44470.
+
 ## [2.4.2] - 2026-11-18
 
 ### Changed
