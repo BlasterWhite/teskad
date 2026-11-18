@@ -468,24 +468,6 @@ pub fn build_categories(ctx: &Context) -> Vec<Category> {
                             "title bar barre de titre fenêtre window decorations décorations buttons boutons gnome kde windows",
                         )
                     }))
-                    // Linux's only: its windows are made transparent, the
-                    // others' are not and stay opaque.
-                    .chain((ctx.platform == Some(Platform::Linux)).then(|| {
-                        let percent = window_opacity_percent(settings.window_opacity);
-                        slider(
-                            "windowOpacity",
-                            tx(Key::SettingsWindowOpacity),
-                            percent,
-                            (WINDOW_OPACITY_MIN, 100.0),
-                            1.0,
-                            format!("{} %", plain(percent)),
-                            Target::WindowOpacity,
-                        )
-                        .hint(tx(Key::SettingsWindowOpacityHint))
-                        .keywords(
-                            "opacity opacité transparency transparence transparent translucent translucide window fenêtre desktop bureau blur flou",
-                        )
-                    }))
                     .collect(),
                 ),
                 section("theme", tx(Key::SettingsTheme), {
@@ -521,6 +503,26 @@ pub fn build_categories(ctx: &Context) -> Vec<Category> {
                         )
                         .keywords(format!("theme {}", names.join(" "))),
                     );
+                    // Linux's only: its windows are made transparent, the
+                    // others' are not and stay opaque. Every theme's.
+                    if ctx.platform == Some(Platform::Linux) {
+                        let percent = window_opacity_percent(settings.window_opacity);
+                        items.push(
+                            slider(
+                                "windowOpacity",
+                                tx(Key::SettingsWindowOpacity),
+                                percent,
+                                (WINDOW_OPACITY_MIN, 100.0),
+                                1.0,
+                                format!("{} %", plain(percent)),
+                                Target::WindowOpacity,
+                            )
+                            .hint(tx(Key::SettingsWindowOpacityHint))
+                            .keywords(
+                                "opacity opacité transparency transparence transparent translucent translucide window fenêtre desktop bureau blur flou",
+                            ),
+                        );
+                    }
                     items
                 })
                 .hint(tx(Key::SettingsThemeHint)),

@@ -199,9 +199,9 @@ fn appearance_terminal_shell_and_notifications_have_every_row_too() {
     if crate::shell::title_bar::has_own_bar() {
         appearance.push("systemTitleBar: toggle SystemTitleBar = false");
     }
+    appearance.push(r#"themePick: custom Themes { active: "graphite" }"#);
     // Linux's, the platform of the world these tests build.
     appearance.push(r#"windowOpacity: slider WindowOpacity = 100 [50..100 by 1] "100 %""#);
-    appearance.push(r#"themePick: custom Themes { active: "graphite" }"#);
     assert_eq!(table(&built, SettingsCategory::Appearance), appearance);
     assert_eq!(
         table(&built, SettingsCategory::Terminal),
@@ -372,7 +372,7 @@ fn the_rows_that_need_a_workspace_exist_only_with_one() {
     if crate::shell::title_bar::has_own_bar() {
         appearance.push("systemTitleBar");
     }
-    appearance.extend(["themeScope", "themePick"]);
+    appearance.extend(["themeScope", "themePick", "windowOpacity"]);
     assert_eq!(
         ids(category(&with, SettingsCategory::Appearance)),
         appearance
