@@ -3,6 +3,11 @@ name: Release
 on:
   push:
     tags: ["v*"]
+    # A push to main runs the `node` and `build` jobs up to their compilation
+    # and nothing after it: no release, no packaging, no upload. What it is
+    # for is the Rust caches it leaves, which are the only ones a tag can
+    # restore (see the `build` job's rust-cache).
+    branches: [main]
   workflow_dispatch:
     inputs:
       tag:
@@ -11,8 +16,26 @@ on:
 
 permissions:
   contents: write
+  # The `build` job lists this run's artifacts while it waits for `node`'s.
+  actions: read
+
+# One run per ref at a time, and none cancelled: a warm run on main that is
+# stopped half way saves nothing, and a release stopped half way leaves a draft
+# with half its assets. A newer push to main waits for the running one, and
+# replaces any older one still waiting. A dispatched release is grouped by its
+# tag, not by the branch it was started from, so it never waits behind (or
+# replaces) a warm run of main.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.inputs.tag || github.ref }}
+  cancel-in-progress: false
 
 env:
+  # A tag or a dispatch makes a release; a push to main only warms the caches.
+  # The jobs' own `if:` cannot read `env`, so `draft` and `publish` spell the
+  # same test out. Not in any cache key: rust-cache hashes the variables whose
+  # names start with CARGO, CC, CFLAGS, CXX, CMAKE or RUST, and a release must
+  # find the key its warm run saved.
+  RELEASING: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/') }}
   # In CI every build is from scratch, so incremental only pays for dependency
   # tracking nobody reuses — and it is what makes the cached target directory
   # big enough for restoring it to cost more than it saves.
@@ -39,7 +62,11 @@ jobs:
   # split between them, and the publish job below refuses a `latest.json` that
   # is missing whichever platform landed in the other one. Creating it once,
   # before anything builds, is what removes the race rather than narrowing it.
+  #
+  # Only for a release (the RELEASING test, written out: `env` is not readable
+  # in a job's `if`).
   draft:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     outputs:
       release_id: ${{ steps.create.outputs.id }}
@@ -92,8 +119,9 @@ jobs:
   # hangar-node, the headless daemon a Hangar node runs (docs/native/nodes.md),
   # for Linux x86_64 and arm64. The desktop uploads it to a node over SSH, and
   # looks for it beside its own executable, so every desktop package carries
-  # both - a Mac or a Windows desktop drives Linux nodes too - which is why this
-  # runs before the build jobs and they download what it makes.
+  # both - a Mac or a Windows desktop drives Linux nodes too - which is why the
+  # build jobs download what it makes. They start at the same time as this
+  # job, and wait for its two files only when they are about to package.
   #
   # Both on ubuntu-22.04, like the AppImage: the node links the glibc of the
   # machine that built it, so 22.04 keeps it running on glibc 2.35 and later.
@@ -103,8 +131,13 @@ jobs:
   # whole release, and the same x86_64 runner and toolchain for both is one
   # thing less that differs between them. hangar-node's dependencies are
   # headless (no ALSA, WebKit or whisper), so a C cross-compiler is all it needs.
+  #
+  # On a push to main it builds and stops there, to leave the cache a release
+  # restores (the `build` job's rust-cache says why that has to be this job).
   node:
     needs: draft
+    # Also when `draft` was skipped (a push to main); not when it failed.
+    if: ${{ !cancelled() && !failure() }}
     strategy:
       fail-fast: false
       matrix:
@@ -133,14 +166,20 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      # Saved by the warm runs of main only, read by the releases: as the
+      # `build` job's, below.
       - uses: swatinem/rust-cache@v2
+        id: cache
         with:
           key: node-${{ matrix.arch }}
+          save-if: ${{ env.RELEASING != 'true' }}
 
       # The dist profile (fat LTO, one codegen unit: the workspace Cargo.toml
       # says why), as the app's: the file the desktop uploads to every node is
-      # a third smaller for it.
+      # a third smaller for it. A warm run whose exact key is already saved has
+      # nothing to add to it, and stops here.
       - name: Build hangar-node
+        if: env.RELEASING == 'true' || steps.cache.outputs.cache-hit != 'true'
         run: cargo build --profile dist --locked --target "${{ matrix.target }}" -p hangar-node
 
       # Stripped (dist builds keep the symbol table, a sixth of this file, for
@@ -149,6 +188,7 @@ jobs:
       # a wrong binary and a release: one for the wrong machine, or one that
       # wants a newer glibc than 2.35, would only fail on someone's server.
       - name: Strip and check
+        if: env.RELEASING == 'true'
         run: |
           set -euo pipefail
           mkdir -p out
@@ -169,6 +209,7 @@ jobs:
 
       # What the build jobs pack into the installers.
       - uses: actions/upload-artifact@v4
+        if: env.RELEASING == 'true'
         with:
           name: hangar-node-${{ matrix.arch }}
           path: out/hangar-node-${{ matrix.arch }}
@@ -177,6 +218,7 @@ jobs:
       # And on the release as a download of its own, for a node that is set up
       # by hand: hangar-node-<version>-linux-<arch>.
       - name: Upload to the draft release
+        if: env.RELEASING == 'true'
         run: |
           set -euo pipefail
           pkgid="$(cargo pkgid -p hangar-node)"
@@ -185,8 +227,16 @@ jobs:
           cp "out/hangar-node-${{ matrix.arch }}" "out/hangar-node-${version}-linux-${{ matrix.arch }}"
           crates/hangar-app/packaging/upload-assets.sh "$RELEASE_ID" "out/hangar-node-${version}-linux-${{ matrix.arch }}"
 
+  # Not after `node`: what it needs from it, the two hangar-node files, comes
+  # in at packaging time, and a step before that waits for them. Compiling the
+  # app does not wait for the node daemon to compile first.
+  #
+  # On a push to main it runs up to and including its cargo builds (and the
+  # packaging tools' install), and stops there: see its rust-cache.
   build:
-    needs: [draft, node]
+    needs: draft
+    # Also when `draft` was skipped (a push to main); not when it failed.
+    if: ${{ !cancelled() && !failure() }}
     strategy:
       # All three at once. They do not contend for anything — the publish job
       # below is the only writer of `latest.json` — so a release takes as long
@@ -255,11 +305,14 @@ jobs:
             libclang-dev \
             libssl-dev
 
+      # Node is for Hangar Mobile alone, which only a release builds.
       - uses: pnpm/action-setup@v4
+        if: env.RELEASING == 'true'
         with:
           version: 10
 
       - uses: actions/setup-node@v4
+        if: env.RELEASING == 'true'
         with:
           node-version: 22
           cache: pnpm
@@ -268,12 +321,28 @@ jobs:
         with:
           targets: ${{ matrix.rust-targets }}
 
-      # Worth having for a re-run of the same tag, but not much more: a cache
-      # written under a tag ref is not readable from the next tag, so a release
-      # normally compiles from scratch whatever this restores. Warming it would
-      # mean a full release build on every push to main, which costs more than
-      # it saves at this rate of releasing.
+      # A release can only restore what this job saved on main. A cache is
+      # readable from the ref that wrote it and from the default branch, never
+      # from another tag, so what a tag saves is dead weight the next tag
+      # cannot read (and it pushes main's caches out of the repository's
+      # 10 GB). CI's caches are main's but no use either: another job id
+      # (`rust`), another profile. So every push to main runs this job up to
+      # and including its cargo builds, and it is those runs that save; a
+      # release only restores.
+      #
+      # It has to be this job, with these steps and this environment, and not
+      # a lighter one beside it: whisper-rs-sys hands the GGML_* variables to
+      # whisper.cpp's CMake without telling cargo to rebuild when they change,
+      # so a target/ compiled without the portable-AVX2 pins below would be
+      # reused as it is by a release, and ship code for the CPU of whichever
+      # runner built it (an illegal instruction on most consumer CPUs). The
+      # pins are set before the build in both modes, and the key (this job's
+      # id, the CARGO*/CC*/RUST*… variables, rustc and the lockfile) is the
+      # same in both: nothing that differs between them enters it.
       - uses: swatinem/rust-cache@v2
+        id: cache
+        with:
+          save-if: ${{ env.RELEASING != 'true' }}
 
       # Hangar Mobile, the phone app, is compiled into the executable from
       # dist-mobile/. Without it the build still succeeds and every phone gets
@@ -282,10 +351,18 @@ jobs:
       # here that the folder is whole, and after the build that the executable
       # took it in.
       - name: Build Hangar Mobile
+        if: env.RELEASING == 'true'
         run: |
           pnpm install --frozen-lockfile
           pnpm mobile:build
           crates/hangar-app/packaging/check-mobile.sh
+
+      # A warm run compiles without it: an empty folder builds the placeholder,
+      # as in CI, and hangar-core (a workspace crate, which the cache never
+      # keeps) is compiled again by the release with the real one.
+      - name: Stub the phone app bundle
+        if: env.RELEASING != 'true'
+        run: mkdir -p dist-mobile
 
       # Signing and notarisation are driven entirely by the environment, and an
       # empty-but-present variable reads as "sign with this" rather than "do not
@@ -365,18 +442,27 @@ jobs:
       # LTO step, so expect the same few extra minutes per build here (no
       # timeout is set; the job's default is 6 hours). The numbers and the
       # variants that lost are in docs/native/PACKAGING.md, "The dist profile".
+      #
+      # A warm run whose exact key is already saved has nothing to add to it
+      # and skips this; one that builds has no phone app to check.
       - name: Build
+        if: env.RELEASING == 'true' || steps.cache.outputs.cache-hit != 'true'
         run: |
+          check_mobile() {
+            if [ "$RELEASING" = "true" ]; then
+              crates/hangar-app/packaging/check-mobile.sh "$@"
+            fi
+          }
           if [ "$RUNNER_OS" = "macOS" ]; then
             for target in aarch64-apple-darwin x86_64-apple-darwin; do
               cargo build --profile dist --locked --target "$target" -p hangar-app
               cargo build --profile dist --locked --target "$target" -p hangar-webview --features engine
-              crates/hangar-app/packaging/check-mobile.sh "target/$target/dist/hangar-ai"
+              check_mobile "target/$target/dist/hangar-ai"
             done
           else
             cargo build --profile dist --locked -p hangar-app
             cargo build --profile dist --locked -p hangar-webview --features engine
-            crates/hangar-app/packaging/check-mobile.sh "target/dist/hangar-ai${{ runner.os == 'Windows' && '.exe' || '' }}"
+            check_mobile "target/dist/hangar-ai${{ runner.os == 'Windows' && '.exe' || '' }}"
           fi
 
       # The runner has the Visual C++ Redistributable, a fresh Windows does not:
@@ -388,7 +474,7 @@ jobs:
       # deployment, which Microsoft allows for the redistributable's files),
       # taken from the Visual Studio redistributable folder the build used.
       - name: Stage the Visual C++ runtime DLLs
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && env.RELEASING == 'true'
         shell: pwsh
         run: |
           $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
@@ -403,11 +489,41 @@ jobs:
             Write-Output "staged $src"
           }
 
+      # `node` runs beside this job, not before it. Its two files are normally
+      # there long before this point (it takes a few minutes, the build above
+      # far more), but nothing makes sure of it, so this waits for them: up to
+      # 15 minutes, then a failure that says so rather than a packaging script
+      # refusing for want of them. A node job that failed ends the wait at once.
+      - name: Wait for the hangar-node files
+        if: env.RELEASING == 'true'
+        run: |
+          set -euo pipefail
+          run="repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          for _ in $(seq 1 45); do
+            found=$(gh api "$run/artifacts?per_page=100" \
+              --jq '[.artifacts[].name | select(. == "hangar-node-x86_64" or . == "hangar-node-aarch64")] | unique | length')
+            if [ "$found" = 2 ]; then
+              echo "hangar-node-x86_64 and hangar-node-aarch64 are on the run"
+              exit 0
+            fi
+            failed=$(gh api "$run/jobs?filter=latest&per_page=100" \
+              --jq '[.jobs[] | select((.name | startswith("node (")) and .status == "completed" and .conclusion != "success")] | length')
+            if [ "$failed" != 0 ]; then
+              echo "::error::a node job of this run did not succeed, so its hangar-node file will never come"
+              exit 1
+            fi
+            echo "$found of the 2 hangar-node files so far; checking again in 20 s"
+            sleep 20
+          done
+          echo "::error::the hangar-node files are still not on this run after 15 minutes: see its node jobs"
+          exit 1
+
       # hangar-node for Linux x86_64 and arm64, from the `node` job, where the
       # packaging scripts take them from (they refuse to package without).
       # After the build, not before: rust-cache restores target/ and would
       # remove a target/node downloaded ahead of it.
       - uses: actions/download-artifact@v4
+        if: env.RELEASING == 'true'
         with:
           pattern: hangar-node-*
           path: target/node
@@ -417,6 +533,11 @@ jobs:
       # installer is the Tauri bundler's NSIS script with Hangar's pages and the
       # update behaviour the updater relies on, which cargo-packager's older fork
       # of that script does not have (docs/native/PACKAGING.md).
+      #
+      # In a warm run too: rust-cache keeps ~/.cargo/bin, so the release finds
+      # both already installed at these versions (part of the key, being
+      # CARGO_* variables) and cargo only says so, instead of compiling them
+      # for three minutes.
       - name: Install the packaging tools
         if: runner.os != 'Windows'
         run: |
@@ -428,7 +549,7 @@ jobs:
       # NSIS itself, as the Tauri bundler fetched it: the same archive, checked
       # against the same hash.
       - name: Install NSIS
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && env.RELEASING == 'true'
         shell: pwsh
         run: |
           $zip = Join-Path $env:RUNNER_TEMP "nsis-3.11.zip"
@@ -442,6 +563,7 @@ jobs:
           "MAKENSIS=$makensis" >> $env:GITHUB_ENV
 
       - name: Package
+        if: env.RELEASING == 'true'
         run: |
           case "$RUNNER_OS" in
             Linux)   crates/hangar-app/packaging/linux/build.sh target/packager ;;
@@ -455,6 +577,7 @@ jobs:
       # stays a draft until the job below publishes it — a half-built release
       # under /releases/latest/ is one a visitor downloads the wrong half of.
       - name: Upload to the draft release
+        if: env.RELEASING == 'true'
         run: |
           cd target/packager
           case "$RUNNER_OS" in
@@ -467,8 +590,13 @@ jobs:
   # The single writer of `latest.json`, the only thing that signs, and the only
   # thing that publishes. Everything the updater relies on is decided here,
   # once, with all three platforms already on the release.
+  #
+  # Only for a release (the RELEASING test, written out: `env` is not readable
+  # in a job's `if`). `node` is named because `build` no longer waits for it:
+  # its files must be on the draft before this publishes it.
   publish:
-    needs: [draft, build]
+    needs: [draft, node, build]
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -482,7 +610,11 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      # Never saved: this job only runs for a release, and what a tag saves no
+      # other tag can read (the `build` job's rust-cache says more).
       - uses: swatinem/rust-cache@v2
+        with:
+          save-if: ${{ env.RELEASING != 'true' }}
 
       # Only for `cargo packager signer sign`: it writes the signature exactly
       # as the Tauri signer did, and the build jobs do not need the key at all.
