@@ -89,6 +89,7 @@ jobs:
         if: runner.os == 'Linux'
         with:
           mold-version: 3.0.0
+          make-default: false # TEMP A/B: GNU ld, to time the link without mold
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -162,6 +163,7 @@ jobs:
           # renderer draws the same widgets with nothing to lose. The 3D
           # capture tests make their own wgpu device and are not affected.
           ICED_TEST_BACKEND: tiny-skia
+          CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER: link.exe # TEMP A/B: link.exe, to time the link without rust-lld
 
   # Hangar Mobile, the phone app the desktop binary embeds, and the interface
   # strings, which are generated from JSON by Node. Node work is markedly
