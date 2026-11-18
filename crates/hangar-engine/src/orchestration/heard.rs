@@ -9,7 +9,7 @@
 //! writes each kind of event and reads it back, so a change of wording on one
 //! side cannot leave the other behind.
 
-use super::events::DeliveryOutcome;
+use super::events::{DeliveryOutcome, IDLE_JOB};
 
 /// What one line about the workspace says. A task is named by its title,
 /// or by its id when the line gave none.
@@ -211,6 +211,8 @@ pub fn read_line(line: &str) -> Option<Heard> {
     if let Some((worker, rest)) = line.split_once(" ended its turn ")
         && let Some((time, rest)) = rest.split_once(" ago without delivering")
     {
+        // What still runs in its pane, when the line says, is not its task.
+        let rest = rest.split(IDLE_JOB).next().unwrap_or(rest);
         return Some(Heard::Idle {
             worker: worker.to_string(),
             minutes: minutes_of(time)?,
@@ -496,18 +498,21 @@ mod tests {
                     task: on.clone()
                 })
             );
-            assert_eq!(
-                read(E::WorkerIdle {
-                    worker: worker(),
-                    task_id: task_id.clone(),
-                    for_ms: 12 * 60_000
-                }),
-                Some(Heard::Idle {
-                    worker: worker(),
-                    minutes: 12,
-                    task: on.clone()
-                })
-            );
+            for job in [None, Some("cargo bench -p engine".to_string())] {
+                assert_eq!(
+                    read(E::WorkerIdle {
+                        worker: worker(),
+                        task_id: task_id.clone(),
+                        for_ms: 12 * 60_000,
+                        job,
+                    }),
+                    Some(Heard::Idle {
+                        worker: worker(),
+                        minutes: 12,
+                        task: on.clone()
+                    })
+                );
+            }
         }
     }
 

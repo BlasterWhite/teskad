@@ -3533,6 +3533,7 @@ App.tsx:856–915 wires it:
 - **State per workspace:** journal (last 50), pending (≤200), board snapshot, tasks, timer, holding, reading/readAgain. Also `workers: Map<paneId, WorkerWatch>` and `turns`.
 - **Output:** `enqueue(orchestrator, renderDelta, "hangar")`.
 - **Singleton API:** `startOrchestratorEvents`, `postOrchestratorEvent`, `orchestratorJournal(ws)`. The journal feeds the briefing, `worker_spawn` names, project summaries and the activity log.
+- **Since the port** (native engine, `crates/hangar-engine/src/orchestration/events.rs`, not the TS above): `workerIdle` waits while the worker's pane runs a command of its own (`hangar_core::pty::pane_job`; named in the event as `job` once it has held the worker an hour), comes once per idle spell and again only after the worker commented, reported progress, committed or delivered, or 30 min later; non-urgent events (`is_urgent`) wait for a digest sent at most every 5 min, or with the next urgent message. See `docs/guide/orchestration.md`.
 
 #### 1.6 managerEvents.ts: manager feed (non-HQ workspaces; runs only while a manager runs or a phone is subscribed)
 
