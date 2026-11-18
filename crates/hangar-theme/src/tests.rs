@@ -7,8 +7,8 @@ use std::collections::HashSet;
 use iced::Color;
 
 use crate::{
-    AgentState, Colors, DEFAULT_ID, FILL_CONTRAST, Rgb, TEXT_CONTRAST, Theme, by_id,
-    by_id_or_default, contrast_ratio, default_theme, derive_colors, hue_and_saturation,
+    AgentState, Colors, DEFAULT_ID, FILL_CONTRAST, MIN_WINDOW_OPACITY, Rgb, TEXT_CONTRAST, Theme,
+    by_id, by_id_or_default, contrast_ratio, default_theme, derive_colors, hue_and_saturation,
     hue_distance, mix, over, perceived_lightness, themes,
 };
 
@@ -75,7 +75,7 @@ mod the_bundled_themes {
 
     #[test]
     fn cover_every_theme() {
-        assert_eq!(themes().len(), 33);
+        assert_eq!(themes().len(), 34);
     }
 
     #[test]
@@ -185,6 +185,129 @@ mod the_bundled_themes {
             let lightness = perceived_lightness(Rgb::from(theme.terminal.background));
             assert_eq!(theme.is_dark(), lightness < 0.5, "{}", theme.id);
         }
+    }
+}
+
+mod window_opacity {
+    use super::*;
+    use crate::theme::window_alpha_of;
+
+    #[test]
+    fn every_theme_but_nightglass_is_a_solid_window() {
+        for theme in themes() {
+            if theme.id == "nightglass" {
+                continue;
+            }
+            assert_eq!(theme.window_opacity, 1.0, "{}", theme.id);
+            assert!(!theme.is_translucent(), "{}", theme.id);
+            assert_eq!(theme.window_alpha(), 1.0, "{}", theme.id);
+        }
+    }
+
+    #[test]
+    fn every_opacity_is_one_the_window_is_drawn_at() {
+        for theme in themes() {
+            assert!(
+                (MIN_WINDOW_OPACITY..=1.0).contains(&theme.window_opacity),
+                "{}",
+                theme.id
+            );
+            assert!(
+                (0.0..=1.0).contains(&theme.unfocused_opacity) && theme.unfocused_opacity > 0.5,
+                "{}",
+                theme.id
+            );
+        }
+    }
+
+    #[test]
+    fn is_held_between_the_floor_and_solid() {
+        assert_eq!(window_alpha_of(0.92), 0.92);
+        assert_eq!(window_alpha_of(1.0), 1.0);
+        assert_eq!(window_alpha_of(1.7), 1.0);
+        assert_eq!(window_alpha_of(0.1), MIN_WINDOW_OPACITY);
+        assert_eq!(window_alpha_of(f32::NAN), 1.0);
+        assert_eq!(window_alpha_of(f32::INFINITY), 1.0);
+    }
+
+    #[test]
+    fn shows_the_desktop_through_on_linux_only() {
+        let glass = by_id("nightglass").unwrap();
+        assert_eq!(glass.window_opacity, 0.92);
+        if cfg!(target_os = "linux") {
+            assert!(glass.is_translucent());
+            assert_eq!(glass.window_alpha(), 0.92);
+            let page = glass.see_through(glass.colors.bg);
+            assert_eq!(page.a, 0.92);
+            assert_eq!(
+                Color { a: 1.0, ..page },
+                glass.colors.bg,
+                "the colour itself does not change"
+            );
+        } else {
+            assert!(!glass.is_translucent());
+            assert_eq!(glass.see_through(glass.colors.bg), glass.colors.bg);
+        }
+        // A solid theme's colours go through as they are.
+        let solid = default_theme();
+        assert_eq!(solid.see_through(solid.colors.chrome), solid.colors.chrome);
+    }
+}
+
+mod nightglass {
+    use super::*;
+
+    fn hex(color: Color) -> String {
+        Rgb::from(color).to_hex()
+    }
+
+    #[test]
+    fn is_a_dark_theme_with_its_palette_and_a_pink_accent() {
+        let theme = by_id("nightglass").unwrap();
+        assert_eq!(theme.name, "Nightglass");
+        assert!(theme.is_dark());
+        let t = &theme.terminal;
+        assert_eq!(hex(t.background), "#101016");
+        assert_eq!(hex(t.foreground), "#dcdce4");
+        assert_eq!(hex(t.cursor), "#f5a3c7");
+        assert_eq!(hex(t.cursor_text), "#101016");
+        assert_eq!(hex(t.selection), "#3a3a55");
+        let ansi: Vec<String> = t.ansi.iter().map(|&c| hex(c)).collect();
+        assert_eq!(
+            ansi,
+            [
+                "#1c1c24", "#f07a8c", "#9fd8a4", "#f2d38a", "#8fb4f5", "#f5a3c7", "#8fd8e0",
+                "#c8c8d4", "#5c5c6e", "#ff92a3", "#b5e8b9", "#f7e0a6", "#a8c6fa", "#fbbfd8",
+                "#a9e6ec", "#f0f0f6",
+            ]
+        );
+        assert_eq!(hex(theme.accent()), "#f5a3c7");
+        // Dark text on the pink, as on every dark theme.
+        assert!(
+            perceived_lightness(Rgb::from(theme.colors.accent_fg)) < 0.3,
+            "{}",
+            hex(theme.colors.accent_fg)
+        );
+        assert_eq!(theme.unfocused_opacity, 0.75);
+    }
+
+    #[test]
+    fn has_its_borders_near_the_split_divider_of_the_palette_it_comes_from() {
+        // Ghostty's `split-divider-color = 2a2a3a`: the hairlines a theme
+        // derives from its page land within a few steps of it.
+        let c = &by_id("nightglass").unwrap().colors;
+        let divider = Rgb(0x2a, 0x2a, 0x3a);
+        let border = Rgb::from(c.border);
+        let distance = [
+            (border.0, divider.0),
+            (border.1, divider.1),
+            (border.2, divider.2),
+        ]
+        .iter()
+        .map(|&(a, b)| a.abs_diff(b))
+        .max()
+        .unwrap();
+        assert!(distance <= 12, "{} is {distance} away", hex(c.border));
     }
 }
 

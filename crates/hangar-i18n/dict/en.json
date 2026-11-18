@@ -470,6 +470,7 @@
   "settings.systemTitleBarHint": "Hangar draws its own, in its theme, with the buttons your system shows. Turn this on for the bar your system draws instead.",
   "settings.theme": "Theme",
   "settings.themeHint": "Terminal palette — the whole window follows it",
+  "settings.themeHintTranslucent": "Terminal palette — the whole window follows it. This one lets the desktop show through the window; blurring it is up to your desktop: KDE does, GNOME with an extension such as Blur my Shell.",
   "settings.themePerWorkspace": "Specific to this workspace",
   "settings.themePerWorkspaceHint": "{name} keeps its own theme",
   "settings.themeDark": "Dark",

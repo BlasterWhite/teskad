@@ -182,3 +182,74 @@ fn a_front_tab_takes_the_panels_surface_in_every_state() {
         assert_eq!(look.background, Some(Background::Color(t.colors.chrome)));
     }
 }
+
+#[test]
+fn on_a_solid_theme_what_lies_on_the_desktop_is_drawn_as_before() {
+    for theme in themes().iter().filter(|theme| !theme.is_translucent()) {
+        let dark = &iced::Theme::Dark;
+        assert_eq!(
+            container_style::backdrop(theme)(dark),
+            container_style::window(theme)(dark),
+            "{}",
+            theme.id
+        );
+        assert_eq!(
+            container_style::page(theme)(dark),
+            container_style::window(theme)(dark),
+            "{}",
+            theme.id
+        );
+        assert_eq!(
+            container_style::see_through(theme, container_style::sidebar(theme))(dark),
+            container_style::sidebar(theme)(dark),
+            "{}",
+            theme.id
+        );
+        assert_eq!(
+            rule::sep_see_through(theme)(dark),
+            rule::sep(theme)(dark),
+            "{}",
+            theme.id
+        );
+    }
+}
+
+#[test]
+fn on_a_translucent_theme_the_desktop_shows_through_the_page_and_the_bars_only() {
+    let Some(theme) = themes().iter().find(|theme| theme.is_translucent()) else {
+        // Not on Linux: every window is solid there.
+        assert!(!cfg!(target_os = "linux"));
+        return;
+    };
+    let dark = &iced::Theme::Dark;
+    let alpha = theme.window_alpha();
+    assert!(alpha < 1.0);
+    let fill_of = |style: container::Style| match style.background {
+        Some(Background::Color(color)) => Some(color),
+        _ => None,
+    };
+    // The page under everything, and the bars, at the window's alpha.
+    let backdrop = fill_of(container_style::backdrop(theme)(dark)).unwrap();
+    assert_eq!(backdrop, theme.colors.bg.scale_alpha(alpha));
+    let bar = fill_of(container_style::see_through(
+        theme,
+        container_style::toolbar(theme),
+    )(dark));
+    assert_eq!(bar, Some(theme.colors.chrome_bar.scale_alpha(alpha)));
+    assert_eq!(rule::sep_see_through(theme)(dark).color.a, alpha);
+    // A pane on the backdrop adds nothing to it, or the two coats would make
+    // it opaque; its text keeps the theme's colour.
+    let page = container_style::page(theme)(dark);
+    assert_eq!(fill_of(page), None);
+    assert_eq!(page.text_color, Some(theme.colors.fg));
+    // What floats stays opaque.
+    for style in [
+        container_style::card(theme)(dark),
+        container_style::popover(theme)(dark),
+        container_style::modal(theme)(dark),
+        container_style::tooltip(theme)(dark),
+        container_style::window(theme)(dark),
+    ] {
+        assert_eq!(fill_of(style).map(|color| color.a), Some(1.0));
+    }
+}

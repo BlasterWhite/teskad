@@ -486,11 +486,23 @@ pub fn build_categories(ctx: &Context) -> Vec<Category> {
                                 },
                             },
                         )
-                        .keywords(format!("theme {}", names.join(" "))),
+                        .keywords(format!(
+                            "theme thème transparent translucent translucide opacity opacité {}",
+                            names.join(" ")
+                        )),
                     );
                     items
                 })
-                .hint(tx(Key::SettingsThemeHint)),
+                // A theme the desktop shows through says so, and that the
+                // blur is the desktop's to give (only on Linux, the one place
+                // a window is drawn see-through).
+                .hint(tx(
+                    if hangar_theme::by_id_or_default(effective_theme).is_translucent() {
+                        Key::SettingsThemeHintTranslucent
+                    } else {
+                        Key::SettingsThemeHint
+                    },
+                )),
             ],
         },
         terminal(ctx, locale),

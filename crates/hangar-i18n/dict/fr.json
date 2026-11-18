@@ -470,6 +470,7 @@
   "settings.systemTitleBarHint": "Hangar dessine la sienne, aux couleurs de son thème, avec les boutons que montre ton système. Active ceci pour retrouver celle que dessine ton système.",
   "settings.theme": "Thème",
   "settings.themeHint": "Palette des terminaux — toute la fenêtre la suit",
+  "settings.themeHintTranslucent": "Palette des terminaux — toute la fenêtre la suit. Celui-ci laisse voir le bureau à travers la fenêtre ; le flou dépend de ton bureau : KDE le fait, GNOME avec une extension comme Blur my Shell.",
   "settings.themePerWorkspace": "Propre à ce workspace",
   "settings.themePerWorkspaceHint": "{name} garde son propre thème",
   "settings.themeDark": "Sombres",

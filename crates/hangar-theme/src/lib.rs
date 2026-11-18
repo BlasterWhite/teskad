@@ -1,6 +1,7 @@
 //! The themes of Hangar: the 33 palettes the web app had (`src/themes.ts`, tag
-//! v1.12.1), the colours of the whole window derived from them, the design
-//! tokens of the stylesheets, and how all of it maps onto iced.
+//! v1.12.1) and the ones added since, the colours of the whole window derived
+//! from them, the design tokens of the stylesheets, and how all of it maps
+//! onto iced.
 //!
 //! See docs/native/PLAN.md, "hangar-theme".
 //!
@@ -8,7 +9,12 @@
 //!   restyles the whole window, not only the terminals: [`Theme::colors`] has
 //!   every token of the chrome (surfaces, hairlines, text levels, the accent,
 //!   the agent states, the statistics) and [`Theme::terminal`] the colours a
-//!   terminal is drawn with.
+//!   terminal is drawn with. A theme may also let the desktop show through
+//!   the window ([`Theme::window_opacity`], Nightglass's 0.92): on Linux
+//!   only, behind the window's page, its bars and the terminals' default
+//!   background, never behind text, cards, menus or dialogs. Blurring what
+//!   shows through is the compositor's (KDE does, GNOME with an extension
+//!   such as Blur my Shell).
 //! - [`tokens`]: what is not a colour: radii, spacing, font sizes, weights,
 //!   durations, the sizes of the window's parts.
 //! - [`to_iced`] and [`style`]: the theme for iced, and the style functions
@@ -29,7 +35,9 @@
 //!    `id` is what settings store: lowercase letters, digits and `-`, never
 //!    changed once released.
 //! 2. Write its `terminal` palette and the `accent` of its `colors`. For the
-//!    rest of `colors`, copy any theme's for now.
+//!    rest of `colors`, copy any theme's for now. `window_opacity` is
+//!    `SOLID` unless the desktop is meant to show through the window (see
+//!    [`Theme::window_alpha`]), `unfocused_opacity` the usual `UNFOCUSED`.
 //! 3. Run `cargo test -p hangar-theme`. The derivation test fails on the new
 //!    theme and prints the whole `colors: Colors { ... }` entry that
 //!    [`derive_colors`] gives for its palette and accent: paste it over the
@@ -56,8 +64,8 @@ pub use derive::{FILL_CONTRAST, TEXT_CONTRAST, derive_colors};
 pub use iced_theme::to_iced;
 pub use kit::{css, kit_default_themes, kit_tokens};
 pub use theme::{
-    AgentState, Appearance, Colors, DEFAULT_ID, SearchColors, StateColors, TerminalColors, Theme,
-    by_id, by_id_or_default, default_theme, themes,
+    AgentState, Appearance, Colors, DEFAULT_ID, MIN_WINDOW_OPACITY, SearchColors, StateColors,
+    TerminalColors, Theme, by_id, by_id_or_default, default_theme, themes,
 };
 pub(crate) use theme::{rgb, rgba};
 

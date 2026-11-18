@@ -428,6 +428,38 @@ fn the_theme_row_is_found_by_the_name_of_any_theme() {
 }
 
 #[test]
+fn a_theme_the_desktop_shows_through_says_so_where_it_is_picked() {
+    let theme_hint = |world: &World| {
+        let built = world.build();
+        category(&built, SettingsCategory::Appearance)
+            .sections
+            .iter()
+            .find(|section| section.items.iter().any(|item| item.id == "themePick"))
+            .and_then(|section| section.hint.clone())
+            .unwrap_or_default()
+    };
+    let solid = World::new();
+    let usual = theme_hint(&solid);
+    assert!(usual.contains("the whole window follows it"), "{usual}");
+    assert!(!usual.contains("Blur my Shell"), "{usual}");
+    let mut glass = World::new();
+    glass.settings.theme_id = "nightglass".into();
+    let hint = theme_hint(&glass);
+    // Only where windows are drawn see-through: Linux.
+    if cfg!(target_os = "linux") {
+        assert!(hint.contains("Blur my Shell"), "{hint}");
+    } else {
+        assert_eq!(hint, usual);
+    }
+    // A workspace's own theme is the one that counts.
+    let mut pinned = World::new();
+    let mut ws = workspace("Shop");
+    ws.theme_id = Some("nightglass".into());
+    pinned.workspace = Some(ws);
+    assert_eq!(theme_hint(&pinned), hint);
+}
+
+#[test]
 fn the_shell_lists_what_was_detected_with_auto_first() {
     let mut world = World::new();
     world.shells = vec![shell("bash", "Bash"), shell("zsh", "Zsh")];

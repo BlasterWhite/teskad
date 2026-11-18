@@ -35,6 +35,9 @@ pub fn palette(theme: &Theme) -> Palette {
     Palette {
         foreground: terminal.foreground,
         background: terminal.background,
+        // A window the desktop shows through has its page under the grid
+        // already (shell/frame.rs): the terminal leaves that to it.
+        background_opacity: if theme.is_translucent() { 0.0 } else { 1.0 },
         cursor: terminal.cursor,
         cursor_text: terminal.cursor_text,
         selection_background: terminal.selection,
@@ -266,6 +269,16 @@ mod tests {
         // WCAG's floor for large text; xterm.js made no promise, and the
         // dimmest pairs of the 33 themes are above it.
         assert!(worst.0 >= 3.0, "{worst:?}");
+    }
+
+    #[test]
+    fn a_terminal_paints_its_background_unless_the_desktop_shows_through_it() {
+        for theme in hangar_theme::themes() {
+            let expected = if theme.is_translucent() { 0.0 } else { 1.0 };
+            assert_eq!(palette(theme).background_opacity, expected, "{}", theme.id);
+        }
+        let glass = hangar_theme::by_id("nightglass").expect("a bundled theme");
+        assert_eq!(glass.is_translucent(), cfg!(target_os = "linux"));
     }
 
     #[test]
