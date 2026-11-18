@@ -36,8 +36,19 @@ pub struct Installer {
     pub unix: &'static str,
     /// The official command in Windows PowerShell, for the user alone too.
     pub windows: &'static str,
-    /// The other documented ways, as they are typed (npm, Homebrew).
-    pub alternatives: &'static [&'static str],
+    /// The other documented ways, each through a package manager.
+    pub alternatives: &'static [Alternative],
+}
+
+/// An install through a package manager, offered when that manager is on
+/// the machine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Alternative {
+    /// The manager's command, to look for on PATH first (`npm`, `brew`).
+    pub tool: &'static str,
+    /// The line that installs, as it is typed.
+    pub command: &'static str,
 }
 
 /// The official way to install `agent`.
@@ -53,7 +64,16 @@ pub fn installer(agent: AgentKind) -> Installer {
             docs_url: "https://learn.chatgpt.com/docs/codex/cli",
             unix: "curl -fsSL https://chatgpt.com/codex/install.sh | sh",
             windows: "irm https://chatgpt.com/codex/install.ps1 | iex",
-            alternatives: &["npm install -g @openai/codex", "brew install --cask codex"],
+            alternatives: &[
+                Alternative {
+                    tool: "npm",
+                    command: "npm install -g @openai/codex",
+                },
+                Alternative {
+                    tool: "brew",
+                    command: "brew install --cask codex",
+                },
+            ],
         },
     }
 }
@@ -228,7 +248,11 @@ mod tests {
             codex.windows,
             "irm https://chatgpt.com/codex/install.ps1 | iex"
         );
-        assert!(codex.alternatives.contains(&"npm install -g @openai/codex"));
+        let npm = codex.alternatives.iter().find(|way| way.tool == "npm");
+        assert_eq!(
+            npm.map(|way| way.command),
+            Some("npm install -g @openai/codex")
+        );
         // Claude Code's are the ones the setup sheet runs.
         assert_eq!(
             installer(AgentKind::Claude).unix,

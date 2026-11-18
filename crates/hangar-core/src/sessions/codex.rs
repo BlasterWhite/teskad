@@ -4,9 +4,10 @@
 //! date (`YYYY/MM/DD/`), and `archived_sessions/` for the threads archived.
 //! A file is named `rollout-<YYYY-MM-DDThh-mm-ss>-<thread id>.jsonl`, or
 //! `…-<thread id>_<rollout id>.jsonl` when a reverted thread went on in a new
-//! file. Codex compresses a rollout left alone for a week into
-//! `….jsonl.zst` (one zstd frame), and writes it back plain when the thread
-//! is resumed: either may be on disk, and for a moment both.
+//! file. With its `LocalThreadStoreCompression` feature on (off by default),
+//! Codex compresses a rollout left alone for a week into `….jsonl.zst` (one
+//! zstd frame), and writes it back plain when the thread is resumed: either
+//! may be on disk, and for a moment both.
 //!
 //! A rollout is JSONL, one `{"timestamp", "type", "payload"}` record a line:
 //! `session_meta` first (the thread's id, the root session's id, its folder,
@@ -247,7 +248,7 @@ pub(crate) struct Meta {
 struct MetaPayload<'a> {
     #[serde(borrow)]
     id: Option<Cow<'a, str>>,
-    /// The root thread of a tree of agents; absent before late 2026.
+    /// The root thread of a tree of agents; absent from older rollouts.
     #[serde(borrow)]
     session_id: Option<Cow<'a, str>>,
     #[serde(borrow)]

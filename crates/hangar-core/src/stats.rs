@@ -238,20 +238,17 @@ fn read_file(found: &Found, previous: Option<&Entry>) -> std::io::Result<Entry> 
             && entry.digest.offset <= found.size
             && entry.digest.agent == found.agent
     });
-    let mut file = fs::File::open(&found.path)?;
     let mut digest = match resumable {
-        Some(entry) => {
-            file.seek(SeekFrom::Start(entry.digest.offset))?;
-            entry.digest.clone()
-        }
+        Some(entry) => entry.digest.clone(),
         None => Digest::new(found.agent, found.sub),
     };
     let consumed = if found.compressed {
-        drop(file);
         // A compressed rollout is finished: its last line counts even
         // without a newline.
         parse::read_into(&mut digest, codex::open_rollout(&found.path)?, true)?
     } else {
+        let mut file = fs::File::open(&found.path)?;
+        file.seek(SeekFrom::Start(digest.offset))?;
         parse::read_into(&mut digest, file, false)?
     };
     digest.offset += consumed;

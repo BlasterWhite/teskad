@@ -1,14 +1,15 @@
 //! One Codex rollout line at a time into the digest (sessions/codex.rs says
 //! what a rollout is).
 //!
-//! Codex reports what it was billed two ways. Since late 2026 every model
-//! response leaves a `token_usage_record` with its own usage and its
-//! response id: that is a call, and the id recognises it in a fork's copy of
-//! the history. Before that, and still alongside, `token_count` events carry
-//! running totals, sometimes the same one twice in a row: a call is then the
-//! difference between two of them. A rollout uses the records once it has
-//! one — Codex writes a response's record before its `token_count` — and the
-//! differences only for what came before (a thread an older Codex started).
+//! Codex reports what it was billed two ways. In its source of 2026-11-19,
+//! every model response leaves a `token_usage_record` with its own usage and
+//! its response id: that is a call, and the id recognises it in a fork's copy
+//! of the history. Older rollouts have none; there, and still alongside,
+//! `token_count` events carry running totals, sometimes the same one twice in
+//! a row: a call is then the difference between two of them. A rollout uses
+//! the records once it has one — Codex writes a response's record before its
+//! `token_count` — and the differences only for what came before (a thread an
+//! older Codex started).
 
 use std::borrow::Cow;
 
@@ -58,7 +59,7 @@ pub struct CodexState {
 struct TurnContext<'a> {
     #[serde(borrow)]
     model: Option<Cow<'a, str>>,
-    /// Absent before late 2026; the same turn's context is written again
+    /// Absent from older rollouts; the same turn's context is written again
     /// after a compaction in the middle of it.
     #[serde(borrow)]
     turn_id: Option<Cow<'a, str>>,

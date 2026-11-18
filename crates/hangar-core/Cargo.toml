@@ -124,9 +124,10 @@ percent-encoding = "2.3"
 dunce = "1.0"
 base64 = "0.22"
 
-# Codex's rollouts — see sessions/codex.rs. Codex compresses the ones left
-# alone for a week (`rollout-….jsonl.zst`), so listing its sessions, its
-# context gauge and the usage statistics mean decoding zstd. ruzstd is a
+# Codex's rollouts — see sessions/codex.rs. Codex can compress the ones left
+# alone for a week (`rollout-….jsonl.zst`, a feature off by default), so
+# listing its sessions, its context gauge and the usage statistics mean
+# decoding zstd. ruzstd is a
 # decoder in pure Rust: no C library to build for the universal macOS bundle
 # or the AppImage, and decoding is all Hangar ever does with them.
 ruzstd = { version = "0.9", default-features = false, features = ["std"] }
