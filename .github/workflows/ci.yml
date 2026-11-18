@@ -21,6 +21,17 @@ env:
   # tracking nobody reuses — and it is what makes the cached target directory
   # big enough for restoring it to cost more than it saves.
   CARGO_INCREMENTAL: 0
+  # File and line in a backtrace, which is what a failing test needs, without
+  # the full debug info (types, variables) nobody opens on a runner: less to
+  # compile, link and cache. The test profile inherits it.
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  # Windows links with the LLVM linker rustup ships (the MSVC flavour of lld,
+  # found beside rustc). Every build script, proc macro and test binary is a
+  # link: building the tests from scratch took 6 min 50 with it and 11 min 12
+  # with link.exe (PR #17). Only read for that target; Linux has mold, set up
+  # in the job. The linker is part of cargo's fingerprints, so changing it
+  # rebuilds everything once.
+  CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER: rust-lld.exe
 
 jobs:
   # Every target we ship, because most of what is platform-specific here is
@@ -51,6 +62,7 @@ jobs:
           Add-MpPreference -ExclusionProcess "rustc.exe"
           Add-MpPreference -ExclusionProcess "cargo.exe"
           Add-MpPreference -ExclusionProcess "link.exe"
+          Add-MpPreference -ExclusionProcess "rust-lld.exe"
 
       # The window itself needs nothing at build time on Linux: winit loads
       # Wayland, X11 and xkbcommon when it starts. What remains is the voice
@@ -71,12 +83,28 @@ jobs:
             libclang-dev \
             libssl-dev
 
+      # mold in place of the system linker (`ld` is made to point to it), for
+      # everything this job links natively: most of a test binary's time after
+      # its crates compile is the link, and mold does it several times faster
+      # than GNU ld. The arm64 check below links with its own cross linker.
+      # The action at a commit, the linker at a version.
+      - uses: rui314/setup-mold@339e96b4ff1f3bd865856ba4cbbe8818a7acb038 # v1
+        if: runner.os == 'Linux'
+        with:
+          mold-version: 3.0.0
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
           targets: wasm32-unknown-unknown
 
+      # main's cache, restored by every run and saved by main's alone. A run
+      # reads the caches of its own ref and main's, so what a pull request
+      # saved would serve that pull request only, while pushing main's out of
+      # the repository's 10 GB.
       - uses: swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       # remote/assets.rs embeds Hangar Mobile's dist-mobile/. The Rust checks
       # do not care about its contents, and the mobile job below builds it; an
