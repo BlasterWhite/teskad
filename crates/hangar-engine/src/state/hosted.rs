@@ -19,8 +19,11 @@
 use serde::{Deserialize, Deserializer, Serialize};
 
 use super::Store;
-use super::layout::{grid_tree, insert_leaf, leaf, leaf_ids, normalize_tree, remove_leaf};
+use super::layout::{add_beside, grid_tree, leaf, normalize_tree, pinned_grid, remove_leaf};
 use super::layout::{preset_tree, rename_leaf};
+// What the tests name through `super::*`, which the merge no longer does.
+#[cfg(test)]
+use super::layout::{insert_leaf, leaf_ids};
 use super::store::{PanePatch, Respawn, StoreAction, StoreOutcome, WorkspacePatch};
 use super::types::{
     AgentId, DropZone, Extra, OrchestrationSettings, Pane, PaneId, PaneRole, SplitNode, Workspace,
@@ -150,6 +153,10 @@ fn workspace_fields(ws: &Workspace) -> WorkspaceFields {
         theme_id: _,
         tree: _,
         view_panes: _,
+        // Its pins too, as its tree: how this window lays its grid out. A
+        // pane pinned here is not pinned on the node, nor on another
+        // desktop mirroring it.
+        pins: _,
         saved_commands: _,
         folder_id: _,
         detached: _,
@@ -286,16 +293,18 @@ pub fn mirror_of(node: &str, theirs: &Workspace) -> Workspace {
 ///
 /// The split tree follows the panes. One the node respawned (gone under one
 /// id, there under another, with the same name: names stay with their pane)
-/// keeps its leaf under the new id, and is answered so that what else is
-/// keyed by the pane can follow. One that appeared is placed where `AddPane`
-/// would place it, beside the last pane; one gone gives its room to its
-/// sibling. A tree whose panes did not change is left exactly as it was.
+/// keeps its leaf and its pin under the new id, and is answered so that what
+/// else is keyed by the pane can follow. One that appeared is placed where
+/// `AddPane` would place it, beside the last pane that is not pinned; one
+/// gone gives its room to its sibling, and its pin goes. A tree whose panes
+/// did not change is left exactly as it was.
 pub fn merge(mirror: &Workspace, theirs: &Workspace) -> (Workspace, Vec<Respawn>) {
     let mut next = mirror.clone();
     workspace_fields(theirs).apply(&mut next);
     next.hosted = Some(true);
     let gone = |pane: &Pane| !theirs.panes.iter().any(|their| their.id == pane.id);
-    let mut tree = (mirror.pane_count() > 0).then(|| grid_tree(mirror));
+    let (grid, mut pins) = pinned_grid(mirror);
+    let mut tree = (mirror.pane_count() > 0).then_some(grid);
     let mut respawns = Vec::new();
     // The node's panes, each in the place of the mirror's pane it continues.
     let mut continued: Vec<Option<Pane>> = vec![None; mirror.panes.len()];
@@ -317,6 +326,11 @@ pub fn merge(mirror: &Workspace, theirs: &Workspace) -> (Workspace, Vec<Respawn>
         let before = &mirror.panes[at];
         if before.id != their.id {
             tree = tree.map(|tree| rename_leaf(&tree, &before.id, &their.id));
+            for pin in pins.iter_mut().chain(next.pins.iter_mut()) {
+                if pin.id == before.id {
+                    pin.id = their.id.clone();
+                }
+            }
             respawns.push(Respawn {
                 ws: mirror.id.clone(),
                 from: before.id.clone(),
@@ -345,15 +359,13 @@ pub fn merge(mirror: &Workspace, theirs: &Workspace) -> (Workspace, Vec<Respawn>
     // is going, is put beside it before it goes.
     for pane in &appeared {
         tree = Some(match &tree {
-            Some(tree) => {
-                let last = leaf_ids(tree).pop().unwrap_or_default();
-                insert_leaf(tree, &last, &pane.id, DropZone::Right)
-            }
+            Some(tree) => add_beside(tree, &pins, None, &pane.id, DropZone::Right),
             None => leaf(pane.id.clone()),
         });
     }
     for pane in closed {
         tree = tree.and_then(|tree| remove_leaf(&tree, &pane.id));
+        next.pins.retain(|pin| pin.id != pane.id);
     }
     next.tree = Some(tree.unwrap_or_else(|| preset_tree(&next.leaf_ids())));
     (next, respawns)
