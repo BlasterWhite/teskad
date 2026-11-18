@@ -24,6 +24,7 @@
 //! off the app's own.
 
 pub mod accounts;
+pub mod agent;
 #[cfg(feature = "desktop")]
 pub mod autostart;
 pub mod board;
