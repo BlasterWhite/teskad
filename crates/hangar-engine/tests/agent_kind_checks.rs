@@ -180,6 +180,10 @@ const ALLOWED: &[Allowed] = &[
         "crates/hangar-app/src/shell/setup/",
         "the setup sheet installs and signs in each kind (D17): installers, sign-in panes, slots",
     ),
+    whole(
+        "crates/hangar-node/src/transcripts.rs",
+        "a node's transcript routes per kind (§6.8): each kind's reader, Claude Code's when none is named",
+    ),
     // Lines that map a kind to what is its own, with no capability to read.
     only(
         "crates/hangar-core/src/kits.rs",
@@ -288,6 +292,37 @@ const ALLOWED: &[Allowed] = &[
         ],
         "settings rows kept once per kind (commands, default agents, setup), Codex's « beta » (D21)",
     ),
+    only(
+        "crates/hangar-node/src/api.rs",
+        &[
+            "agent(&node.versions, AgentKind::Claude),",
+            "agent(&node.versions, AgentKind::Codex)",
+        ],
+        "`/node/info` reports each kind under its own key, `claude` and `codex` (§6.8)",
+    ),
+    only(
+        "crates/hangar-app/src/nodes/chat.rs",
+        &["if kind != AgentKind::Claude {"],
+        "a node's routes read Claude Code's when a request names no kind, as before Codex (§6.8)",
+    ),
+    only(
+        "crates/hangar-app/src/nodes/model.rs",
+        &[
+            "AgentKind::Claude => &self.agents.claude,",
+            "AgentKind::Codex => &self.agents.codex,",
+            "installed: kind == AgentKind::Claude && self.claude,",
+        ],
+        "a node's agents kept once per kind; one from before Codex said whether Claude Code is there",
+    ),
+    only(
+        "crates/hangar-app/src/nodes/page.rs",
+        &[
+            "AgentKind::Claude => (Key::NodesClaudeFound, Key::NodesClaudeMissing),",
+            "AgentKind::Codex => (Key::NodesCodexFound, Key::NodesCodexMissing),",
+            "matches!(kind, AgentKind::Codex)",
+        ],
+        "each kind's own strings on a node's row, Codex's « beta » (§7, decision 5)",
+    ),
     // Features that name a kind where they should read a capability.
     only(
         "crates/hangar-core/src/pty.rs",
@@ -320,29 +355,9 @@ const ALLOWED: &[Allowed] = &[
         "TODO(capability): the context gauge is kept for Claude Code panes only; read `caps.usage.context`",
     ),
     only(
-        "crates/hangar-app/src/chat_view/conversation/mod.rs",
-        &["if pane.agent != AgentId::Claude {"],
-        "TODO(capability): the chat's input is refused to any agent but Claude Code; read `caps.inject` (T26)",
-    ),
-    only(
         "crates/hangar-app/src/git_flow/deps.rs",
         &["agents: vec![AgentId::Claude],"],
         "TODO(capability): a clone's workspace starts Claude Code; start the default orchestrator agent (D20)",
-    ),
-    only(
-        "crates/hangar-app/src/inspector/sections.rs",
-        &["if s.pane.agent == AgentId::Claude"],
-        "TODO(capability): the MCP servers row shows for Claude Code only; read `caps.mcp` (T26)",
-    ),
-    only(
-        "crates/hangar-app/src/inspector/sections.rs",
-        &["let show_plan = s.pane.agent == AgentId::Claude;"],
-        "TODO(capability): plan limits show for Claude Code only; read `caps.usage.limits` (T26)",
-    ),
-    only(
-        "crates/hangar-app/src/inspector/view.rs",
-        &["let claude = pane.agent == AgentId::Claude;"],
-        "TODO(capability): the inspector's agent sections are read for Claude Code only (T26)",
     ),
     only(
         "crates/hangar-app/src/mcp/servers_panel.rs",
@@ -350,17 +365,14 @@ const ALLOWED: &[Allowed] = &[
         "TODO(capability): only Claude Code panes are counted and restarted for an MCP change; read `caps.mcp`",
     ),
     only(
-        "crates/hangar-app/src/panes/look.rs",
-        &[
-            r#"AgentKind::Claude => Some(b"\x1b\r"),"#,
-            r#"AgentKind::Codex => Some(b"\n"),"#,
-        ],
-        "TODO(capability): Shift+Enter's bytes follow the kind (T26 may make them a capability)",
+        "crates/hangar-app/src/mobile/live.rs",
+        &["hangar_core::agent::AgentKind::Claude,"],
+        "TODO(capability): Mobile reads a node pane's chat as Claude Code's whatever it runs; pass its kind",
     ),
     only(
-        "crates/hangar-app/src/session_picker/mod.rs",
-        &["if kind != AgentKind::default() {"],
-        "TODO(capability): a node's sessions are asked for Claude Code only until its route takes a kind (T29)",
+        "crates/hangar-app/src/panes_logic/remote_transcripts.rs",
+        &["remote::context(&client, AgentKind::Claude, &session, &cwd).await"],
+        "TODO(capability): a node pane's context is read as Claude Code's whatever it runs; pass its kind",
     ),
     only(
         "crates/hangar-app/src/accounts/mod.rs",
