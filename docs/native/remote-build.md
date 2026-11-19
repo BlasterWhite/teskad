@@ -32,7 +32,11 @@ compile anything locally: when no machine can be had they exit with code
    or a delivery check's scratch worktree, starts warm. Three workers calling
    at once get three lanes and build side by side; there is no lock around a
    build, only the lane's own.
-3. **The sources.** The files `git ls-files` lists (tracked, and untracked
+3. **Room on the disk.** Before anything is sent, the box makes sure it has
+   20 GB or 15 % of its disk free, whichever is more, by pruning idle lanes
+   if it must ([below](#the-disk)). If it cannot, the call exits with 75 and
+   says what holds the disk.
+4. **The sources.** The files `git ls-files` lists (tracked, and untracked
    ones git does not ignore) go to the lane by `rsync --checksum`, without
    their times: a file whose content did not change keeps the time of the
    lane's last build, so cargo rebuilds only what changed, even coming from
@@ -40,11 +44,14 @@ compile anything locally: when no machine can be had they exit with code
    files over 16 MB, in a tool's folder (`.claude`, `.hangar`, `.vscode`…) or
    named like a secret (`.env`, `*.pem`, `id_*`, `*token*`…). Files the
    worktree no longer has are removed from the lane.
-4. **cargo** runs with the CI's environment: `CARGO_PROFILE_DEV_DEBUG=line-tables-only`,
+5. **cargo** runs with the CI's environment: `CARGO_PROFILE_DEV_DEBUG=line-tables-only`,
    `ICED_TEST_BACKEND=tiny-skia`, an empty `dist-mobile/`, no
    `HANGAR_PORT_BASE` (nothing of the PC's environment is sent). Unlike the CI
-   it keeps incremental compilation, since the lanes are reused.
-5. **After it**, the label goes back to idle, and a reaper waits on the PC.
+   (`CARGO_INCREMENTAL=0`) it keeps rustc's incremental caches, since the
+   lanes are reused: a check after a one-line change takes 109 s with them,
+   150 s without ([measured](#the-disk)), for 5 GB a lane that the disk guard
+   frees first.
+6. **After it**, the label goes back to idle, and a reaper waits on the PC.
 
 `rbuild check` runs the steps of the CI's rust job on ubuntu-22.04, in its
 order, and stops at the first failure (`--keep-going` runs them all):
@@ -59,7 +66,7 @@ Windows job stay with GitHub CI.
 Vast.ai rents the spare capacity of other people's GPU servers; the GPU goes
 unused, the build runs on the CPU cores that come with it. An offer is
 picked among the verified hosts in Europe with at least 32 threads, 63 GB of
-memory, a 70 GB disk, 200/100 Mb/s and 98 % reliability, under 0.32 $/h, by
+memory, a 150 GB disk, 200/100 Mb/s and 98 % reliability, under 0.32 $/h, by
 the cost of a two-hour session plus the seed's upload, divided by its build
 speed (threads, and a thread's speed counted twice: a warm build is mostly
 serial). `scripts/remote/rbuild offers` shows the ranking. The image is
@@ -100,11 +107,13 @@ mirror is refreshed in the background (`~/.local/state/hangar-rbuild/background.
 when rustc changed, or when the dependencies changed and it is over 12 hours
 old; the PC's reaper does the same before destroying a machine. A new
 machine receives the mirror while it installs its packages, and each of its
-lanes starts from it: only the workspace's crates are compiled. A lane that
-finds no seed on its machine starts from what another lane built there
-(`/root/hb/seed-out`, the snapshot made for the mirror). A new stable Rust
-makes the mirror useless until the next check refreshes it (that day's first
-build is cold, as it is in the CI).
+lanes starts from it: only the workspace's crates are compiled. To refresh
+the mirror, the box first copies a lane's dependencies to
+`/root/hb/seed-out` (6 GB); once the PC has pulled it, that copy becomes the
+box's seed in place of the older one, so the disk holds one seed, never two.
+An empty lane starts from the newer of the two built by the box's rustc. A
+new stable Rust makes the mirror useless until the next check refreshes it
+(that day's first build is cold, as it is in the CI).
 
 Measured on 19 November 2026, on a 32-thread AMD EPYC 7763 (Italy) and 7J13
 (Norway) with a cgroup quota of about 30 CPUs, which cargo and the test
@@ -130,6 +139,75 @@ faster for it (536 s from nothing, against about 520 s cold). Seeding pays
 when several workers arrive together: each new lane starts with the
 dependencies instead of compiling them alongside the others.
 
+## The disk
+
+The box has 150 GB (`HANGAR_RBUILD_DISK`). A lane's `target/` grows with
+every build: on 19 November 2026 four lanes of 8 to 20 GB and a 6 GB
+seed-out filled a 70 GB disk, and every call failed in rsync with "No space
+left on device". So before each run, once it holds its lane and before a
+file is sent, the box checks its free space against the larger of 20 GB
+(`HANGAR_RBUILD_MIN_FREE`) and 15 % of its disk
+(`HANGAR_RBUILD_MIN_FREE_PCT`): 24.2 GB, Vast's 150 GB being 150 GiB
+(161.1 GB). A lane started from the seed grows by about that much in its
+first check. Short of it, the box frees what
+can be rebuilt, least useful first, and stops as soon as it has enough:
+
+1. a seed-out the PC never took (made over 30 minutes ago: a pull that
+   failed or was cut);
+2. the incremental caches (`debug/incremental`, and the per-unit ones of
+   cargo's build-dir layout, `debug/build/<package>/<hash>/incremental`) and
+   `debug/examples` of the idle lanes, least recently used first;
+3. the whole `target/` of the idle lanes, least recently used first: the next
+   run there starts from the seed;
+4. the run's own lane: its caches, then its `target/`.
+
+A lane is idle when its lock is free, and the pruning holds that lock while
+it deletes; a lane another run holds is never touched. If the disk is still
+short, the run is refused before a file is sent: exit 75, with the free
+space, what was pruned and which lanes are busy. Run it again when they
+finish, or `rbuild stop` for a new, empty machine. The copy made for the
+mirror (seed-out) passes the same guard first, keeping its own lane's
+`target/`, which is what it copies. And a step that fails while less than
+2 GB is left (several lanes growing at once after passing the guard) makes
+the call exit with 75 rather than cargo's code: a full disk says nothing
+about the code.
+
+Each pruning is a `prune` event in the journal, and each build records the
+free space at its start and end. `rbuild status` shows the box's free disk,
+the threshold, each lane's size (and how much of it is incremental caches
+and examples), the seed and seed-out, and the last prunings.
+
+Tried on 19 November 2026 on a trial box (`HANGAR_RBUILD_LABEL`; EPYC 7J13,
+Norway; threshold 24.2 GB). Lanes 1 to 3 were copies of a built lane of 21 GB (5.0 GB of
+`debug/incremental`, 1.2 GB of `debug/examples`, the rest `debug/build`),
+lane 3 the least recently used but held by another run, and a `fallocate`d
+file set the free space before each call:
+
+| Free before the call | What the guard pruned | Result |
+|---|---|---|
+| 20.0 GB | lane 3 skipped (busy); lane 1's caches and examples (5.2 GB) | the call ran, 25.2 GB free |
+| 10.0 GB | lane 2's caches and examples (5.2 GB), then lane 1's `target/` (17.0 GB) | ran, 31.9 GB free |
+| 1.0 GB | lane 2's `target/` (17.0 GB), then the call's own lane: caches (5.2 GB) and `target/` (17.0 GB) | ran from the seed (copied in 4 s), 40.2 GB free |
+| 5.0 GB, every idle lane already empty | the own lane's `target/` (7.4 GB) | refused in 4 s, nothing synced: exit 75, "the build machine's disk is short: 12.4 GB free of 161.1 GB, and a run starts with 24.2 GB free (…); lane 3 busy, left alone" |
+| 1.5 GB, the guard off (`HANGAR_RBUILD_MIN_FREE=0 HANGAR_RBUILD_MIN_FREE_PCT=0`) | nothing; the seed's copy failed (cold build), cargo stopped on "No space left on device" | exit 75 (cargo's 101 in the journal): "the box's disk filled up during this run" |
+
+Lane 3 was never touched. Once a seed pull had taken `/root/hb/seed-out`,
+it replaced the box's seed: 6.5 GB freed.
+
+The incremental caches, measured the same day on that box in one lane, with
+the same one-line change in `hangar-app` made, then undone:
+
+| `rbuild check` | Incremental caches (cargo's default) | `CARGO_INCREMENTAL=0` (the CI's) |
+|---|---|---|
+| after the change, then after undoing it | 109 s and 109 s: clippy 7 s, tests 78 s | 150 s and 149 s: clippy 19 s, tests 104 s |
+| nothing changed | 94 s | 96 s |
+| disk | 5.0 GB of `debug/incremental` in a 21 GB lane | none written |
+
+The box keeps them: 40 s saved on every check that follows a change, for
+5 GB a lane that the guard drops first when the disk is short. Switching
+from one to the other recompiles the workspace's crates once in each lane
+(the first check after it took 228 s).
+
 ## Costs and the guard
 
 The machine costs 0.28 to 0.32 $/h, its disk included; traffic is billed by
@@ -149,8 +227,8 @@ Over it, the call exits with 75. The aps5 project's own guard counts the
 whole Vast account, this tool's spend included.
 
 The journal is `~/.local/state/hangar-rbuild/events.jsonl`: every creation,
-destruction, transfer and build, with its durations. `rbuild status` sums it
-up.
+destruction, transfer, build and pruning of the box's disk, with its
+durations. `rbuild status` sums it up.
 
 ## Settings
 
@@ -162,7 +240,9 @@ up.
 | `HANGAR_RBUILD_MIN_THREADS`, `HANGAR_RBUILD_MIN_RAM` | 32, 63 | smallest offer (threads, GB) |
 | `HANGAR_RBUILD_MAX_DPH` | 0.32 | dearest offer, $/h |
 | `HANGAR_RBUILD_MAX_STORAGE` | 0.40 | dearest disk, $/GB-month |
-| `HANGAR_RBUILD_DISK` | 70 | GB of disk |
+| `HANGAR_RBUILD_DISK` | 150 | GB of disk |
+| `HANGAR_RBUILD_MIN_FREE`, `HANGAR_RBUILD_MIN_FREE_PCT` | 20, 15 | the box keeps the larger of this many GB and this % of its disk free before a run, pruning idle lanes ([the disk](#the-disk)) |
+| `HANGAR_RBUILD_INCREMENTAL` | unset (cargo's default: on) | `0` or `1`: `CARGO_INCREMENTAL` for the box's cargo; a change recompiles the workspace's crates once in each lane |
 | `HANGAR_RBUILD_SKIP_MACHINES` | | Vast machine ids never to rent |
 | `HANGAR_RBUILD_ANYWHERE` | | `1` to rent outside Europe too |
 | `HANGAR_RBUILD_LABEL`, `HANGAR_RBUILD_STATE` | `hangar-rbuild`, `~/.local/state/hangar-rbuild` | a trial machine beside the shared one: another label (the GitHub reaper ignores it, so `rbuild stop` it) and another journal |
@@ -171,9 +251,12 @@ up.
 
 - **Exit 75**: no machine. The message says why: the guard, no offer under
   the price (`rbuild offers`; raise `HANGAR_RBUILD_MAX_DPH` or lower
-  `HANGAR_RBUILD_MIN_THREADS`), Vast refusing, SSH not answering, or the
-  connection lost during a run (the host reclaimed it). Run it again: the next
-  call rents another machine. Nothing was compiled locally.
+  `HANGAR_RBUILD_MIN_THREADS`), Vast refusing, SSH not answering, the
+  connection lost during a run (the host reclaimed it), or the box's disk
+  short even after pruning its idle lanes (the message names the busy ones;
+  `rbuild status` shows what holds the disk). Run it again: the next call
+  rents another machine, or finds the lanes free. Nothing was compiled
+  locally.
 - **A host that misbehaves** (SSH refused, slow disk): `rbuild stop`, then
   `HANGAR_RBUILD_SKIP_MACHINES=<machine id>` (`rbuild status` shows it).
 - **Look around**: `scripts/remote/rbuild ssh` opens a shell on it (the lanes

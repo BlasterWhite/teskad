@@ -8,9 +8,11 @@
 The machine is one Vast.ai instance (the CPU cores of a GPU host), rented on the first call, labelled
 "hangar-rbuild <last use> <boot|busy|idle>", and destroyed 60 min after its last use, by this PC's reaper or by
 .github/workflows/rbuild-reaper.yml when the PC is off. A new one starts from the mirror of the last one's
-dependencies in ~/.cache/hangar-rbuild/seed (built crates and the cargo registry). Exit codes: cargo's own; 75
-when no build machine can be had (budget guard, no offer, Vast refusing, connection lost); 2 for a usage error.
-It never falls back to compiling here. How it works, costs, troubleshooting: docs/native/remote-build.md.
+dependencies in ~/.cache/hangar-rbuild/seed (built crates and the cargo registry). Before each run the box keeps
+20 GB or 15 % of its disk free, pruning idle lanes if it must. Exit codes: cargo's own; 75 when no build machine
+can be had (budget guard, no offer, Vast refusing, connection lost, its disk short even after pruning, or filled up
+during the run); 2 for a usage error. It never falls back to compiling here. How it works, costs, troubleshooting:
+docs/native/remote-build.md.
 """
 import base64
 import datetime
@@ -49,6 +51,14 @@ GUARD = env_float("HANGAR_RBUILD_GUARD", 5)               # $ a day, this tool's
 IDLE_MIN = env_float("HANGAR_RBUILD_IDLE_MIN", 60)        # destroyed after this long without a run
 BUSY_MAX_MIN = env_float("HANGAR_RBUILD_BUSY_MAX_MIN", 240)  # a "busy" label older than this is a lost run
 DISK_GB = int(env_float("HANGAR_RBUILD_DISK", 150))  # 4 lanes of ~20 GB each, the seed, and room to grow
+# Before a run the box keeps this much free, pruning idle lanes to get it (vm/remote.py ensure_space): the larger of
+# MIN_FREE_GB and MIN_FREE_PCT % of its disk. A lane started from the seed grows by 15 to 20 GB in its first check.
+MIN_FREE_GB = env_float("HANGAR_RBUILD_MIN_FREE", 20)
+MIN_FREE_PCT = env_float("HANGAR_RBUILD_MIN_FREE_PCT", 15)
+# CARGO_INCREMENTAL on the box: left unset (cargo's default for these dev builds: on) unless "0" or "1" is given. On
+# 19 November 2026, a check after a one-line change in hangar-app took 109 s with rustc's incremental caches and 150 s
+# without (the CI's setting); they take 5 GB of a 21 GB lane, which the disk guard frees first from idle lanes.
+INCREMENTAL = os.environ.get("HANGAR_RBUILD_INCREMENTAL", "")
 MAX_DPH = env_float("HANGAR_RBUILD_MAX_DPH", 0.32)
 MAX_STORAGE = env_float("HANGAR_RBUILD_MAX_STORAGE", 0.40)  # $ per GB-month
 MIN_THREADS = int(env_float("HANGAR_RBUILD_MIN_THREADS", 32))
@@ -141,6 +151,16 @@ def midnight():
 
 def gb(n):
     return f"{n / 1e9:.2f} GB"
+
+
+def gb1(n):
+    return f"{(n or 0) / 1e9:.1f} GB"
+
+
+def pruned_text(items):
+    return ", ".join(f"lane {p['lane']}'s {'incremental caches and examples' if p['what'] == 'incremental' else 'target'} ({gb1(p['bytes'])})"
+                     if "lane" in p else f"{'the abandoned seed-out' if p['what'] == 'seed-out' else 'the older seed'} ({gb1(p['bytes'])})"
+                     for p in items)
 
 
 # ------------------------------------------------------------------------------------------------ Vast
@@ -641,13 +661,19 @@ class SeedPush(threading.Thread):
 
 
 def seed_pull(m, lane):
-    """The mirror follows the box: the dependency artifacts of a lane that ran the whole check, and the registry."""
+    """The mirror follows the box: the dependency artifacts of a lane that ran the whole check, and the registry.
+    Once pulled, the box's /root/hb/seed-out becomes its seed (in place of the older one): one copy on its disk."""
     with Flock("seed.lock", "another seed pull"):
         t0 = time.time()
-        r = ssh(m, f"python3 /root/hb/bin/remote.py seed-out {int(lane)}", timeout=1800)
+        r = ssh(m, f"python3 /root/hb/bin/remote.py seed-out {int(lane)} {MIN_FREE_GB:g} {MIN_FREE_PCT:g}", timeout=1800)
         out = remote_tagged(r.stdout, "SEED") if r.returncode == 0 else None
         if out is None:
             raise Unavailable(f"seed-out: {(r.stderr or r.stdout).strip()[-300:]}")
+        space = out.get("disk") or {}
+        if space.get("pruned"):
+            say(f"box disk short before the seed's copy: pruned {pruned_text(space['pruned'])}")
+            jlog("prune", id=m["id"], reason="disk guard (seed-out)", free=space["free"], free_after=space["free_after"],
+                 need=space["need"], total=space["total"], items=space["pruned"], busy=space.get("busy", []), ok=space["ok"])
         os.makedirs(SEED, exist_ok=True)
         tag = os.path.join(SEED, "seed.json")
         if os.path.exists(tag):
@@ -666,6 +692,14 @@ def seed_pull(m, lane):
         jlog("transfer", id=m["id"], what="seed pull", bytes=got, s=round(time.time() - t0, 1), traffic_usd=round(usd, 5),
              seed_bytes=size, key=out["key"])
         say(f"seed mirror refreshed: {gb(size)} on disk, {gb(got)} over the network in {time.time() - t0:.0f} s ({usd:.3f} $)")
+        r = ssh(m, f"python3 /root/hb/bin/remote.py seed-pulled {out.get('created', 0)!r}", timeout=300)
+        done = remote_tagged(r.stdout, "PULLED") if r.returncode == 0 else None
+        if done is None:
+            say(f"/root/hb/seed-out left on the box (the disk guard removes it once abandoned): {(r.stderr or r.stdout).strip()[-200:]}")
+        elif done.get("promoted"):
+            say(f"/root/hb/seed-out is now the box's seed: {gb1(done['freed'])} of older seed freed, {gb1(done['free'])} free")
+            jlog("prune", id=m["id"], reason="seed pulled: seed-out replaced the older seed", free_after=done["free"],
+                 total=done["total"], items=[{"what": "seed", "bytes": done["freed"]}], ok=True)
 
 
 # ------------------------------------------------------------------------------------------------ a run
@@ -724,11 +758,12 @@ def remote_run(kind, steps, keep_going=False, retry=True):
     vm_s = time.time() - t0
     color = os.environ.get("CARGO_TERM_COLOR") or ("always" if sys.stdout.isatty() else "never")
     payload = base64.b64encode(json.dumps({"key": key, "worktree": top, "lanes": LANES, "steps": steps, "color": color,
-                                           "keep_going": keep_going, "kind": kind}).encode()).decode()
+                                           "keep_going": keep_going, "kind": kind, "min_free_gb": MIN_FREE_GB,
+                                           "min_free_pct": MIN_FREE_PCT, "incremental": INCREMENTAL}).encode()).decode()
     proc = subprocess.Popen(["ssh", *ssh_opts(m), f"root@{m['host']}", f"python3 /root/hb/bin/remote.py run {payload}"],
                             stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     lane = exit_info = None
-    sync = {}
+    sync, space = {}, {}
     retired = False
     out = sys.stdout.buffer
     try:
@@ -743,6 +778,13 @@ def remote_run(kind, steps, keep_going=False, retry=True):
             tag, _, data = raw[k + 5:].decode("utf-8", "replace").strip().partition(" ")
             if tag == "RETIRED":
                 retired = True
+            elif tag == "DISK":
+                space = json.loads(data)
+                if space.get("pruned"):
+                    say(f"box disk short ({gb1(space['free'])} free, {gb1(space['need'])} kept before a run): pruned "
+                        f"{pruned_text(space['pruned'])}; {gb1(space['free_after'])} free now")
+                    jlog("prune", id=m["id"], reason="disk guard", worktree=top, free=space["free"], free_after=space["free_after"],
+                         need=space["need"], total=space["total"], items=space["pruned"], busy=space.get("busy", []), ok=space["ok"])
             elif tag == "LANE":
                 lane = json.loads(data)
                 t1 = time.time()
@@ -778,24 +820,45 @@ def remote_run(kind, steps, keep_going=False, retry=True):
         with Flock("instance.lock", "instance"):
             destroy(m, "its watchdog stopped the build service")
         return remote_run(kind, steps, keep_going, retry=False)
+    if space and not space.get("ok"):
+        set_label(m["id"], "busy" if space.get("busy") else "idle")
+        jlog("build", id=m["id"], kind=kind, worktree=top, lane=space.get("lane"), code=UNAVAILABLE, total_s=round(total, 1), disk_short=True,
+             free_gb=round(space["free_after"] / 1e9, 1), argv=steps[0]["argv"] if kind == "cargo" else None)
+        spawn("reap", "--watch")
+        busy = space.get("busy") or []
+        raise Unavailable(f"the build machine's disk is short: {gb1(space['free_after'])} free of {gb1(space['total'])}, and a run starts with "
+                          f"{gb1(space['need'])} free (HANGAR_RBUILD_MIN_FREE, HANGAR_RBUILD_MIN_FREE_PCT)"
+                          + (f"; pruned {pruned_text(space['pruned'])} first" if space.get("pruned") else "")
+                          + (f"; lane{'s' if len(busy) > 1 else ''} {', '.join(map(str, busy))} busy, left alone: run it again "
+                             f"when {'they finish' if len(busy) > 1 else 'it finishes'}" if busy else "; nothing left to prune")
+                          + " (`rbuild status` shows what holds the disk; `rbuild stop` gives a new machine)")
     if exit_info is None:
         jlog("build", id=m["id"], kind=kind, worktree=top, code=UNAVAILABLE, total_s=round(total, 1), lost=True)
         raise Unavailable(f"connection to the build machine lost (ssh exit {proc.returncode}); the instance may have been reclaimed")
     set_label(m["id"], "busy" if exit_info.get("busy") else "idle")
+    code = exit_info["code"]
+    if exit_info.get("disk_full"):
+        code = UNAVAILABLE
     traffic = sync.get("sent", 0) / 1e9 * m["down_cost"]
-    jlog("build", id=m["id"], kind=kind, worktree=top, lane=exit_info["lane"], code=exit_info["code"], vm_s=round(vm_s, 1),
+    jlog("build", id=m["id"], kind=kind, worktree=top, lane=exit_info["lane"], code=code, vm_s=round(vm_s, 1),
          wait_s=(lane or {}).get("wait_s"), sync_s=sync.get("sync_s"), prep_s=exit_info.get("prep_s"), total_s=round(total, 1),
          steps=exit_info["steps"], sent=sync.get("sent", 0), traffic_usd=round(traffic, 6),
-         argv=steps[0]["argv"] if kind == "cargo" else None)
+         argv=steps[0]["argv"] if kind == "cargo" else None, incremental=INCREMENTAL or None,
+         free_gb=round(space["free_after"] / 1e9, 1) if space else None,
+         free_end_gb=round(exit_info["free"] / 1e9, 1) if exit_info.get("free") is not None else None,
+         **({"disk_full": True, "cargo_code": exit_info["code"]} if code != exit_info["code"] else {}))
     summary = ", ".join(f"{s['name']} {'ok' if s['code'] == 0 else 'FAILED'} {s['s']:.0f} s" for s in exit_info["steps"])
     say(f"{kind} {'ok' if exit_info['code'] == 0 else 'failed (exit ' + str(exit_info['code']) + ')'} in {total:.0f} s on instance {m['id']} "
         f"(machine {vm_s:.0f} s, sync {sync.get('sync_s', 0):.0f} s, lane prep {exit_info.get('prep_s', 0):.0f} s): {summary}")
+    if code != exit_info["code"]:
+        say(f"the box's disk filled up during this run ({gb1(exit_info['free'])} left): cargo's failure says nothing about the code. "
+            "Exit 75; run it again, the next run prunes idle lanes first")
     if kind == "check" and any(s["name"] == "test" for s in exit_info["steps"]):
         if seed_stale(exit_info.get("seed_key"), exit_info.get("rustc")):
             say("the seed mirror is out of date: refreshing it in the background (~/.local/state/hangar-rbuild/background.log)")
             spawn("seed", "pull", "--id", str(m["id"]), "--lane", str(exit_info["lane"]))
     spawn("reap", "--watch")
-    return exit_info["code"]
+    return code
 
 
 # ------------------------------------------------------------------------------------------------ reaping
@@ -908,6 +971,8 @@ def cmd_status():
         print(f"  {inst.get('geolocation')}, {(inst.get('cpu_name') or '').strip()}, {inst.get('cpu_cores_effective', 0):.0f} threads, "
               f"{inst.get('cpu_ram', 0) / 1024:.0f} GB, disk {inst.get('disk_space', 0):.0f} GB, {m['dph']:.3f} $/h, "
               f"traffic {m['down_cost']:.4f}/{m['up_cost']:.4f} $/GB down/up, ssh root@{m['host']} -p {m['port']}")
+        if inst.get("actual_status") == "running" and m["port"]:
+            print_box_disk(m)
     print(f"today: {usd:.2f} $ ({hours:.1f} h of build machine, traffic {traffic:.3f} $), guard {GUARD:.2f} $ (HANGAR_RBUILD_GUARD)")
     info = seed_info()
     if info:
@@ -918,9 +983,36 @@ def cmd_status():
     builds = [e for e in jread() if e["event"] == "build"][-5:]
     for b in builds:
         steps = " ".join(f"{s['name']}={s['s']:.0f}s" for s in b.get("steps") or [])
-        print(f"  {b['time']} {b.get('kind')} exit {b.get('code')} in {b.get('total_s')} s, lane {b.get('lane')}, "
-              f"{os.path.basename(b.get('worktree', ''))} {steps}")
+        free = f", {b['free_gb']:.0f}→{b['free_end_gb']:.0f} GB free" if b.get("free_gb") is not None and b.get("free_end_gb") is not None else ""
+        print(f"  {b['time']} {b.get('kind')} exit {b.get('code')} in {b.get('total_s')} s, lane {b.get('lane')}{free}, "
+              f"{os.path.basename(b.get('worktree', ''))} {steps}" + (" (disk short: refused)" if b.get("disk_short") else ""))
+    prunes = [e for e in jread() if e["event"] == "prune"][-5:]
+    if prunes:
+        print("pruned on the box (the last ones):")
+    for p in prunes:
+        print(f"  {p['time']} instance {p.get('id')}: {pruned_text(p.get('items') or [])} ({p.get('reason')}), "
+              f"{gb1(p.get('free_after'))} free after" + ("" if p.get("ok", True) else ", still short: run refused"))
     return 0
+
+
+def print_box_disk(m):
+    """The box's free disk, what the guard keeps free before a run, and what each lane and seed holds."""
+    r = ssh(m, "python3 /root/hb/bin/remote.py disk", timeout=60)
+    d = remote_tagged(r.stdout, "DISK") if r.returncode == 0 else None
+    if d is None:
+        print(f"  disk: not read ({(r.stderr or r.stdout).strip()[-160:] or 'no answer'})")
+        return
+    need = max(MIN_FREE_GB * 1e9, d["total"] * MIN_FREE_PCT / 100)
+    print(f"  disk: {gb1(d['free'])} free of {gb1(d['total'])}; a run first prunes idle lanes to keep {gb1(need)} free "
+          f"(HANGAR_RBUILD_MIN_FREE, HANGAR_RBUILD_MIN_FREE_PCT)")
+    lanes = []
+    for i, ln in sorted(d.get("lanes", {}).items(), key=lambda kv: int(kv[0])):
+        used = time.strftime("%H:%M", time.localtime(ln["used"])) if ln.get("used") else "never"
+        lanes.append(f"{i}: {gb1(ln['bytes'])} ({gb1(ln['light'])} of it incremental and examples), "
+                     + ("busy" if ln.get("busy") else f"idle, last used {used}"))
+    print("  lanes " + ("; ".join(lanes) if lanes else "none yet"))
+    print(f"  seed {gb1(d.get('seed'))}, seed-out {gb1(d.get('seed_out'))}" + (" (not pulled yet, or abandoned)" if d.get("seed_out") else "")
+          + f", cargo registry {gb1(d.get('registry'))}")
 
 
 def main(argv):
