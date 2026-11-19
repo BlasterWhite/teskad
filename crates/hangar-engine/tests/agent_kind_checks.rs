@@ -323,6 +323,11 @@ const ALLOWED: &[Allowed] = &[
         ],
         "each kind's own strings on a node's row, Codex's « beta » (§7, decision 5)",
     ),
+    only(
+        "crates/hangar-app/src/mcp/install_panel.rs",
+        &["vec![AgentKind::default()]"],
+        "a workspace that names no agent, with none installed, gets the default kind's playbook file",
+    ),
     // Features that name a kind where they should read a capability.
     only(
         "crates/hangar-core/src/pty.rs",
