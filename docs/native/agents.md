@@ -703,6 +703,12 @@ delegation_list   {}
   Claude Code by T11b). `visible: true` runs it in a pane instead (the same
   launch as a worker, no board task, no delivery), for work the person wants
   to watch.
+  *As built (T11b, Lény):* no MCP permission tool is needed. A Claude child
+  runs with `--input-format stream-json --output-format stream-json
+  --permission-prompt-tool stdio`, so it sends its permission requests to
+  Hangar on its own stdio, as the SDK does (`control_request` `can_use_tool`);
+  Hangar holds each for the person under the delegation's id, answers with
+  their choice only, and withdraws it on `control_cancel_request`.
   *Why headless by default:* a sub-task that returns a result is not
   something to lay out in the grid.
 - **Coming back.** `wait` blocks up to `wait_s` and returns the state;
@@ -989,7 +995,42 @@ the PC either (it is not installed there: the Vast build box, §4.0), a PR per
 task, no CHANGELOG entry, no Claude attribution. Every task that speaks to
 Codex starts from the `openai/codex` files §4.7 names for it.
 
-**Who holds what now** (from the board, 2026-11-19), and what it blocks:
+### Where the tasks stand
+
+From `main`, 2026-11-19 (T31). ✓ marks a task landed on `main`.
+
+- **Landed:** T1, T2, T3a, T3b, T4a, T4b, T4c, T5, T6, T7, T8, T9, T11a, T12,
+  T13, T14a (with T14c, the agent panes started through core's
+  `pty_spawn_launch`), T14b, T15, T16a, T16b, T18, T19, T21, T22, T23, T24a,
+  T24b, T25, T27, T28, T30.
+- **In delivery,** to land before the release: T10 (images), T11b (the Claude
+  side of `delegate`), T17 (the `delegate` tools), T26 (chat view, needs-you,
+  inspector), T29 (nodes). The user docs (T31) describe them as this page does.
+- **Not on `main` yet:** T20, the rule's test (§3.3).
+- **T31** (lands with these lines): the README, the guide (with
+  `docs/guide/codex.md` and its capability table, written from `AgentInfo`),
+  `docs/kits.md` and the site.
+
+Where what landed differs from this page:
+
+- **`delegate`, Claude side (§5.2, D14; T11b, Lény):** permission requests on
+  the child's stdio rather than a Hangar MCP tool (noted in §5.2).
+- **Kits (§6.4, D18; T7, T27):** a manifest with no `agents` means Claude Code
+  alone, the one agent kits were written for: a kit reaches Codex only when it
+  names `codex`. The Codex plugin of a kit lives in a local marketplace Hangar
+  keeps, `~/.hangar/codex-plugins/` (`hangar-kits`), and holds copies of the
+  kit's skills, since Codex's install skips links.
+- **Install (§6.3, D17; T21):** Codex is installed with OpenAI's standalone
+  installer (`install.sh`, `install.ps1`); npm and Homebrew are the documented
+  alternatives.
+- **Windows (§4.1, D5; T4b):** a Codex pane on Windows, native or WSL, runs on
+  the floor for now (`FloorReason::Unsupported` in `pty/codex_server.rs`).
+- **Instructions (§6.5, D19; T8):** core writes the playbook into `AGENTS.md`
+  for a Codex workspace (`write_agent_instructions_for`), but the MCP panel
+  still calls the Claude Code writer, so it writes `CLAUDE.md` alone.
+
+**Who held what** when this breakdown was written (from the board, 2026-11-19),
+and what it blocked:
 
 | Holder | Owns | Blocks |
 |---|---|---|
@@ -1010,36 +1051,36 @@ with its own kind type (a string or an enum), T1 adopts it as
 
 | Id | Outcome | Owns | Depends on | Size | In parallel with |
 |---|---|---|---|---|---|
-| **T1** | `AgentKind`, `AgentInfo`, `Capabilities` (static levels per kind), `info(kind)`, detection facade (Claude's existing check, Codex's from c48c7086), PATH repair for npm's and Homebrew's global bins | `hangar-core/src/agent/{mod,caps}.rs`, `lib.rs` (one line), `path_env.rs` | c48c7086 for the Codex detection call | 300 | — (first) |
-| **T2** | One launch builder: `LaunchRequest` → `LaunchSpec`; Claude Code's flags moved here from `hangar-engine/src/panes/agents.rs` with their tests (the engine switches in T14a) | `hangar-core/src/agent/{launch,claude}.rs` | T1 | 400 | T3a, T5, T8 |
-| **T3a** | Protocol types: a generator script over `codex app-server generate-json-schema` at the pinned release, run on the Vast build box (no login needed), the checked-in subset Hangar uses, a README of how to bump | `scripts/codex-protocol/`, `hangar-core/src/codex_app/generated.rs` | T1 | 200 + generated | T2, T5, T8 |
-| **T3b** | The JSON-RPC client: spawn (stdio, or `proxy --sock`), `initialize`, requests, notification stream, server requests with responses, version gate, lenient decoding; tests on fixtures written from the protocol schema, docs and source (§4.7), each marked "from the protocol schema" | `hangar-core/src/codex_app/{mod,client,gate}.rs`, `hangar-core/tests/fixtures/codex/app-server/` | T3a | 400 | T4a, T5, T6 |
-| **T4a** | Codex launch spec: the pane server's arguments (`-c` MCP, role, permissions, roots, model, effort, trust of Hangar's worktrees), the typed `--remote` line, the floor's typed line, per-shell quoting; tests per shell | `hangar-core/src/agent/codex.rs` | T1, T2 | 350 | T3b, T5 |
-| **T4b** | The pane's Codex server lives with the pane: spawned with the pane's environment, socket in Hangar's runtime folder, killed and restarted with the pane (close, restart, hibernation, `worker_stop`), WSL through `proxy`; `pty/jobs.rs` walks its tree; `apply_account` for `CODEX_HOME` | `hangar-core/src/pty.rs` (Codex parts), `pty/jobs.rs`, `pty/codex_server.rs` (new) | T4a | 350 | T3b, T6 |
-| **T4c** | Attach: per pane, Hangar's client finds and follows the pane's threads and turns protocol events into the bridge events the engine reads (hello, turn, permission/ask, settings, usage, edit, session, end); the inbox drained by `turn/start` / `turn/steer`; held asks answered as protocol responses; briefing by `thread/inject_items`, again after compaction; tests on exchanges written from the protocol schema and source (§4.7), the second-client and `--remote` cases from `thread_processor.rs` and `outgoing_message.rs`, each marked | `hangar-core/src/agent/codex_attach.rs` (new), `bridge.rs` (a delivery seam for panes without a mod), `server.rs` if a route changes | T3b, T4b | 450 | T5, T6, T9 |
-| **T5** | Codex accounts: shadow `CODEX_HOME`s (an auth overlay, `CODEX_SQLITE_HOME` pointed at main's), `kind` in `accounts.json`, who an account is from `auth.json`, `env_for(kind, account)` | `hangar-core/src/accounts.rs`, `accounts/{store,login,link}.rs`, `accounts/codex_home.rs` (new) | T1 | 400 | T2–T4 |
-| **T6** | The reviewer per agent: `codex exec` read-only with an output schema, chosen by the workspace's reviewer setting; Codex limit wording | `hangar-core/src/delivery.rs`, `delivery/review_codex.rs` (new) | T1, T5 | 300 | T3b, T4b |
-| **T7** | MCP and kits for Codex in core: custom MCP mode as `enabled=false` overrides (names from `codex mcp list` / `config/read`), kits' servers as `-c`, kit hooks and parts listed per kind, `agents` in the kit manifest, MCP tool schemas (`agent` enum with `codex`, neutral wording) | `hangar-core/src/{mcp_scope,mcp}.rs`, `kits/{plugin,hooks,manifest}.rs` | T4a | 400 | T4b, T5 |
-| **T8** | The playbook block in `AGENTS.md` for Codex workspaces, once when `CLAUDE.md` links to it | `hangar-core/src/instructions.rs` | T1 | 150 | everything |
-| **T9** | Codex conversation as chat items: protocol item pages and the rollout's `item_completed` items → `chat` items; tool titles for command, patch, MCP call, web search, image | `hangar-core/src/chat/{mod,codex}.rs`, `chat/tools.rs` | T3a, c48c7086 | 400 | T4c, T5 |
+| **T1** ✓ | `AgentKind`, `AgentInfo`, `Capabilities` (static levels per kind), `info(kind)`, detection facade (Claude's existing check, Codex's from c48c7086), PATH repair for npm's and Homebrew's global bins | `hangar-core/src/agent/{mod,caps}.rs`, `lib.rs` (one line), `path_env.rs` | c48c7086 for the Codex detection call | 300 | — (first) |
+| **T2** ✓ | One launch builder: `LaunchRequest` → `LaunchSpec`; Claude Code's flags moved here from `hangar-engine/src/panes/agents.rs` with their tests (the engine switches in T14a) | `hangar-core/src/agent/{launch,claude}.rs` | T1 | 400 | T3a, T5, T8 |
+| **T3a** ✓ | Protocol types: a generator script over `codex app-server generate-json-schema` at the pinned release, run on the Vast build box (no login needed), the checked-in subset Hangar uses, a README of how to bump | `scripts/codex-protocol/`, `hangar-core/src/codex_app/generated.rs` | T1 | 200 + generated | T2, T5, T8 |
+| **T3b** ✓ | The JSON-RPC client: spawn (stdio, or `proxy --sock`), `initialize`, requests, notification stream, server requests with responses, version gate, lenient decoding; tests on fixtures written from the protocol schema, docs and source (§4.7), each marked "from the protocol schema" | `hangar-core/src/codex_app/{mod,client,gate}.rs`, `hangar-core/tests/fixtures/codex/app-server/` | T3a | 400 | T4a, T5, T6 |
+| **T4a** ✓ | Codex launch spec: the pane server's arguments (`-c` MCP, role, permissions, roots, model, effort, trust of Hangar's worktrees), the typed `--remote` line, the floor's typed line, per-shell quoting; tests per shell | `hangar-core/src/agent/codex.rs` | T1, T2 | 350 | T3b, T5 |
+| **T4b** ✓ | The pane's Codex server lives with the pane: spawned with the pane's environment, socket in Hangar's runtime folder, killed and restarted with the pane (close, restart, hibernation, `worker_stop`), WSL through `proxy`; `pty/jobs.rs` walks its tree; `apply_account` for `CODEX_HOME` | `hangar-core/src/pty.rs` (Codex parts), `pty/jobs.rs`, `pty/codex_server.rs` (new) | T4a | 350 | T3b, T6 |
+| **T4c** ✓ | Attach: per pane, Hangar's client finds and follows the pane's threads and turns protocol events into the bridge events the engine reads (hello, turn, permission/ask, settings, usage, edit, session, end); the inbox drained by `turn/start` / `turn/steer`; held asks answered as protocol responses; briefing by `thread/inject_items`, again after compaction; tests on exchanges written from the protocol schema and source (§4.7), the second-client and `--remote` cases from `thread_processor.rs` and `outgoing_message.rs`, each marked | `hangar-core/src/agent/codex_attach.rs` (new), `bridge.rs` (a delivery seam for panes without a mod), `server.rs` if a route changes | T3b, T4b | 450 | T5, T6, T9 |
+| **T5** ✓ | Codex accounts: shadow `CODEX_HOME`s (an auth overlay, `CODEX_SQLITE_HOME` pointed at main's), `kind` in `accounts.json`, who an account is from `auth.json`, `env_for(kind, account)` | `hangar-core/src/accounts.rs`, `accounts/{store,login,link}.rs`, `accounts/codex_home.rs` (new) | T1 | 400 | T2–T4 |
+| **T6** ✓ | The reviewer per agent: `codex exec` read-only with an output schema, chosen by the workspace's reviewer setting; Codex limit wording | `hangar-core/src/delivery.rs`, `delivery/review_codex.rs` (new) | T1, T5 | 300 | T3b, T4b |
+| **T7** ✓ | MCP and kits for Codex in core: custom MCP mode as `enabled=false` overrides (names from `codex mcp list` / `config/read`), kits' servers as `-c`, kit hooks and parts listed per kind, `agents` in the kit manifest, MCP tool schemas (`agent` enum with `codex`, neutral wording) | `hangar-core/src/{mcp_scope,mcp}.rs`, `kits/{plugin,hooks,manifest}.rs` | T4a | 400 | T4b, T5 |
+| **T8** ✓ | The playbook block in `AGENTS.md` for Codex workspaces, once when `CLAUDE.md` links to it | `hangar-core/src/instructions.rs` | T1 | 150 | everything |
+| **T9** ✓ | Codex conversation as chat items: protocol item pages and the rollout's `item_completed` items → `chat` items; tool titles for command, patch, MCP call, web search, image | `hangar-core/src/chat/{mod,codex}.rs`, `chat/tools.rs` | T3a, c48c7086 | 400 | T4c, T5 |
 | **T10** | Generated images: `Event::ImageGenerated` from attached panes, headless children and the floor's rollout; an image chat item for Mobile | `hangar-core/src/agent/images.rs` (new), `host.rs` (event), `chat/` (item kind) after T9 | T4c, T9 | 250 | T11a |
-| **T11a** | `delegate` runner, Codex side: children as app-server threads, the delegation registry, `shared`/`worktree` isolation, results (message, files, images, branch), events to the caller's inbox | `hangar-core/src/delegate.rs`, `delegate/` (new) | T3b, T4c, T5 | 350 | T10 |
+| **T11a** ✓ | `delegate` runner, Codex side: children as app-server threads, the delegation registry, `shared`/`worktree` isolation, results (message, files, images, branch), events to the caller's inbox | `hangar-core/src/delegate.rs`, `delegate/` (new) | T3b, T4c, T5 | 350 | T10 |
 | **T11b** | `delegate` runner, Claude side: `claude -p` stream-json children, their asks held for the person | `hangar-core/src/delegate/claude.rs` | T11a | 200 | T12 |
-| **T12** | The schema watch and the bug path: a weekly job (Vast build box or a GitHub runner, no login) that runs `codex app-server generate-json-schema` on the latest Codex release, diffs it against the pinned one restricted to the subset Hangar uses, and opens an issue when that subset changes; a GitHub issue template for Codex users (what happened, `codex --version`, Hangar's version, attached or floor, the pane's Hangar log) | `scripts/codex/`, `.github/workflows/codex-schema-watch.yml`, `.github/ISSUE_TEMPLATE/codex-bug.yml` | T3a | 250 | T3b–T11 |
+| **T12** ✓ | The schema watch and the bug path: a weekly job (Vast build box or a GitHub runner, no login) that runs `codex app-server generate-json-schema` on the latest Codex release, diffs it against the pinned one restricted to the subset Hangar uses, and opens an issue when that subset changes; a GitHub issue template for Codex users (what happened, `codex --version`, Hangar's version, attached or floor, the pane's Hangar log) | `scripts/codex/`, `.github/workflows/codex-schema-watch.yml`, `.github/ISSUE_TEMPLATE/codex-bug.yml` | T3a | 250 | T3b–T11 |
 
 ### Wave B — hangar-engine, after Wren's pin-pane task lands
 
 | Id | Outcome | Owns | Depends on | Size | In parallel with |
 |---|---|---|---|---|---|
-| **T13** | Persisted model: `AgentId::Codex` and `kind()`; `codex` read as Codex again (`RETIRED_AGENTS` keeps Gemini/OpenCode only); `agentCommands.codex`, `codex_account` on pane/workspace/folder/settings; workspace `orchestratorAgent`, `workerAgent`, `reviewerAgent`; Codex models beside the Claude ones (`codexModels`, absent = Codex's default); settings `codexAttach`, default agents; round-trip and lenient tests | `hangar-engine/src/state/{types,lenient}.rs`, their fixtures and tests | **Wren landed**, T1 | 400 | — (first of B) |
-| **T14a** | One launch path: `panes/agents.rs` and `host/{launch,terminals,mod}.rs` call core's builder; the windowless `workspace_create` uses the default orchestrator agent | `hangar-engine/src/panes/agents.rs`, `host/{launch,mod,terminals}.rs` | T13, T2, T4a | 300 | T14b, T15, T18, T19 |
-| **T14b** | Activity by capability: `bridged` becomes "side channel spoke" for either kind; live capabilities per pane; trust-question reading per kind (Claude's screen, Codex's) | `hangar-engine/src/panes/{pane_agent,agent_state,bridge_events,pane_insight}.rs`, `live.rs` | T13, T4c | 300 | T14a, T15 |
-| **T15** | Sessions and sleep by capability: no folder hunt when the session id is reported; resume by kind; hibernation reads `sessions` | `hangar-engine/src/panes/{session_watch,hibernate,hibernation}.rs` | T13, c48c7086 | 300 | T14a, T14b |
-| **T16a** | Orchestration for either kind: briefs by capability, texts with the kind's label, `worker_spawn {agent}`, the worker refusal by capability, pin rule by capability | `hangar-engine/src/orchestration/{worker,brief,brief_text,projects}.rs`, `state/roles.rs` | **Wren landed**, T13, T14b | 350 | T16b, T18 |
-| **T16b** | Control tools by capability: `pane_create {agent: codex, prompt}`, `pane_send {when_idle}`, `pane_restart {agent}`, `workspace_create` default agent, the manager | `hangar-engine/src/control/{panes,workspace,manager}.rs` | **Wren landed**, T13, T14a | 250 | T16a, T18 |
+| **T13** ✓ | Persisted model: `AgentId::Codex` and `kind()`; `codex` read as Codex again (`RETIRED_AGENTS` keeps Gemini/OpenCode only); `agentCommands.codex`, `codex_account` on pane/workspace/folder/settings; workspace `orchestratorAgent`, `workerAgent`, `reviewerAgent`; Codex models beside the Claude ones (`codexModels`, absent = Codex's default); settings `codexAttach`, default agents; round-trip and lenient tests | `hangar-engine/src/state/{types,lenient}.rs`, their fixtures and tests | **Wren landed**, T1 | 400 | — (first of B) |
+| **T14a** ✓ | One launch path: `panes/agents.rs` and `host/{launch,terminals,mod}.rs` call core's builder; the windowless `workspace_create` uses the default orchestrator agent | `hangar-engine/src/panes/agents.rs`, `host/{launch,mod,terminals}.rs` | T13, T2, T4a | 300 | T14b, T15, T18, T19 |
+| **T14b** ✓ | Activity by capability: `bridged` becomes "side channel spoke" for either kind; live capabilities per pane; trust-question reading per kind (Claude's screen, Codex's) | `hangar-engine/src/panes/{pane_agent,agent_state,bridge_events,pane_insight}.rs`, `live.rs` | T13, T4c | 300 | T14a, T15 |
+| **T15** ✓ | Sessions and sleep by capability: no folder hunt when the session id is reported; resume by kind; hibernation reads `sessions` | `hangar-engine/src/panes/{session_watch,hibernate,hibernation}.rs` | T13, c48c7086 | 300 | T14a, T14b |
+| **T16a** ✓ | Orchestration for either kind: briefs by capability, texts with the kind's label, `worker_spawn {agent}`, the worker refusal by capability, pin rule by capability | `hangar-engine/src/orchestration/{worker,brief,brief_text,projects}.rs`, `state/roles.rs` | **Wren landed**, T13, T14b | 350 | T16b, T18 |
+| **T16b** ✓ | Control tools by capability: `pane_create {agent: codex, prompt}`, `pane_send {when_idle}`, `pane_restart {agent}`, `workspace_create` default agent, the manager | `hangar-engine/src/control/{panes,workspace,manager}.rs` | **Wren landed**, T13, T14a | 250 | T16a, T18 |
 | **T17** | `delegate`, `delegation_status`, `delegation_cancel`, `delegation_list` as control operations and MCP tools | `hangar-engine/src/control/delegate.rs` (new), `hangar-core/src/mcp.rs` (schemas) after T7 | T11a, T16b | 350 | T18, T19 |
-| **T18** | Mobile and desk by capability: answers and permissions through held asks for either kind, keys for the floor's dialogs (Codex's own, checked on screen), chat pages from T9 | `hangar-engine/src/mobile/{answer,held,desk,ops,chat_live,calls}.rs` | T13, T9, T4c | 400 | T16a/b, T19 |
-| **T19** | Statistics model: the by-agent card back, model names per kind | `hangar-engine/src/stats/model.rs` | T13, c48c7086 | 200 | T18 |
+| **T18** ✓ | Mobile and desk by capability: answers and permissions through held asks for either kind, keys for the floor's dialogs (Codex's own, checked on screen), chat pages from T9 | `hangar-engine/src/mobile/{answer,held,desk,ops,chat_live,calls}.rs` | T13, T9, T4c | 400 | T16a/b, T19 |
+| **T19** ✓ | Statistics model: the by-agent card back, model names per kind | `hangar-engine/src/stats/model.rs` | T13, c48c7086 | 200 | T18 |
 | **T20** | The rule's test: agent-kind checks fail outside the allowlist (§3.3) | `hangar-engine/tests/agent_kind_checks.rs` (new) | T14–T19 (lands last of B) | 150 | — |
 
 ### Wave C — hangar-app and the edges, after Rex's and Cleo's tasks land
@@ -1050,18 +1091,18 @@ mechanical.
 
 | Id | Outcome | Owns | Depends on | Size | In parallel with |
 |---|---|---|---|---|---|
-| **T21** | Setup sheet for both agents, satisfied by either; Codex install by the official installers; « Sign in » panes; Codex labelled « beta » on its card | `hangar-app/src/shell/setup/`, `shell/overlay.rs`, `services/core.rs` | **Cleo landed**, T1, c48c7086 | 400 | T22–T28 |
-| **T22** | New-workspace dialog: orchestrator agent choice, per-pane agent picker with Codex, greyed with reasons, Codex labelled « beta » | `hangar-app/src/workspace_dialog/` | **Rex, Cleo landed**, T13 | 300 | T21, T23–T28 |
-| **T23** | Settings: launch command per kind, « Attach Hangar to Codex », bridge per kind, default orchestrator / worker / reviewer agents, Codex models | `hangar-app/src/settings/` | **Cleo landed**, T13 | 300 | T21, T22, T24–T28 |
-| **T24a** | The pane controller on the core builder and live capabilities; header and look per kind (Shift+Enter for Codex) | `hangar-app/src/panes/{controller,header,look,launch,waves,mod}.rs` | **Rex landed**, T14a, T14b | 350 | T24b |
-| **T24b** | Pane menu, session picker, toolbar, orchestration panel by capability; models per kind | `hangar-app/src/{pane_menu,session_picker,toolbar,orchestration_ui}/` | **Cleo landed**, T13, T16a | 300 | T24a |
-| **T25** | « Comptes » per kind: Codex accounts, login panes, badges, plan blocks; a worktree keeps both accounts | `hangar-app/src/accounts/`, `git_ui/worktrees/mod.rs`, `hangar-engine/src/accounts.rs` | **Cleo landed**, T5, T13 | 400 | T21–T24 |
+| **T21** ✓ | Setup sheet for both agents, satisfied by either; Codex install by the official installers; « Sign in » panes; Codex labelled « beta » on its card | `hangar-app/src/shell/setup/`, `shell/overlay.rs`, `services/core.rs` | **Cleo landed**, T1, c48c7086 | 400 | T22–T28 |
+| **T22** ✓ | New-workspace dialog: orchestrator agent choice, per-pane agent picker with Codex, greyed with reasons, Codex labelled « beta » | `hangar-app/src/workspace_dialog/` | **Rex, Cleo landed**, T13 | 300 | T21, T23–T28 |
+| **T23** ✓ | Settings: launch command per kind, « Attach Hangar to Codex », bridge per kind, default orchestrator / worker / reviewer agents, Codex models | `hangar-app/src/settings/` | **Cleo landed**, T13 | 300 | T21, T22, T24–T28 |
+| **T24a** ✓ | The pane controller on the core builder and live capabilities; header and look per kind (Shift+Enter for Codex) | `hangar-app/src/panes/{controller,header,look,launch,waves,mod}.rs` | **Rex landed**, T14a, T14b | 350 | T24b |
+| **T24b** ✓ | Pane menu, session picker, toolbar, orchestration panel by capability; models per kind | `hangar-app/src/{pane_menu,session_picker,toolbar,orchestration_ui}/` | **Cleo landed**, T13, T16a | 300 | T24a |
+| **T25** ✓ | « Comptes » per kind: Codex accounts, login panes, badges, plan blocks; a worktree keeps both accounts | `hangar-app/src/accounts/`, `git_ui/worktrees/mod.rs`, `hangar-engine/src/accounts.rs` | **Cleo landed**, T5, T13 | 400 | T21–T24 |
 | **T26** | Chat view, needs-you, inspector and navigator plan by capability; generated images inline | `hangar-app/src/{chat_view,needs_you,inspector}/`, `navigator/plan.rs` | **Rex landed**, T18, T10 | 400 | T27, T28 |
-| **T27** | Kits per kind: what loads in Claude Code and in Codex, « Add to Codex » for a kit's skills (§6.4) | `hangar-app/src/kits/`, `kit_tabs/api.rs`, `hangar-kit-host/src/{api,gate}.rs` | **Cleo landed**, T7 | 300 | T26 |
-| **T28** | Statistics page by agent | `hangar-app/src/stats/` | **Cleo landed**, T19 | 200 | T26, T27 |
+| **T27** ✓ | Kits per kind: what loads in Claude Code and in Codex, « Add to Codex » for a kit's skills (§6.4) | `hangar-app/src/kits/`, `kit_tabs/api.rs`, `hangar-kit-host/src/{api,gate}.rs` | **Cleo landed**, T7 | 300 | T26 |
+| **T28** ✓ | Statistics page by agent | `hangar-app/src/stats/` | **Cleo landed**, T19 | 200 | T26, T27 |
 | **T29** | Nodes run Codex: `/node/info` both agents, node transcript routes take the kind, node workspaces use the default agent, node panes spawn their Codex server | `hangar-node/src/{api,own,panes,transcripts}.rs`, `hangar-app/src/nodes/` | **Cleo landed** (for the app part), T13, T4b, T4c, c48c7086 | 400 | Wave C |
-| **T30** | Discord follows either kind, `/workspace` uses the default agent, images attached to turn cards | `hangar-discord/src/{bot,follow,cards,hangar}.rs` | T13, T10 | 250 | Wave C |
-| **T31** | README, guide, site and `docs/kits.md` per D21, the capability table generated from `AgentInfo`, Codex marked beta with a link to the Codex bug template (T12) | `README.md`, `docs/guide/`, `docs/kits.md`, the site's pages | the features (last) | 300 | — |
+| **T30** ✓ | Discord follows either kind, `/workspace` uses the default agent, images attached to turn cards | `hangar-discord/src/{bot,follow,cards,hangar}.rs` | T13, T10 | 250 | Wave C |
+| **T31** ✓ | README, guide, site and `docs/kits.md` per D21, the capability table generated from `AgentInfo`, Codex marked beta with a link to the Codex bug template (T12) | `README.md`, `docs/guide/`, `docs/kits.md`, the site's pages | the features (last) | 300 | — |
 
 **Critical path to "a Codex orchestrator with Codex workers"**: T1 → T2 / T3a →
 T3b → T4a → T4b → T4c → (Wren) T13 → T14a, T14b → T16a, T16b → (Rex, Cleo) T22,

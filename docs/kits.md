@@ -4,8 +4,11 @@ A kit is a package a person links to a workspace to bring a domain — Roblox,
 Unreal, a studio's own tools — into Hangar, without Hangar knowing anything
 about that domain. A kit can bring:
 
-- a **Claude Code plugin**: skills, commands, agents and MCP servers, loaded by
-  every Claude Code pane of the workspaces the kit is enabled on;
+- a **plugin** for the agents, written as a Claude Code plugin: skills, commands,
+  agents, MCP servers and hooks. Claude Code loads all of it in every pane of the
+  workspaces the kit is enabled on; Codex loads its MCP servers at each launch, and
+  its skills and hooks once the person adds the kit to Codex
+  ([Claude Code and Codex](#claude-code-and-codex));
 - **tabs**: isolated pages of its own, talking to Hangar through a small,
   declared API, with a [data folder](#a-kits-data-folder) of the kit's and, when
   declared, a local server to talk to and
@@ -152,6 +155,7 @@ At the kit's root. Schema 1, or schema 2 for a kit with a [native tab](#native-t
 | `icon`        | string            | no       | Relative path to an existing `.svg` or `.png` file. An SVG is [drawn as a mask](#icon-colour). |
 | `hangar`      | string            | no       | A semver requirement on the Hangar version, like `>=1.6.0`. Unmet, the kit is unusable.   |
 | `plugin`      | string            | no       | Relative folder holding `.claude-plugin/plugin.json`. Default below.                      |
+| `agents`      | string[]          | no       | The agents the plugin is for: `claude`, `codex`. Absent, Claude Code alone. [Below](#claude-code-and-codex). |
 | `tabs`        | array of tabs     | no       | See below. Ids unique.                                                                    |
 | `setup`       | array of steps    | no       | See below. Ids unique.                                                                    |
 | `commands`    | object            | no       | What its tabs may run, by name: [declared commands](#declared-commands).                  |
@@ -220,7 +224,8 @@ CLAUDE_CODE_PLUGIN_DIRS=<hangar-bridge>;<kit A plugin>;<kit B plugin>;<the user'
 ```
 
 (`:` instead of `;` outside Windows.) So a Claude Code started in the pane —
-by Hangar or typed by hand — loads them.
+by Hangar or typed by hand — loads them. Codex has no such folder per launch: what
+reaches it, and how, is in [Claude Code and Codex](#claude-code-and-codex).
 
 - Kits **do not depend on the bridge**: a pane started with `bridge: false`, or
   with the bridge setting off, gets its workspace's kits all the same.
@@ -397,6 +402,93 @@ What to know about its limits:
   when that skill or command is invoked, not by itself.
 - A key Hangar does not know, whose text changes with every version, asks again at
   every update. That is the price of leaving nothing out.
+
+## Claude Code and Codex
+
+A kit's plugin is written as a Claude Code plugin, and Hangar brings each agent the
+parts it can take. Its tabs and setup commands are Hangar's own, and work whatever
+the agent.
+
+**`agents`** in the manifest names the agents the plugin is for: `["claude"]`,
+`["codex"]` or `["claude", "codex"]`. Absent, it is Claude Code alone, the one agent
+kits were written for before Codex: a kit reaches Codex only when it names it. An id
+this Hangar does not know is left out rather than refused, so a kit written for a
+newer Hangar still opens here; a list that names no agent is an error. A library
+entry may carry the same `agents`.
+
+What reaches each agent, by its `extensions` capability (`AgentInfo` in
+`crates/hangar-core/src/agent.rs`; the parts in `crates/hangar-core/src/kits/plugin.rs`):
+
+| Plugin part                      | Claude Code                 | Codex                                                                                  |
+| -------------------------------- | --------------------------- | -------------------------------------------------------------------------------------- |
+| MCP servers                      | with the plugin, each launch | each launch, on the command line of the pane's Codex server; nothing installed        |
+| Skills (`skills/<name>/SKILL.md`) | with the plugin, each launch | once the kit is added to Codex                                                        |
+| Hooks                            | with the plugin, each launch | once the kit is added to Codex, those Codex runs                                       |
+| Commands, agents, output styles  | with the plugin, each launch | none: listed as Claude Code's only                                                     |
+
+The kit's activation view, **Settings › Kits** and the library show, per agent, what
+loads and how, and what is left out and why; a kit for one agent is tagged « Claude
+Code only » or « Codex only ». The consent is the kit's, whatever the agent: accepting
+it covers what reaches either one, and its hashes are the same.
+
+### MCP servers, for Codex
+
+Each server of the kits meant for Codex is passed to the pane's Codex server as
+`-c mcp_servers`, named `<kit>_<server>` (the kit's id, then the server's, anything but
+a letter, a digit, `_` or `-` made `_`), in a workspace in `inherit` MCP mode and in a
+`custom` one alike. Nothing is written to Codex's own configuration. The definition is
+written in Codex's keys:
+
+- `${CLAUDE_PLUGIN_ROOT}` is written out as the plugin's folder, and a relative `cwd`
+  is the plugin's folder's;
+- a variable passed on as it is, `"KEY": "${KEY}"`, is named in `env_vars`, which Codex
+  forwards from its own environment (it starts a server from a cleared one); a header
+  holding one variable goes in `env_http_headers`, and `Authorization: Bearer ${TOKEN}`
+  is `bearer_token_env_var`;
+- `env_vars`, `enabled_tools`, `disabled_tools`, `startup_timeout_sec` and
+  `tool_timeout_sec` are kept for Codex; Claude Code's other keys (`type`, `oauth`,
+  `timeout`…) are left out.
+
+Left out for Codex, and listed: a server over SSE or WebSocket (Codex speaks stdio and
+streamable HTTP), and one naming any other `${…}`, which Codex would pass on as written.
+
+### Skills and hooks: Add to Codex
+
+Codex cannot load a skill or a hook folder for one session (Codex 0.170.0). So a kit's
+skills and hooks reach Codex as a Codex plugin Hangar builds from the kit, which Codex
+installs with its own commands, once, when the person asks: **Add to Codex** in the
+kit's activation view or in **Settings › Kits**, after showing what is added and the
+exact commands.
+
+- The plugin, `<kit>@hangar-kits`, holds copies of the kit's skills and the hooks Codex
+  runs, with `${CLAUDE_PLUGIN_ROOT}` written out as the kit's own folder. It lives in a
+  local marketplace Hangar keeps, `~/.hangar/codex-plugins/`.
+- **Add to Codex** runs `codex plugin marketplace add ~/.hangar/codex-plugins` (the
+  first time) and `codex plugin add <kit>@hangar-kits`. Codex copies the plugin into its
+  own folder and turns it on: from then on it reaches **every Codex session on the
+  machine**, whatever the workspace, on every Codex account Hangar keeps (they share the
+  main one's plugins).
+- A kit changed since it was added reads « Changed since it was added to Codex », and
+  **Update in Codex** adds it again. **Remove from Codex** runs `codex plugin remove`, and
+  `codex plugin marketplace remove hangar-kits` with the last kit. Removing a kit from
+  Hangar takes it out of Codex too.
+- Codex runs a plugin's hooks only once the person trusts them in its `/hooks`.
+
+A hook reaches Codex when Codex has its event and its kind, read in Codex's source at
+0.170.0 (`crates/hangar-core/src/kits/hooks.rs`):
+
+- **Events**: `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `PreToolUse`,
+  `PermissionRequest`, `PostToolUse`, `PreCompact`, `PostCompact`, `PreModelRequest`,
+  `PostModelRequest`, `SubagentStart`, `SubagentStop`, `Stop`, `Interrupt`. Another
+  (`Notification`, `PostToolUseFailure`…) is Claude Code's only.
+- **Kind**: a command. A prompt or agent hook, an HTTP call or a hooks module is Claude
+  Code's only.
+- **Tools**: a `PreToolUse`, `PermissionRequest` or `PostToolUse` matcher must select
+  one of the names Codex gives its tools: `Bash`; `apply_patch`, also matched as `Write`
+  and `Edit`; `spawn_agent`, also matched as `Agent`; or an MCP tool,
+  `mcp__<server>__<tool>`. A matcher that selects only Claude Code's tools (`Read`,
+  `Grep`, `WebFetch`…) or a kit's tools by the name Claude Code gives a plugin's server
+  (`mcp__plugin_…`) selects nothing in Codex.
 
 ## Tab permissions
 
@@ -799,14 +891,14 @@ never the message's.
 - Each may be called **120 times a minute**, enough to count seconds; each change redraws the strip.
 
 A pane in `panes.list`: `name` (what `panes.send` takes), `agent` (`claude`
-for Claude Code, or `shell` for a plain shell; Hangar runs no other agent),
+for Claude Code, `codex` for Codex, or `shell` for a plain shell),
 `role` (`orchestrator`, `worker`, `manager` or `null`), `state` (`working`, `waiting` for an answer, `yours` —
 done, not looked at yet — `idle`, or `null` when Hangar cannot tell), and
 `canSend`, whether `panes.send` reaches it now.
 
-- **`panes.send`** reaches the **Claude Code agents of the tab's own
-  workspace**, by pane name (any case), and only those whose session runs
-  Hangar's bridge: the text waits in Hangar's queue until the agent is free,
+- **`panes.send`** reaches the **agents of the tab's own workspace**, by pane
+  name (any case), and only those Hangar delivers messages to (Claude Code with
+  Hangar's bridge, Codex attached): the text waits in Hangar's queue until the agent is free,
   and reaches it labelled as coming from `kit:<kit id>` — never as typed by
   the person, so it cannot approve anything on their behalf. `text` is 1 to
   20 000 characters, sent as given. At most **10 a minute**.
@@ -903,7 +995,7 @@ Errors:
 
 | Code           | When                                                                  |
 | -------------- | --------------------------------------------------------------------- |
-| `denied`       | The tab may not call the method, a port or a command it does not hold included; or `panes.send` to a pane that is not a Claude Code agent; or `command.run` on a GitHub kit whose commands were not accepted as they are now. |
+| `denied`       | The tab may not call the method, a port or a command it does not hold included; or `panes.send` to a pane whose agent Hangar does not deliver messages to; or `command.run` on a GitHub kit whose commands were not accepted as they are now. |
 | `invalid`      | The params are not what the method takes; `files.writeBinary`: not valid base64, over 10 MB, a name that is not a raster image's, or content that is not one. |
 | `unknown`      | No such method.                                                       |
 | `not_found`    | No pane of that name in the workspace; no such file in the kit's data; `files.readBinary`, `files.list`, and `files.read` for a tab that holds `files.write`: no such file or folder; `command.run`: the program is not installed, or the command has no argv for this OS. |
@@ -1268,7 +1360,7 @@ argv changed only for another system asks nothing here.
 
 Each kit has a folder of its own, `~/.hangar/kit-data/<kit id>/` — beside
 `HANGAR_ENDPOINT_FILE` for a development build given one, like the kits' store.
-It is the same on every Claude account and worktree, and never inside a project.
+It is the same on every account, of either agent, and every worktree, and never inside a project.
 
 - **A tab** reaches it through `data.read` and `data.write`.
 - **A hook, or anything else in a pane**, finds it at
@@ -1514,7 +1606,10 @@ hangar-core's functions, under the names of the Tauri commands they were
 | `kit_remove(id)`             | `kitRemove(id)`              | Nothing. Deletes only a clone Hangar made.                                                 |
 | `kit_check_update(id)`       | `kitCheckUpdate(id)`         | `{ current, latest, available, checkedAt }`, or `null` for a folder kit. A pinned kit goes by [the catalog's tag](#pinning). |
 | `kit_update(id)`             | `kitUpdate(id)`              | `KitInfo`. A pinned kit goes by [the catalog's tag](#pinning).                             |
-| `kit_inspect(id)`            | `kitInspect(id)`             | What it brings: `plugin` (`{ name, dir }`), `skills`, `commands`, `agents`, `mcpServers` (the plugin's names, unprefixed), `hooks` (`[{ event, matcher, command }]`), `running` ([what else it starts by itself](#what-runs-by-itself), never an env value or a header), `hooksPermission`, `tabs`, `setup` (this OS's steps, with `command`), `declaredCommands` (`[{ name, description, argv, args, timeoutSeconds }]`, this OS's, verbatim; `commands` is the plugin's slash commands), `commandsPermission`. |
+| `kit_inspect(id)`            | `kitInspect(id)`             | What it brings: `plugin` (`{ name, dir }`), `skills`, `commands`, `agents`, `mcpServers` (the plugin's names, unprefixed), `hooks` (`[{ event, matcher, command }]`), `running` ([what else it starts by itself](#what-runs-by-itself), never an env value or a header), `hooksPermission`, `tabs`, `setup` (this OS's steps, with `command`), `declaredCommands` (`[{ name, description, argv, args, timeoutSeconds }]`, this OS's, verbatim; `commands` is the plugin's slash commands), `commandsPermission`, `byAgent` (one entry per agent: `agent`, `meantFor`, and for each of `mcpServers`, `skills`, `hooks`, `commands`, `agents`, `outputStyles`, `{ how, loads, leftOut }`: `how` is `perLaunch`, `installed` or `none`, `leftOut` lists `{ item, why }`, `why` among `notMeantFor`, `noSuchPart`, `event`, `handler`, `tool`, `transport`, `variables`). |
+| `kit_codex_status(id)`       | —                            | What [« Add to Codex »](#skills-and-hooks-add-to-codex) would add: `{ state, plugin, skills, hooks, codex, add, remove }`, `state` among `nothing`, `notAdded`, `added`, `changed`; `codex` whether Codex is installed; `add` and `remove` the commands each runs, one a line. |
+| `kit_codex_add(id)`          | —                            | The same, once Codex has added the kit's plugin (or added it again).                      |
+| `kit_codex_remove(id)`       | —                            | The same, once Codex has removed it.                                                      |
 | `kit_setup_status(id)`       | `kitSetupStatus(id)`         | `[{ id, title, description?, command, sha256, done }]`.                                   |
 | `kit_setup_mark(id, stepId)` | `kitSetupMark(id, stepId)`   | The same list, after recording the step.                                                  |
 | `kit_data_read(kit, path)`   | through `KitTabView`         | The file's text. Refuses with `{ code, message }`.                                        |

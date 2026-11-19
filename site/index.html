@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>HangarAI: a team of Claude Code agents in one native window</title>
-<meta name="description" content="HangarAI runs many Claude Code sessions in one native window, with a shared board, a shared memory and an orchestrator that hands work to workers in git worktrees. Talk to it in a chat, steer it from your phone. Free and open source.">
+<title>HangarAI: a team of coding agents in one native window</title>
+<meta name="description" content="HangarAI runs your coding agents, Claude Code and Codex (beta), side by side in one native window, with a shared board, a shared memory and an orchestrator that hands work to workers in git worktrees. Talk to it in a chat, steer it from your phone. Free and open source.">
 <link rel="canonical" href="https://hangarai.dev/">
 <meta name="color-scheme" content="dark light">
 <meta name="theme-color" content="#202124" media="(prefers-color-scheme: dark)">
@@ -17,8 +17,8 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="HangarAI">
 <meta property="og:url" content="https://hangarai.dev/">
-<meta property="og:title" content="HangarAI 2.4: a team of Claude Code agents, in one native window">
-<meta property="og:description" content="Run many Claude Code sessions in a native app written in Rust. An orchestrator plans on a shared board and hands tasks to workers in their own git worktrees; Hangar checks, reviews and lands what they deliver. Talk to it in a chat, steer it from your phone. Free, open source, local.">
+<meta property="og:title" content="HangarAI 2.4: a team of coding agents, in one native window">
+<meta property="og:description" content="Run Claude Code and Codex (beta) side by side in a native app written in Rust. An orchestrator plans on a shared board and hands tasks to workers in their own git worktrees; Hangar checks, reviews and lands what they deliver. Talk to it in a chat, steer it from your phone. Free, open source, local.">
 <meta property="og:image" content="https://hangarai.dev/og.png?v=f594f112f0">
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
@@ -26,8 +26,8 @@
 <meta property="og:image:alt" content="HangarAI's chat view: Iris, the orchestrator, sums up a recipe app's progress beside the board's tasks, under the title: a team of Claude Code agents, in one native window.">
 <meta property="og:locale" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="HangarAI 2.4: a team of Claude Code agents, in one native window">
-<meta name="twitter:description" content="Many Claude Code sessions, one native window, a shared board and an orchestrator that delegates to workers in git worktrees. Talk to it in a chat, steer it from your phone. Free and open source.">
+<meta name="twitter:title" content="HangarAI 2.4: a team of coding agents, in one native window">
+<meta name="twitter:description" content="Claude Code and Codex (beta), side by side in one native window, a shared board and an orchestrator that delegates to workers in git worktrees. Talk to it in a chat, steer it from your phone. Free and open source.">
 <meta name="twitter:image" content="https://hangarai.dev/og.png?v=f594f112f0">
 <meta name="twitter:image:alt" content="HangarAI's chat view: Iris, the orchestrator, sums up a recipe app's progress beside the board's tasks.">
 
@@ -112,11 +112,12 @@
       New in 2.4: statistics across your machines, NixOS
     </a>
 
-    <h1 class="hero__title" id="hero-title">A team of Claude&nbsp;Code agents, in&nbsp;one native&nbsp;window.</h1>
+    <h1 class="hero__title" id="hero-title">A team of coding agents, in&nbsp;one native&nbsp;window.</h1>
 
     <p class="hero__lede">
-      Hangar runs the Claude Code already on your machine, as many sessions as you need, with a
-      shared board, a shared memory and an orchestrator that hands out the work.<span class="wide-only">
+      Hangar runs the Claude Code and Codex (beta) already on your machine,
+      side by side, as many sessions as you need, with a shared board, a shared memory and an
+      orchestrator that hands out the work. Either one is enough.<span class="wide-only">
       Talk to it in a chat, or watch every terminal at once.</span>
     </p>
 
@@ -162,8 +163,8 @@
       <p class="eyebrow">Chat view <span class="tag">Experimental</span></p>
       <h2 class="sec__title" id="chat-title">Talk to the orchestrator. Not to sixteen terminals.</h2>
       <p class="sec__lede">
-        Switch a workspace to a chat with its orchestrator. Claude Code keeps running in the panes
-        behind it, and the panes come back as they were.
+        Switch a workspace to a chat with its orchestrator, Claude Code or Codex. The agent keeps
+        running in the panes behind it, and the panes come back as they were.
       </p>
       <ul class="points">
         <li><b>Tasks beside the chat.</b> Each with the progress its agent reports: a percentage and a short note.</li>
@@ -192,9 +193,9 @@
       <p class="eyebrow">Orchestrator, workers, deliveries</p>
       <h2 class="sec__title" id="orch-title">One plans. The others build. Hangar checks.</h2>
       <p class="sec__lede">
-        Pin a Claude Code pane as orchestrator: it splits the work into board tasks and starts a worker
-        for each, on a branch of its own in its own git worktree.<span class="wide-only"> By default Opus
-        plans, Sonnet works and Sonnet reviews.</span>
+        Pin a Claude Code or Codex pane as orchestrator: it splits the work into board tasks and starts
+        a worker for each, of either agent, on a branch of its own in its own git worktree.<span class="wide-only">
+        With Claude Code, by default Opus plans, Sonnet works and Sonnet reviews.</span>
       </p>
     </header>
   </div>
@@ -307,8 +308,8 @@
       <p class="eyebrow">Hangar Mobile</p>
       <h2 class="sec__title" id="mobile-title">Answer your agents from your phone.</h2>
       <p class="sec__lede">
-        See what waits for you in every project, answer Claude's questions with a tap, allow or deny
-        a permission.<span class="wide-only"> Hangar serves the app itself, over your own Tailscale
+        See what waits for you in every project, answer your agents' questions with a tap, allow or
+        deny a permission.<span class="wide-only"> Hangar serves the app itself, over your own Tailscale
         network: no app store, no account, no server of ours.</span>
       </p>
     </header>
@@ -334,7 +335,7 @@
               alt="Cora's conversation, a Claude Code pane, waiting for your answer: her summary of the checks she ran, then a card, Cora asks you 3 questions. The first, shall I submit the delivery now, offers Submit now, Wait for the screenshots and Other as large buttons, with Next." src="img/mobile-question-300.webp?v=18edcd872b" width="300" height="649">
           </picture>
         </div>
-        <figcaption><b>Claude asks.</b> Its questions as buttons.</figcaption>
+        <figcaption><b>An agent asks.</b> Its questions as buttons.</figcaption>
       </figure>
       <figure class="phones__item">
         <div class="phone">
@@ -391,7 +392,7 @@
       <p class="sec__lede">
         Over MCP, an agent opens images, code, Markdown, PDFs, web pages, videos and 3D models next to
         its pane<span class="wide-only">, then renders snapshots to check its own work</span>. Kits bring
-        a Claude Code plugin and tabs of their own.
+        skills, MCP servers and tabs of their own.
       </p>
     </header>
   </div>
@@ -448,7 +449,7 @@
           <h3>Nodes: Hangar on another machine</h3>
           <p>
             Add a Linux machine you reach over SSH: Hangar installs a headless <code>hangar-node</code>,
-            starts it and keeps a tunnel to it. A workspace can live there, its terminals, Claude Code
+            starts it and keeps a tunnel to it. A workspace can live there, its terminals, agents
             and board included, and the window shows it like a local one. It keeps working there with
             your computer off.
           </p>
@@ -552,12 +553,20 @@
         <p>Notes every agent can search and write, across workspaces: conventions, decisions, traps.</p>
       </details>
       <details class="fold" open>
+        <summary>Claude Code and Codex <span class="tag">Beta</span></summary>
+        <p>Either one is enough. An orchestrator of either agent hands tasks to workers of either agent, and each workspace keeps an account per agent.</p>
+      </details>
+      <details class="fold" open>
+        <summary>Delegate, and images from Codex</summary>
+        <p>An agent hands a sub-task to the other and gets the result back. What Codex draws shows in the chat, on your phone and on Discord.</p>
+      </details>
+      <details class="fold" open>
         <summary>Up to 16 panes per workspace</summary>
-        <p>Claude Code or any shell: PowerShell, cmd, WSL, zsh, bash, fish, Nushell.</p>
+        <p>Claude Code, Codex or any shell: PowerShell, cmd, WSL, zsh, bash, fish, Nushell.</p>
       </details>
       <details class="fold" open>
         <summary>Sessions come back</summary>
-        <p>Reopen the window and every Claude Code pane resumes its conversation, the ones on screen first.</p>
+        <p>Reopen the window and every agent pane resumes its conversation, the ones on screen first.</p>
       </details>
       <details class="fold" open>
         <summary>Idle workspaces sleep</summary>
@@ -565,7 +574,7 @@
       </details>
       <details class="fold" open>
         <summary>Where the tokens go</summary>
-        <p>Tokens, active time and an API-equivalent cost by project and model, read from Claude Code's own transcripts.</p>
+        <p>Tokens, active time and an API-equivalent cost by project, model and agent, read from your agents' own transcripts.</p>
       </details>
       <details class="fold" open>
         <summary>Dictation</summary>
@@ -573,15 +582,15 @@
       </details>
       <details class="fold" open>
         <summary>Broadcast</summary>
-        <p>One instruction to every pane; Claude Code panes can hold it until their agent is free.</p>
+        <p>One instruction to every pane; agent panes can hold it until their agent is free.</p>
       </details>
       <details class="fold" open>
         <summary>A project manager</summary>
         <p>One agent that follows every workspace: ask where they stand, or pass an instruction to an orchestrator.</p>
       </details>
       <details class="fold" open>
-        <summary>Claude Code, set up for you</summary>
-        <p>When it is missing, one click installs it with Anthropic's official installer; then you sign in.</p>
+        <summary>Your agents, set up for you</summary>
+        <p>When neither Claude Code nor Codex is there, one click installs either with its maker's official installer; then you sign in.</p>
       </details>
       <details class="fold" open>
         <summary>Any file, in the viewers</summary>
@@ -641,7 +650,7 @@
     </div>
 
     <p class="after">
-      You also need <a href="https://code.claude.com/docs/en/overview">Claude Code</a>: Hangar installs it if it is missing, and you sign in once.
+      You also need <a href="https://code.claude.com/docs/en/overview">Claude Code</a> or <a href="https://learn.chatgpt.com/docs/codex/cli">Codex</a> (beta), or both: Hangar installs them if they are missing, and you sign in once.
       <a href="https://github.com/hangar-ai/hangar/releases/latest">Every file of the latest release</a> ·
       <a href="https://github.com/hangar-ai/hangar/blob/main/docs/guide/building.md">Build from source</a>
     </p>
@@ -666,11 +675,25 @@
       </details>
 
       <details>
-        <summary>Does it work with my Claude Pro or Max plan?</summary>
+        <summary>Does it work with my Claude or ChatGPT plan?</summary>
         <div class="qa__a">
           <p>
-            Yes. Hangar starts the <code>claude</code> you installed, with the login it already has, and
-            never asks for your credentials. The navigator shows your plan's five-hour and weekly usage.
+            Yes. Hangar starts the <code>claude</code> and the <code>codex</code> you installed, with the
+            logins they already have, and never asks for your credentials. The navigator shows your plan's
+            five-hour and weekly usage.
+          </p>
+        </div>
+      </details>
+
+      <details id="faq-codex">
+        <summary>Why is Codex marked beta?</summary>
+        <div class="qa__a">
+          <p>
+            Hangar drives Codex through the protocol OpenAI publishes for it, and was written from that
+            protocol's schema, source and docs rather than from recorded sessions. Until Codex users
+            confirm it, it stays beta. Something wrong in a Codex pane?
+            <a href="https://github.com/hangar-ai/hangar/issues/new?template=codex-bug.yml">Report it</a>.
+            What works with which agent: <a href="https://github.com/hangar-ai/hangar/blob/main/docs/guide/codex.md">the Codex guide</a>.
           </p>
         </div>
       </details>
