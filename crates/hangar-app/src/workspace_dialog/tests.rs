@@ -145,6 +145,14 @@ fn with_agents(mut st: State, kinds: &[AgentKind]) -> State {
     st
 }
 
+/// The window's own look at the machine (`ui.claude_installed`,
+/// `ui.codex_installed`, which the setup sheet keeps current) finding only
+/// these agents too: the harness starts with Claude Code installed.
+fn found_by_the_window(m: &mut Model, kinds: &[AgentKind]) {
+    m.ui.claude_installed = kinds.contains(&AgentKind::Claude);
+    m.ui.codex_installed = kinds.contains(&AgentKind::Codex);
+}
+
 #[test]
 fn an_agent_that_is_not_installed_is_greyed_with_the_reason_and_a_link_to_the_setup() {
     let h = Harness::new(Locale::En, "graphite");
@@ -206,7 +214,8 @@ fn the_panes_picked_by_hand_can_run_codex() {
 
 #[test]
 fn without_an_agent_the_default_is_a_shell_and_the_form_says_why() {
-    let h = Harness::new(Locale::En, "graphite");
+    let mut h = Harness::new(Locale::En, "graphite");
+    found_by_the_window(&mut h.model, &[]);
     let st = with_agents(State::default(), &[]);
     let mut ui = h.show(view(&st, h.ctx()));
     for text in [
@@ -231,7 +240,7 @@ fn without_an_agent_the_default_is_a_shell_and_the_form_says_why() {
 /// the other one greyed with the reason.
 #[test]
 fn the_orchestrator_is_claude_code_when_both_are_there_else_the_one_installed() {
-    let h = Harness::new(Locale::En, "graphite");
+    let mut h = Harness::new(Locale::En, "graphite");
     let claude = "One Claude Code pane, the orchestrator: tell it what you want, it plans the work and hands it to workers";
     let codex = "One Codex pane, the orchestrator: tell it what you want, it plans the work and hands it to workers";
     let both = with_agents(State::default(), &[AgentKind::Claude, AgentKind::Codex]);
@@ -249,6 +258,7 @@ fn the_orchestrator_is_claude_code_when_both_are_there_else_the_one_installed() 
             Msg::Orchestrator(AgentKind::Codex)
         )));
     }
+    found_by_the_window(&mut h.model, &[AgentKind::Codex]);
     let codex_only = with_agents(State::default(), &[AgentKind::Codex]);
     assert_eq!(codex_only.orchestrator(&h.model), Some(AgentKind::Codex));
     let mut ui = h.show(view(&codex_only, h.ctx()));
@@ -351,10 +361,57 @@ fn the_agents_found_are_asked_at_each_opening_and_kept_meanwhile() {
     st.folder.orchestrator = Some(AgentKind::Codex);
     opened(&mut st);
     assert_eq!(st.folder.orchestrator, None, "the form is clean");
-    assert_eq!(st.installed(), Installed::of([AgentKind::Codex]));
+    let m = Model::default();
+    assert_eq!(st.installed(&m), Installed::of([AgentKind::Codex]));
     // Before any answer, every agent is assumed: the form starts with an
     // orchestrator, as it always did.
-    assert_eq!(State::default().installed(), Installed::every());
+    assert_eq!(State::default().installed(&m), Installed::every());
+}
+
+/// « Set up Codex » opens the setup sheet over the dialog, which stays
+/// under it with what was typed. The sheet installs Codex (the window's
+/// `ui.codex_installed`, `shell::setup`) and closes: the dialog on top again
+/// offers Codex at once, with no reopening that would empty the form.
+#[test]
+fn an_agent_installed_from_the_setup_link_is_offered_when_the_sheet_closes() {
+    let mut h = Harness::new(Locale::En, "graphite");
+    found_by_the_window(&mut h.model, &[AgentKind::Claude]);
+    h.model.ui.overlays.push(Overlay::WorkspaceDialog);
+    let mut st = with_agents(State::default(), &[AgentKind::Claude]);
+    st.folder.cwd = "/home/me/dev/blog".into();
+    st.folder.more = true;
+    {
+        let mut ui = h.show(view(&st, h.ctx()));
+        assert!(ui.find("not installed").is_ok());
+        ui.click("Set up Codex").expect("the link to the setup");
+        assert!(messages(ui).iter().any(|message| matches!(
+            message,
+            Message::Intent(Intent::OpenOverlay(Overlay::AgentSetup))
+        )));
+    }
+    let _ = form(&mut st, &mut h.model, Msg::Orchestrator(AgentKind::Codex));
+    assert_eq!(st.folder.orchestrator, None, "not yet installed");
+
+    // The sheet found Codex installed, then closed.
+    h.model.ui.codex_installed = true;
+    let _ = form(&mut st, &mut h.model, Msg::Orchestrator(AgentKind::Codex));
+    assert_eq!(st.folder.orchestrator, Some(AgentKind::Codex));
+    let _ = form(
+        &mut st,
+        &mut h.model,
+        Msg::Workers(Workers::Agent(AgentKind::Codex)),
+    );
+    assert_eq!(st.folder.workers, Some(Workers::Agent(AgentKind::Codex)));
+    let _ = form(&mut st, &mut h.model, Msg::More(AgentId::Codex));
+    assert_eq!(folder::count_of(&st.folder.assignments, AgentId::Codex), 1);
+    assert_eq!(st.folder.cwd, "/home/me/dev/blog", "the form is as it was");
+    let mut ui = h.show(view(&st, h.ctx()));
+    assert!(
+        ui.find("One Codex pane, the orchestrator: tell it what you want, it plans the work and hands it to workers")
+            .is_ok()
+    );
+    assert!(ui.find("not installed").is_err());
+    assert!(ui.find("Set up Codex").is_err());
 }
 
 #[test]
@@ -432,6 +489,7 @@ fn the_orchestrator_made_by_the_dialog_is_saved_and_read_back() {
 #[test]
 fn without_an_agent_the_dialog_makes_one_shell_with_no_role() {
     let mut h = Harness::new(Locale::En, "graphite");
+    found_by_the_window(&mut h.model, &[]);
     let mut st = with_agents(State::default(), &[]);
     st.folder.cwd = "/home/me/dev/blog".into();
     let _ = form(&mut st, &mut h.model, Msg::Submit(Vec::new()));
@@ -447,6 +505,7 @@ fn without_an_agent_the_dialog_makes_one_shell_with_no_role() {
 #[test]
 fn with_codex_alone_the_dialog_makes_a_codex_orchestrator() {
     let mut h = Harness::new(Locale::En, "graphite");
+    found_by_the_window(&mut h.model, &[AgentKind::Codex]);
     let mut st = with_agents(State::default(), &[AgentKind::Codex]);
     st.folder.cwd = "/home/me/dev/blog".into();
     let _ = form(&mut st, &mut h.model, Msg::Submit(Vec::new()));

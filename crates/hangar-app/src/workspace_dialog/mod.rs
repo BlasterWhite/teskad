@@ -238,7 +238,8 @@ pub struct State {
     in_folder: Option<String>,
     /// The agents found on this machine, asked again each time the dialog
     /// opens ([`detect_agents`]) and kept from one opening to the next;
-    /// `None` until the first answer.
+    /// `None` until the first answer. What the window finds meanwhile is
+    /// added to it ([`State::installed`]).
     installed: Option<Installed>,
 }
 
@@ -409,21 +410,32 @@ impl State {
         self.installed = installed;
     }
 
-    /// The agents the pickers offer. Until the machine has answered, every
-    /// one: the form then starts as it did before it asked, with an
+    /// The agents the pickers offer: those the dialog found as it opened,
+    /// and those the window has found since (`shell::setup::installed`,
+    /// which the setup sheet keeps current): an agent installed from the
+    /// form's « Set up » link is offered as soon as the sheet closes, without
+    /// the form being opened again. Until the dialog's look has answered,
+    /// every one: the form then starts as it did before it asked, with an
     /// orchestrator.
-    pub(crate) fn installed(&self) -> Installed {
-        self.installed.clone().unwrap_or_else(Installed::every)
+    pub(crate) fn installed(&self, m: &Model) -> Installed {
+        let Some(found) = &self.installed else {
+            return Installed::every();
+        };
+        Installed::of(
+            AgentKind::ALL
+                .into_iter()
+                .filter(|kind| found.has(*kind) || crate::shell::setup::installed(m, *kind)),
+        )
     }
 
     /// The agent the orchestrator runs (D20); `None` without an agent.
     pub(crate) fn orchestrator(&self, m: &Model) -> Option<AgentKind> {
-        folder::orchestrator_of(self.folder.orchestrator, m.settings(), &self.installed())
+        folder::orchestrator_of(self.folder.orchestrator, m.settings(), &self.installed(m))
     }
 
     /// What the workers run, as the form shows it.
     pub(crate) fn workers(&self, m: &Model) -> Workers {
-        folder::workers_of(self.folder.workers, m.settings(), &self.installed())
+        folder::workers_of(self.folder.workers, m.settings(), &self.installed(m))
     }
 
     /// The folder the workspace is filed in, while it exists.
@@ -710,7 +722,7 @@ fn form(st: &mut State, m: &mut Model, msg: Msg) -> Task<Message> {
         }
         // An agent that is not installed is greyed: nothing to add.
         Msg::More(agent) => {
-            if st.installed().runs(agent) {
+            if st.installed(m).runs(agent) {
                 folder::add_agent(&mut st.folder.assignments, agent);
             }
             Task::none()
@@ -720,12 +732,12 @@ fn form(st: &mut State, m: &mut Model, msg: Msg) -> Task<Message> {
             Task::none()
         }
         Msg::Cycle(index) => {
-            let installed = st.installed();
+            let installed = st.installed(m);
             folder::cycle_cell(&mut st.folder.assignments, index, &installed);
             Task::none()
         }
         Msg::Orchestrator(kind) => {
-            if st.installed().has(kind) {
+            if st.installed(m).has(kind) {
                 st.folder.orchestrator = Some(kind);
             }
             Task::none()
@@ -733,7 +745,7 @@ fn form(st: &mut State, m: &mut Model, msg: Msg) -> Task<Message> {
         Msg::Workers(workers) => {
             let offered = match workers {
                 Workers::Same => true,
-                Workers::Agent(kind) => st.installed().has(kind),
+                Workers::Agent(kind) => st.installed(m).has(kind),
             };
             if offered {
                 st.folder.workers = Some(workers);
@@ -1105,9 +1117,9 @@ fn node_cloned(
     // The clone form offers no choice of agents: the defaults (D20), read
     // from the agents of this machine, as the dialog knows no other's yet
     // (a node's own agents are T29's).
-    let orchestrator = folder::orchestrator_of(None, m.settings(), &st.installed());
+    let orchestrator = folder::orchestrator_of(None, m.settings(), &st.installed(m));
     let start = folder::start_of(false, orchestrator.is_some());
-    let workers = folder::workers_of(None, m.settings(), &st.installed());
+    let workers = folder::workers_of(None, m.settings(), &st.installed(m));
     let agents = folder::agents_of(start, orchestrator, workers, m.settings());
     let Some(mut draft) = folder::draft_of(&FolderForm {
         name: &st.name,
@@ -1420,7 +1432,10 @@ pub fn on_intent(
             opened(st);
             Some(detect_agents())
         }
-        Intent::OpenOnAnotherMachine(ws) => Some(open_elsewhere(st, m, ws)),
+        // Opened as any other way does: the machine's agents asked again.
+        Intent::OpenOnAnotherMachine(ws) => {
+            Some(Task::batch([open_elsewhere(st, m, ws), detect_agents()]))
+        }
         Intent::NewWorkspaceInFolder(folder) => {
             open_in_folder(st, m, folder);
             Some(Task::none())

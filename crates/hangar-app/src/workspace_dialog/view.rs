@@ -203,7 +203,7 @@ fn set_up<'a>(ctx: Ctx<'a>, kind: AgentKind) -> Element<'a, Message> {
 
 /// One link to the setup per agent this machine lacks, on a line.
 fn set_up_missing<'a>(st: &State, ctx: Ctx<'a>) -> Option<Element<'a, Message>> {
-    let installed = st.installed();
+    let installed = st.installed(ctx.model);
     let links: Vec<Element<'a, Message>> =
         installed.missing().map(|kind| set_up(ctx, kind)).collect();
     (!links.is_empty()).then(|| {
@@ -217,7 +217,7 @@ fn set_up_missing<'a>(st: &State, ctx: Ctx<'a>) -> Option<Element<'a, Message>> 
 /// installed greyed with the reason; the one chosen raised, none when
 /// neither is installed.
 fn orchestrator_choice<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
-    let installed = st.installed();
+    let installed = st.installed(ctx.model);
     let missing = ctx.t(Key::CreateNotInstalled).into_owned();
     let options = AgentKind::ALL
         .into_iter()
@@ -239,7 +239,7 @@ fn orchestrator_choice<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> 
 /// that is not installed greyed with the reason.
 fn workers_choice<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
     let t = ctx.theme;
-    let installed = st.installed();
+    let installed = st.installed(ctx.model);
     let missing = ctx.t(Key::CreateNotInstalled).into_owned();
     let same = input::Segment::new(
         Workers::Same,
@@ -1113,7 +1113,7 @@ fn counter<'a>(st: &'a State, ctx: Ctx<'a>, kind: AgentKind, free: usize) -> Ele
     let t = ctx.theme;
     let agent = AgentId::from(kind);
     let label = kind_name(ctx, kind);
-    let missing = !st.installed().has(kind);
+    let missing = !st.installed(ctx.model).has(kind);
     let count = folder::count_of(&st.folder.assignments, agent);
     let mut name = column![text(label.clone()).size(tokens::font_size::BODY).style(
         move |theme: &iced::Theme| {
