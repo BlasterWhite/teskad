@@ -1028,11 +1028,8 @@ pub fn update(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Me
             cwd,
             known,
         } => {
-            if is_resumable(agent) {
-                m.live
-                    .panes_logic
-                    .watches
-                    .insert(pane, SessionWatch::new(cwd, known, now));
+            if let Some(watch) = SessionWatch::for_agent(agent, cwd, known, now) {
+                m.live.panes_logic.watches.insert(pane, watch);
             }
             Task::none()
         }
@@ -1081,30 +1078,25 @@ pub fn update(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Me
         }
         Msg::Sessions { pane, sessions } => {
             let live = &mut m.live.panes_logic;
-            // The mod names the session outright; the transcript hunt is for
-            // the agents that have none. Its answer is not even claimed.
-            let bridged = live
+            // An agent whose side channel spoke names its session outright;
+            // the hunt is for the others. Its answer is not even claimed.
+            let spoke = live
                 .machines
                 .get(&pane)
                 .is_none_or(|machine| machine.bridged);
-            if bridged {
-                if let Some(watch) = live.watches.get_mut(&pane) {
-                    watch.skip_round(now);
-                }
-                return Task::none();
-            }
-            let Some(found) = live
-                .watches
-                .get_mut(&pane)
-                .and_then(|watch| watch.round_done(sessions.as_deref(), now, &mut live.claims))
-            else {
+            let Some(watch) = live.watches.get_mut(&pane) else {
                 return Task::none();
             };
-            match (bridged, inputs(m, &pane, now)) {
-                (false, Some((info, _))) => {
-                    run_effects(m, &info, vec![Effect::CaptureSession(found)])
-                }
-                _ => Task::none(),
+            if watch.reported(spoke) {
+                watch.skip_round(now);
+                return Task::none();
+            }
+            let Some(found) = watch.round_done(sessions.as_deref(), now, &mut live.claims) else {
+                return Task::none();
+            };
+            match inputs(m, &pane, now) {
+                Some((info, _)) => run_effects(m, &info, vec![Effect::CaptureSession(found)]),
+                None => Task::none(),
             }
         }
         Msg::Context { pane, usage } => {
@@ -1273,15 +1265,16 @@ fn slow(st: &mut State, m: &mut Model, now: EpochMs) -> Task<Message> {
         .collect();
     for pane in due {
         let live = &mut m.live.panes_logic;
-        // A bridged pane's session is named by the mod: no listing at all.
-        let bridged = live
+        // A pane whose agent names its session (its side channel spoke) is
+        // not hunted: no listing at all.
+        let spoke = live
             .machines
             .get(&pane)
             .is_none_or(|machine| machine.bridged);
         let Some(watch) = live.watches.get_mut(&pane) else {
             continue;
         };
-        if bridged {
+        if watch.reported(spoke) {
             watch.skip_round(now);
             continue;
         }
@@ -1289,6 +1282,9 @@ fn slow(st: &mut State, m: &mut Model, now: EpochMs) -> Task<Message> {
             continue;
         }
         let cwd = watch.cwd.clone();
+        // Its agent's own history: Claude Code's transcripts, Codex's
+        // rollouts.
+        let kind = watch.kind();
         // A remote pane's transcripts are on its node.
         let node = m
             .find_pane(&pane)
@@ -1297,9 +1293,11 @@ fn slow(st: &mut State, m: &mut Model, now: EpochMs) -> Task<Message> {
             async move {
                 match node {
                     Some(node) => remote_transcripts::hunt_listing(node, cwd).await,
-                    None => tokio::task::spawn_blocking(move || session_watch::hunt_listing(cwd))
-                        .await
-                        .ok(),
+                    None => {
+                        tokio::task::spawn_blocking(move || session_watch::hunt_listing(kind, cwd))
+                            .await
+                            .ok()
+                    }
                 }
             },
             move |sessions| {

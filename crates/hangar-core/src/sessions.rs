@@ -232,14 +232,41 @@ pub fn list_session_ids(cwd: String) -> Vec<(String, u64)> {
 /// by folder, so for it the head of each rollout is read once (its first
 /// line, which names the folder) and remembered while the file is unchanged.
 pub fn list_session_ids_for(agent: AgentKind, cwd: String) -> Vec<(String, u64)> {
+    list_session_ids_in(agent, &history_roots(agent), &cwd)
+}
+
+/// The folders `agent` files its conversations in on this machine: the
+/// `projects/` folder of every Claude Code account, Codex's `sessions/` (its
+/// accounts share it). Reads the accounts' index, not the conversations.
+fn history_roots(agent: AgentKind) -> Vec<PathBuf> {
     match agent {
-        AgentKind::Claude => transcripts_in(&crate::accounts::projects_dirs(), &cwd)
+        AgentKind::Claude => crate::accounts::projects_dirs(),
+        AgentKind::Codex => codex::home()
+            .map(|home| home.join(codex::SESSIONS))
+            .into_iter()
+            .collect(),
+    }
+}
+
+/// `list_session_ids_for`, under `roots` instead of the folders `agent`
+/// keeps its conversations in here: for a caller that names them itself (a
+/// test, with conversations of its own). Newest first, each id once.
+pub fn list_session_ids_in(agent: AgentKind, roots: &[PathBuf], cwd: &str) -> Vec<(String, u64)> {
+    match agent {
+        AgentKind::Claude => transcripts_in(roots, cwd)
             .into_iter()
             .map(|t| (t.id, t.modified_ms))
             .collect(),
-        AgentKind::Codex => codex::home()
-            .map(|home| codex::session_ids_in(&home.join(codex::SESSIONS), &cwd))
-            .unwrap_or_default(),
+        AgentKind::Codex => {
+            let mut ids: Vec<(String, u64)> = roots
+                .iter()
+                .flat_map(|root| codex::session_ids_in(root, cwd))
+                .collect();
+            ids.sort_by_key(|(_, modified_ms)| std::cmp::Reverse(*modified_ms));
+            let mut seen = HashSet::new();
+            ids.retain(|(id, _)| seen.insert(id.clone()));
+            ids
+        }
     }
 }
 
@@ -291,9 +318,29 @@ pub fn session_exists_for(agent: AgentKind, id: String) -> Option<bool> {
     if !plain_id(&id) {
         return None;
     }
+    session_exists_in(agent, &history_roots(agent), &id)
+}
+
+/// `session_exists_for`, under `roots` instead of the folders `agent` keeps
+/// its conversations in here (`list_session_ids_in`). Found under any of
+/// them, or `None` when none could be read.
+pub fn session_exists_in(agent: AgentKind, roots: &[PathBuf], id: &str) -> Option<bool> {
+    if !plain_id(id) {
+        return None;
+    }
     match agent {
-        AgentKind::Claude => claude_transcript_exists_in(&crate::accounts::projects_dirs(), &id),
-        AgentKind::Codex => codex::rollout_exists(&codex::home()?.join(codex::SESSIONS), &id),
+        AgentKind::Claude => claude_transcript_exists_in(roots, id),
+        AgentKind::Codex => {
+            let answers: Vec<bool> = roots
+                .iter()
+                .filter_map(|root| codex::rollout_exists(root, id))
+                .collect();
+            if answers.is_empty() {
+                None
+            } else {
+                Some(answers.contains(&true))
+            }
+        }
     }
 }
 
@@ -536,6 +583,59 @@ mod tests {
         for agent in AgentKind::ALL {
             assert_eq!(session_exists_for(agent, "../escape".into()), None);
             assert_eq!(session_exists_for(agent, "a b".into()), None);
+            assert_eq!(session_exists_in(agent, &[], "../escape"), None);
         }
+    }
+
+    /// Codex's folders named by the caller: a thread found in either is
+    /// listed once, by its newest file, and is there to resume; a folder that
+    /// cannot be read says nothing.
+    #[test]
+    fn codex_threads_are_listed_and_found_under_the_folders_named() {
+        use codex::tests::{
+            put, CWD, LEGACY, LEGACY_ID, LEGACY_NAME, PAGINATED, PAGINATED_ID, PAGINATED_NAME,
+        };
+        let first = temp_dir("codex-roots-1");
+        let second = temp_dir("codex-roots-2");
+        let older = put(&first, LEGACY_NAME, LEGACY.as_bytes());
+        let paginated = put(&first, PAGINATED_NAME, PAGINATED.as_bytes());
+        let newer = put(&second, LEGACY_NAME, LEGACY.as_bytes());
+        let at = |path: &Path, secs: u64| {
+            fs::File::options()
+                .write(true)
+                .open(path)
+                .expect("open")
+                .set_modified(UNIX_EPOCH + std::time::Duration::from_secs(secs))
+                .expect("mtime");
+        };
+        at(&older, 1_000);
+        at(&paginated, 2_000);
+        at(&newer, 3_000);
+        let roots = [first.clone(), second.clone()];
+
+        assert_eq!(
+            list_session_ids_in(AgentKind::Codex, &roots, CWD),
+            [
+                (LEGACY_ID.to_string(), 3_000_000),
+                (PAGINATED_ID.to_string(), 2_000_000)
+            ]
+        );
+        assert_eq!(
+            session_exists_in(AgentKind::Codex, &roots, LEGACY_ID),
+            Some(true)
+        );
+        assert_eq!(
+            session_exists_in(
+                AgentKind::Codex,
+                &roots,
+                "019a0000-0000-7000-8000-000000000000"
+            ),
+            Some(false)
+        );
+        let gone = first.join("not-there");
+        assert_eq!(
+            session_exists_in(AgentKind::Codex, &[gone], LEGACY_ID),
+            None
+        );
     }
 }
