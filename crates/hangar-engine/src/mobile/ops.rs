@@ -349,7 +349,7 @@ pub async fn remote_screen(
 /// A pane's side channel as the settings have it: what drains the queue
 /// Hangar keeps for the pane and holds its agent's asks open.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SideChannel {
+pub struct SideChannelSetting {
     pub on: bool,
     /// What is off when it is, as a refusal says it.
     pub off: &'static str,
@@ -361,13 +361,13 @@ pub struct SideChannel {
 /// it is on is a setting kept once per kind, read here as `state::types` reads
 /// its other fields kept per kind; the rest of this file reads only this.
 /// None for a shell.
-pub fn side_channel(settings: &Settings, pane: &Pane) -> Option<SideChannel> {
+pub fn side_channel(settings: &Settings, pane: &Pane) -> Option<SideChannelSetting> {
     Some(match pane.agent.kind()? {
-        AgentKind::Claude => SideChannel {
+        AgentKind::Claude => SideChannelSetting {
             on: settings.claude_bridge,
             off: "The hangar-bridge mod is off",
         },
-        AgentKind::Codex => SideChannel {
+        AgentKind::Codex => SideChannelSetting {
             on: settings.codex_attach,
             off: "Hangar is not attached to Codex (« Attach Hangar to Codex » is off)",
         },
