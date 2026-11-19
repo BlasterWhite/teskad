@@ -273,6 +273,13 @@ fn pane_agents() -> Value {
     json!(ids)
 }
 
+/// What `worker_spawn`'s `agent` takes: each kind of agent Hangar runs, by
+/// its id. Not a shell: a worker is an agent's pane.
+fn worker_agents() -> Value {
+    let ids: Vec<&str> = AgentKind::ALL.iter().map(|kind| kind.id()).collect();
+    json!(ids)
+}
+
 /// Each kind of agent as the tools describe it: `claude: Claude Code, codex:
 /// Codex`.
 fn agent_labels() -> String {
@@ -291,6 +298,10 @@ fn base_tool_definitions() -> Value {
     );
     let switch_to = format!(
         "Switch the pane to this agent ({}) or to a plain shell, which starts a new conversation.",
+        agent_labels()
+    );
+    let worker_agent = format!(
+        "The agent the worker runs ({}). Defaults to the workspace's worker agent: the one its orchestration settings chose, else Hangar's default, else the agent its orchestrator runs. An agent that cannot run a worker here — not installed, or Hangar's link to it turned off in Settings › Sessions, so the brief would never reach it — is refused with the reason, never replaced by another.",
         agent_labels()
     );
     let workspace_arg = json!({
@@ -630,13 +641,14 @@ fn base_tool_definitions() -> Value {
         // orchestration: workers (worker_* tools)
         {
             "name": "worker_spawn",
-            "description": "Start a worker on a board task. Hangar claims the task for it (assignee: the worker, column: doing, one more attempt), checks out a git worktree on a new branch from the workspace's target branch, opens a pane there with an agent on the worker model and twenty ports of its own, and queues its brief: the task's title and description, the files it owns, the check command, how to report, what to do when blocked and how to deliver. The worker starts with a fresh context and knows nothing else, so write the task's description as its whole brief — goal, constraints, acceptance criteria. With worktree: false, or in a workspace that is not a git repository, the worker starts in the workspace's folder itself, on the branch checked out there, beside you and the other workers, with no worktree, no branch and no delivery to land: it commits its task's files and you integrate them. Pick a worktree for parallel work that may conflict or must be reviewed apart, the same folder for one worker, quick sequential tasks or expensive builds; a task that does not say what it owns cannot run beside another worker there. Refused, with the reason, when the workspace is full (16 panes at most, its terminals included); the task is not in todo or waits on depends_on that are not done; or it owns files a task in doing owns too, or neither of them says what it owns. Hangar sets no limit on how many workers run at once or how many a task gets: that is yours to judge. Only the workspace's orchestrator can call it. You hear what the worker does through events — its comments, its delivery, a wait or an exit — so never poll it.",
+            "description": "Start a worker on a board task. Hangar claims the task for it (assignee: the worker, column: doing, one more attempt), checks out a git worktree on a new branch from the workspace's target branch, opens a pane there with the worker's agent (agent) on its worker model and twenty ports of its own, and queues its brief: the task's title and description, the files it owns, the check command, how to report, what to do when blocked and how to deliver. The worker starts with a fresh context and knows nothing else, so write the task's description as its whole brief — goal, constraints, acceptance criteria. With worktree: false, or in a workspace that is not a git repository, the worker starts in the workspace's folder itself, on the branch checked out there, beside you and the other workers, with no worktree, no branch and no delivery to land: it commits its task's files and you integrate them. Pick a worktree for parallel work that may conflict or must be reviewed apart, the same folder for one worker, quick sequential tasks or expensive builds; a task that does not say what it owns cannot run beside another worker there. Refused, with the reason, when the workspace is full (16 panes at most, its terminals included); its agent cannot run a worker here; the task is not in todo or waits on depends_on that are not done; or it owns files a task in doing owns too, or neither of them says what it owns. Hangar sets no limit on how many workers run at once or how many a task gets: that is yours to judge. Only the workspace's orchestrator can call it. You hear what the worker does through events — its comments, its delivery, a wait or an exit — so never poll it.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "task": { "type": "string", "description": "Id of the board task to hand over." },
                     "name": { "type": "string", "description": "Name for the worker's pane, unique across Hangar. Defaults to the next free first name." },
-                    "model": { "type": "string", "description": "Model the worker runs, as its agent names it (Claude Code: sonnet, opus, haiku or a full claude-… id; Codex: a gpt-… model id). Defaults to the workspace's worker model." },
+                    "model": { "type": "string", "description": "Model the worker runs, as its agent names it (Claude Code: sonnet, opus, haiku or a full claude-… id; Codex: a gpt-… model id). Defaults to the workspace's worker model for that agent (none set for Codex: its own default)." },
+                    "agent": { "type": "string", "enum": worker_agents(), "description": worker_agent },
                     "worktree": { "type": "boolean", "description": "Default true in a git workspace: the worker gets a worktree and a branch of its own, and Hangar checks, reviews and lands its delivery. false: it starts in the workspace's own folder on its current branch, beside other agents, with no branch and no delivery to land." },
                     "node": { "type": "string", "description": "Run the worker on a node instead of this computer (experimental): the id or name of a connected node, as worker_list shows under nodes — a server or a GPU box for heavy builds. Hangar pushes the target branch to a repository on the node, gives the worker a worktree and a branch there, and when it delivers fetches its branch back here, where it is checked, reviewed and landed as usual. Only in a git workspace on this computer, and never with worktree: false." }
                 },
@@ -1732,6 +1744,28 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("fetches its branch back"));
+        assert_eq!(
+            tool("worker_spawn")["inputSchema"]["required"],
+            json!(["task"])
+        );
+    }
+
+    /// A worker runs any agent Hangar runs, never a shell; none named, the
+    /// workspace's worker agent.
+    #[test]
+    fn worker_spawn_takes_an_agent() {
+        let agent = &tool("worker_spawn")["inputSchema"]["properties"]["agent"];
+        assert_eq!(agent["type"], "string");
+        assert_eq!(agent["enum"], json!(["claude", "codex"]));
+        let said = agent["description"].as_str().unwrap();
+        assert!(
+            said.contains("claude: Claude Code") && said.contains("codex: Codex"),
+            "{said}"
+        );
+        assert!(
+            said.contains("worker agent") && said.contains("refused"),
+            "{said}"
+        );
         assert_eq!(
             tool("worker_spawn")["inputSchema"]["required"],
             json!(["task"])

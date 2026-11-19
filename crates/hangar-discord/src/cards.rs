@@ -107,7 +107,7 @@ fn fenced(text: &str) -> String {
     text.replace("```", "`\u{200b}``")
 }
 
-/// Claude's answer in pieces Discord takes, cut at paragraph boundaries,
+/// An agent's answer in pieces Discord takes, cut at paragraph boundaries,
 /// a code block closed and opened again across a cut.
 pub fn split_answer(answer: &str) -> Vec<String> {
     let mut pieces = Vec::new();
@@ -156,7 +156,7 @@ pub fn split_answer(answer: &str) -> Vec<String> {
         .collect()
 }
 
-/// Claude's answer: one message per piece.
+/// An agent's answer: one message per piece.
 pub fn answer(answer: &str) -> Vec<Value> {
     split_answer(answer)
         .into_iter()
@@ -648,6 +648,9 @@ pub fn send_back_modal(words: Words, ws: &str, task: &str) -> Value {
 /// One row of the dashboard.
 pub struct Row<'a> {
     pub name: &'a str,
+    /// The agent it runs, said beside its name where that tells panes
+    /// apart (`bot::agent_label`).
+    pub agent: Option<&'a str>,
     pub state: &'a str,
     pub since_secs: Option<u64>,
     /// A worker's: its pane, and its thread's link when open.
@@ -673,7 +676,11 @@ pub fn dashboard(words: Words, ws_name: &str, rows: &[Row<'_>], board: &str) -> 
             .since_secs
             .map(|s| format!(" · <t:{s}:R>"))
             .unwrap_or_default();
-        let line = format!("**{}** — {}{since}", clip(row.name, 60), row.state);
+        let agent = row
+            .agent
+            .map(|agent| format!(" · {agent}"))
+            .unwrap_or_default();
+        let line = format!("**{}**{agent} — {}{since}", clip(row.name, 60), row.state);
         let cost = if row.worker.is_some() { 3 } else { 1 };
         if !rest.is_empty() || used + cost + 1 > COMPONENTS_MAX {
             rest.push(line);
@@ -795,6 +802,7 @@ mod tests {
                 "Shop",
                 &[Row {
                     name: "Ada",
+                    agent: None,
                     state: "travaille",
                     since_secs: Some(1),
                     worker: Some(("p2", None)),
@@ -825,6 +833,7 @@ mod tests {
         let panes: Vec<String> = (0..15).map(|n| format!("p{n}")).collect();
         let mut rows = vec![Row {
             name: "Leo",
+            agent: None,
             state: "travaille",
             since_secs: Some(1),
             worker: None,
@@ -832,6 +841,7 @@ mod tests {
         for (name, pane) in names.iter().zip(&panes) {
             rows.push(Row {
                 name,
+                agent: None,
                 state: "travaille",
                 since_secs: Some(1),
                 worker: Some((pane, None)),
