@@ -11,6 +11,7 @@
 //! too, as `commands:<hash>` ([`kit_commands_grant`]): changed, its tabs run
 //! none of them until they are accepted again.
 
+use hangar_core::agent::KitPart;
 use hangar_core::kits::{Hook, Inspection, KitInfo, RunKind, Running, Source, Tab};
 use hangar_i18n::{Key, Translator, args};
 
@@ -18,7 +19,7 @@ use super::model::{
     is_kit_commands_grant, is_kit_hooks_grant, kit_command_name, kit_commands_grant,
     kit_hooks_grant, kit_loopback_port, kit_permissions_in,
 };
-use crate::state::types::{AgentId, PaneId, Workspace, WorkspaceKit};
+use crate::state::types::{PaneId, Workspace, WorkspaceKit};
 
 /// Every permission has its sentence in the dictionary, in plain words.
 pub const PERMISSION_LABEL: [(&str, Key); 9] = [
@@ -487,10 +488,25 @@ pub fn disable_kit(kits: &[WorkspaceKit], id: &str) -> Vec<WorkspaceKit> {
     kits.iter().filter(|kit| kit.id != id).cloned().collect()
 }
 
-/// The panes that carry kits: Claude Code's. Other agents and plain shells
-/// never load a kit's plugin, so they have nothing to restart for.
+/// The panes that carry kits: those of an agent that loads a part of a kit
+/// with each launch (its `extensions`): Claude Code's plugin, Codex's MCP
+/// servers. Plain shells never load one, and have nothing to restart for;
+/// what Codex takes once installed (« Add to Codex ») needs no restart.
 pub fn kit_panes(ws: &Workspace) -> impl Iterator<Item = &crate::state::types::Pane> {
-    ws.panes.iter().filter(|pane| pane.agent == AgentId::Claude)
+    ws.panes.iter().filter(|pane| {
+        pane.agent.kind().is_some_and(|kind| {
+            let ext = kind.info().caps.extensions;
+            [
+                ext.mcp_servers,
+                ext.skills,
+                ext.hooks,
+                ext.commands,
+                ext.agents,
+                ext.output_styles,
+            ]
+            .contains(&KitPart::PerLaunch)
+        })
+    })
 }
 
 /// The panes a kit change still needs a restart for: those running now keep

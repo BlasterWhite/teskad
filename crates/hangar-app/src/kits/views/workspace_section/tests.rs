@@ -146,8 +146,10 @@ fn shows_the_kit_on_with_its_switch_locked_and_says_where_it_is_managed() {
         "Hello kit is enabled on all workspaces: change it in Settings › Kits"
     );
     assert_eq!(row.meta, "Managed in Settings › Kits.");
-    assert_eq!(row.tags.len(), 1);
+    assert_eq!(row.tags.len(), 2);
     assert_eq!(row.tags[0].label, "On all workspaces");
+    // A manifest that names no agent is Claude Code's alone.
+    assert_eq!(row.tags[1].label, "Claude Code only");
     assert_eq!(row.open, None);
 }
 
@@ -266,7 +268,7 @@ fn offers_to_restart_the_claude_code_panes_after_an_accept() {
     assert_eq!(restart.title, "Running agents do not have it yet");
     assert!(restart.body.contains("Hello kit"));
     assert!(restart.body.contains("Each one resumes its conversation."));
-    assert_eq!(restart.action, "Restart the Claude Code panes (1)");
+    assert_eq!(restart.action, "Restart the agent panes (1)");
     assert_eq!(restart.later, "Later");
 }
 
@@ -296,4 +298,49 @@ fn an_installed_kit_with_no_manifest_is_listed_by_its_id() {
     let row = first(&model);
     assert_eq!(row.name, "odd-kit");
     assert!(!row.switch_enabled);
+}
+
+/// A kit meant for one agent says so beside its state; one meant for both
+/// says nothing more. A Codex pane carries kits too: their MCP servers come
+/// with its launch, so it is restarted with the others.
+#[test]
+fn says_which_agent_a_kit_is_for_and_restarts_codex_panes_too() {
+    use hangar_core::agent::AgentKind;
+
+    let tags = |draw: &Draw| -> Vec<String> {
+        first(&draw.en())
+            .tags
+            .iter()
+            .map(|tag| tag.label.clone())
+            .collect()
+    };
+    let mut draw = Draw::new();
+    assert_eq!(tags(&draw), ["Off", "Claude Code only"]);
+
+    let mut both = kit("1.0.0", vec![tab(&["panes.read"])]);
+    both.manifest.as_mut().unwrap().agents = vec![AgentKind::Claude, AgentKind::Codex];
+    draw.kits = Some(vec![both.clone()]);
+    assert_eq!(tags(&draw), ["Off"]);
+
+    both.manifest.as_mut().unwrap().agents = vec![AgentKind::Codex];
+    draw.kits = Some(vec![both]);
+    assert_eq!(tags(&draw), ["Off", "Codex only"]);
+
+    let ws = draw.workspace.as_mut().unwrap();
+    ws.panes.push(crate::state::types::Pane {
+        id: "p2".into(),
+        name: "Ben".into(),
+        agent: AgentId::Codex,
+        ..Default::default()
+    });
+    ws.panes.push(crate::state::types::Pane {
+        id: "p3".into(),
+        name: "Shell".into(),
+        agent: AgentId::Shell,
+        ..Default::default()
+    });
+    assert_eq!(
+        panes_to_restart(draw.workspace.as_ref().unwrap()),
+        ["p1", "p2"]
+    );
 }
