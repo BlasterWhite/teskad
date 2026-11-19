@@ -16,6 +16,13 @@ export type UserItem = Extract<ChatItem, { kind: "user" }>;
 
 export type ActionKind = "edit" | "command" | "read" | "search" | "other";
 
+/**
+ * Claude Code's tools by name, then Codex's: the items of a Codex thread
+ * (crates/hangar-core/src/chat/codex.rs: a command run, a patch, a web
+ * search; an MCP tool's call is named `mcp__<server>__<tool>` as Claude
+ * Code's are) and the patch it asks to apply (`apply_patch`, from Hangar's
+ * client of its server).
+ */
 const KINDS: Record<string, ActionKind> = {
   Edit: "edit",
   MultiEdit: "edit",
@@ -34,6 +41,10 @@ const KINDS: Record<string, ActionKind> = {
   Glob: "search",
   WebSearch: "search",
   ToolSearch: "search",
+  commandExecution: "command",
+  fileChange: "edit",
+  apply_patch: "edit",
+  webSearch: "search",
 };
 
 /** The icon a tool call gets: what it does to the project. */

@@ -1,18 +1,23 @@
-//! Answering through the ask a pane's hangar-bridge mod holds open, rather
-//! than through keys typed into Claude Code's dialog.
+//! Answering through the ask a pane's side channel holds open, rather than
+//! through keys typed into its agent's dialog.
 //!
-//! When Claude Code is about to ask the person something, the mod reports the
-//! ask with an id and waits in core for its answer (core's bridge.rs, "Asks
-//! the mod holds open"), while the dialog stays up in the terminal. An answer
-//! given here reaches Claude Code as the decision the person made — the
-//! labels they picked, their own words, a yes or a no — with no screen read
-//! back and no key that could land elsewhere.
+//! When the agent is about to ask the person something, its side channel
+//! reports the ask with an id and waits in core for its answer (core's
+//! bridge.rs, "Asks the mod holds open"), while the dialog stays up in the
+//! terminal: Claude Code's hangar-bridge mod, or Hangar's own client of a
+//! Codex pane's server, which holds each of Codex's requests — approvals,
+//! questions — the same way (hangar-core's `agent/codex_attach.rs`). An
+//! answer given here reaches the agent as the decision the person made —
+//! the labels they picked, their own words, a yes or a no — with no screen
+//! read back and no key that could land elsewhere. Only the person answers:
+//! these are the chat's and the phone's buttons, never an agent's tool.
 //!
-//! Keys stay the way for what no mod holds: a pane on a node (its asks are
-//! held there), a Claude Code that runs without the mod, an ask reported by
-//! an older mod. And the mod must take the answer within `TAKE_MS`: one that
-//! is not there to take it (its hook skipped, Claude Code gone) has it taken
-//! back, and the keys are typed after all.
+//! Keys stay the way for what no side channel holds: a pane on a node (its
+//! asks are held there), an agent that runs without its side channel, an ask
+//! reported by an older mod. And the side channel must take the answer
+//! within `TAKE_MS`: one that is not there to take it (its hook skipped, the
+//! agent gone, the connection to Codex's server lost) has it taken back, and
+//! the keys are typed after all.
 
 use serde_json::{Map, Value, json};
 
@@ -93,13 +98,53 @@ fn asks_the_same(input: &Value, questions: &[Question]) -> bool {
         })
 }
 
+/// What the person chose for a permission the pane waits on.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Permit {
+    /// Allowed once, or for the rest of the session (`session`) where the
+    /// agent has such an answer — Codex's "don't ask again … in this
+    /// session"; one that has none takes it as a plain allow (core's
+    /// bridge.rs, `answer_ask`).
+    Allow { session: bool },
+    /// Denied, and the turn stopped, as both agents' dialogs do with "No, and
+    /// tell … what to do differently" (Escape): the session waits for what
+    /// the person says next — `words`, when they said it with the no, which
+    /// reach the session as their next message, as typed there.
+    Deny { words: Option<String> },
+}
+
+impl Permit {
+    /// A plain yes or no.
+    pub fn of(allow: bool) -> Permit {
+        if allow {
+            Permit::Allow { session: false }
+        } else {
+            Permit::Deny { words: None }
+        }
+    }
+
+    pub fn allows(&self) -> bool {
+        matches!(self, Permit::Allow { .. })
+    }
+}
+
 /// A yes or a no to a permission. A no stops the turn, as Escape in the
 /// dialog does: the agent waits for what the person says next.
 pub fn permission_decision(allow: bool) -> Value {
-    if allow {
-        json!({ "behavior": "allow" })
-    } else {
-        json!({ "behavior": "deny", "interrupt": true })
+    permit_decision(&Permit::of(allow))
+}
+
+/// The person's choice as the ask takes it: an allow, for the session when
+/// asked (`forSession`), or a no that stops the turn. The words said with a
+/// no are not in it: they go to the session as the person's next message
+/// (ops.rs), the way the person gives them at the PC once the dialog is
+/// down — Codex's answers have no room for them, and Claude Code then reads
+/// them once, as theirs.
+pub fn permit_decision(permit: &Permit) -> Value {
+    match permit {
+        Permit::Allow { session: false } => json!({ "behavior": "allow" }),
+        Permit::Allow { session: true } => json!({ "behavior": "allow", "forSession": true }),
+        Permit::Deny { .. } => json!({ "behavior": "deny", "interrupt": true }),
     }
 }
 
@@ -135,6 +180,60 @@ pub fn question_decision(questions: &[Question], choices: &[Choice]) -> Value {
                 .chain(choice.other.clone())
                 .collect();
             (question.question.clone(), Value::String(said.join(", ")))
+        })
+        .collect();
+    json!({ "behavior": "allow", "answers": answers })
+}
+
+/// The row Codex's question dialog adds below a question's options when it
+/// takes the person's own words instead of one (`isOther`), and the prefix
+/// it gives those words among the answers (codex-rs/tui/src/bottom_pane/
+/// request_user_input/mod.rs at rust-v0.170.0: `OTHER_OPTION_LABEL`,
+/// `submit_answers`).
+pub const CODEX_OTHER: &str = "None of the above";
+const CODEX_NOTE: &str = "user_note: ";
+
+/// The answers as the ask holding the questions takes them. One that names
+/// its questions by id — Codex's `requestUserInput`, as Hangar's client of
+/// its server holds it (`id`, `isOther` beside each question) — gets them by
+/// id, as Codex's own dialog gives them: the option picked, or "None of the
+/// above" when the person's words stand in for an option and the question
+/// offers that row, then the words as a note. Any other gets them by
+/// question text (`question_decision`).
+pub fn answers_for(ask: &HeldAsk, questions: &[Question], choices: &[Choice]) -> Value {
+    let asked = ask
+        .input
+        .get("questions")
+        .and_then(Value::as_array)
+        .filter(|asked| asked.len() == questions.len());
+    let ids: Option<Vec<&str>> = asked.and_then(|asked| {
+        asked
+            .iter()
+            .map(|question| question.get("id").and_then(Value::as_str))
+            .collect()
+    });
+    let (Some(asked), Some(ids)) = (asked, ids) else {
+        return question_decision(questions, choices);
+    };
+    let answers: Map<String, Value> = questions
+        .iter()
+        .zip(choices)
+        .zip(asked.iter().zip(ids))
+        .map(|((question, choice), (asked, id))| {
+            let other_row =
+                asked.get("isOther") == Some(&Value::Bool(true)) && !question.options.is_empty();
+            let mut said: Vec<String> = choice
+                .picked
+                .iter()
+                .filter_map(|&at| question.options.get(at).map(|option| option.label.clone()))
+                .collect();
+            if let Some(words) = &choice.other {
+                if said.is_empty() && other_row {
+                    said.push(CODEX_OTHER.to_string());
+                }
+                said.push(format!("{CODEX_NOTE}{words}"));
+            }
+            (id.to_string(), json!(said))
         })
         .collect();
     json!({ "behavior": "allow", "answers": answers })
@@ -233,6 +332,99 @@ mod tests {
         assert!(kept.get("interrupt").is_none());
         let plain = plan_decision(false, Some("   "));
         assert!(plain["message"].as_str().unwrap().contains("keep planning"));
+    }
+
+    #[test]
+    fn a_permission_is_allowed_once_or_for_the_session_or_denied_stopping_the_turn() {
+        assert_eq!(
+            permit_decision(&Permit::Allow { session: false }),
+            json!({ "behavior": "allow" })
+        );
+        assert_eq!(
+            permit_decision(&Permit::Allow { session: true }),
+            json!({ "behavior": "allow", "forSession": true })
+        );
+        // The words go to the session after, as the person's: not in the
+        // answer, which Codex has no room for.
+        assert_eq!(
+            permit_decision(&Permit::Deny {
+                words: Some("use cargo".into())
+            }),
+            json!({ "behavior": "deny", "interrupt": true })
+        );
+        assert_eq!(
+            permit_decision(&Permit::of(false)),
+            permission_decision(false)
+        );
+        assert_eq!(
+            permit_decision(&Permit::of(true)),
+            permission_decision(true)
+        );
+    }
+
+    fn ask(input: Value) -> HeldAsk {
+        bridge::hold_ask("p-held-answers-for", "a1", ASK_QUESTION, None, input);
+        let held = bridge::held_asks("p-held-answers-for")
+            .pop()
+            .expect("the ask held");
+        bridge::settle_ask("p-held-answers-for", "a1");
+        held
+    }
+
+    /// Codex's requestUserInput, as Hangar's client of its server holds it
+    /// (hangar-core agent/codex_attach.rs): AskUserQuestion's shape, each
+    /// question's id and `isOther` beside.
+    #[test]
+    fn codex_s_questions_are_answered_by_id_as_its_own_dialog_answers_them() {
+        let questions = [
+            question("Which color?", &["Red", "Blue"]),
+            question("Why?", &[]),
+            question("Which size?", &["S", "M"]),
+        ];
+        let questions = questions.map(|mut q| {
+            q.multi_select = false;
+            q
+        });
+        let held = ask(json!({ "questions": [
+            { "id": "color", "question": "Which color?", "isOther": true,
+              "options": [{ "label": "Red" }, { "label": "Blue" }] },
+            { "id": "why", "question": "Why?", "isOther": false, "options": [] },
+            { "id": "size", "question": "Which size?", "isOther": false,
+              "options": [{ "label": "S" }, { "label": "M" }] },
+        ] }));
+        let choices = [
+            Choice {
+                picked: Vec::new(),
+                other: Some("teal".into()),
+            },
+            Choice {
+                picked: Vec::new(),
+                other: Some("it matches".into()),
+            },
+            Choice {
+                picked: vec![1],
+                other: None,
+            },
+        ];
+        assert_eq!(
+            answers_for(&held, &questions, &choices),
+            json!({ "behavior": "allow", "answers": {
+                "color": ["None of the above", "user_note: teal"],
+                "why": ["user_note: it matches"],
+                "size": ["M"],
+            } })
+        );
+
+        // Claude Code's AskUserQuestion names no ids: by question text.
+        let claude = ask(json!({ "questions": [
+            { "question": "Which color?", "options": [] },
+            { "question": "Why?", "options": [] },
+            { "question": "Which size?", "options": [] },
+        ] }));
+        assert_eq!(
+            answers_for(&claude, &questions, &choices),
+            question_decision(&questions, &choices)
+        );
     }
 
     #[test]
