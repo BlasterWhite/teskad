@@ -9,6 +9,11 @@
 //! at a time would be run as whatever it said when a delivery came in. What
 //! the panel shows is what the workspace runs with, defaults filled in, each
 //! default named beside its field.
+//!
+//! Which agent runs what is said at the top (`agents`), Codex with its
+//! « beta », and the workers' agent is chosen here, per workspace. Each model
+//! field offers the models of its agent (`models`): Claude Code's aliases,
+//! and what Codex's own server lists.
 
 use std::fmt;
 
@@ -21,18 +26,17 @@ use hangar_ui::{Icon, button, dialog, form, icon, input, text as typography};
 
 use super::form::{
     DEFAULT_ORCHESTRATOR_MODEL, DEFAULT_REVIEWER_MODEL, DEFAULT_WORKER_MODEL, Draft, Field,
-    MODEL_SUGGESTIONS, Problem, draft_of, draft_problems, normalize_draft, same_settings,
-    stored_orchestration,
+    Problem, draft_of, draft_problems, normalize_draft, same_settings, stored_orchestration,
 };
-use super::{Msg, State};
+use super::{Msg, State, agents, models};
 use crate::ctx::Ctx;
 use crate::message::{Intent, Message};
 use crate::shell::Notice;
 use crate::state::roles::{
-    ORCHESTRATION_PERMISSION_MODES, orchestration_defaults, orchestration_of, orchestrator_of,
-    workers_of,
+    ORCHESTRATION_PERMISSION_MODES, RoleRefusal, orchestration_defaults, orchestration_of,
+    orchestrator_of, worker_refusal, workers_of,
 };
-use crate::state::types::WsId;
+use crate::state::types::{AgentKind, WsId};
 use crate::state::{Model, Patch, StoreAction, Workspace};
 
 /// One of the three model fields.
@@ -61,6 +65,9 @@ pub enum PanelMsg {
     Branch(String),
     /// How many waiting deliveries share a check; none: the default.
     BatchSize(Option<u32>),
+    /// The agent the workspace's workers run; none: the settings' default,
+    /// else the orchestrator's.
+    WorkerAgent(Option<AgentKind>),
     Model(ModelField, String),
     /// One of Codex's models: empty is Codex's own default.
     CodexModel(ModelField, String),
@@ -253,6 +260,7 @@ pub fn update(st: &mut State, m: &mut Model, msg: PanelMsg) -> iced::Task<Messag
         PanelMsg::Check(text) => panel.draft.check_command = text,
         PanelMsg::Branch(text) => panel.draft.branch = text,
         PanelMsg::BatchSize(size) => panel.draft.batch_size = size,
+        PanelMsg::WorkerAgent(agent) => panel.draft.worker_agent = agent,
         PanelMsg::Model(which, text) => *model_field(&mut panel.draft, which) = text,
         PanelMsg::CodexModel(which, text) => {
             // Blank is none, so that an emptied field is not saved as "" and
@@ -340,6 +348,7 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, ws_id: &'a WsId) -> Element<'a, Mes
         typography::label(t, ctx.t(Key::OrchIntro)),
         status(ctx, ws),
         form::section(t, ctx.t(Key::OrchSectionWorkers)).group(vec![
+            worker_agent_row(ctx, ws, draft),
             permission_row(ctx, draft),
             form::row(
                 t,
@@ -432,11 +441,12 @@ fn label(ctx: Ctx<'_>, key: Key) -> &'static str {
 }
 
 /// "Pinned: claude-1", "2 workers running", or "No orchestrator" with the way
-/// to make one.
+/// to make one; then which agent the orchestrator and its workers run.
 fn status<'a>(ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, Message> {
     let t = ctx.theme;
     let orchestrator = orchestrator_of(ws);
     let workers = workers_of(ws).len();
+    let agents = typography::hint(t, agents::of(ctx.model, ws).sentence(ctx.i18n));
     let tint = if orchestrator.is_some() {
         t.colors.accent_hi
     } else {
@@ -459,12 +469,14 @@ fn status<'a>(ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, Message> {
                     ctx.t(Key::OrchStatusNoWorker)
                 }
             ),
+            agents,
         ]
         .spacing(2)
         .into(),
         None => column![
             typography::body(t, ctx.t(Key::OrchStatusNone)).font(fonts::ui_semibold()),
             typography::hint(t, ctx.t(Key::OrchStatusNoneHint)),
+            agents,
         ]
         .spacing(2)
         .into(),
@@ -562,6 +574,113 @@ fn permission_row<'a>(ctx: Ctx<'a>, draft: &'a Draft) -> Element<'a, Message> {
     .into()
 }
 
+/// An option of the workers' agent list: none is the settings' default, else
+/// the orchestrator's agent.
+#[derive(Debug, Clone, PartialEq)]
+struct AgentChoice {
+    agent: Option<AgentKind>,
+    label: String,
+}
+
+impl fmt::Display for AgentChoice {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.label)
+    }
+}
+
+/// "Workers' agent": the agent this workspace's workers run, the choice that
+/// names none saying which it comes to. Why that agent would not start, when
+/// it would not, stands where the hint does.
+fn worker_agent_row<'a>(ctx: Ctx<'a>, ws: &'a Workspace, draft: &'a Draft) -> Element<'a, Message> {
+    let t = ctx.theme;
+    let (options, chosen) = worker_choice(ctx, ws, draft);
+    let select = input::select(t, options, chosen, |choice: AgentChoice| {
+        msg(PanelMsg::WorkerAgent(choice.agent))
+    });
+    let hint = worker_problem(ctx, ws, draft)
+        .unwrap_or_else(|| ctx.t(Key::OrchWorkerAgentHint).into_owned());
+    form::row(
+        t,
+        ctx.t(Key::OrchWorkerAgent),
+        container(select).width(300.0),
+    )
+    .hint(hint)
+    .into()
+}
+
+/// The workers' agents offered, Codex with its « beta », and the one the
+/// draft holds.
+fn worker_choice(
+    ctx: Ctx<'_>,
+    ws: &Workspace,
+    draft: &Draft,
+) -> (Vec<AgentChoice>, Option<AgentChoice>) {
+    let unchosen = Draft {
+        worker_agent: None,
+        ..draft.clone()
+    };
+    let fallback = agents::with(ctx.model, ws, &normalize_draft(&unchosen)).workers;
+    let from = if ctx.model.settings().default_worker_agent.is_some() {
+        Key::OrchWorkerAgentSettings
+    } else {
+        Key::OrchWorkerAgentSame
+    };
+    let mut options = vec![AgentChoice {
+        agent: None,
+        label: ctx
+            .i18n
+            .t_with(
+                from,
+                &args!("agent" => crate::accounts::agent_label(ctx.i18n, fallback)),
+            )
+            .into_owned(),
+    }];
+    options.extend(AgentKind::ALL.into_iter().map(|kind| AgentChoice {
+        agent: Some(kind),
+        label: crate::accounts::agent_label(ctx.i18n, kind),
+    }));
+    let chosen = options
+        .iter()
+        .find(|option| option.agent == draft.worker_agent)
+        .cloned();
+    (options, chosen)
+}
+
+/// Why the agent the draft's workers would run could not start them, in the
+/// person's words: it is not on this computer, or what Hangar hands a worker
+/// its brief through is turned off (`roles::worker_refusal`).
+fn worker_problem(ctx: Ctx<'_>, ws: &Workspace, draft: &Draft) -> Option<String> {
+    let kind = agents::with(ctx.model, ws, &normalize_draft(draft)).workers;
+    let label = kind.info().label;
+    // A workspace on a node runs the node's agents, which this computer
+    // cannot tell here.
+    if ws.node.is_none() && !crate::shell::setup::installed(ctx.model, kind) {
+        let text = ctx
+            .i18n
+            .t_with(Key::OrchAgentNotInstalled, &args!("agent" => label));
+        return Some(text.into_owned());
+    }
+    let text = match worker_refusal(kind, ctx.model.settings())? {
+        RoleRefusal::SwitchedOff { label, .. } => {
+            // The setting as « Settings › Sessions » names it: the switch of
+            // the side channel this agent's panes use (`roles::side_channel_on`).
+            let switch = if kind.info().caps.headless.app_server {
+                Key::SettingsCodexAttach
+            } else {
+                Key::SettingsClaudeBridge
+            };
+            ctx.i18n.t_with(
+                Key::OrchWorkerAgentOff,
+                &args!("agent" => label, "switch" => ctx.t(switch).into_owned()),
+            )
+        }
+        RoleRefusal::NoAgent | RoleRefusal::Unable { .. } => ctx
+            .i18n
+            .t_with(Key::OrchWorkerAgentUnable, &args!("agent" => label)),
+    };
+    Some(text.into_owned())
+}
+
 /// An option of the batch size list: none is the default.
 #[derive(Debug, Clone, PartialEq)]
 struct Size {
@@ -646,6 +765,32 @@ fn text_row<'a>(
         .into()
 }
 
+/// The models `kind`'s agent is offered (`models`), each one press away (the
+/// `datalist` of the web panel); while its server is being asked, says so.
+fn suggestions<'a>(
+    ctx: Ctx<'a>,
+    kind: AgentKind,
+    pick: impl Fn(String) -> PanelMsg,
+) -> Element<'a, Message> {
+    let t = ctx.theme;
+    let Some(names) = models::offered(ctx.model, kind) else {
+        if models::asking(ctx.model, kind) {
+            let asking = ctx
+                .i18n
+                .t_with(Key::OrchModelsAsking, &args!("agent" => kind.info().label));
+            return typography::hint(t, asking.into_owned()).into();
+        }
+        return space().into();
+    };
+    let links: Vec<Element<'a, Message>> = names
+        .into_iter()
+        .map(|name| button::link(t, name.clone(), msg(pick(name))))
+        .collect();
+    container(row(links).spacing(tokens::space::LG).wrap())
+        .width(300.0)
+        .into()
+}
+
 /// A model row: the name, the default beside it, and the names Claude Code
 /// answers to, one press away (the `datalist` of the web panel).
 fn model_row<'a>(
@@ -683,15 +828,10 @@ fn model_row<'a>(
         .error(error)
         .on_input(move |text| msg(PanelMsg::Model(which, text)))
         .on_submit(msg(PanelMsg::Save));
-    let mut suggestions = row![].spacing(tokens::space::LG);
-    for name in MODEL_SUGGESTIONS {
-        suggestions = suggestions.push(button::link(
-            t,
-            name,
-            msg(PanelMsg::Model(which, name.to_owned())),
-        ));
-    }
-    let control = column![container(input).width(300.0), suggestions].spacing(tokens::space::SM);
+    let names = suggestions(ctx, AgentKind::Claude, move |name| {
+        PanelMsg::Model(which, name)
+    });
+    let control = column![container(input).width(300.0), names].spacing(tokens::space::SM);
     form::row(t, ctx.t(label_key), control)
         .hint(
             ctx.i18n
@@ -701,7 +841,8 @@ fn model_row<'a>(
 }
 
 /// One of Codex's model rows, beside Claude Code's: the name, empty being
-/// Codex's own default model, which it picks itself. Labelled « beta ».
+/// Codex's own default model, which it picks itself, and the models Codex
+/// lists, one press away. Labelled « beta ».
 fn codex_model_row<'a>(
     ctx: Ctx<'a>,
     problems: &super::form::Problems,
@@ -734,7 +875,11 @@ fn codex_model_row<'a>(
         .error(error)
         .on_input(move |text| msg(PanelMsg::CodexModel(which, text)))
         .on_submit(msg(PanelMsg::Save));
-    form::row(t, ctx.t(label_key), container(input).width(300.0))
+    let names = suggestions(ctx, AgentKind::Codex, move |name| {
+        PanelMsg::CodexModel(which, name)
+    });
+    let control = column![container(input).width(300.0), names].spacing(tokens::space::SM);
+    form::row(t, ctx.t(label_key), control)
         .hint(ctx.t(Key::OrchCodexModelHint))
         .into()
 }
@@ -969,6 +1114,106 @@ mod tests {
         let cache = &st.panel.as_ref().unwrap().cache;
         assert!(!cache.asking);
         assert!(!cache.emptying);
+    }
+
+    #[test]
+    fn says_which_agent_the_orchestrator_and_its_workers_run() {
+        let mut model = shop(false);
+        model.ui.claude_installed = true;
+        let st = opened(&model);
+        let pkg = Packages::default();
+        let ws: WsId = "w1".into();
+        let mut ui = simulate(view(&st, ctx(&model, &pkg), &ws));
+        assert!(
+            ui.find("Orchestrator: Claude Code · workers: Claude Code")
+                .is_ok()
+        );
+        assert!(ui.find("Workers' agent").is_ok());
+    }
+
+    #[test]
+    fn the_workers_agent_is_chosen_here_codex_with_its_beta() {
+        let mut model = shop(false);
+        model.ui.claude_installed = true;
+        let mut st = opened(&model);
+        let pkg = Packages::default();
+        let ws = model.workspace("w1").unwrap().clone();
+        let labels = |model: &Model, st: &State| {
+            let draft = &st.panel.as_ref().unwrap().draft;
+            let (options, chosen) = worker_choice(ctx(model, &pkg), &ws, draft);
+            let labels: Vec<String> = options.into_iter().map(|o| o.label).collect();
+            (labels, chosen.map(|chosen| chosen.label))
+        };
+        let (options, chosen) = labels(&model, &st);
+        assert_eq!(
+            options,
+            [
+                "Same as the orchestrator: Claude Code",
+                "Claude Code",
+                "Codex (beta)"
+            ]
+        );
+        assert_eq!(
+            chosen.as_deref(),
+            Some("Same as the orchestrator: Claude Code")
+        );
+
+        let _ = update(
+            &mut st,
+            &mut model,
+            PanelMsg::WorkerAgent(Some(AgentKind::Codex)),
+        );
+        assert_eq!(labels(&model, &st).1.as_deref(), Some("Codex (beta)"));
+        let draft = &st.panel.as_ref().unwrap().draft;
+        assert_eq!(normalize_draft(draft).worker_agent, Some(AgentKind::Codex));
+        // Codex is not on this computer: the row says so.
+        let problem = worker_problem(ctx(&model, &pkg), &ws, draft);
+        assert_eq!(
+            problem.as_deref(),
+            Some("Codex is not installed on this computer: its workers would not start.")
+        );
+        model.ui.codex_installed = true;
+        assert_eq!(worker_problem(ctx(&model, &pkg), &ws, draft), None);
+    }
+
+    #[test]
+    fn codex_s_model_fields_offer_what_codex_lists_one_press_away() {
+        let mut model = shop(false);
+        let pkg = Packages::default();
+        {
+            // Not asked yet: nothing to offer, and nothing said.
+            let mut ui = simulate(suggestions(ctx(&model, &pkg), AgentKind::Codex, |name| {
+                PanelMsg::CodexModel(ModelField::Worker, name)
+            }));
+            assert!(ui.find("gpt-b").is_err());
+        }
+        models::answered(
+            &mut model,
+            AgentKind::Codex,
+            Ok(vec!["gpt-b".into(), "gpt-a".into()]),
+        );
+        let mut ui = simulate(suggestions(ctx(&model, &pkg), AgentKind::Codex, |name| {
+            PanelMsg::CodexModel(ModelField::Worker, name)
+        }));
+        ui.click("gpt-a").expect("Codex's model is offered");
+        let said: Vec<Message> = ui.into_messages().collect();
+        assert!(
+            said.iter().any(|message| matches!(
+                message,
+                Message::OrchestrationUi(Msg::Panel(PanelMsg::CodexModel(
+                    ModelField::Worker,
+                    name
+                ))) if name == "gpt-a"
+            )),
+            "{said:?}"
+        );
+        // Claude Code's fields keep the aliases they always offered.
+        let mut ui = simulate(suggestions(ctx(&model, &pkg), AgentKind::Claude, |name| {
+            PanelMsg::Model(ModelField::Worker, name)
+        }));
+        for alias in ["opus", "sonnet", "haiku"] {
+            assert!(ui.find(alias).is_ok(), "{alias}");
+        }
     }
 
     #[test]
