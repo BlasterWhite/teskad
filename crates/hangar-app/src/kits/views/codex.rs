@@ -202,51 +202,47 @@ impl CodexControl {
     }
 }
 
-/// The control, drawn.
+/// The control, drawn: its state and buttons on one line, then the
+/// confirmation or what runs, then the words on what it does.
 pub fn view<'a>(ctx: Ctx<'a>, control: &CodexControl) -> Element<'a, Message> {
-    let mut parts: Vec<Element<'a, Message>> = vec![tag(ctx, &control.status)];
     let kit = control.kit.clone();
+    let ask = |op: Option<CodexOp>| {
+        msg(Msg::CodexAsk {
+            kit: kit.clone(),
+            op,
+        })
+    };
+    let mut head = row![tag(ctx, &control.status)]
+        .spacing(tokens::space::MD)
+        .align_y(Alignment::Center);
+    let mut parts: Vec<Element<'a, Message>> = Vec::new();
     match &control.actions {
         CodexActions::Offer {
             add,
             remove,
             enabled,
         } => {
-            let mut line = row![tag(ctx, &control.status)]
-                .spacing(tokens::space::MD)
-                .align_y(Alignment::Center);
             if let Some(label) = add {
-                line = line.push(
+                head = head.push(
                     button::secondary(ctx.theme, label.clone())
                         .small()
-                        .on_press_maybe(enabled.then(|| {
-                            msg(Msg::CodexAsk {
-                                kit: kit.clone(),
-                                op: Some(CodexOp::Add),
-                            })
-                        })),
+                        .on_press_maybe(enabled.then(|| ask(Some(CodexOp::Add)))),
                 );
             }
             if let Some(label) = remove {
-                line = line.push(
+                head = head.push(
                     button::ghost(ctx.theme, label.clone())
                         .small()
-                        .on_press_maybe(enabled.then(|| {
-                            msg(Msg::CodexAsk {
-                                kit: kit.clone(),
-                                op: Some(CodexOp::Remove),
-                            })
-                        })),
+                        .on_press_maybe(enabled.then(|| ask(Some(CodexOp::Remove)))),
                 );
             }
-            parts = vec![line.wrap().into()];
         }
         CodexActions::Busy(words) => {
-            parts.push(typography::hint(ctx.theme, words.clone()).into());
+            head = head.push(typography::hint(ctx.theme, words.clone()));
         }
         CodexActions::Confirm {
             op,
-            ask,
+            ask: question,
             items,
             lines,
             trust,
@@ -254,45 +250,38 @@ pub fn view<'a>(ctx: Ctx<'a>, control: &CodexControl) -> Element<'a, Message> {
             confirm,
         } => {
             parts.push(
-                typography::ui(ctx.theme, ask.clone())
+                typography::ui(ctx.theme, question.clone())
                     .font(fonts::ui_semibold())
                     .width(Length::Fill)
                     .into(),
             );
-            for item in items {
-                parts.push(
-                    typography::hint(ctx.theme, item.clone())
-                        .width(Length::Fill)
-                        .into(),
-                );
-            }
-            for line in lines {
-                parts.push(code_block(ctx, line));
-            }
+            parts.extend(items.iter().map(|item| {
+                typography::hint(ctx.theme, item.clone())
+                    .width(Length::Fill)
+                    .into()
+            }));
+            parts.extend(lines.iter().map(|line| code_block(ctx, line)));
             if let Some(trust) = trust {
                 parts.push(notice(ctx, Tone::Warning, trust.clone()));
             }
-            let run = msg(Msg::CodexRun {
-                kit: kit.clone(),
-                op: *op,
-            });
             let go = match op {
                 CodexOp::Add => button::primary(ctx.theme, confirm.clone()),
                 CodexOp::Remove => button::danger(ctx.theme, confirm.clone()),
             };
             parts.push(
                 row![
-                    button::ghost(ctx.theme, cancel.clone()).on_press(msg(Msg::CodexAsk {
+                    button::ghost(ctx.theme, cancel.clone()).on_press(ask(None)),
+                    go.on_press(msg(Msg::CodexRun {
                         kit: kit.clone(),
-                        op: None,
+                        op: *op,
                     })),
-                    go.on_press(run),
                 ]
                 .spacing(tokens::space::MD)
                 .into(),
             );
         }
     }
+    parts.insert(0, head.wrap().into());
     parts.push(
         typography::hint(ctx.theme, control.hint.clone())
             .width(Length::Fill)
