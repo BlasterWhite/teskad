@@ -331,6 +331,13 @@ fn a_codex_orchestrator_and_the_workers_choice_are_saved_in_the_workspace() {
         .expect("read back");
     assert_eq!(made.panes.len(), 1);
     assert_eq!(made.panes[0].agent, AgentId::Codex);
+    // The orchestrator it was made to be, on Codex's own model: the
+    // workspace names none (« opus » is Claude Code's).
+    assert_eq!(
+        made.panes[0].role,
+        Some(crate::state::types::PaneRole::Orchestrator)
+    );
+    assert_eq!(made.panes[0].model, None);
     let orchestration = made.orchestration.as_ref().expect("its agents are kept");
     assert_eq!(orchestration.orchestrator_agent, Some(AgentKind::Codex));
     assert_eq!(orchestration.worker_agent, Some(AgentKind::Claude));
@@ -512,6 +519,16 @@ fn with_codex_alone_the_dialog_makes_a_codex_orchestrator() {
     let made = h.model.state().workspaces.last().expect("made");
     assert_eq!(made.panes.len(), 1);
     assert_eq!(made.panes[0].agent, AgentId::Codex);
+    // It holds the role from the start, on Codex's own model.
+    assert_eq!(
+        made.panes[0].role,
+        Some(crate::state::types::PaneRole::Orchestrator)
+    );
+    assert_eq!(made.panes[0].model, None);
+    assert_eq!(
+        crate::state::roles::orchestrator_of(made).map(|pane| pane.id.as_str()),
+        Some(made.panes[0].id.as_str())
+    );
     let orchestration = made.orchestration.as_ref().expect("its agents are kept");
     assert_eq!(orchestration.orchestrator_agent, Some(AgentKind::Codex));
     assert_eq!(orchestration.worker_agent, None);
