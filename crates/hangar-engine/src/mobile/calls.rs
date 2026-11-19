@@ -1,9 +1,14 @@
 //! How a tool call reads on the phone before the transcript has it
 //! (`src/remote/calls.ts`): Claude Code writes a call there only once it has
 //! its result, so a call running, a permission dialog open and a question
-//! waiting are known only from what the hangar-bridge mod reports. Titled as
-//! core's `chat/tools.rs` titles the transcript's calls ("Ran pnpm test"); a
-//! permission asks in the imperative ("Run pnpm test").
+//! waiting are known only from what the pane's side channel reports — the
+//! hangar-bridge mod, or Hangar's client of a Codex pane's server, which
+//! reports Codex's calls under the names the window reads (`Bash` for a
+//! command, `AskUserQuestion` for a question) and its own asks under
+//! Codex's (`apply_patch`, `request_permissions`, an MCP server's
+//! `mcp__<server>__elicitation`; hangar-core's `agent/codex_attach.rs`).
+//! Titled as core's `chat/tools.rs` titles the transcript's calls ("Ran pnpm
+//! test"); a permission asks in the imperative ("Run pnpm test").
 //!
 //! The inventory proposed this for core, beside `chat/tools.rs`; it stays
 //! here, where its only caller is, and core's titling module stays private.
@@ -102,6 +107,52 @@ fn string_of(value: Option<&Value>) -> String {
 }
 
 static MCP_TOOL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^mcp__.+?__(.+)$").unwrap());
+/// What an MCP server asks the person through Codex (a form, a link), as
+/// Hangar's client of the pane's server names it.
+static ELICITATION: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^mcp__(.+)__elicitation$").unwrap());
+
+/// A patch Codex asks to apply, as Hangar's client of its server reports it
+/// (`changes`: `{path, kind, diff}`), titled as core's `chat/tools.rs`
+/// titles the patch once applied: what the one file became, else how many
+/// files it touches. A deleted file's text is no news.
+fn patch(changes: &[Value], cwd: Option<&str>) -> (String, String, String) {
+    let text = |change: &Value, key: &str| {
+        change
+            .get(key)
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string()
+    };
+    let diff = |change: &Value| match text(change, "kind").as_str() {
+        "delete" => String::new(),
+        _ => text(change, "diff"),
+    };
+    match changes {
+        [] => ("Edited files".into(), "Edit files".into(), String::new()),
+        [one] => {
+            let path = shorten(&text(one, "path"), cwd);
+            let (title, ask) = match text(one, "kind").as_str() {
+                "add" => (format!("Wrote {path}"), format!("Write {path}")),
+                "delete" => (format!("Deleted {path}"), format!("Delete {path}")),
+                _ => (format!("Edited {path}"), format!("Edit {path}")),
+            };
+            (title, ask, diff(one))
+        }
+        many => (
+            format!("Edited {} files", many.len()),
+            format!("Edit {} files", many.len()),
+            many.iter()
+                .map(|change| {
+                    format!("{}\n{}", shorten(&text(change, "path"), cwd), diff(change))
+                        .trim_end()
+                        .to_string()
+                })
+                .collect::<Vec<_>>()
+                .join("\n\n"),
+        ),
+    }
+}
 
 pub fn describe_call(tool: &str, input: &Value, cwd: Option<&str>) -> DescribedCall {
     let empty = Map::new();
@@ -242,6 +293,43 @@ pub fn describe_call(tool: &str, input: &Value, cwd: Option<&str>) -> DescribedC
             "Present a plan".into(),
             text("plan"),
         ),
+        // Codex's own asks (see the top of this file).
+        "apply_patch" => {
+            let changes = args
+                .get("changes")
+                .and_then(Value::as_array)
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            let (title, ask, detail) = patch(changes, cwd);
+            said(title, ask, Some(&detail))
+        }
+        "request_permissions" => {
+            let mut detail = Vec::new();
+            detail.extend(text("reason").map(str::to_string));
+            if let Some(asked) = args.get("permissions").filter(|asked| !asked.is_null()) {
+                detail.push(asked.to_string());
+            }
+            said(
+                "Asked for more permissions".into(),
+                "Grant more permissions".into(),
+                Some(&detail.join("\n\n")),
+            )
+        }
+        _ if ELICITATION.is_match(tool) && text("message").is_some() => {
+            let server = ELICITATION
+                .captures(tool)
+                .and_then(|caps| caps.get(1))
+                .map_or("", |server| server.as_str());
+            let detail: Vec<&str> = [text("message"), text("url")]
+                .into_iter()
+                .flatten()
+                .collect();
+            said(
+                format!("Answered {server}"),
+                format!("Answer {server}"),
+                Some(&detail.join("\n")),
+            )
+        }
         _ => {
             // mcp__<server>__<tool>: the tool's own name says what it does.
             let name = MCP_TOOL
@@ -409,6 +497,83 @@ mod tests {
                 "{tool}"
             );
         }
+    }
+
+    /// Codex's asks, as Hangar's client of its server reports them
+    /// (hangar-core agent/codex_attach.rs, `describe`): titled as core's
+    /// chat/tools.rs titles the same patch once applied.
+    #[test]
+    fn titles_codex_s_own_asks() {
+        let cwd = Some("/repo");
+        let one = describe_call(
+            "apply_patch",
+            &json!({"changes": [{"path": "/repo/src/a.rs", "kind": "update", "diff": "@@ -1 +1 @@\n-a\n+b"}],
+                    "reason": "fix"}),
+            cwd,
+        );
+        assert_eq!(
+            one,
+            DescribedCall {
+                title: "Edited src/a.rs".into(),
+                ask: "Edit src/a.rs".into(),
+                detail: Some("@@ -1 +1 @@\n-a\n+b".into()),
+            }
+        );
+        let added = describe_call(
+            "apply_patch",
+            &json!({"changes": [{"path": "/repo/b.md", "kind": "add", "diff": "+# B"}]}),
+            cwd,
+        );
+        assert_eq!(
+            (added.title.as_str(), added.ask.as_str()),
+            ("Wrote b.md", "Write b.md")
+        );
+        let many = describe_call(
+            "apply_patch",
+            &json!({"changes": [
+                {"path": "/repo/a.rs", "kind": "update", "diff": "+x"},
+                {"path": "/repo/old.rs", "kind": "delete", "diff": "-gone"}]}),
+            cwd,
+        );
+        assert_eq!(
+            many,
+            DescribedCall {
+                title: "Edited 2 files".into(),
+                ask: "Edit 2 files".into(),
+                detail: Some("a.rs\n+x\n\nold.rs".into()),
+            }
+        );
+        // The patch not seen yet.
+        let unseen = describe_call("apply_patch", &json!({"changes": []}), cwd);
+        assert_eq!((unseen.ask.as_str(), unseen.detail), ("Edit files", None));
+
+        let permissions = describe_call(
+            "request_permissions",
+            &json!({"permissions": {"network": {"enabled": true}}, "reason": "fetch the crate", "cwd": "/repo"}),
+            cwd,
+        );
+        assert_eq!(permissions.ask, "Grant more permissions");
+        assert_eq!(
+            permissions.detail.as_deref(),
+            Some("fetch the crate\n\n{\"network\":{\"enabled\":true}}")
+        );
+
+        let form = describe_call(
+            "mcp__github__elicitation",
+            &json!({"message": "Which repository?", "requestedSchema": {}}),
+            cwd,
+        );
+        assert_eq!(
+            form,
+            DescribedCall {
+                title: "Answered github".into(),
+                ask: "Answer github".into(),
+                detail: Some("Which repository?".into()),
+            }
+        );
+        // An MCP tool's call to approve reads as any MCP tool's.
+        let call = describe_call("mcp__github__create_issue", &json!({"title": "Bug"}), cwd);
+        assert_eq!(call.ask, "Use create_issue");
     }
 
     #[test]
