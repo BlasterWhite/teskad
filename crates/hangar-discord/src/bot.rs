@@ -7,9 +7,10 @@
 //! channel reports, Claude Code's mod and the client Hangar attaches to a
 //! Codex pane alike: turns, answers, what waits on the person; the
 //! orchestration's journal: workers started, their threads opened, and
-//! stopped, deliveries ready; the files agents share), and carries what the
-//! paired person writes, clicks and reacts back through the desk, the chat
-//! view's own calls (follow.rs, shares.rs, act.rs).
+//! stopped, deliveries ready; the files agents share; the images a Codex
+//! agent generates, on its turn's card), and carries what the paired person
+//! writes, clicks and reacts back through the desk, the chat view's own
+//! calls (follow.rs, shares.rs, images.rs, act.rs).
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -70,6 +71,9 @@ pub(crate) struct Turn {
     pub message: String,
     pub started: u64,
     pub calls: Vec<String>,
+    /// The images its agent generated, attached to the card (images.rs):
+    /// named again each time the card is edited.
+    pub images: Vec<cards::Image>,
     pub edited: Instant,
     pub dirty: bool,
     /// Since when its agent is seen doing nothing though no end of the
@@ -340,23 +344,46 @@ impl Bot {
     }
 
     pub(crate) async fn edit_as(&self, ws: &str, thread: Option<&str>, message: &str, body: Value) {
-        let Some((id, token)) = self.place(ws).and_then(|place| place.webhook) else {
+        if self.place(ws).and_then(|place| place.webhook).is_none() {
             return;
+        }
+        if let Err(error) = self
+            .edit_as_with(ws, thread, message, body, Vec::new())
+            .await
+        {
+            eprintln!("discord: a card could not be edited: {error}");
+        }
+    }
+
+    /// A message of the workspace's webhook edited, `files` added to those
+    /// it carries already (Discord keeps them when the edit does not list
+    /// the attachments).
+    pub(crate) async fn edit_as_with(
+        &self,
+        ws: &str,
+        thread: Option<&str>,
+        message: &str,
+        body: Value,
+        files: Vec<Upload>,
+    ) -> Result<(), Refused> {
+        let Some((id, token)) = self.place(ws).and_then(|place| place.webhook) else {
+            return Err(Refused {
+                status: 0,
+                message: "the workspace has no webhook".into(),
+            });
         };
         let thread = thread
             .map(|thread| format!("&thread_id={thread}"))
             .unwrap_or_default();
-        let edited = self
-            .http()
-            .call(
+        self.http()
+            .upload(
                 "PATCH",
                 &format!("/webhooks/{id}/{token}/messages/{message}?with_components=true{thread}"),
-                Some(body),
+                body,
+                files,
             )
-            .await;
-        if let Err(error) = edited {
-            eprintln!("discord: a card could not be edited: {error}");
-        }
+            .await
+            .map(|_| ())
     }
 }
 
@@ -600,6 +627,17 @@ async fn hear(bot: Bot, mut core: broadcast::Receiver<hangar_core::Event>) -> Re
                         .lanes
                         .run(&pane_id, async move { job.on_bridge(&pane, report).await });
                 }
+            }
+            // An image a Codex pane generated: in its lane, after the
+            // reports of its turn that came before it (its card posted).
+            Ok(hangar_core::Event::ImageGenerated {
+                pane, path, prompt, ..
+            }) => {
+                let (job, lane) = (bot.clone(), pane.clone());
+                bot.0.lanes.run(
+                    &lane,
+                    async move { job.on_image(&pane, path, prompt).await },
+                );
             }
             Ok(hangar_core::Event::BridgeQueue(queue)) => {
                 let job = bot.clone();

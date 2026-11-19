@@ -127,6 +127,17 @@ impl Words {
     pub fn shared(&self) -> &'static str {
         self.pick("a partagé", "shared")
     }
+    /// An agent generated an image: « Leo a généré une image ».
+    pub fn generated_image(&self) -> &'static str {
+        self.pick("a généré une image", "generated an image")
+    }
+    /// An image generated that is not attached: too large for Discord.
+    pub fn image_too_large(&self) -> &'static str {
+        self.pick(
+            "trop lourde pour Discord, elle reste là où Codex l'a enregistrée :",
+            "too large for Discord, it stays where Codex saved it:",
+        )
+    }
     /// A file shared that Discord does not take.
     pub fn on_the_phone(&self) -> &'static str {
         self.pick(
