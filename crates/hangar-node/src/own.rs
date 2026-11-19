@@ -176,6 +176,12 @@ impl Terminals for NodeTerminals {
         self.screens.read(pane, Screen::rows)
     }
 
+    /// The title its program last set: what tells a Codex pane's turns on the
+    /// node when no side channel speaks for it (the floor).
+    fn title(&self, pane: &str) -> Option<String> {
+        self.screens.read(pane, Screen::title).flatten()
+    }
+
     fn bracketed_paste(&self, pane: &str) -> bool {
         self.screens
             .read(pane, Screen::bracketed_paste)
