@@ -10,13 +10,16 @@
 //! - thread.rs: the lines of a span made into items, calls paired with their
 //!   results.
 //! - tools.rs: what one tool call reads as — title, input, result, answers.
+//! - codex.rs: a Codex thread's items made into the same chat items, from the
+//!   app server's protocol or from the thread's rollout file, read here the
+//!   same way (a compressed rollout, whole).
 //!
 //! The transcript is read in file order. A rewind that forks the
 //! conversation leaves both branches in the file, and both show.
 
 use std::collections::HashMap;
 use std::fs;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -24,6 +27,7 @@ use std::time::SystemTime;
 
 use serde::Serialize;
 
+pub mod codex;
 mod thread;
 mod tools;
 
@@ -163,8 +167,51 @@ pub struct ChatPage {
     pub open_call: Option<OpenCall>,
 }
 
+/// What the lines of a transcript are made into: Claude Code's thread
+/// (thread.rs) or a Codex rollout's items (codex.rs). The newest span is read
+/// first; an older one is read into a fresh one and put in front.
+trait Lines {
+    /// An empty one like this one, to read an older span into.
+    fn fresh(&self) -> Self;
+    /// Feeds one complete line, which starts at `offset` in the file.
+    fn feed(&mut self, offset: u64, text: &str);
+    /// Puts an older span in front of this one.
+    fn prepend(&mut self, older: Self);
+    /// How many items start before `before` (all of them without one).
+    fn count_before(&self, before: Option<u64>) -> usize;
+    /// The `limit` items just before `before`, oldest first, the offset of
+    /// the first one, and whether items older than the page were read.
+    fn page(&self, before: Option<u64>, limit: usize) -> (Vec<ChatItem>, Option<u64>, bool);
+    fn pending_question(&self) -> Option<PendingQuestion>;
+    fn open_call(&self) -> Option<OpenCall>;
+}
+
+impl Lines for Thread {
+    fn fresh(&self) -> Self {
+        Thread::default()
+    }
+    fn feed(&mut self, offset: u64, text: &str) {
+        Thread::feed(self, offset, text);
+    }
+    fn prepend(&mut self, older: Self) {
+        Thread::prepend(self, older);
+    }
+    fn count_before(&self, before: Option<u64>) -> usize {
+        Thread::count_before(self, before)
+    }
+    fn page(&self, before: Option<u64>, limit: usize) -> (Vec<ChatItem>, Option<u64>, bool) {
+        Thread::page(self, before, limit)
+    }
+    fn pending_question(&self) -> Option<PendingQuestion> {
+        Thread::pending_question(self)
+    }
+    fn open_call(&self) -> Option<OpenCall> {
+        Thread::open_call(self)
+    }
+}
+
 /// One transcript as far as it was read.
-struct Transcript {
+struct Span<T> {
     /// The file at the last look: unchanged, the parse stands as it is.
     len: u64,
     modified: Option<SystemTime>,
@@ -172,20 +219,55 @@ struct Transcript {
     /// line. `start` reaches 0 once the head has been read.
     start: u64,
     end: u64,
-    thread: Thread,
+    lines: T,
 }
 
-impl Transcript {
+/// A Claude Code transcript as far as it was read.
+type Transcript = Span<Thread>;
+
+impl<T: Lines> Span<T> {
     /// Nothing read yet: the span sits at the end of the file's last
     /// complete line, ready to grow both ways.
-    fn at_end(path: &Path, len: u64) -> std::io::Result<Self> {
+    fn at_end(path: &Path, len: u64, lines: T) -> std::io::Result<Self> {
         let end = last_line_end(path, len)?;
         Ok(Self {
             len: 0,
             modified: None,
             start: end,
             end,
-            thread: Thread::default(),
+            lines,
+        })
+    }
+
+    /// A compressed rollout, read whole: one zstd stream cannot be read from
+    /// its end. Offsets are the decoded text's. Codex does not append to a
+    /// compressed rollout — it writes the thread back plain first
+    /// (`rollout/src/compression.rs`, `materialize_rollout_for_append`) — so a
+    /// change of the file is a new file, read again.
+    fn whole(
+        path: &Path,
+        len: u64,
+        modified: Option<SystemTime>,
+        mut lines: T,
+    ) -> std::io::Result<Self> {
+        let mut reader = BufReader::new(crate::sessions::codex::open_rollout(path)?);
+        let mut line = Vec::new();
+        let mut end = 0;
+        loop {
+            line.clear();
+            let read = reader.read_until(b'\n', &mut line)?;
+            if read == 0 {
+                break;
+            }
+            feed(&mut lines, end, &line);
+            end += read as u64;
+        }
+        Ok(Self {
+            len,
+            modified,
+            start: 0,
+            end,
+            lines,
         })
     }
 }
@@ -193,25 +275,33 @@ impl Transcript {
 /// One transcript's place in the cache. Its own lock covers the file reads,
 /// so a slow first contact with one transcript holds nobody else.
 #[derive(Default)]
-struct Slot {
+struct SlotOf<T> {
     /// `None` until read, and again once the file is gone.
-    transcript: Mutex<Option<Transcript>>,
+    transcript: Mutex<Option<Span<T>>>,
     /// When it was last asked for, to drop the coldest past `CACHED`.
     used: AtomicU64,
 }
 
+#[cfg(test)]
+type Slot = SlotOf<Thread>;
+
 #[derive(Default)]
-struct Cache {
+struct CacheOf<T> {
     /// Locked only to look a slot up, insert or evict: never across I/O.
-    slots: Mutex<HashMap<PathBuf, Arc<Slot>>>,
+    slots: Mutex<HashMap<PathBuf, Arc<SlotOf<T>>>>,
     tick: AtomicU64,
 }
 
+type Cache = CacheOf<Thread>;
+
 static TRANSCRIPTS: OnceLock<Cache> = OnceLock::new();
 
-impl Cache {
+impl<T> CacheOf<T> {
     /// The slot of `path`, created if new, marked as just used.
-    fn slot(&self, path: &Path) -> Result<Arc<Slot>, String> {
+    fn slot(&self, path: &Path) -> Result<Arc<SlotOf<T>>, String>
+    where
+        SlotOf<T>: Default,
+    {
         let mut slots = self.slots.lock().map_err(|_| "chat cache poisoned")?;
         let slot = slots.entry(path.to_path_buf()).or_default().clone();
         slot.used.store(
@@ -249,7 +339,7 @@ fn last_line_end(path: &Path, len: u64) -> std::io::Result<u64> {
 }
 
 /// Feeds the complete lines of `buf`, which starts at `base` in the file.
-fn feed(thread: &mut Thread, base: u64, buf: &[u8]) {
+fn feed<T: Lines>(lines: &mut T, base: u64, buf: &[u8]) {
     let mut at = 0;
     for line in buf.split_inclusive(|&b| b == b'\n') {
         let offset = base + at as u64;
@@ -259,14 +349,14 @@ fn feed(thread: &mut Thread, base: u64, buf: &[u8]) {
         // A line that is not UTF-8 is not JSON either.
         if let Ok(text) = std::str::from_utf8(line) {
             if !text.trim().is_empty() {
-                thread.feed(offset, text);
+                lines.feed(offset, text);
             }
         }
     }
 }
 
 /// Reads what was appended since the last look.
-fn read_new(path: &Path, transcript: &mut Transcript, len: u64) -> std::io::Result<()> {
+fn read_new<T: Lines>(path: &Path, transcript: &mut Span<T>, len: u64) -> std::io::Result<()> {
     if len <= transcript.end {
         return Ok(());
     }
@@ -275,21 +365,21 @@ fn read_new(path: &Path, transcript: &mut Transcript, len: u64) -> std::io::Resu
     let Some(last) = buf.iter().rposition(|&b| b == b'\n') else {
         return Ok(());
     };
-    feed(&mut transcript.thread, transcript.end, &buf[..=last]);
+    feed(&mut transcript.lines, transcript.end, &buf[..=last]);
     transcript.end += last as u64 + 1;
     Ok(())
 }
 
 /// Reads further back until `wanted` items lie before `before`, or the
 /// head of the file is reached.
-fn read_back(
+fn read_back<T: Lines>(
     path: &Path,
-    transcript: &mut Transcript,
+    transcript: &mut Span<T>,
     before: Option<u64>,
     wanted: usize,
 ) -> std::io::Result<()> {
     let mut span = SPAN_BYTES;
-    while transcript.start > 0 && transcript.thread.count_before(before) < wanted {
+    while transcript.start > 0 && transcript.lines.count_before(before) < wanted {
         let from = transcript.start.saturating_sub(span);
         let buf = read_range(path, from, transcript.start)?;
         // The span begins inside a line that started earlier: that line is
@@ -308,9 +398,9 @@ fn read_back(
                 }
             }
         };
-        let mut older = Thread::default();
+        let mut older = transcript.lines.fresh();
         feed(&mut older, from + skip as u64, &buf[skip..]);
-        transcript.thread.prepend(older);
+        transcript.lines.prepend(older);
         transcript.start = from + skip as u64;
     }
     Ok(())
@@ -320,13 +410,26 @@ fn modified(meta: &fs::Metadata) -> Option<SystemTime> {
     meta.modified().ok()
 }
 
-/// One page of the transcript at `path`; `None` when there is no such file.
-/// `slot` holds what was parsed of it so far.
+/// One page of the Claude Code transcript at `path`; `None` when there is no
+/// such file. `slot` holds what was parsed of it so far.
 fn page_of(
     path: &Path,
     slot: &mut Option<Transcript>,
     before: Option<u64>,
     limit: usize,
+) -> std::io::Result<Option<ChatPage>> {
+    page_in(path, slot, before, limit, Thread::default)
+}
+
+/// One page of the transcript at `path`, made into `T`s (`empty` makes the
+/// first); `None` when there is no such file. `slot` holds what was parsed of
+/// it so far.
+fn page_in<T: Lines>(
+    path: &Path,
+    slot: &mut Option<Span<T>>,
+    before: Option<u64>,
+    limit: usize,
+    empty: impl FnOnce() -> T,
 ) -> std::io::Result<Option<ChatPage>> {
     let meta = match fs::metadata(path) {
         Ok(meta) => meta,
@@ -339,40 +442,53 @@ fn page_of(
     let len = meta.len();
     let time = modified(&meta);
 
-    // Shorter than what was read, or rewritten in place at the same size:
-    // the file is not the one parsed, so the parse starts over.
-    let stale = slot
-        .as_ref()
-        .is_some_and(|t| len < t.end || (len == t.len && time != t.modified));
-    if stale {
-        *slot = None;
-    }
-    if slot.is_none() {
-        *slot = Some(Transcript::at_end(path, len)?);
-    }
-    let transcript = slot.as_mut().expect("filled above");
+    if crate::sessions::codex::is_compressed(path) {
+        let unchanged = slot
+            .as_ref()
+            .is_some_and(|t| t.len == len && t.modified == time);
+        if !unchanged {
+            // The old parse goes first: two of a long rollout would be a
+            // waste, and a failed read must not leave it standing.
+            *slot = None;
+            *slot = Some(Span::whole(path, len, time, empty())?);
+        }
+    } else {
+        // Shorter than what was read, or rewritten in place at the same
+        // size: the file is not the one parsed, so the parse starts over.
+        let stale = slot
+            .as_ref()
+            .is_some_and(|t| len < t.end || (len == t.len && time != t.modified));
+        if stale {
+            *slot = None;
+        }
+        if slot.is_none() {
+            *slot = Some(Span::at_end(path, len, empty())?);
+        }
+        let transcript = slot.as_mut().expect("filled above");
 
-    if len != transcript.len || time != transcript.modified {
-        read_new(path, transcript, len)?;
-        transcript.len = len;
-        transcript.modified = time;
+        if len != transcript.len || time != transcript.modified {
+            read_new(path, transcript, len)?;
+            transcript.len = len;
+            transcript.modified = time;
+        }
+        read_back(path, transcript, before, limit)?;
     }
-    read_back(path, transcript, before, limit)?;
+    let transcript = slot.as_ref().expect("filled above");
 
-    let (items, first, more) = transcript.thread.page(before, limit);
+    let (items, first, more) = transcript.lines.page(before, limit);
     let older = more || transcript.start > 0;
     Ok(Some(ChatPage {
         items,
         older,
         cursor: first.filter(|_| older).map(|offset| offset.to_string()),
-        question: transcript.thread.pending_question(),
-        open_call: transcript.thread.open_call(),
+        question: transcript.lines.pending_question(),
+        open_call: transcript.lines.open_call(),
     }))
 }
 
 /// Keeps at most `CACHED` slots, dropping the coldest. A slot being read
 /// stays alive through its `Arc` until its reader is done.
-fn evict(slots: &mut HashMap<PathBuf, Arc<Slot>>) {
+fn evict<T>(slots: &mut HashMap<PathBuf, Arc<SlotOf<T>>>) {
     while slots.len() > CACHED {
         let coldest = slots
             .iter()
@@ -385,12 +501,13 @@ fn evict(slots: &mut HashMap<PathBuf, Arc<Slot>>) {
     }
 }
 
-fn chat_of(
+/// A chat's arguments checked: the session id that lands in a path, the
+/// cursor as an offset, the page size within bounds.
+fn chat_args(
     session_id: &str,
-    cwd: &str,
     before: Option<&str>,
     limit: Option<usize>,
-) -> Result<Option<ChatPage>, String> {
+) -> Result<(Option<u64>, usize), String> {
     if !crate::context::valid_session_id(session_id) {
         return Err(format!("\"{session_id}\" is not a session id."));
     }
@@ -402,7 +519,16 @@ fn chat_of(
         ),
         None => None,
     };
-    let limit = limit.unwrap_or(PAGE_DEFAULT).clamp(1, PAGE_MAX);
+    Ok((before, limit.unwrap_or(PAGE_DEFAULT).clamp(1, PAGE_MAX)))
+}
+
+fn chat_of(
+    session_id: &str,
+    cwd: &str,
+    before: Option<&str>,
+    limit: Option<usize>,
+) -> Result<Option<ChatPage>, String> {
+    let (before, limit) = chat_args(session_id, before, limit)?;
     let Some(path) = crate::context::claude_transcript(cwd, session_id) else {
         return Ok(None);
     };

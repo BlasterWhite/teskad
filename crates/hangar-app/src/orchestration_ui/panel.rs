@@ -62,6 +62,8 @@ pub enum PanelMsg {
     /// How many waiting deliveries share a check; none: the default.
     BatchSize(Option<u32>),
     Model(ModelField, String),
+    /// One of Codex's models: empty is Codex's own default.
+    CodexModel(ModelField, String),
     /// Every field back to the value Hangar ships with.
     Reset,
     Save,
@@ -213,6 +215,14 @@ fn model_field(draft: &mut Draft, which: ModelField) -> &mut String {
     }
 }
 
+fn codex_model_field(draft: &mut Draft, which: ModelField) -> &mut Option<String> {
+    match which {
+        ModelField::Orchestrator => &mut draft.codex_models.orchestrator,
+        ModelField::Worker => &mut draft.codex_models.worker,
+        ModelField::Reviewer => &mut draft.codex_models.reviewer,
+    }
+}
+
 /// What the panel's messages do. `Save` writes the workspace and says so.
 pub fn update(st: &mut State, m: &mut Model, msg: PanelMsg) -> iced::Task<Message> {
     let Some(panel) = st.panel.as_mut() else {
@@ -244,6 +254,11 @@ pub fn update(st: &mut State, m: &mut Model, msg: PanelMsg) -> iced::Task<Messag
         PanelMsg::Branch(text) => panel.draft.branch = text,
         PanelMsg::BatchSize(size) => panel.draft.batch_size = size,
         PanelMsg::Model(which, text) => *model_field(&mut panel.draft, which) = text,
+        PanelMsg::CodexModel(which, text) => {
+            // Blank is none, so that an emptied field is not saved as "" and
+            // the workspace goes back to Codex's own default.
+            *codex_model_field(&mut panel.draft, which) = (!text.trim().is_empty()).then_some(text);
+        }
         PanelMsg::Reset => panel.draft = draft_of(&Workspace::default()),
         PanelMsg::Save => return save(panel, m),
         PanelMsg::CreateOrchestrator => {
@@ -371,6 +386,9 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, ws_id: &'a WsId) -> Element<'a, Mes
                 model_row(ctx, &problems, draft, ModelField::Orchestrator),
                 model_row(ctx, &problems, draft, ModelField::Worker),
                 model_row(ctx, &problems, draft, ModelField::Reviewer),
+                codex_model_row(ctx, &problems, draft, ModelField::Orchestrator),
+                codex_model_row(ctx, &problems, draft, ModelField::Worker),
+                codex_model_row(ctx, &problems, draft, ModelField::Reviewer),
             ]),
     ]
     .spacing(tokens::space::XXL);
@@ -682,6 +700,45 @@ fn model_row<'a>(
         .into()
 }
 
+/// One of Codex's model rows, beside Claude Code's: the name, empty being
+/// Codex's own default model, which it picks itself. Labelled « beta ».
+fn codex_model_row<'a>(
+    ctx: Ctx<'a>,
+    problems: &super::form::Problems,
+    draft: &'a Draft,
+    which: ModelField,
+) -> Element<'a, Message> {
+    let t = ctx.theme;
+    let (label_key, value, field) = match which {
+        ModelField::Orchestrator => (
+            Key::OrchCodexOrchestratorModel,
+            &draft.codex_models.orchestrator,
+            Field::CodexOrchestratorModel,
+        ),
+        ModelField::Worker => (
+            Key::OrchCodexWorkerModel,
+            &draft.codex_models.worker,
+            Field::CodexWorkerModel,
+        ),
+        ModelField::Reviewer => (
+            Key::OrchCodexReviewerModel,
+            &draft.codex_models.reviewer,
+            Field::CodexReviewerModel,
+        ),
+    };
+    let error = (problems.get(field) == Some(Problem::Model))
+        .then(|| ctx.t(Key::OrchModelInvalid).into_owned());
+    let input = input::text_field(t, value.as_deref().unwrap_or_default())
+        .placeholder(label(ctx, Key::OrchCodexModelDefault))
+        .mono()
+        .error(error)
+        .on_input(move |text| msg(PanelMsg::CodexModel(which, text)))
+        .on_submit(msg(PanelMsg::Save));
+    form::row(t, ctx.t(label_key), container(input).width(300.0))
+        .hint(ctx.t(Key::OrchCodexModelHint))
+        .into()
+}
+
 #[cfg(test)]
 mod tests {
     //! The panel drawn as a window would lay it out.
@@ -787,6 +844,53 @@ mod tests {
         assert!(normalize_draft(draft).shared_build_cache);
         // It is a change to save, and not the defaults any more.
         assert!(!same_settings(
+            &normalize_draft(draft),
+            &orchestration_defaults()
+        ));
+    }
+
+    #[test]
+    fn shows_codex_s_models_beside_claude_codes_with_their_beta_label() {
+        let model = shop(false);
+        let st = opened(&model);
+        let pkg = Packages::default();
+        let ws: WsId = "w1".into();
+        let mut ui = simulate(view(&st, ctx(&model, &pkg), &ws));
+        for shown in [
+            "Orchestrator",
+            "Workers",
+            "Reviewer",
+            "Orchestrator, Codex (beta)",
+            "Workers, Codex (beta)",
+            "Reviewer, Codex (beta)",
+        ] {
+            assert!(ui.find(shown).is_ok(), "{shown}");
+        }
+    }
+
+    #[test]
+    fn a_codex_model_is_part_of_the_draft_and_emptying_it_goes_back_to_codex_s_default() {
+        let mut model = shop(false);
+        let mut st = opened(&model);
+        assert_eq!(st.panel.as_ref().unwrap().draft.codex_models.worker, None);
+        let _ = update(
+            &mut st,
+            &mut model,
+            PanelMsg::CodexModel(ModelField::Worker, " gpt-5.5 ".into()),
+        );
+        let saved = normalize_draft(&st.panel.as_ref().unwrap().draft);
+        // Trimmed on the way out; Claude Code's worker model is untouched.
+        assert_eq!(saved.codex_models.worker.as_deref(), Some("gpt-5.5"));
+        assert_eq!(saved.worker_model, orchestration_defaults().worker_model);
+        assert!(!same_settings(&saved, &orchestration_defaults()));
+        let _ = update(
+            &mut st,
+            &mut model,
+            PanelMsg::CodexModel(ModelField::Worker, "  ".into()),
+        );
+        let draft = &st.panel.as_ref().unwrap().draft;
+        assert_eq!(draft.codex_models.worker, None);
+        assert!(same_settings(
             &normalize_draft(draft),
             &orchestration_defaults()
         ));
