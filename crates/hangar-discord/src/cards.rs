@@ -564,6 +564,80 @@ pub fn shared_away(words: Words, s: &Shared<'_>) -> Value {
     message(parts, true)
 }
 
+/// An image shown on a card: its name in the upload (`attachment://`), and
+/// what it says to whoever cannot see it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Image {
+    pub attachment: String,
+    pub description: Option<String>,
+}
+
+/// The most items a media gallery holds: the most files a message carries.
+pub const GALLERY_MAX: usize = 10;
+
+/// The longest description Discord takes for an item of a media gallery.
+pub const DESCRIPTION_MAX: usize = 1_024;
+
+/// Images shown in place, as a media gallery.
+pub fn gallery(images: &[Image]) -> Value {
+    let items: Vec<Value> = images
+        .iter()
+        .take(GALLERY_MAX)
+        .map(|image| {
+            let mut item =
+                json!({ "media": { "url": format!("attachment://{}", image.attachment) } });
+            if let Some(description) = &image.description {
+                item["description"] = json!(clip(description, DESCRIPTION_MAX));
+            }
+            item
+        })
+        .collect();
+    json!({ "type": 12, "items": items })
+}
+
+/// `card` with `images` under what it says. A message of Components V2
+/// shows a file only where a component names it: a card that carries
+/// images names them again each time it is edited, folded included.
+pub fn with_images(mut card: Value, images: &[Image]) -> Value {
+    if images.is_empty() {
+        return card;
+    }
+    if let Some(components) = card["components"].as_array_mut() {
+        components.push(gallery(images));
+    }
+    card
+}
+
+/// An image an agent generated, in a message of its own: who made it, and
+/// the image.
+pub fn generated(words: Words, name: &str, image: &Image) -> Value {
+    message(
+        vec![
+            text(format!(
+                "🖼️ **{}** {}",
+                clip(name, 60),
+                words.generated_image()
+            )),
+            gallery(std::slice::from_ref(image)),
+        ],
+        true,
+    )
+}
+
+/// An image an agent generated that is not attached (too large for
+/// Discord), in one line: its name, its size, and where it stays.
+pub fn generated_away(words: Words, name: &str, file: &str, size: u64, path: &str) -> Value {
+    line(&format!(
+        "🖼️ **{}** {} « {} » ({}) — {} `{}`",
+        clip(name, 60),
+        words.generated_image(),
+        clip(file, 100),
+        words.size(size),
+        words.image_too_large(),
+        clip(&path.replace('`', "'"), 300)
+    ))
+}
+
 /// What a delivery brings, to land or send back.
 pub struct Delivery<'a> {
     pub ws: &'a str,
@@ -767,6 +841,29 @@ mod tests {
         let w = fr();
         let cards = [
             turn(w, "Leo", 1, &["Read src/a.rs".into()], "p1"),
+            with_images(
+                turn(w, "Leo", 1, &["Read src/a.rs".into()], "p1"),
+                &[Image {
+                    attachment: "ig_1.png".into(),
+                    description: Some("Un chat".into()),
+                }],
+            ),
+            with_images(
+                turn_folded(w, "Leo", 3, 2),
+                &[Image {
+                    attachment: "ig_1.png".into(),
+                    description: None,
+                }],
+            ),
+            generated(
+                w,
+                "Leo",
+                &Image {
+                    attachment: "ig_1.png".into(),
+                    description: None,
+                },
+            ),
+            generated_away(w, "Leo", "ig_2.png", 9 << 20, "/home/me/.codex/ig_2.png"),
             permission(w, "Leo", "Bash", Some("rm -rf build"), "p1", Some("42")),
             questions(
                 w,
@@ -987,5 +1084,43 @@ mod tests {
         );
         assert!(open.to_string().contains("Voir le fil"));
         assert!(open.to_string().contains("\"style\":5"));
+    }
+
+    #[test]
+    fn a_card_shows_its_images_in_place_each_with_its_description() {
+        let images = [
+            Image {
+                attachment: "ig_1.png".into(),
+                description: Some("Un chat roux".into()),
+            },
+            Image {
+                attachment: "ig_2.png".into(),
+                description: None,
+            },
+        ];
+        let card = with_images(turn(fr(), "Leo", 1, &[], "p1"), &images);
+        let parts = card["components"].as_array().unwrap();
+        // The turn's card as it was, the images under it.
+        assert_eq!(parts[0]["type"], 17);
+        let gallery = &parts[1];
+        assert_eq!(gallery["type"], 12);
+        assert_eq!(
+            gallery["items"][0],
+            json!({ "media": { "url": "attachment://ig_1.png" }, "description": "Un chat roux" })
+        );
+        assert_eq!(
+            gallery["items"][1],
+            json!({ "media": { "url": "attachment://ig_2.png" } })
+        );
+        // No image: the card as it was.
+        let bare = turn(fr(), "Leo", 1, &[], "p1");
+        assert_eq!(with_images(bare.clone(), &[]), bare);
+        // One too large: a line, its name, size and where it stays.
+        let away = generated_away(fr(), "Leo", "ig_3.png", 9 << 20, "/tmp/`x`/ig_3.png");
+        let said = away.to_string();
+        assert!(said.contains("« ig_3.png » (9,0 Mo)"), "{said}");
+        assert!(said.contains("trop lourde pour Discord"), "{said}");
+        assert!(said.contains("`/tmp/'x'/ig_3.png`"), "{said}");
+        assert!(!said.contains("attachment://"), "{said}");
     }
 }

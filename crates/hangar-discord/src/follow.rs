@@ -101,6 +101,16 @@ pub(crate) fn fresh_in(journal: Vec<JournalEntry>, seen: (u64, usize)) -> Vec<Jo
         .collect()
 }
 
+/// The card of `turn` folded to one line once it is over, the images its
+/// agent generated still shown under it.
+fn folded(words: crate::words::Words, name: &str, turn: &Turn) -> Value {
+    let minutes = now_secs().saturating_sub(turn.started).div_ceil(60);
+    cards::with_images(
+        cards::turn_folded(words, name, turn.calls.len(), minutes),
+        &turn.images,
+    )
+}
+
 /// What a pending ask is known by: answering it again is refused unless it
 /// is still the one asked.
 pub(crate) fn ask_key(pending: &ChatPending) -> String {
@@ -113,7 +123,7 @@ pub(crate) fn ask_key(pending: &ChatPending) -> String {
 impl Bot {
     /// Where pane `pane`'s conversation is shown: its workspace's channel
     /// when it is that channel's voice, its thread when one is open.
-    fn shown_in(&self, pane: &str) -> Option<(String, Option<String>, String)> {
+    pub(crate) fn shown_in(&self, pane: &str) -> Option<(String, Option<String>, String)> {
         let snapshot = self.host().snapshot();
         let (ws, found) = find(&snapshot.state, pane)?;
         self.place(&ws.id)?;
@@ -151,6 +161,7 @@ impl Bot {
                                 message,
                                 started,
                                 calls: Vec::new(),
+                                images: Vec::new(),
                                 edited: Instant::now(),
                                 dirty: false,
                                 left: None,
@@ -172,9 +183,8 @@ impl Bot {
                     return;
                 };
                 if let Some(turn) = &turn {
-                    let minutes = now_secs().saturating_sub(turn.started).div_ceil(60);
-                    let folded = cards::turn_folded(self.words(), &name, turn.calls.len(), minutes);
-                    self.edit_as(&turn.ws, turn.thread.as_deref(), &turn.message, folded)
+                    let card = folded(self.words(), &name, turn);
+                    self.edit_as(&turn.ws, turn.thread.as_deref(), &turn.message, card)
                         .await;
                 }
                 let whole = self.last_answer(&ws, pane).await.unwrap_or(answer);
@@ -240,7 +250,10 @@ impl Bot {
         let name = find(&snapshot.state, &pane)
             .map(|(_, p)| p.name.clone())
             .unwrap_or_default();
-        let card = cards::turn(self.words(), &name, turn.started, &turn.calls, &pane);
+        let card = cards::with_images(
+            cards::turn(self.words(), &name, turn.started, &turn.calls, &pane),
+            &turn.images,
+        );
         self.edit_as(&turn.ws, turn.thread.as_deref(), &turn.message, card)
             .await;
     }
@@ -279,9 +292,8 @@ impl Bot {
         let name = find(&snapshot.state, &pane)
             .map(|(_, p)| p.name.clone())
             .unwrap_or_default();
-        let minutes = now_secs().saturating_sub(turn.started).div_ceil(60);
-        let folded = cards::turn_folded(self.words(), &name, turn.calls.len(), minutes);
-        self.edit_as(&turn.ws, turn.thread.as_deref(), &turn.message, folded)
+        let card = folded(self.words(), &name, &turn);
+        self.edit_as(&turn.ws, turn.thread.as_deref(), &turn.message, card)
             .await;
     }
 

@@ -1508,6 +1508,213 @@ async fn a_codex_orchestrator_is_followed_as_claude_code_is() {
     .await;
 }
 
+/// Where Codex saves the images of thread `thread` (hangar-core's
+/// agent/images.rs reads them there): a folder of the test's own.
+fn codex_images(rig: &Rig, thread: &str) -> PathBuf {
+    let saved = rig
+        ._root
+        .path()
+        .join("codex")
+        .join("generated_images")
+        .join(thread);
+    std::fs::create_dir_all(&saved).unwrap();
+    saved
+}
+
+/// core's announcement of an image a Codex pane generated, as
+/// agent/images.rs raises it.
+fn image_generated(rig: &Rig, pane: &str, path: &Path, prompt: Option<&str>) {
+    rig.host
+        .core()
+        .emit(hangar_core::Event::ImageGenerated {
+            pane: pane.into(),
+            session: "thr-1".into(),
+            path: path.to_path_buf(),
+            prompt: prompt.map(str::to_string),
+        })
+        .unwrap();
+}
+
+/// The calls that carried a file named `name`.
+fn uploads_of(d: &Discord, name: &str) -> Vec<fake::Call> {
+    d.calls()
+        .into_iter()
+        .filter(|c| c.files.iter().any(|(file, _)| file == name))
+        .collect()
+}
+
+/// An image a Codex agent generates is attached to the card of its turn,
+/// under its name, the prompt as its description; it stays on the card as
+/// the card is edited with the turn's calls and folded at its end, and
+/// Codex's file stays where it is. One too large for Discord is said by a
+/// line, its file left alone.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_image_codex_generates_is_attached_to_its_turn_card() {
+    const LEO: &str = "leo-images";
+    let rig = rig_of(LEO, Some("u1"), AgentId::Codex, None).await;
+    let d = &rig.discord;
+    shop_channel(&rig).await;
+    let core = rig.host.core().clone();
+    let bridge = |event: Value| {
+        core.emit(hangar_core::Event::BridgeEvent {
+            pane_id: LEO.into(),
+            event,
+        })
+        .unwrap();
+    };
+    let saved = codex_images(&rig, "thr-1");
+    let cat = saved.join("ig_cat.png");
+    let picture = b"\x89PNG\r\n\x1a\n a red cat on a roof".to_vec();
+    std::fs::write(&cat, &picture).unwrap();
+
+    bridge(json!({ "kind": "turn", "phase": "start" }));
+    let card = eventually("the turn's card", || {
+        d.calls_to("POST", "/webhooks/")
+            .into_iter()
+            .find(|c| c.body.to_string().contains("travaille"))
+    })
+    .await;
+    let on_card = format!("/messages/{}?", card.id);
+
+    // The image, on the turn's card: the card edited with the file.
+    image_generated(&rig, LEO, &cat, Some("Un chat roux sur un toit"));
+    let attached = eventually("the image on the turn's card", || {
+        uploads_of(d, "ig_cat.png").pop()
+    })
+    .await;
+    assert_eq!(attached.method, "PATCH", "{attached:?}");
+    assert!(attached.path.starts_with("/webhooks/"), "{attached:?}");
+    assert!(attached.path.contains(&on_card), "{attached:?}");
+    assert_eq!(
+        attached.files,
+        vec![("ig_cat.png".to_string(), picture.clone())]
+    );
+    let said = attached.body.to_string();
+    assert!(said.contains("travaille"), "{said}");
+    assert!(said.contains("\"type\":12"), "{said}");
+    assert!(said.contains("attachment://ig_cat.png"), "{said}");
+    assert!(said.contains("Un chat roux sur un toit"), "{said}");
+
+    // Too large for Discord: a line under Leo's name, no file.
+    let huge = saved.join("ig_huge.png");
+    std::fs::File::create(&huge)
+        .unwrap()
+        .set_len(hangar_discord::images::IMAGE_LIMIT + 1)
+        .unwrap();
+    image_generated(&rig, LEO, &huge, Some("Un très grand chat"));
+    let line = eventually("the large one said", || d.find("POST", "ig_huge.png")).await;
+    let said = line.body.to_string();
+    assert!(said.contains("trop lourde pour Discord"), "{said}");
+    assert!(!said.contains("attachment://"), "{said}");
+    assert!(line.files.is_empty(), "{line:?}");
+    assert_eq!(line.body["username"], "Leo");
+
+    // The card edited with a call keeps showing the image…
+    bridge(
+        json!({ "kind": "tool", "phase": "start", "toolUseId": "item-1", "tool": "Bash",
+        "input": { "command": "cargo test" } }),
+    );
+    eventually("the card edited, its image kept", || {
+        d.calls_to("PATCH", "/webhooks/").into_iter().find(|c| {
+            let body = c.body.to_string();
+            c.path.contains(&on_card)
+                && body.contains("Bash cargo test")
+                && body.contains("attachment://ig_cat.png")
+        })
+    })
+    .await;
+    // …and so does the card folded at the turn's end.
+    bridge(json!({ "kind": "tool", "phase": "end", "toolUseId": "item-1" }));
+    bridge(
+        json!({ "kind": "turn", "phase": "end", "reason": "answer", "durationMs": 1000,
+        "answer": "Voici le chat." }),
+    );
+    let folded = eventually("the turn folded", || d.find("PATCH", "1 action")).await;
+    assert!(folded.path.contains(&on_card), "{folded:?}");
+    assert!(
+        folded.body.to_string().contains("attachment://ig_cat.png"),
+        "{folded:?}"
+    );
+
+    // The file uploaded once, Codex's files where they were, as they were.
+    assert_eq!(uploads_of(d, "ig_cat.png").len(), 1);
+    assert!(uploads_of(d, "ig_huge.png").is_empty());
+    assert_eq!(std::fs::read(&cat).unwrap(), picture);
+    assert_eq!(
+        std::fs::metadata(&huge).unwrap().len(),
+        hangar_discord::images::IMAGE_LIMIT + 1
+    );
+}
+
+/// An image of a pane the bot does not follow (a Codex pane that is
+/// neither its channel's voice nor a worker with a thread, a headless
+/// child) gives nothing on Discord; one of its channel's voice with no turn
+/// under way comes in a message of its own.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_image_of_a_pane_not_followed_gives_nothing() {
+    const LEO: &str = "leo-images-elsewhere";
+    let rig = rig_of(LEO, Some("u1"), AgentId::Codex, None).await;
+    let d = &rig.discord;
+    shop_channel(&rig).await;
+    let cy = rig
+        .host
+        .apply(ModelCmd::AddPane {
+            ws: "shop".into(),
+            agent: Some(AgentId::Codex),
+            near: None,
+            dir: None,
+            cwd: None,
+            name: Some("Cy".into()),
+            init: None,
+        })
+        .unwrap()
+        .pane
+        .unwrap();
+    let saved = codex_images(&rig, "thr-1");
+    let picture = b"\x89PNG\r\n\x1a\n a cat".to_vec();
+    for name in ["ig_cy.png", "ig_child.png", "ig_leo.png"] {
+        std::fs::write(saved.join(name), picture.as_slice()).unwrap();
+    }
+
+    // Cy's turn has no card, and its image goes nowhere; nor does that of
+    // a headless child (a delegate's), whose id names no pane.
+    rig.host
+        .core()
+        .emit(hangar_core::Event::BridgeEvent {
+            pane_id: cy.clone(),
+            event: json!({ "kind": "turn", "phase": "start" }),
+        })
+        .unwrap();
+    image_generated(&rig, &cy, &saved.join("ig_cy.png"), Some("Le chat de Cy"));
+    image_generated(&rig, "delegate-child-1", &saved.join("ig_child.png"), None);
+
+    // Leo's, with no turn under way: a message of its own under his name,
+    // its prompt too long to describe it left out.
+    let long = "un chat ".repeat(200);
+    image_generated(&rig, LEO, &saved.join("ig_leo.png"), Some(long.as_str()));
+    let own = eventually("Leo's image", || uploads_of(d, "ig_leo.png").pop()).await;
+    assert_eq!(own.method, "POST", "{own:?}");
+    assert_eq!(own.body["username"], "Leo");
+    let said = own.body.to_string();
+    assert!(said.contains("a généré une image"), "{said}");
+    assert!(said.contains("attachment://ig_leo.png"), "{said}");
+    assert!(!said.contains("un chat un chat"), "{said}");
+
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    for name in ["ig_cy.png", "ig_child.png"] {
+        assert!(uploads_of(d, name).is_empty(), "{name}");
+        assert!(d.find("POST", name).is_none(), "{name}");
+        assert!(d.find("PATCH", name).is_none(), "{name}");
+    }
+    assert!(d.find("POST", "Le chat de Cy").is_none());
+    assert!(d.calls().iter().all(|c| c.files.len() <= 1));
+    assert_eq!(
+        d.calls().iter().filter(|c| !c.files.is_empty()).count(),
+        1,
+        "Leo's image alone was uploaded"
+    );
+}
+
 /// The dashboard of a workspace whose panes run both agents says which runs
 /// which; that of a workspace of one agent reads as it always did.
 #[tokio::test(flavor = "multi_thread")]
