@@ -712,6 +712,7 @@ deliveries merged before it and fails once it is merged.",
             &changed,
             &outside,
             &diff,
+            reviewer.reading(),
         );
         if !before.is_empty() {
             let branches: Vec<&str> = before
