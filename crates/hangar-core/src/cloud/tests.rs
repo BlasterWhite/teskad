@@ -485,6 +485,42 @@ fn param<'a>(url: &'a str, name: &str) -> &'a str {
         .unwrap_or_else(|| panic!("no {name} in the address"))
 }
 
+/// Whether the listener of the sign-in that drew `state` still answers on
+/// `port`. Once it is gone the port is the system's to give again, and a
+/// test running beside may hold it by then: that something answers there
+/// proves nothing. Only the sign-in's own listener takes a visit with its
+/// state for the provider's answer: asked as a refusal (nothing to
+/// exchange), it says the sign-in was not completed. Another sign-in's
+/// listener turns the visit away; anything else answers something else, or
+/// nothing.
+fn still_listens(port: u16, state: &str) -> bool {
+    use std::io::{Read, Write};
+    let address = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+    let Ok(mut stream) = std::net::TcpStream::connect_timeout(&address, Duration::from_secs(10))
+    else {
+        return false;
+    };
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
+    let _ = stream.set_write_timeout(Some(Duration::from_secs(10)));
+    let visit = format!(
+        "GET /callback?error=access_denied&state={state} HTTP/1.1\r\n\
+         Host: 127.0.0.1:{port}\r\n\
+         Accept-Language: en\r\n\
+         Connection: close\r\n\r\n"
+    );
+    if stream.write_all(visit.as_bytes()).is_err() {
+        return false;
+    }
+    // Nothing more to send. A connection the system made to itself (the
+    // port free, and given to this very socket) reads its own request back,
+    // then its end, rather than waiting for an answer.
+    let _ = stream.shutdown(std::net::Shutdown::Write);
+    let mut answer = Vec::new();
+    let _ = stream.read_to_end(&mut answer);
+    let answer = String::from_utf8_lossy(&answer);
+    answer.starts_with("HTTP/1.1 200") && answer.contains("The sign-in was not completed.")
+}
+
 // ---------------------------------------------------------------------------
 // Statistics to send
 // ---------------------------------------------------------------------------
@@ -685,9 +721,7 @@ fn signing_in_exchanges_the_code_and_keeps_the_token() {
     assert!(cloud.signed_in().unwrap());
     assert_eq!(cloud.me().unwrap().device.id, "dev_1");
     // The listener is gone with the sign-in.
-    assert!(
-        std::net::TcpStream::connect(("127.0.0.1", param(&url, "port").parse().unwrap())).is_err()
-    );
+    assert!(!still_listens(param(&url, "port").parse().unwrap(), &state));
 }
 
 #[test]
@@ -755,11 +789,12 @@ fn a_sign_in_can_be_cancelled_and_does_not_wait_forever() {
 
     let sign_in = cloud.sign_in(Provider::Github).unwrap();
     let port = sign_in.port();
+    let state = param(sign_in.url(), "state").to_string();
     let cancel = sign_in.canceller();
     let waiting = std::thread::spawn(move || sign_in.wait());
     cancel.cancel();
     assert_eq!(waiting.join().unwrap(), Err(Error::Cancelled));
-    assert!(std::net::TcpStream::connect(("127.0.0.1", port)).is_err());
+    assert!(!still_listens(port, &state));
 
     let started = Instant::now();
     let sign_in = cloud
@@ -771,12 +806,20 @@ fn a_sign_in_can_be_cancelled_and_does_not_wait_forever() {
     // Letting go of the sign-in calls it off too.
     let sign_in = cloud.sign_in(Provider::Github).unwrap();
     let port = sign_in.port();
+    let state = param(sign_in.url(), "state").to_string();
     drop(sign_in);
-    let gone = Instant::now() + Duration::from_secs(5);
-    while std::net::TcpStream::connect(("127.0.0.1", port)).is_ok() {
-        assert!(Instant::now() < gone, "the listener outlived its sign-in");
+    // Its thread sees it a moment later. Waited for without a visit (one
+    // would end a listener that outlived its sign-in, and hide it): until
+    // the port is free, or something holds it still at the deadline,
+    // which then must not be this sign-in's listener.
+    let gone = Instant::now() + Duration::from_secs(10);
+    while std::net::TcpListener::bind(("127.0.0.1", port)).is_err() && Instant::now() < gone {
         std::thread::sleep(Duration::from_millis(10));
     }
+    assert!(
+        !still_listens(port, &state),
+        "the listener outlived its sign-in"
+    );
 
     assert_eq!(tokens.peek(), None);
     assert!(server.routes().is_empty());
