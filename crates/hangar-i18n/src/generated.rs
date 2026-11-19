@@ -4146,6 +4146,8 @@ pub enum Key {
     TitleBarMinimize,
     /// `titleBar.restore`
     TitleBarRestore,
+    /// `titleBar.site`
+    TitleBarSite,
     /// `toolbar.activity.context`
     ToolbarActivityContext,
     /// `toolbar.activity.contextHint`
@@ -4535,7 +4537,7 @@ pub enum Key {
 }
 
 /// How many keys there are.
-pub const KEY_COUNT: usize = 2259;
+pub const KEY_COUNT: usize = 2260;
 
 impl Key {
     /// Every key, in the order of their ids.
@@ -6606,6 +6608,7 @@ impl Key {
         Key::TitleBarMaximize,
         Key::TitleBarMinimize,
         Key::TitleBarRestore,
+        Key::TitleBarSite,
         Key::ToolbarActivityContext,
         Key::ToolbarActivityContextHint,
         Key::ToolbarActivityGoTo,
@@ -7327,7 +7330,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "diff.worktree", en: Text::plain("Changes"), fr: Text::plain("Modifications") },
     Message { id: "diff.worktreeHint", en: Text::plain("See what changed in this worktree"), fr: Text::plain("Voir ce qui a changé dans ce worktree") },
     Message { id: "discord.agents", en: Text::plural("{n} agent", "{n} agents"), fr: Text::plural("{n} agent", "{n} agents") },
-    Message { id: "discord.button", en: Text::plain("Get Hangar.AI"), fr: Text::plain("Télécharger Hangar.AI") },
+    Message { id: "discord.button", en: Text::plain("Get HangarAI"), fr: Text::plain("Télécharger HangarAI") },
     Message { id: "discord.cardHead", en: Text::plain("Playing a game"), fr: Text::plain("Joue à") },
     Message { id: "discord.elapsed", en: Text::plain("{time} elapsed"), fr: Text::plain("{time} écoulées") },
     Message { id: "discord.idle", en: Text::plain("Idle"), fr: Text::plain("Au repos") },
@@ -7338,7 +7341,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "discord.statusOff", en: Text::plain("Off"), fr: Text::plain("Désactivé") },
     Message { id: "discord.statusWaiting", en: Text::plain("Waiting for Discord…"), fr: Text::plain("En attente de Discord…") },
     Message { id: "discord.statusWaitingHint", en: Text::plain("Retrying every 15\u{a0}s; the presence appears on its own"), fr: Text::plain("Nouvelle tentative toutes les 15\u{a0}s\u{202f}; la présence apparaîtra d'elle-même") },
-    Message { id: "discord.tagline", en: Text::plain("Hangar.AI — terminal multiplexer for coding agents"), fr: Text::plain("Hangar.AI — multiplexeur de terminaux pour agents de code") },
+    Message { id: "discord.tagline", en: Text::plain("HangarAI — terminal multiplexer for coding agents"), fr: Text::plain("HangarAI — multiplexeur de terminaux pour agents de code") },
     Message { id: "discord.working", en: Text::plain("Orchestrating coding agents"), fr: Text::plain("Pilote ses agents de code") },
     Message { id: "discordBot.connect", en: Text::plain("Connect"), fr: Text::plain("Connecter") },
     Message { id: "discordBot.disconnect", en: Text::plain("Disconnect"), fr: Text::plain("Déconnecter") },
@@ -7810,7 +7813,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "mcp.configured", en: Text::plain("already configured"), fr: Text::plain("déjà configuré") },
     Message { id: "mcp.install", en: Text::plain("Configure ({n})"), fr: Text::plain("Configurer ({n})") },
     Message { id: "mcp.installing", en: Text::plain("Installing…"), fr: Text::plain("Installation…") },
-    Message { id: "mcp.intro", en: Text::plain("Hangar.AI registers itself as an MCP server in this project's Claude Code configuration (.mcp.json). The port and token are never written to that file: they are resolved at launch, so the configuration stays valid across restarts."), fr: Text::plain("Hangar.AI s'enregistre comme serveur MCP dans la configuration Claude Code de ce projet (.mcp.json). Le port et le jeton ne sont jamais écrits dans ce fichier\u{202f}: ils sont résolus au lancement, donc la configuration reste valable après un redémarrage.") },
+    Message { id: "mcp.intro", en: Text::plain("HangarAI registers itself as an MCP server in this project's Claude Code configuration (.mcp.json). The port and token are never written to that file: they are resolved at launch, so the configuration stays valid across restarts."), fr: Text::plain("HangarAI s'enregistre comme serveur MCP dans la configuration Claude Code de ce projet (.mcp.json). Le port et le jeton ne sont jamais écrits dans ce fichier\u{202f}: ils sont résolus au lancement, donc la configuration reste valable après un redémarrage.") },
     Message { id: "mcp.manual", en: Text::plain("Or do it manually"), fr: Text::plain("Ou à la main") },
     Message { id: "mcp.manualHint", en: Text::plain("if you prefer the CLI"), fr: Text::plain("si tu préfères passer par la CLI") },
     Message { id: "mcp.notDetected", en: Text::plain("not detected"), fr: Text::plain("non détecté") },
@@ -7829,7 +7832,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "mcpScope.custom", en: Text::plain("Chosen here"), fr: Text::plain("Choisis ici") },
     Message { id: "mcpScope.customHint", en: Text::plain("Only the servers switched on below, and Hangar's own."), fr: Text::plain("Seulement les serveurs activés ci-dessous, plus celui de Hangar.") },
     Message { id: "mcpScope.empty", en: Text::plain("No other MCP server is configured for this folder."), fr: Text::plain("Aucun autre serveur MCP n'est configuré pour ce dossier.") },
-    Message { id: "mcpScope.hangar", en: Text::plain("Hangar.AI"), fr: Text::plain("Hangar.AI") },
+    Message { id: "mcpScope.hangar", en: Text::plain("HangarAI"), fr: Text::plain("HangarAI") },
     Message { id: "mcpScope.hangarHint", en: Text::plain("Always loaded: agents use it for the board, the other panes and the memory"), fr: Text::plain("Toujours chargé\u{202f}: les agents s'en servent pour le tableau, les autres panneaux et la mémoire") },
     Message { id: "mcpScope.hangarMissing", en: Text::plain("Not registered for this folder: agents only get it with servers chosen here"), fr: Text::plain("Pas enregistré pour ce dossier\u{202f}: les agents ne l'ont qu'avec des serveurs choisis ici") },
     Message { id: "mcpScope.held", en: Text::plural("{n} agent is in the middle of a turn: it keeps its servers until the turn ends.", "{n} agents are in the middle of a turn: they keep their servers until the turns end."), fr: Text::plural("{n} agent est au milieu d'un tour\u{202f}: il garde ses serveurs jusqu'à la fin du tour.", "{n} agents sont au milieu d'un tour\u{202f}: ils gardent leurs serveurs jusqu'à la fin des tours.") },
@@ -8489,7 +8492,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "settings.discordAgentsHint", en: Text::plain("Off only says how many are running"), fr: Text::plain("Désactivé, seul leur nombre est indiqué") },
     Message { id: "settings.discordApp", en: Text::plain("Application"), fr: Text::plain("Application") },
     Message { id: "settings.discordAppId", en: Text::plain("Application ID"), fr: Text::plain("Identifiant d'application") },
-    Message { id: "settings.discordAppIdHint", en: Text::plain("Leave empty to use the one Hangar.AI ships with"), fr: Text::plain("Laisse vide pour utiliser celle fournie avec Hangar.AI") },
+    Message { id: "settings.discordAppIdHint", en: Text::plain("Leave empty to use the one HangarAI ships with"), fr: Text::plain("Laisse vide pour utiliser celle fournie avec HangarAI") },
     Message { id: "settings.discordAppIdPlaceholder", en: Text::plain("Bundled application"), fr: Text::plain("Application fournie") },
     Message { id: "settings.discordEnable", en: Text::plain("Publish to Discord"), fr: Text::plain("Publier sur Discord") },
     Message { id: "settings.discordEnableHint", en: Text::plain("Needs the Discord desktop app open on this machine"), fr: Text::plain("Nécessite l'application Discord ouverte sur cette machine") },
@@ -8595,7 +8598,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "settings.voiceKeyReplace", en: Text::plain("Replace"), fr: Text::plain("Remplacer") },
     Message { id: "settings.voiceKeySave", en: Text::plain("Save"), fr: Text::plain("Enregistrer") },
     Message { id: "settings.voiceKeySaved", en: Text::plain("Key saved"), fr: Text::plain("Clé enregistrée") },
-    Message { id: "settings.voiceKeyUnavailable", en: Text::plain("The system keychain cannot be reached, so no key can be saved. Hangar.AI does not fall back to storing it in plain text. {error}"), fr: Text::plain("Le trousseau du système est injoignable\u{202f}: aucune clé ne peut être enregistrée. Hangar.AI ne se rabat pas sur un stockage en clair. {error}") },
+    Message { id: "settings.voiceKeyUnavailable", en: Text::plain("The system keychain cannot be reached, so no key can be saved. HangarAI does not fall back to storing it in plain text. {error}"), fr: Text::plain("Le trousseau du système est injoignable\u{202f}: aucune clé ne peut être enregistrée. HangarAI ne se rabat pas sur un stockage en clair. {error}") },
     Message { id: "settings.voiceKeyUnavailableShort", en: Text::plain("Keychain unavailable"), fr: Text::plain("Trousseau indisponible") },
     Message { id: "settings.voiceLanguage", en: Text::plain("Language"), fr: Text::plain("Langue") },
     Message { id: "settings.voiceLanguageAuto", en: Text::plain("Detect"), fr: Text::plain("Détecter") },
@@ -8610,7 +8613,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "settings.voiceUnloadAction", en: Text::plain("Unload"), fr: Text::plain("Décharger") },
     Message { id: "settings.voiceVocabulary", en: Text::plain("Project vocabulary"), fr: Text::plain("Vocabulaire du projet") },
     Message { id: "settings.voiceVocabularyHint", en: Text::plain("Names and spellings the cleanup should keep — one per line"), fr: Text::plain("Les noms et orthographes que la relecture doit respecter — un par ligne") },
-    Message { id: "settings.voiceVocabularyPlaceholder", en: Text::plain("Hangar.AI, pnpm, Tauri, simnJS"), fr: Text::plain("Hangar.AI, pnpm, Tauri, simnJS") },
+    Message { id: "settings.voiceVocabularyPlaceholder", en: Text::plain("HangarAI, pnpm, Tauri, simnJS"), fr: Text::plain("HangarAI, pnpm, Tauri, simnJS") },
     Message { id: "setup.docs", en: Text::plain("Open the install guide"), fr: Text::plain("Ouvrir le guide d'installation") },
     Message { id: "setup.done", en: Text::plain("Done"), fr: Text::plain("Terminé") },
     Message { id: "setup.failedExit", en: Text::plain("The installation failed (exit code {code})."), fr: Text::plain("L'installation a échoué (code de sortie {code}).") },
@@ -8691,7 +8694,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "sidebar.removeFolder", en: Text::plain("Delete folder — its workspaces are kept"), fr: Text::plain("Supprimer le dossier — ses workspaces sont conservés") },
     Message { id: "sidebar.renameHint", en: Text::plain("Enter to confirm, Escape to cancel"), fr: Text::plain("Entrée pour valider, Échap pour annuler") },
     Message { id: "sidebar.settings", en: Text::plain("Settings"), fr: Text::plain("Réglages") },
-    Message { id: "sidebar.version", en: Text::plain("Hangar.AI {version}"), fr: Text::plain("Hangar.AI {version}") },
+    Message { id: "sidebar.version", en: Text::plain("HangarAI {version}"), fr: Text::plain("HangarAI {version}") },
     Message { id: "sidebar.whoWaiting", en: Text::plural("{names} waits for your answer", "{names} wait for your answer"), fr: Text::plural("{names} attend ta réponse", "{names} attendent ta réponse") },
     Message { id: "sidebar.whoWorking", en: Text::plural("{names} is working", "{names} are working"), fr: Text::plural("{names} travaille", "{names} travaillent") },
     Message { id: "sidebar.whoYours", en: Text::plain("{names} finished, your turn"), fr: Text::plural("{names} a terminé, à toi", "{names} ont terminé, à toi") },
@@ -8717,7 +8720,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "sleep.working", en: Text::plain("{name} is still working"), fr: Text::plain("{name} travaille encore") },
     Message { id: "state.loadFailed", en: Text::plain("Could not read state.json: {error}"), fr: Text::plain("Impossible de lire state.json\u{202f}: {error}") },
     Message { id: "state.loadHeld", en: Text::plain("Could not read state.json ({error}). It stays as it is, and nothing will be saved over it until it can be moved aside."), fr: Text::plain("Impossible de lire state.json ({error}). Il reste tel quel, et rien ne sera enregistré par-dessus tant qu'il ne pourra pas être mis de côté.") },
-    Message { id: "state.loadKept", en: Text::plain("Could not read state.json ({error}). It is kept as {path}, and Hangar.AI starts empty."), fr: Text::plain("Impossible de lire state.json ({error}). Il est conservé sous {path}, et Hangar.AI démarre à vide.") },
+    Message { id: "state.loadKept", en: Text::plain("Could not read state.json ({error}). It is kept as {path}, and HangarAI starts empty."), fr: Text::plain("Impossible de lire state.json ({error}). Il est conservé sous {path}, et HangarAI démarre à vide.") },
     Message { id: "state.saveHeld", en: Text::plain("Not saved, so that the unreadable state.json stays as it is: {error}"), fr: Text::plain("Non enregistré, pour que le state.json illisible reste tel quel\u{202f}: {error}") },
     Message { id: "stats.agentsTitle", en: Text::plain("By agent"), fr: Text::plain("Par agent") },
     Message { id: "stats.allActive", en: Text::plain("Active time"), fr: Text::plain("Temps actif") },
@@ -8870,6 +8873,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "titleBar.maximize", en: Text::plain("Maximize"), fr: Text::plain("Agrandir") },
     Message { id: "titleBar.minimize", en: Text::plain("Minimize"), fr: Text::plain("Réduire") },
     Message { id: "titleBar.restore", en: Text::plain("Restore"), fr: Text::plain("Restaurer") },
+    Message { id: "titleBar.site", en: Text::plain("Open hangarai.dev in your browser"), fr: Text::plain("Ouvrir hangarai.dev dans le navigateur") },
     Message { id: "toolbar.activity.context", en: Text::plain("{pct}%"), fr: Text::plain("{pct}\u{202f}%") },
     Message { id: "toolbar.activity.contextHint", en: Text::plain("{pct}% of the context used; the agent compacts on its own as it nears the limit"), fr: Text::plain("{pct}\u{202f}% du contexte utilisé\u{202f}; l'agent compacte automatiquement à l'approche de la limite") },
     Message { id: "toolbar.activity.goTo", en: Text::plain("{summary} — go to {name}"), fr: Text::plain("{summary} — aller à {name}") },

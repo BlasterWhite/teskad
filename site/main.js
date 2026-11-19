@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   Hangar.AI site
+   HangarAI site
 
    Small jobs around a static page; the page reads fine without them.
 

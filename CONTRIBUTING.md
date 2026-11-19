@@ -1,10 +1,10 @@
-# Contributing to Hangar.AI
+# Contributing to HangarAI
 
 Thanks for taking the time to contribute. Bug reports, fixes, translations and feature
 ideas are all welcome. Please follow the [code of conduct](CODE_OF_CONDUCT.md) in every
 interaction.
 
-- **Question, or want to talk it through first?** Join the [Hangar.AI Discord](https://discord.gg/hangarai).
+- **Question, or want to talk it through first?** Join the [HangarAI Discord](https://discord.gg/hangarai).
 - **Security issue?** Do not open a public issue. See [SECURITY.md](SECURITY.md).
 - **Bug?** Open an issue with the bug template: OS, Hangar version (2.0 and later are the
   native app, 1.x the web-view one), what the pane ran, and steps.

@@ -1,6 +1,6 @@
 # site
 
-The Hangar.AI landing page, served at https://hangarai.dev. Plain HTML, CSS
+The HangarAI landing page, served at https://hangarai.dev. Plain HTML, CSS
 and JavaScript, no framework, no build step for the page itself, and nothing
 loaded from another origin.
 
@@ -32,7 +32,7 @@ the demo went with the React sources (it is at tag `v1.12.1`, under `demo/`).
 
 ## The page
 
-One story, short, in order: what Hangar.AI is (hero: one line, a download for
+One story, short, in order: what HangarAI is (hero: one line, a download for
 the visitor's system and one link per OS, the chat view), the chat view, the
 orchestrator with its workers and deliveries (checked in batches, their stage
 on the worker's pane, the orchestrator woken for what matters), Hangar Mobile,
@@ -164,7 +164,7 @@ then map the `--*` names to the keys `TOKENS` lists in `main.js`.
 ## Captures
 
 Everything in `img/` but the phone screens is the real app: a debug build of
-Hangar.AI 2.2 on Linux, on demo states written for the site, with no path,
+HangarAI 2.2 on Linux, on demo states written for the site, with no path,
 account or project of the person taking them. The scripts live outside the
 repository, in `~/dev/bench/site-shots/`:
 

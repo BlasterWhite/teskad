@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hangar.AI: a team of Claude Code agents in one native window</title>
-<meta name="description" content="Hangar.AI runs many Claude Code sessions in one native window, with a shared board, a shared memory and an orchestrator that hands work to workers in git worktrees. Talk to it in a chat, steer it from your phone. Free and open source.">
+<title>HangarAI: a team of Claude Code agents in one native window</title>
+<meta name="description" content="HangarAI runs many Claude Code sessions in one native window, with a shared board, a shared memory and an orchestrator that hands work to workers in git worktrees. Talk to it in a chat, steer it from your phone. Free and open source.">
 <link rel="canonical" href="https://hangarai.dev/">
 <meta name="color-scheme" content="dark light">
 <meta name="theme-color" content="#202124" media="(prefers-color-scheme: dark)">
@@ -15,21 +15,21 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="Hangar.AI">
+<meta property="og:site_name" content="HangarAI">
 <meta property="og:url" content="https://hangarai.dev/">
-<meta property="og:title" content="Hangar.AI 2.4: a team of Claude Code agents, in one native window">
+<meta property="og:title" content="HangarAI 2.4: a team of Claude Code agents, in one native window">
 <meta property="og:description" content="Run many Claude Code sessions in a native app written in Rust. An orchestrator plans on a shared board and hands tasks to workers in their own git worktrees; Hangar checks, reviews and lands what they deliver. Talk to it in a chat, steer it from your phone. Free, open source, local.">
 <meta property="og:image" content="https://hangarai.dev/og.png?v=f594f112f0">
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Hangar.AI's chat view: Iris, the orchestrator, sums up a recipe app's progress beside the board's tasks, under the title: a team of Claude Code agents, in one native window.">
+<meta property="og:image:alt" content="HangarAI's chat view: Iris, the orchestrator, sums up a recipe app's progress beside the board's tasks, under the title: a team of Claude Code agents, in one native window.">
 <meta property="og:locale" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Hangar.AI 2.4: a team of Claude Code agents, in one native window">
+<meta name="twitter:title" content="HangarAI 2.4: a team of Claude Code agents, in one native window">
 <meta name="twitter:description" content="Many Claude Code sessions, one native window, a shared board and an orchestrator that delegates to workers in git worktrees. Talk to it in a chat, steer it from your phone. Free and open source.">
 <meta name="twitter:image" content="https://hangarai.dev/og.png?v=f594f112f0">
-<meta name="twitter:image:alt" content="Hangar.AI's chat view: Iris, the orchestrator, sums up a recipe app's progress beside the board's tasks.">
+<meta name="twitter:image:alt" content="HangarAI's chat view: Iris, the orchestrator, sums up a recipe app's progress beside the board's tasks.">
 
 <link rel="preload" href="fonts/inter-latin-opsz.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="styles.css?v=36067723b1">
@@ -49,7 +49,7 @@
 {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
-  "name": "Hangar.AI",
+  "name": "HangarAI",
   "softwareVersion": "2.4.3",
   "applicationCategory": "DeveloperApplication",
   "operatingSystem": "Windows, macOS, Linux",
@@ -68,13 +68,13 @@
 
 <header class="bar" id="bar">
   <div class="bar__in">
-    <a class="brand" href="#top" aria-label="Hangar.AI 2.4.3, back to top">
+    <a class="brand" href="#top" aria-label="HangarAI 2.4.3, back to top">
       <svg class="brand__mark" width="18" height="18" viewBox="200 200 624 624" aria-hidden="true">
         <rect x="200" y="200" width="260" height="624" fill="var(--accent)"></rect>
         <rect x="538" y="200" width="286" height="260" fill="var(--fg-hi)"></rect>
         <rect x="538" y="538" width="286" height="286" fill="var(--fg-hi)"></rect>
       </svg>
-      <span class="brand__name">Hangar.AI</span>
+      <span class="brand__name">HangarAI</span>
       <span class="brand__ver">2.4.3</span>
     </a>
 
@@ -92,7 +92,7 @@
         <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38l-.01-1.34c-2.23.48-2.7-1.07-2.7-1.07-.36-.93-.89-1.18-.89-1.18-.73-.5.05-.49.05-.49.8.06 1.23.83 1.23.83.72 1.23 1.88.87 2.34.67.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48l-.01 2.2c0 .21.15.46.55.38A8 8 0 0 0 8 0Z"></path></svg>
         <span class="iconlink__text">GitHub</span>
       </a>
-      <a class="iconlink" href="https://discord.gg/hangarai" aria-label="Hangar.AI on Discord">
+      <a class="iconlink" href="https://discord.gg/hangarai" aria-label="HangarAI on Discord">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.32 4.37a19.8 19.8 0 0 0-4.89-1.52.07.07 0 0 0-.08.04c-.21.37-.44.86-.61 1.25a18.27 18.27 0 0 0-5.49 0 12.6 12.6 0 0 0-.62-1.25.08.08 0 0 0-.08-.04 19.74 19.74 0 0 0-4.88 1.52.07.07 0 0 0-.03.03C.53 9.05-.32 13.58.1 18.06a.08.08 0 0 0 .03.06 19.9 19.9 0 0 0 5.99 3.03.08.08 0 0 0 .08-.03c.46-.63.87-1.3 1.23-1.99a.08.08 0 0 0-.04-.11 13.1 13.1 0 0 1-1.87-.89.08.08 0 0 1-.01-.13l.37-.29a.07.07 0 0 1 .08-.01c3.93 1.79 8.18 1.79 12.06 0a.07.07 0 0 1 .08.01l.37.29a.08.08 0 0 1-.01.13c-.6.35-1.22.64-1.87.89a.08.08 0 0 0-.04.11c.36.7.77 1.36 1.22 1.99a.08.08 0 0 0 .08.03 19.84 19.84 0 0 0 6-3.03.08.08 0 0 0 .04-.06c.5-5.18-.84-9.67-3.55-13.66a.06.06 0 0 0-.03-.03ZM8.02 15.33c-1.18 0-2.16-1.09-2.16-2.42s.96-2.42 2.16-2.42c1.21 0 2.18 1.1 2.16 2.42 0 1.33-.96 2.42-2.16 2.42Zm7.97 0c-1.18 0-2.15-1.09-2.15-2.42s.95-2.42 2.15-2.42c1.21 0 2.18 1.1 2.16 2.42 0 1.33-.95 2.42-2.16 2.42Z"></path></svg>
         <span class="iconlink__text">Discord</span>
       </a>
@@ -140,7 +140,7 @@
         <source type="image/avif" data-crop="hero" sizes="(min-width: 1328px) 1280px, calc(100vw - 48px)" srcset="img/hero-1280.avif?v=17939bc94a 1280w, img/hero-1920.avif?v=a9593abfa4 1920w, img/hero-2560.avif?v=6809260202 2560w" width="1280" height="800">
         <source type="image/webp" data-crop="hero" sizes="(min-width: 1328px) 1280px, calc(100vw - 48px)" srcset="img/hero-1280.webp?v=960b9d5bdc 1280w, img/hero-1920.webp?v=775c7dbc70 1920w, img/hero-2560.webp?v=b023dd875b 2560w" width="1280" height="800">
         <img data-crop="hero" fetchpriority="high" decoding="async"
-          alt="Hangar.AI in its chat view, on a Recipes workspace. You asked Iris, the orchestrator, for a small recipe app; she split it into tasks, started workers, and reports that the data model has landed, that Ben, Dan and Eva are at work, and that Cleo's recipe page passed its check and review. Asked about sharing a recipe by link, she put the question of the domain in Needs you. Beside the chat, the board's tasks with the progress each agent reported, and three things that wait for you; on the right, the inspector shows Iris's session, 15% of her context used and her cost." src="img/hero-1280.webp?v=960b9d5bdc" width="1280" height="800">
+          alt="HangarAI in its chat view, on a Recipes workspace. You asked Iris, the orchestrator, for a small recipe app; she split it into tasks, started workers, and reports that the data model has landed, that Ben, Dan and Eva are at work, and that Cleo's recipe page passed its check and review. Asked about sharing a recipe by link, she put the question of the domain in Needs you. Beside the chat, the board's tasks with the progress each agent reported, and three things that wait for you; on the right, the inspector shows Iris's session, 15% of her context used and her cost." src="img/hero-1280.webp?v=960b9d5bdc" width="1280" height="800">
       </picture>
       <picture class="for-light">
         <source media="(max-width: 599px)" type="image/avif" data-crop="hero-light-m" sizes="calc(100vw - 32px)" srcset="img/hero-light-m-400.avif?v=a51e32487d 400w, img/hero-light-m-800.avif?v=ea0e269907 800w" width="400" height="545">
@@ -603,7 +603,7 @@
 <section class="sec download" id="download" aria-labelledby="download-title">
   <div class="wrap">
     <header class="head head--center">
-      <h2 class="sec__title" id="download-title">Download Hangar.AI 2.4.3</h2>
+      <h2 class="sec__title" id="download-title">Download HangarAI 2.4.3</h2>
       <p class="sec__lede">
         Free and open source. Install it once: it offers each new version and installs it in one click.
       </p>
@@ -658,7 +658,7 @@
         <summary>What does it cost?</summary>
         <div class="qa__a">
           <p>
-            Nothing: Hangar.AI is MIT-licensed, with no paid tier and no account needed. The agents cost what they
+            Nothing: HangarAI is MIT-licensed, with no paid tier and no account needed. The agents cost what they
             already cost you, on your own plan or API key. An orchestrator, its workers and a reviewer run
             at once, so they use a plan's limits faster than a single agent.
           </p>
@@ -764,13 +764,13 @@
 
 <footer class="foot">
   <div class="wrap foot__in">
-    <a class="brand brand--foot" href="#top" aria-label="Hangar.AI, back to top">
+    <a class="brand brand--foot" href="#top" aria-label="HangarAI, back to top">
       <svg class="brand__mark" width="16" height="16" viewBox="200 200 624 624" aria-hidden="true">
         <rect x="200" y="200" width="260" height="624" fill="var(--accent)"></rect>
         <rect x="538" y="200" width="286" height="260" fill="var(--fg-hi)"></rect>
         <rect x="538" y="538" width="286" height="286" fill="var(--fg-hi)"></rect>
       </svg>
-      <span class="brand__name">Hangar.AI</span>
+      <span class="brand__name">HangarAI</span>
     </a>
     <p class="foot__by">Open source under the MIT license. Made by <a href="https://github.com/simnJS">simnJS</a>.</p>
     <nav class="foot__links" aria-label="Project">

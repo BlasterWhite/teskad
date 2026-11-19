@@ -38,17 +38,24 @@
 //! "Use the system's title bar" (Appearance) gives the system's back, for a
 //! desktop that draws one in its own colours (KDE's, a tiling window
 //! manager's), or on Windows the plain one. macOS keeps its own.
+//!
+//! The band always says where the software lives: its name, `hangarai.dev`
+//! (a link, in the secondary colour) and its version ([`brand`]), so that
+//! whoever watches a stream finds the site. The domain goes before the name
+//! when the room runs short ([`Brand::fit`]); with the system's title bar the
+//! window's own title carries it ([`window_title`]).
 
 use std::collections::HashSet;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
-use hangar_i18n::Key;
-use hangar_theme::{Theme, tokens};
+use hangar_i18n::{Key, args};
+use hangar_theme::tokens::font_size;
+use hangar_theme::{Theme, fonts, tokens};
 use hangar_ui::{Icon, icon, tip};
 use iced::border::Radius;
 use iced::mouse::Interaction;
-use iced::widget::{Space, button, column, container, mouse_area, row, text};
+use iced::widget::{Space, button, column, container, mouse_area, responsive, row, text};
 use iced::window::{self, Direction};
 use iced::{Alignment, Background, Border, Color, Element, Font, Length, Padding};
 
@@ -152,6 +159,8 @@ pub enum Press {
     Control(Control),
     /// On an edge or a corner, to resize from it.
     Edge(Direction),
+    /// On the domain: it opens the site in the browser ([`SITE_URL`]).
+    Site,
 }
 
 /// Two presses closer than this are a double press (GTK's default).
@@ -447,12 +456,19 @@ pub fn bare_band<'a>(ctx: Ctx<'a>) -> Option<Element<'a, Message>> {
         return None;
     }
     let mut strip = row![]
+        .height(Length::Fill)
         .align_y(Alignment::Center)
         .spacing(if windows_style() { 0.0 } else { GAP });
     if let Some(start) = toolbar(ctx, Side::Start) {
         strip = strip.push(start);
     }
-    strip = strip.push(Space::new().width(Length::Fill));
+    // The navigator, when it is drawn, holds the name; without it the band
+    // does.
+    strip = if navigator_drawn(ctx) {
+        strip.push(Space::new().width(Length::Fill))
+    } else {
+        strip.push(brand(ctx))
+    };
     if let Some(end) = toolbar(ctx, Side::End) {
         strip = strip.push(end);
     }
@@ -475,6 +491,143 @@ pub fn bare_band<'a>(ctx: Ctx<'a>) -> Option<Element<'a, Message>> {
             hangar_theme::style::container::toolbar(ctx.theme),
         ));
     Some(band(ctx, strip))
+}
+
+// ---- The name ----------------------------------------------------------------------------------
+
+/// The software's name, as a person reads it. The binary, the app identifier
+/// and the installers keep their own names: those are not read, they are
+/// found by installs and by agents' configurations.
+pub const NAME: &str = "HangarAI";
+/// The site, which the title bar always shows.
+pub const DOMAIN: &str = "hangarai.dev";
+/// What a press on [`DOMAIN`] opens.
+pub const SITE_URL: &str = "https://hangarai.dev";
+
+/// A window's own title, as the taskbar and the window list show it, and as
+/// the system's title bar draws it: with that bar, the domain follows the
+/// name; when Hangar draws the bar, [`brand`] shows the domain there.
+/// `workspace` is the name of the workspace a detached window holds.
+pub fn window_title(workspace: Option<&str>, system_bar: bool) -> String {
+    let name = if system_bar {
+        format!("{NAME} — {DOMAIN}")
+    } else {
+        NAME.to_string()
+    };
+    match workspace {
+        Some(workspace) => format!("{workspace} — {name}"),
+        None => name,
+    }
+}
+
+/// How wide the parts of [`brand`] are, in logical pixels, at the sizes they
+/// are set in: Inter semibold 13.5 for the name (61.2), Inter 11.5 for the
+/// domain (70.7), the system's mono 11.5 for the version (a character is
+/// about 6.9), each rounded up, and the gap between two.
+const NAME_WIDTH: f32 = 62.0;
+const DOMAIN_WIDTH: f32 = 71.0;
+const VERSION_CHAR: f32 = 7.0;
+const BRAND_GAP: f32 = 6.0;
+
+/// What of the name, the domain and the version the room left for them shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Brand {
+    pub domain: bool,
+    pub version: bool,
+}
+
+impl Brand {
+    /// The name is always there. The domain is what the band is for, so it
+    /// outlives the version, and goes before the name when the room runs
+    /// short; the version, still a hover away on the name, goes first.
+    pub fn fit(room: f32, version: &str) -> Brand {
+        let domain = BRAND_GAP + DOMAIN_WIDTH;
+        let version_room = BRAND_GAP + version.chars().count() as f32 * VERSION_CHAR;
+        let fits = |parts: f32| room >= NAME_WIDTH + parts;
+        if fits(domain + version_room) {
+            Brand {
+                domain: true,
+                version: true,
+            }
+        } else if fits(domain) {
+            Brand {
+                domain: true,
+                version: false,
+            }
+        } else if fits(version_room) {
+            Brand {
+                domain: false,
+                version: true,
+            }
+        } else {
+            Brand {
+                domain: false,
+                version: false,
+            }
+        }
+    }
+}
+
+/// The name, then the domain (a link), then the version, in the room the
+/// parent leaves: it takes all of it, which is the band's give.
+pub fn brand<'a>(ctx: Ctx<'a>) -> Element<'a, Message> {
+    let version = env!("CARGO_PKG_VERSION");
+    responsive(move |size| brand_in(ctx, version, size.width)).into()
+}
+
+fn brand_in<'a>(ctx: Ctx<'a>, version: &'static str, room: f32) -> Element<'a, Message> {
+    let t = ctx.theme;
+    let shown = Brand::fit(room, version);
+    let name = tip::bottom(
+        t,
+        text(NAME)
+            .size(font_size::UI_LG)
+            .font(fonts::ui_semibold())
+            .wrapping(text::Wrapping::None),
+        ctx.i18n
+            .t_with(Key::SidebarVersion, &args!("version" => version))
+            .into_owned(),
+    );
+    let mut parts = row![name].spacing(BRAND_GAP).align_y(Alignment::Center);
+    if shown.domain {
+        parts = parts.push(site_link(ctx));
+    }
+    if shown.version {
+        parts = parts.push(
+            text(version)
+                .size(font_size::MICRO)
+                .font(fonts::mono())
+                .color(t.colors.fg_subtle)
+                .wrapping(text::Wrapping::None),
+        );
+    }
+    container(parts).center_y(Length::Fill).into()
+}
+
+/// The domain in the secondary text colour, in the text colour under the
+/// pointer, a press on it opening the site.
+fn site_link<'a>(ctx: Ctx<'a>) -> Element<'a, Message> {
+    let t = ctx.theme;
+    let link = button(
+        text(DOMAIN)
+            .size(font_size::MICRO)
+            .wrapping(text::Wrapping::None),
+    )
+    .padding(0)
+    .style(move |_: &iced::Theme, status| {
+        let c = &t.colors;
+        button::Style {
+            background: None,
+            text_color: match status {
+                button::Status::Hovered | button::Status::Pressed => c.fg,
+                _ => c.fg_muted,
+            },
+            border: Border::default(),
+            ..button::Style::default()
+        }
+    })
+    .on_press(press(ctx.window, Press::Site));
+    tip::bottom(t, link, ctx.t(Key::TitleBarSite).into_owned())
 }
 
 /// How far in from the window's edge a press resizes it, and how far along
