@@ -3632,6 +3632,8 @@ pub enum Key {
     SettingsWindowOpacity,
     /// `settings.windowOpacityHint`
     SettingsWindowOpacityHint,
+    /// `setup.beta`
+    SetupBeta,
     /// `setup.docs`
     SetupDocs,
     /// `setup.done`
@@ -3650,6 +3652,8 @@ pub enum Key {
     SetupInstall,
     /// `setup.installed`
     SetupInstalled,
+    /// `setup.installedVersion`
+    SetupInstalledVersion,
     /// `setup.installing`
     SetupInstalling,
     /// `setup.installingHint`
@@ -3680,6 +3684,10 @@ pub enum Key {
     SetupNoOutput,
     /// `setup.notFound`
     SetupNotFound,
+    /// `setup.notInstalled`
+    SetupNotInstalled,
+    /// `setup.notOnPath`
+    SetupNotOnPath,
     /// `setup.retry`
     SetupRetry,
     /// `setup.shellsOnly`
@@ -3688,8 +3696,10 @@ pub enum Key {
     SetupShellsOnlyHint,
     /// `setup.signIn`
     SetupSignIn,
-    /// `setup.signInLead`
-    SetupSignInLead,
+    /// `setup.signInClaude`
+    SetupSignInClaude,
+    /// `setup.signInCodex`
+    SetupSignInCodex,
     /// `setup.signedIn`
     SetupSignedIn,
     /// `setup.title`
@@ -4541,7 +4551,7 @@ pub enum Key {
 }
 
 /// How many keys there are.
-pub const KEY_COUNT: usize = 2262;
+pub const KEY_COUNT: usize = 2267;
 
 impl Key {
     /// Every key, in the order of their ids.
@@ -6355,6 +6365,7 @@ impl Key {
         Key::SettingsVoiceVocabularyPlaceholder,
         Key::SettingsWindowOpacity,
         Key::SettingsWindowOpacityHint,
+        Key::SetupBeta,
         Key::SetupDocs,
         Key::SetupDone,
         Key::SetupFailedExit,
@@ -6364,6 +6375,7 @@ impl Key {
         Key::SetupHow,
         Key::SetupInstall,
         Key::SetupInstalled,
+        Key::SetupInstalledVersion,
         Key::SetupInstalling,
         Key::SetupInstallingHint,
         Key::SetupLead,
@@ -6379,11 +6391,14 @@ impl Key {
         Key::SetupNixUnfree,
         Key::SetupNoOutput,
         Key::SetupNotFound,
+        Key::SetupNotInstalled,
+        Key::SetupNotOnPath,
         Key::SetupRetry,
         Key::SetupShellsOnly,
         Key::SetupShellsOnlyHint,
         Key::SetupSignIn,
-        Key::SetupSignInLead,
+        Key::SetupSignInClaude,
+        Key::SetupSignInCodex,
         Key::SetupSignedIn,
         Key::SetupTitle,
         Key::SidebarActivityWaiting,
@@ -8622,18 +8637,20 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "settings.voiceVocabularyPlaceholder", en: Text::plain("HangarAI, pnpm, Tauri, simnJS"), fr: Text::plain("HangarAI, pnpm, Tauri, simnJS") },
     Message { id: "settings.windowOpacity", en: Text::plain("Window opacity"), fr: Text::plain("Opacité de la fenêtre") },
     Message { id: "settings.windowOpacityHint", en: Text::plain("How much of the desktop shows through the window, behind the page, the bars and the terminals. Text, menus and dialogs stay opaque, and the theme's colours stay as they are. Blurring what shows through is up to your desktop: KDE does, GNOME with an extension such as Blur my Shell."), fr: Text::plain("Ce qu'on voit du bureau à travers la fenêtre, derrière la page, les barres et les terminaux. Le texte, les menus et les dialogues restent opaques, et les couleurs du thème restent les siennes. Le flou dépend de ton bureau\u{202f}: KDE le fait, GNOME avec une extension comme Blur my Shell.") },
+    Message { id: "setup.beta", en: Text::plain("beta"), fr: Text::plain("bêta") },
     Message { id: "setup.docs", en: Text::plain("Open the install guide"), fr: Text::plain("Ouvrir le guide d'installation") },
     Message { id: "setup.done", en: Text::plain("Done"), fr: Text::plain("Terminé") },
     Message { id: "setup.failedExit", en: Text::plain("The installation failed (exit code {code})."), fr: Text::plain("L'installation a échoué (code de sortie {code}).") },
     Message { id: "setup.failedHint", en: Text::plain("What the installer printed is below. The install guide matches each error to its fix."), fr: Text::plain("Ce que l'installeur a affiché est ci-dessous. Le guide d'installation donne la solution de chaque erreur.") },
     Message { id: "setup.failedSignal", en: Text::plain("The installation was stopped before it finished."), fr: Text::plain("L'installation a été interrompue avant la fin.") },
     Message { id: "setup.failedStart", en: Text::plain("The installer could not be started: {error}"), fr: Text::plain("L'installeur n'a pas pu être lancé\u{202f}: {error}") },
-    Message { id: "setup.how", en: Text::plain("One click installs it with Anthropic's official installer, for your user only, without an administrator password:"), fr: Text::plain("Un clic l'installe avec l'installeur officiel d'Anthropic, pour ton utilisateur seulement, sans mot de passe administrateur\u{202f}:") },
-    Message { id: "setup.install", en: Text::plain("Install Claude Code"), fr: Text::plain("Installer Claude Code") },
-    Message { id: "setup.installed", en: Text::plain("Claude Code is installed."), fr: Text::plain("Claude Code est installé.") },
-    Message { id: "setup.installing", en: Text::plain("Installing Claude Code…"), fr: Text::plain("Installation de Claude Code…") },
-    Message { id: "setup.installingHint", en: Text::plain("The installer shows no progress while it downloads Claude Code: this can take a minute."), fr: Text::plain("L'installeur n'affiche rien pendant qu'il télécharge Claude Code\u{202f}: ça peut prendre une minute.") },
-    Message { id: "setup.lead", en: Text::plain("Hangar runs Claude Code, Anthropic's coding agent, in its panes, and it is not installed on this machine yet."), fr: Text::plain("Hangar fait tourner Claude Code, l'agent de code d'Anthropic, dans ses panneaux, et il n'est pas encore installé sur cette machine.") },
+    Message { id: "setup.how", en: Text::plain("One click installs an agent with its maker's official installer, for your user only, without an administrator password."), fr: Text::plain("Un clic installe un agent avec l'installeur officiel de son éditeur, pour ton utilisateur seulement, sans mot de passe administrateur.") },
+    Message { id: "setup.install", en: Text::plain("Install {agent}"), fr: Text::plain("Installer {agent}") },
+    Message { id: "setup.installed", en: Text::plain("Installed"), fr: Text::plain("Installé") },
+    Message { id: "setup.installedVersion", en: Text::plain("Installed, version {version}"), fr: Text::plain("Installé, version {version}") },
+    Message { id: "setup.installing", en: Text::plain("Installing {agent}…"), fr: Text::plain("Installation de {agent}…") },
+    Message { id: "setup.installingHint", en: Text::plain("An installer can show nothing while it downloads: this can take a minute."), fr: Text::plain("Un installeur peut ne rien afficher pendant qu'il télécharge\u{202f}: ça peut prendre une minute.") },
+    Message { id: "setup.lead", en: Text::plain("Hangar runs coding agents in its panes: Claude Code, by Anthropic, and Codex, by OpenAI. Either one is enough."), fr: Text::plain("Hangar fait tourner des agents de code dans ses panneaux\u{202f}: Claude Code, d'Anthropic, et Codex, d'OpenAI. L'un ou l'autre suffit.") },
     Message { id: "setup.nixAnyway", en: Text::plain("Use Anthropic's installer anyway"), fr: Text::plain("Utiliser quand même l'installeur d'Anthropic") },
     Message { id: "setup.nixAnywayHint", en: Text::plain("If your system has nix-ld."), fr: Text::plain("Si ton système a nix-ld.") },
     Message { id: "setup.nixBack", en: Text::plain("Install from nixpkgs instead"), fr: Text::plain("Installer plutôt depuis nixpkgs") },
@@ -8645,14 +8662,17 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "setup.nixSystem", en: Text::plain("To keep it, add it to your NixOS configuration (or to home.packages with Home Manager) and rebuild:"), fr: Text::plain("Pour le garder, ajoute-le à ta configuration NixOS (ou à home.packages avec Home Manager) et reconstruis-la\u{202f}:") },
     Message { id: "setup.nixUnfree", en: Text::plain("nixpkgs marks claude-code unfree: a configuration needs nixpkgs.config.allowUnfree = true, and the profile command allows it with NIXPKGS_ALLOW_UNFREE=1 and --impure."), fr: Text::plain("nixpkgs classe claude-code comme non libre\u{202f}: une configuration a besoin de nixpkgs.config.allowUnfree = true, et la commande du profil l'autorise avec NIXPKGS_ALLOW_UNFREE=1 et --impure.") },
     Message { id: "setup.noOutput", en: Text::plain("(the installer printed nothing)"), fr: Text::plain("(l'installeur n'a rien affiché)") },
-    Message { id: "setup.notFound", en: Text::plain("The installer finished, but Hangar still cannot find claude on this machine."), fr: Text::plain("L'installeur a terminé, mais Hangar ne trouve toujours pas claude sur cette machine.") },
+    Message { id: "setup.notFound", en: Text::plain("The installer finished, but Hangar still cannot find {command} on this machine."), fr: Text::plain("L'installeur a terminé, mais Hangar ne trouve toujours pas {command} sur cette machine.") },
+    Message { id: "setup.notInstalled", en: Text::plain("Not installed"), fr: Text::plain("Pas installé") },
+    Message { id: "setup.notOnPath", en: Text::plain("Found in {path}: restart Hangar so that its panes find it."), fr: Text::plain("Trouvé dans {path}\u{202f}: redémarre Hangar pour que ses panneaux le trouvent.") },
     Message { id: "setup.retry", en: Text::plain("Try again"), fr: Text::plain("Réessayer") },
     Message { id: "setup.shellsOnly", en: Text::plain("Use Hangar with shells only"), fr: Text::plain("Utiliser Hangar avec des shells uniquement") },
     Message { id: "setup.shellsOnlyHint", en: Text::plain("You can change this later in Settings."), fr: Text::plain("Tu pourras changer d'avis dans les Réglages.") },
     Message { id: "setup.signIn", en: Text::plain("Sign in"), fr: Text::plain("Se connecter") },
-    Message { id: "setup.signInLead", en: Text::plain("Last step: sign in with your Claude account. Claude Code asks for it in a pane the first time it starts."), fr: Text::plain("Dernière étape\u{202f}: connecte-toi avec ton compte Claude. Claude Code le demande dans un panneau la première fois qu'il démarre.") },
-    Message { id: "setup.signedIn", en: Text::plain("Signed in: Claude Code is ready."), fr: Text::plain("Connecté\u{202f}: Claude Code est prêt.") },
-    Message { id: "setup.title", en: Text::plain("Set up Claude Code"), fr: Text::plain("Installer Claude Code") },
+    Message { id: "setup.signInClaude", en: Text::plain("Sign in with your Claude account: Claude Code asks for it in a pane the first time it starts."), fr: Text::plain("Connecte-toi avec ton compte Claude\u{202f}: Claude Code le demande dans un panneau la première fois qu'il démarre.") },
+    Message { id: "setup.signInCodex", en: Text::plain("Sign in with ChatGPT or an OpenAI API key: Codex asks for it in a pane the first time it starts."), fr: Text::plain("Connecte-toi avec ChatGPT ou une clé d'API OpenAI\u{202f}: Codex te le demande dans un panneau la première fois qu'il démarre.") },
+    Message { id: "setup.signedIn", en: Text::plain("Signed in"), fr: Text::plain("Connecté") },
+    Message { id: "setup.title", en: Text::plain("Set up your coding agents"), fr: Text::plain("Installer tes agents de code") },
     Message { id: "sidebar.activityWaiting", en: Text::plural("{n} agent waits for your answer", "{n} agents wait for your answer"), fr: Text::plural("{n} agent attend ta réponse", "{n} agents attendent ta réponse") },
     Message { id: "sidebar.activityWorking", en: Text::plural("{n} agent working", "{n} agents working"), fr: Text::plural("{n} agent travaille", "{n} agents travaillent") },
     Message { id: "sidebar.activityYours", en: Text::plural("{n} agent finished, your turn", "{n} agents finished, your turn"), fr: Text::plural("{n} agent a terminé, à toi", "{n} agents ont terminé, à toi") },
