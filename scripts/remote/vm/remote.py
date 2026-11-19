@@ -406,8 +406,13 @@ def run(payload):
     rustc = rustc_version()
     target = lane_target(i, rustc)
     prep_s = round(time.time() - t1, 1)
-    os.makedirs(RUNTIME_DIR, mode=0o700, exist_ok=True)
+    # One runtime folder per lane: runs share the machine's user, and tests that
+    # bind sockets under XDG_RUNTIME_DIR by fixed names (the Codex pane servers)
+    # would take each other's in two lanes at once.
+    runtime = f"{RUNTIME_DIR}/lane-{i}"
+    os.makedirs(runtime, mode=0o700, exist_ok=True)
     env = base_env(p.get("color", "never"))
+    env["XDG_RUNTIME_DIR"] = runtime
     env["CARGO_TARGET_DIR"] = target
     if p.get("incremental") in ("0", "1"):
         env["CARGO_INCREMENTAL"] = p["incremental"]
