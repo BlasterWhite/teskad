@@ -24,10 +24,10 @@ use hangar_ui::dialog::{self, dialog};
 use hangar_ui::{button, layer, text as typography};
 
 use super::activation_model::{
-    ActivationInput, ActivationModel, CommandModel, Footer, HookList, Loadable, RunGroupModel,
-    RunItemModel, StepAction, StepModel, TabPerms,
+    ActivationInput, ActivationModel, AgentBlock, CommandModel, Footer, HookList, Loadable,
+    RunGroupModel, RunItemModel, StepAction, StepModel, TabPerms,
 };
-use super::{block, code_block, msg, note, notice, stack, tag};
+use super::{block, code_block, codex, msg, note, notice, stack, tag};
 use crate::ctx::Ctx;
 use crate::kits::icon::kit_icon;
 use crate::kits::setup::current_os;
@@ -113,6 +113,7 @@ pub(super) fn model_of<'a>(
         running: activation.running.as_deref(),
         ran: activation.ran.as_ref(),
         error: activation.error.as_deref(),
+        codex: st.codex.get(kit_id),
     };
     let model = ActivationModel::build(ctx.i18n, &input);
     Some((kit, model, activation.ran.is_some()))
@@ -139,6 +140,7 @@ pub fn body<'a>(ctx: Ctx<'a>, kit: &KitInfo, model: &ActivationModel) -> Element
     }
 
     parts.push(brings(ctx, model));
+    parts.push(agents(ctx, model));
     parts.push(perms(ctx, model));
     parts.push(setup(ctx, model));
     parts.push(runs(ctx, model));
@@ -166,28 +168,34 @@ fn loadable<'a, T>(
     }
 }
 
+/// A name in a chip (`.kit-act__chip`), with a word on how it is made.
+fn chip<'a>(ctx: Ctx<'a>, name: &str, kind: Option<&str>) -> Element<'a, Message> {
+    let mut line = row![
+        text(name.to_owned())
+            .size(tokens::font_size::UI)
+            .font(hangar_theme::fonts::mono())
+    ]
+    .spacing(tokens::space::SM)
+    .align_y(Alignment::Center);
+    if let Some(kind) = kind {
+        line = line.push(typography::subtle(ctx.theme, kind.to_owned()));
+    }
+    container(line)
+        .padding([tokens::space::XXS, tokens::space::MD])
+        .style(style::container::chip(ctx.theme))
+        .into()
+}
+
 fn brings<'a>(ctx: Ctx<'a>, model: &ActivationModel) -> Element<'a, Message> {
     let b = &model.brings;
     let mut parts = loadable(ctx, &b.body, |groups| {
         groups
             .iter()
             .map(|group| {
-                let chips = group.chips.iter().map(|chip| {
-                    let mut line = row![
-                        text(chip.name.clone())
-                            .size(tokens::font_size::UI)
-                            .font(hangar_theme::fonts::mono())
-                    ]
-                    .spacing(tokens::space::SM)
-                    .align_y(Alignment::Center);
-                    if let Some(kind) = &chip.kind {
-                        line = line.push(typography::subtle(ctx.theme, kind.clone()));
-                    }
-                    container(line)
-                        .padding([tokens::space::XXS, tokens::space::MD])
-                        .style(style::container::chip(ctx.theme))
-                        .into()
-                });
+                let chips = group
+                    .chips
+                    .iter()
+                    .map(|one| chip(ctx, &one.name, one.kind.as_deref()));
                 column![
                     row![
                         typography::ui(ctx.theme, group.title.clone())
@@ -206,8 +214,67 @@ fn brings<'a>(ctx: Ctx<'a>, model: &ActivationModel) -> Element<'a, Message> {
             .collect()
     });
     parts.extend(b.tab_kind_hint.iter().map(|hint| note(ctx, hint.clone())));
-    parts.push(note(ctx, b.claude_only.clone()));
     block(ctx, &b.heading, parts)
+}
+
+/// What reaches each agent: a column per agent, its parts and how, what it
+/// leaves out and why, and « Add to Codex » where it applies.
+fn agents<'a>(ctx: Ctx<'a>, model: &ActivationModel) -> Element<'a, Message> {
+    let a = &model.agents;
+    let mut parts = loadable(ctx, &a.body, |blocks| {
+        blocks.iter().map(|one| agent_block(ctx, one)).collect()
+    });
+    parts.push(note(ctx, a.own.clone()));
+    block(ctx, &a.heading, parts)
+}
+
+fn agent_block<'a>(ctx: Ctx<'a>, one: &AgentBlock) -> Element<'a, Message> {
+    let mut items: Vec<Element<'a, Message>> = vec![
+        typography::ui(ctx.theme, one.title.clone())
+            .font(hangar_theme::fonts::ui_semibold())
+            .into(),
+    ];
+    if let Some(words) = &one.not_meant {
+        items.push(note(ctx, words.clone()));
+    }
+    for line in &one.loads {
+        let chips = line.items.iter().map(|name| chip(ctx, name, None));
+        items.push(
+            column![
+                row![
+                    typography::ui(ctx.theme, line.title.clone())
+                        .font(hangar_theme::fonts::ui_medium()),
+                    typography::subtle(ctx.theme, line.how.clone()),
+                ]
+                .spacing(tokens::space::SM)
+                .align_y(Alignment::Center),
+                iced::widget::Row::with_children(chips)
+                    .spacing(tokens::space::SM)
+                    .wrap()
+                    .vertical_spacing(tokens::space::SM),
+            ]
+            .spacing(tokens::space::SM)
+            .into(),
+        );
+    }
+    if let Some(words) = &one.nothing {
+        items.push(note(ctx, words.clone()));
+    }
+    if !one.left_out.is_empty() {
+        items.push(
+            typography::ui(ctx.theme, one.left_title.clone())
+                .font(hangar_theme::fonts::ui_medium())
+                .into(),
+        );
+        items.extend(one.left_out.iter().map(|line| note(ctx, line.clone())));
+    }
+    if let Some(control) = &one.codex {
+        items.push(codex::view(ctx, control));
+    }
+    column(items)
+        .spacing(tokens::space::MD)
+        .width(Length::Fill)
+        .into()
 }
 
 fn perms<'a>(ctx: Ctx<'a>, model: &ActivationModel) -> Element<'a, Message> {

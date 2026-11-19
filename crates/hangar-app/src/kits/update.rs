@@ -98,6 +98,7 @@ fn write_kits(st: &mut State, m: &mut Model, target: &Target, next: Vec<Workspac
 fn read_for_activation(kit: &str) -> Task<Message> {
     let (inspect, status) = (kit.to_owned(), kit.to_owned());
     Task::batch([
+        super::codex::read(kit),
         Task::perform(hangar_core::kits::kit_inspect(inspect.clone()), move |r| {
             kits(Msg::Inspected(inspect.clone(), r.map(Box::new)))
         }),
@@ -299,6 +300,10 @@ pub fn update(st: &mut State, m: &mut Model, env: &Env, msg: Msg) -> Task<Messag
             }
             Task::none()
         }
+        msg @ (Msg::CodexRead(..)
+        | Msg::CodexAsk { .. }
+        | Msg::CodexRun { .. }
+        | Msg::CodexDone { .. }) => super::codex::update(&mut st.codex, t, msg),
         Msg::NotYet => {
             if let Some(act) = st.activation.as_mut() {
                 act.ran = None;
@@ -583,6 +588,7 @@ fn installed(st: &mut State, m: &mut Model, result: Result<Vec<KitInfo>, String>
         }
     };
     m.live.kits.error = None;
+    let codex = super::codex::read_all(&mut st.codex, &list);
     m.live.kits.icons.retain(&list);
     let reads = m.live.kits.icons.missing(&list);
     let mut tasks: Vec<Task<Message>> = reads
@@ -597,6 +603,7 @@ fn installed(st: &mut State, m: &mut Model, result: Result<Vec<KitInfo>, String>
             })
         })
         .collect();
+    tasks.push(codex);
 
     if let Some(act) = st.activation.as_mut() {
         match list.iter().find(|kit| kit.id == act.kit) {

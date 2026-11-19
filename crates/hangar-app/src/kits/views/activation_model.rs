@@ -8,8 +8,11 @@
 //! what waits to be accepted, whether Run is enabled); `activation.rs` only
 //! draws it. The tests read the model's text, in English and French.
 
+use hangar_core::agent::{self, KitPart};
 use hangar_core::kits::commands::CommandInfo;
-use hangar_core::kits::{Inspection, KitInfo, Source, StepStatus, Tab, TabKind};
+use hangar_core::kits::{
+    AgentParts, Inspection, KitInfo, Part, Source, StepStatus, Tab, TabKind, Why,
+};
 use hangar_i18n::{Key, Translator, args};
 
 use crate::kits::activation::{
@@ -17,11 +20,14 @@ use crate::kits::activation::{
     kit_plain_hooks, kit_requested, kit_rule_text, kit_running_groups, kit_running_line,
     permission_diff, permission_label, requested_permissions,
 };
+use crate::kits::codex::CodexEntry;
 use crate::kits::model::{
     kit_argv_uses_kit_dir, kit_commands_grant, kit_hooks_grant, kit_reads_hidden_files,
 };
 use crate::kits::setup::KitOs;
 use crate::state::types::WorkspaceKit;
+
+use super::codex::{CodexControl, hook_title};
 
 /// A setup step that was started in a pane, waiting for the person to say how
 /// it went.
@@ -52,6 +58,8 @@ pub struct ActivationInput<'a> {
     /// A step that ran and awaits "it worked".
     pub ran: Option<&'a StepRun>,
     pub error: Option<&'a str>,
+    /// Where the kit stands with Codex, once read (« Add to Codex »).
+    pub codex: Option<&'a CodexEntry>,
 }
 
 /// A section's body while it is read, when it has nothing, and once it has
@@ -108,7 +116,43 @@ pub struct Brings {
     pub body: Loadable<Vec<NameGroup>>,
     /// Said once when a tab is native: what that is.
     pub tab_kind_hint: Option<String>,
-    pub claude_only: String,
+}
+
+/// One part of the plugin an agent takes: its name, how it takes it, and
+/// what of it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PartLine {
+    pub title: String,
+    /// « with each launch », « once added to Codex ».
+    pub how: String,
+    pub items: Vec<String>,
+}
+
+/// What reaches one agent, part by part, and what does not, and why
+/// (`Inspection::by_agent`, docs/native/agents.md §6.4).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AgentBlock {
+    pub title: String,
+    /// The manifest leaves this agent out: said in place of its parts.
+    pub not_meant: Option<String>,
+    pub loads: Vec<PartLine>,
+    /// Nothing of the plugin reaches it.
+    pub nothing: Option<String>,
+    /// « Not in Codex ».
+    pub left_title: String,
+    /// One line per part and reason.
+    pub left_out: Vec<String>,
+    /// « Add to Codex », for the agent that takes parts once installed.
+    pub codex: Option<CodexControl>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Agents {
+    pub heading: String,
+    /// Empty without a plugin: tabs and setup steps are all there is.
+    pub body: Loadable<Vec<AgentBlock>>,
+    /// Its tabs and setup commands work whatever the agent.
+    pub own: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -269,6 +313,7 @@ pub struct ActivationModel {
     pub target: Option<String>,
     pub head: Option<Head>,
     pub brings: Brings,
+    pub agents: Agents,
     pub perms: Perms,
     pub setup: Setup,
     pub runs: Runs,
@@ -366,6 +411,7 @@ impl ActivationModel {
             target,
             head,
             brings: Self::brings(t, inspection),
+            agents: Self::agents(t, kit, inspection, input.codex),
             perms: Self::perms(t, inspection, &diff.added, entry.is_some()),
             setup: Self::setup(t, input, steps),
             runs: Self::runs(t, kit, inspection, &groups, entry.is_some(), hooks_new),
@@ -450,8 +496,166 @@ impl ActivationModel {
             heading: t.t(Key::KitsManageActBrings).into_owned(),
             body,
             tab_kind_hint: any_native.then(|| t.t(Key::KitsManageTabKindHint).into_owned()),
-            claude_only: t.t(Key::KitsManageActClaudeOnly).into_owned(),
         }
+    }
+
+    fn agents(
+        t: Translator,
+        kit: &KitInfo,
+        inspection: Option<&Inspection>,
+        codex: Option<&CodexEntry>,
+    ) -> Agents {
+        let body = match inspection {
+            None => Loadable::Loading(t.t(Key::KitsManageLoading).into_owned()),
+            // Without a plugin nothing differs from one agent to another.
+            Some(found) if found.plugin.is_none() => Loadable::Empty(String::new()),
+            Some(found) => Loadable::Ready(
+                found
+                    .by_agent
+                    .iter()
+                    .map(|parts| Self::agent_block(t, kit, parts, codex))
+                    .collect(),
+            ),
+        };
+        Agents {
+            heading: t.t(Key::KitsAgentHeading).into_owned(),
+            body,
+            own: t.t(Key::KitsAgentOwn).into_owned(),
+        }
+    }
+
+    fn agent_block(
+        t: Translator,
+        kit: &KitInfo,
+        parts: &AgentParts,
+        codex: Option<&CodexEntry>,
+    ) -> AgentBlock {
+        let label = agent::info(parts.agent).label;
+        let mut loads = Vec::new();
+        let mut left_out = Vec::new();
+        if parts.meant_for {
+            let lines = [
+                Self::part(
+                    t,
+                    label,
+                    Key::KitsManageActMcp,
+                    &parts.mcp_servers,
+                    String::clone,
+                ),
+                Self::part(
+                    t,
+                    label,
+                    Key::KitsManageActSkills,
+                    &parts.skills,
+                    String::clone,
+                ),
+                Self::part(t, label, Key::KitsAgentHooks, &parts.hooks, hook_title),
+                Self::part(
+                    t,
+                    label,
+                    Key::KitsManageActCommands,
+                    &parts.commands,
+                    String::clone,
+                ),
+                Self::part(
+                    t,
+                    label,
+                    Key::KitsManageActAgents,
+                    &parts.agents,
+                    String::clone,
+                ),
+                Self::part(
+                    t,
+                    label,
+                    Key::KitsAgentOutputStyles,
+                    &parts.output_styles,
+                    String::clone,
+                ),
+            ];
+            for (line, left) in lines {
+                loads.extend(line);
+                left_out.extend(left);
+            }
+        }
+        // Read by capability: the agent that takes parts only once they are
+        // installed into it is the one « Add to Codex » is for.
+        let installs =
+            parts.skills.how == KitPart::Installed || parts.hooks.how == KitPart::Installed;
+        let name = kit_name(kit);
+        AgentBlock {
+            title: label.to_owned(),
+            not_meant: (!parts.meant_for).then(|| {
+                t.t_with(Key::KitsAgentNotMeant, &args!("agent" => label))
+                    .into_owned()
+            }),
+            nothing: (parts.meant_for && loads.is_empty()).then(|| {
+                t.t_with(Key::KitsAgentNothing, &args!("agent" => label))
+                    .into_owned()
+            }),
+            loads,
+            left_title: t
+                .t_with(Key::KitsAgentLeftOut, &args!("agent" => label))
+                .into_owned(),
+            left_out,
+            codex: codex
+                .filter(|_| installs)
+                .and_then(|entry| CodexControl::build(t, &kit.id, name, entry)),
+        }
+    }
+
+    /// What of `part` reaches the agent `label`, and a line per reason for
+    /// what does not.
+    fn part<T>(
+        t: Translator,
+        label: &str,
+        title: Key,
+        part: &Part<T>,
+        name: impl Fn(&T) -> String,
+    ) -> (Option<PartLine>, Vec<String>) {
+        let title = t.t(title).into_owned();
+        let loads = (!part.loads.is_empty()).then(|| PartLine {
+            title: title.clone(),
+            how: match part.how {
+                KitPart::PerLaunch => t.t(Key::KitsAgentHowLaunch).into_owned(),
+                KitPart::Installed => t
+                    .t_with(Key::KitsAgentHowInstalled, &args!("agent" => label))
+                    .into_owned(),
+                KitPart::None => String::new(),
+            },
+            items: part.loads.iter().map(&name).collect(),
+        });
+        let mut groups: Vec<(Why, Vec<String>)> = Vec::new();
+        for left in &part.left_out {
+            match groups.iter_mut().find(|(why, _)| *why == left.why) {
+                Some((_, items)) => items.push(name(&left.item)),
+                None => groups.push((left.why, vec![name(&left.item)])),
+            }
+        }
+        let lines = groups
+            .into_iter()
+            .map(|(why, items)| {
+                let why = t
+                    .t_with(
+                        match why {
+                            // Not listed part by part: said once, for the agent.
+                            Why::NotMeantFor | Why::NoSuchPart => Key::KitsAgentWhyNoSuchPart,
+                            Why::Event => Key::KitsAgentWhyEvent,
+                            Why::Handler => Key::KitsAgentWhyHandler,
+                            Why::Tool => Key::KitsAgentWhyTool,
+                            Why::Transport => Key::KitsAgentWhyTransport,
+                            Why::Variables => Key::KitsAgentWhyVariables,
+                        },
+                        &args!("agent" => label),
+                    )
+                    .into_owned();
+                t.t_with(
+                    Key::KitsAgentLeftLine,
+                    &args!("part" => title.as_str(), "why" => why.as_str(), "names" => items.join(", ").as_str()),
+                )
+                .into_owned()
+            })
+            .collect();
+        (loads, lines)
     }
 
     fn perms(
@@ -809,7 +1013,27 @@ impl ActivationModel {
             }
         }
         out.extend(self.brings.tab_kind_hint.clone());
-        out.push(self.brings.claude_only.clone());
+        out.push(self.agents.heading.clone());
+        match &self.agents.body {
+            Loadable::Loading(text) | Loadable::Empty(text) => out.push(text.clone()),
+            Loadable::Ready(blocks) => {
+                for block in blocks {
+                    out.push(block.title.clone());
+                    out.extend(block.not_meant.clone());
+                    for line in &block.loads {
+                        out.push(format!("{} {}", line.title, line.how));
+                        out.extend(line.items.iter().cloned());
+                    }
+                    out.extend(block.nothing.clone());
+                    if !block.left_out.is_empty() {
+                        out.push(block.left_title.clone());
+                        out.extend(block.left_out.iter().cloned());
+                    }
+                    out.extend(block.codex.as_ref().map(CodexControl::text));
+                }
+            }
+        }
+        out.push(self.agents.own.clone());
         out.push(self.perms.heading.clone());
         match &self.perms.body {
             Loadable::Loading(text) | Loadable::Empty(text) => out.push(text.clone()),

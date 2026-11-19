@@ -1482,8 +1482,16 @@ fn signature(st: &State, m: &Model) -> u64 {
     // looked at again on a timer of its own (`Msg::FollowWake`).
     let follows = !s.account_switch_ask;
     if follows {
-        s.claude_account.hash(&mut hash);
-        for account in m.live.accounts.accounts.iter().flatten() {
+        // Every kind's: a Codex pane follows Codex accounts (P8).
+        (&s.claude_account, &s.codex_account).hash(&mut hash);
+        for account in m
+            .live
+            .accounts
+            .accounts
+            .iter()
+            .chain(&m.live.accounts.codex)
+            .flatten()
+        {
             (&account.id, account.logged_in).hash(&mut hash);
         }
     }
@@ -1497,15 +1505,20 @@ fn signature(st: &State, m: &Model) -> u64 {
         crate::chat_view::shown(m, ws).hash(&mut hash);
         ws.view_panes.len().hash(&mut hash);
         if follows {
-            ws.claude_account.hash(&mut hash);
+            (&ws.claude_account, &ws.codex_account).hash(&mut hash);
             // The account it reads from its folder: a folder's account that
             // changes, or a move to another folder, moves its agents too.
             crate::state::folders::account_of(&m.state().folders, ws).hash(&mut hash);
+            ws.folder_id
+                .as_deref()
+                .and_then(|id| m.state().folders.iter().find(|folder| folder.id == id))
+                .map(|folder| &folder.codex_account)
+                .hash(&mut hash);
         }
         for pane in &ws.panes {
             pane.id.hash(&mut hash);
-            if follows && pane.agent == crate::state::AgentId::Claude {
-                pane.claude_account.hash(&mut hash);
+            if follows && pane.agent.kind().is_some() {
+                (&pane.claude_account, &pane.codex_account).hash(&mut hash);
             }
             if pane.role.is_some() {
                 pane.role.hash(&mut hash);

@@ -20,9 +20,10 @@ use iced::{Alignment, Color, Element};
 
 use crate::ctx::Ctx;
 use crate::message::Message;
+use crate::state::types::AgentKind;
 use crate::state::{AccountStyle, AccountTone};
 
-use super::live;
+use super::{key, live};
 
 /// The icons an account can wear, in the order the settings offer them, each
 /// with the name its button's tooltip gives: a few that say what a
@@ -64,24 +65,27 @@ impl Mark {
 }
 
 /// Whether accounts wear their marks: coloured badges are on, and there are
-/// at least two accounts to tell apart. With a single one, Settings ›
-/// Accounts does not offer the switch, so nothing of it may show either.
+/// at least two accounts to tell apart, of the kinds in use together. With
+/// a single one, Settings › Accounts does not offer the switch, so nothing
+/// of it may show either.
 pub fn shown(ctx: Ctx<'_>) -> bool {
-    ctx.model.settings().account_badges
-        && live(ctx)
-            .accounts
-            .as_ref()
-            .is_some_and(|all| all.len() >= 2)
+    ctx.model.settings().account_badges && count(ctx) >= 2
 }
 
-/// The mark of account `id`: what was chosen for it while marks are
-/// `shown`, plain otherwise. A choice made stays in the settings while they
-/// are not shown, for when they are again.
-pub fn of(ctx: Ctx<'_>, id: &str) -> Mark {
+/// How many accounts the person deals with, of every kind in use.
+pub fn count(ctx: Ctx<'_>) -> usize {
+    live(ctx).kinds().map(|(_, accounts)| accounts.len()).sum()
+}
+
+/// The mark of account `id` of `kind`: what was chosen for it while marks
+/// are `shown`, plain otherwise. A choice made stays in the settings while
+/// they are not shown, for when they are again. The settings keep it under
+/// the account's `key`, `main` once per kind.
+pub fn of(ctx: Ctx<'_>, kind: AgentKind, id: &str) -> Mark {
     if !shown(ctx) {
         return Mark::default();
     }
-    Mark::of_style(&ctx.model.settings().account_style(id))
+    Mark::of_style(&ctx.model.settings().account_style(&key(kind, id)))
 }
 
 /// The theme's tone a choice names.
