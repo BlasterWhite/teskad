@@ -44,8 +44,22 @@ fi
 url=$(gh run view "$run" --json url -q .url)
 echo "ci-check: run $run — $url"
 
-gh run watch "$run" --interval 30 --exit-status >/dev/null 2>&1 || true
-conclusion=$(gh run view "$run" --json conclusion -q .conclusion)
+# Polled rather than `gh run watch`, which can return before the run ends (a
+# dropped connection, an API hiccup) and leave no conclusion to read.
+deadline=$((SECONDS + 120 * 60))
+conclusion=""
+while :; do
+  state=$(gh run view "$run" --json status,conclusion -q '.status + " " + .conclusion' 2>/dev/null || echo "unknown ")
+  if [ "${state%% *}" = "completed" ]; then
+    conclusion=${state#* }
+    break
+  fi
+  if [ "$SECONDS" -ge "$deadline" ]; then
+    echo "ci-check: run $run still ${state%% *} after 2 h ($url)" >&2
+    exit 75
+  fi
+  sleep 30
+done
 gh run view "$run" --json jobs -q '.jobs[] | "  \(.name): \(.conclusion)"'
 
 if [ "$conclusion" = "success" ]; then

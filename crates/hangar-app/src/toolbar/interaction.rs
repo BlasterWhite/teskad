@@ -153,8 +153,9 @@ fn picked(messages: &[Message]) -> Vec<String> {
         .collect()
 }
 
-// Open in a window 5..31, —, Command palette 40..66, —, Orchestration 75..101,
-// Stop the workers 101..127, —, Reset agents… 136..162.
+// Open in a window 5..31, —, Command palette 40..66, —, the agents' heading
+// 75..99, Orchestration 99..125, Stop the workers 125..151, —, Reset agents…
+// 160..186.
 
 #[test]
 fn the_more_menu_opens_the_workspace_in_a_window() {
@@ -170,26 +171,87 @@ fn the_more_menu_opens_the_command_palette() {
 
 #[test]
 fn an_orchestrated_workspace_has_its_settings_in_the_more_menu() {
-    let picked = picked(&pick_line(&model(), 88.0));
+    let picked = picked(&pick_line(&model(), 112.0));
     assert_eq!(picked, ["[OpenOrchestration(\"w\")]"]);
 }
 
 #[test]
+fn the_more_menu_says_which_agent_orchestrates_and_which_the_workers_run() {
+    let mut model = model();
+    // The workers run Codex here; the orchestrator, Claude Code, its pane's.
+    let ws = model.workspace("w").unwrap().clone();
+    model.apply(crate::state::StoreAction::UpdateWorkspace(
+        ws.id.clone(),
+        crate::state::Patch::new(|ws: &mut Workspace| {
+            ws.orchestration = Some(crate::state::types::OrchestrationSettings {
+                worker_agent: Some(crate::state::types::AgentKind::Codex),
+                ..Default::default()
+            });
+        }),
+    ));
+    let pkg = Packages::default();
+    let ctx = ctx(&model, &pkg);
+    let entries = menus::more_entries(
+        ctx,
+        model.active_workspace().unwrap(),
+        true,
+        false,
+        true,
+        false,
+    );
+    let headings: Vec<&str> = entries
+        .iter()
+        .filter_map(|entry| match entry {
+            ui_menu::Entry::Heading(heading) => Some(heading.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        headings,
+        ["Orchestrator: Claude Code · workers: Codex (beta)"]
+    );
+    // A workspace that does not orchestrate says nothing of it.
+    let mut plain = model;
+    plain.apply(crate::state::StoreAction::UpdateWorkspace(
+        ws.id.clone(),
+        crate::state::Patch::new(|ws: &mut Workspace| {
+            for pane in &mut ws.panes {
+                pane.role = None;
+            }
+        }),
+    ));
+    let ctx = crate::navigator::testing::ctx(&plain, &pkg);
+    let entries = menus::more_entries(
+        ctx,
+        plain.active_workspace().unwrap(),
+        true,
+        false,
+        true,
+        false,
+    );
+    assert!(
+        !entries
+            .iter()
+            .any(|entry| matches!(entry, ui_menu::Entry::Heading(_)))
+    );
+}
+
+#[test]
 fn stopping_the_workers_takes_over_from_a_reset_that_was_asking() {
-    let picked = picked(&pick_line(&model(), 114.0));
+    let picked = picked(&pick_line(&model(), 138.0));
     assert_eq!(picked, ["[ArmResetAgents(false), ArmStopWorkers(true)]"]);
 }
 
 #[test]
 fn resetting_the_agents_takes_over_from_a_stop_that_was_asking() {
-    let picked = picked(&pick_line(&model(), 149.0));
+    let picked = picked(&pick_line(&model(), 173.0));
     assert_eq!(picked, ["[ArmStopWorkers(false), ArmResetAgents(true)]"]);
 }
 
 #[test]
 fn a_menu_line_that_is_not_there_picks_nothing() {
     // Below the last line, in the padding.
-    assert!(picked(&pick_line(&model(), 166.0)).is_empty());
+    assert!(picked(&pick_line(&model(), 190.0)).is_empty());
 }
 
 #[test]
