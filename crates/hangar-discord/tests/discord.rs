@@ -253,6 +253,13 @@ fn threads_made(d: &Discord) -> usize {
         .count()
 }
 
+/// How many lines worker `name`'s starts posted in the channel. Not told
+/// by its « Ouvrir le fil » button: the dashboard posted while the thread
+/// is not open yet carries the same.
+fn lines_of(d: &Discord, name: &str) -> usize {
+    d.count("POST", &format!("🚀 **{name}**"))
+}
+
 /// Workspace "shop"'s channel, once made.
 async fn shop_channel(rig: &Rig) -> String {
     eventually("the workspace's channel", || channel_of(&rig.dir, "shop")).await
@@ -963,19 +970,25 @@ async fn a_worker_s_thread_is_opened_once_even_after_a_restart() {
     let on_line = format!("/channels/{channel}/messages/{line}/threads");
     assert_eq!(rig.discord.calls_to("POST", &on_line).len(), 1);
     assert_eq!(threads_made(&rig.discord), 1);
+    assert_eq!(lines_of(&rig.discord, "Ada"), 1);
 
-    // Hangar's connector started again: once it is up (its commands
-    // registered again, what the journal holds marked as read)…
+    // Hangar's connector started again: once it is up, on the gateway again
+    // (what is sent before is lost) and its loop running (the first look
+    // draws the dashboard again; what the journal holds was marked as read
+    // before it)…
+    let identified = rig.discord.identifies();
+    let seen = rig.discord.calls().len();
     rig.restart().await;
     eventually("the connector up again", || {
-        (rig.discord
-            .calls_to("PUT", "/applications/app1/guilds/g1/commands")
-            .len()
-            >= 2)
-            .then_some(())
+        let drawn = rig
+            .discord
+            .calls()
+            .iter()
+            .skip(seen)
+            .any(|c| c.body.to_string().contains("Tableau de bord"));
+        (rig.discord.identifies() > identified && drawn).then_some(())
     })
     .await;
-    tokio::time::sleep(Duration::from_millis(500)).await;
     // …what the person writes in Ada's thread still reaches Ada,
     rig.discord.send(
         "MESSAGE_CREATE",
@@ -994,18 +1007,24 @@ async fn a_worker_s_thread_is_opened_once_even_after_a_restart() {
     })
     .await;
     // …and Ada's start told again finds its thread: unarchived, not made
-    // again, no second line.
-    rig.worker_started("Ada", "t1");
-    eventually("the thread unarchived", || {
+    // again, no second line. That start is handled whole once its thread is
+    // unarchived: a second line would have been posted before it, and a
+    // second thread made instead of it.
+    let unarchived = || {
         rig.discord
             .calls_to("PATCH", &format!("/channels/{thread}"))
-            .into_iter()
-            .find(|c| c.body["archived"] == false)
+            .iter()
+            .filter(|c| c.body["archived"] == false)
+            .count()
+    };
+    let before = unarchived();
+    rig.worker_started("Ada", "t1");
+    eventually("the thread unarchived", || {
+        (unarchived() > before).then_some(())
     })
     .await;
-    tokio::time::sleep(Duration::from_millis(300)).await;
     assert_eq!(threads_made(&rig.discord), 1);
-    assert_eq!(rig.discord.count("POST", &format!("t:{ada}")), 1);
+    assert_eq!(lines_of(&rig.discord, "Ada"), 1);
     assert_eq!(rig.worker(&ada, "thread").as_deref(), Some(thread.as_str()));
 }
 
@@ -1273,26 +1292,25 @@ async fn a_lightning_bolt_sends_a_waiting_message_now() {
         (queue() == ["un", "deux", "trois"]).then_some(())
     })
     .await;
-    // Each with ⏳ and ⚡.
+    // Each with ⏳, and ⚡ once the connector found its entry in the queue
+    // core told it: from then on the person's ⚡ on it sends it now.
     eventually("each marked ⚡", || {
         (d.count("PUT", "/reactions/%E2%9A%A1/@me") == 3).then_some(())
     })
     .await;
-    // The queue's entries told to the connector.
-    tokio::time::sleep(Duration::from_millis(500)).await;
     let zap = |user: &str, message: &str| {
         json!({ "user_id": user, "channel_id": channel, "message_id": message,
         "guild_id": "g1", "emoji": { "id": null, "name": "\u{26a1}" } })
     };
-    // Someone else's ⚡, and the owner's on a message that waits nowhere.
-    d.send("MESSAGE_REACTION_ADD", zap("intruder", "q3"));
+    // Someone else's ⚡ on the second and the owner's on a message that
+    // waits nowhere, then the owner's on the third. The channel's reactions
+    // are handled in turn: had either of the first two moved anything, the
+    // owner's could not leave the queue as it alone leaves it.
+    d.send("MESSAGE_REACTION_ADD", zap("intruder", "q2"));
     d.send("MESSAGE_REACTION_ADD", zap("u1", "nowhere"));
-    tokio::time::sleep(Duration::from_millis(500)).await;
-    assert_eq!(queue(), ["un", "deux", "trois"]);
-    assert!(!rig.shells.typed_into(LEO).contains('\u{1b}'));
-
-    // The owner's ⚡ on the third: first now, and Leo's turn stopped.
     d.send("MESSAGE_REACTION_ADD", zap("u1", "q3"));
+    // The third first now, the others after it in their order, and Leo's
+    // turn stopped.
     eventually("the third first, the others after it", || {
         (queue() == ["trois", "un", "deux"]).then_some(())
     })
@@ -1302,27 +1320,35 @@ async fn a_lightning_bolt_sends_a_waiting_message_now() {
     })
     .await;
 
-    // Its mod takes it: ✅ on it, ⏳ and ⚡ taken off; the others wait on.
-    tokio::time::sleep(Duration::from_millis(300)).await;
-    assert_eq!(take(), "trois");
+    // Its mod takes them in turn, the third first, and Leo starts a turn
+    // with each: once its card is up, what core told of the take before it
+    // is handled (one lane for Leo, in order). The one taken is marked ✅,
+    // its ⚡ taken off; those still waiting are not marked.
     let check = |message: &str| {
         d.calls_to(
             "PUT",
             &format!("/channels/{channel}/messages/{message}/reactions/%E2%9C%85"),
         )
     };
-    eventually("✅ on the third", || check("q3").pop()).await;
-    assert!(
-        !d.calls_to(
-            "DELETE",
-            &format!("/channels/{channel}/messages/q3/reactions/%E2%9A%A1")
-        )
-        .is_empty()
-    );
-    tokio::time::sleep(Duration::from_millis(300)).await;
-    assert!(check("q1").is_empty() && check("q2").is_empty());
-    // The next one taken is the first that waited, and is marked so.
-    assert_eq!(take(), "un");
-    eventually("✅ on the first", || check("q1").pop()).await;
-    assert!(check("q2").is_empty());
+    let turn_cards = || {
+        d.calls()
+            .iter()
+            .filter(|c| c.method == "POST" && c.path.starts_with("/webhooks/"))
+            .filter(|c| c.body.to_string().contains("travaille"))
+            .count()
+    };
+    let mut waiting = vec!["q3", "q1", "q2"];
+    for word in ["trois", "un", "deux"] {
+        let message = waiting.remove(0);
+        let turns = turn_cards();
+        assert_eq!(take(), word);
+        bridge(json!({ "kind": "turn", "phase": "start" }));
+        eventually("Leo's next turn", || (turn_cards() > turns).then_some(())).await;
+        assert_eq!(check(message).len(), 1, "{word} marked ✅ once taken");
+        let unzapped = format!("/channels/{channel}/messages/{message}/reactions/%E2%9A%A1");
+        assert!(!d.calls_to("DELETE", &unzapped).is_empty(), "{word}'s ⚡");
+        for other in &waiting {
+            assert!(check(other).is_empty(), "{other} marked ✅ while it waits");
+        }
+    }
 }
