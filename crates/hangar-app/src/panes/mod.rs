@@ -9,7 +9,7 @@
 //! | --- | --- |
 //! | `pty_link` | A pane's terminal, its writer thread, and the sink core feeds it through |
 //! | `hub` | Every terminal by pane id, for the engines (`TerminalAccess`), and the channel the reader threads wake the window on |
-//! | `controller` | A pane's life: mount, spawn (with the MCP scope), launch of its agent, exit, unmount, the restart a role asks for |
+//! | `controller` | A pane's life: mount, spawn (core's launch for every agent: its MCP servers as its kind takes them, a Codex's own server and Hangar's client of it), launch of its agent, exit, unmount, the restart a role asks for |
 //! | `term_widget` | hangar-term's widget over the locked terminal |
 //! | `grid` | The split grid: slots, boundaries, moves, zoom, file drops |
 //! | `workspace_terminals`, `terminal_pane`, `header`, `search`, `zoom_bar`, `gauge` | The views |
