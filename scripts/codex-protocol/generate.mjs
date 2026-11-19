@@ -39,9 +39,11 @@ const BUNDLE = "codex_app_server_protocol.schemas.json";
 const VERSION_FILE = "codex-version.txt";
 const FALLBACK = "Unrecognized";
 
+/** What `fail` throws: main() prints it and exits 1; diff-schema.mjs, which imports this file, reports it. */
+export class ProtocolError extends Error {}
+
 function fail(message) {
-  console.error(`codex-protocol: ${message}`);
-  process.exit(1);
+  throw new ProtocolError(message);
 }
 
 function parseArgs(argv) {
@@ -60,8 +62,8 @@ function parseArgs(argv) {
   return args;
 }
 
-const readJson = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
-const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+export const readJson = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
+export const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 
 // ------------------------------------------------------------------------------------ the schema
 
@@ -80,17 +82,29 @@ function schemaFromCodex(codex, subset) {
   return out;
 }
 
+/** "codex-cli 0.170.0": what the codex that wrote the schema in `dir` printed for --version. */
+export function schemaVersion(dir) {
+  const versionFile = path.join(dir, VERSION_FILE);
+  if (!fs.existsSync(versionFile)) fail(`${versionFile} is missing: which codex wrote this schema?`);
+  return fs.readFileSync(versionFile, "utf8").trim();
+}
+
+/** The schema of the folder `dir`, which must come from the release subset.json pins. */
+export function pinnedSchema(dir, subset) {
+  const version = schemaVersion(dir);
+  if (version !== `codex-cli ${subset.codex}`)
+    fail(`the schema in ${dir} comes from "${version}", subset.json pins codex-cli ${subset.codex}`);
+  return flattenBundle(dir);
+}
+
 /**
  * The bundle Codex writes keeps the v2 types under `definitions.v2`; Hangar's types live in one
  * namespace. A name in both must be the same type (RequestId and AbsolutePathBuf are, at 0.170.0).
  */
-function flattenBundle(dir, subset) {
-  const versionFile = path.join(dir, VERSION_FILE);
-  if (!fs.existsSync(versionFile)) fail(`${versionFile} is missing: which codex wrote this schema?`);
-  const version = fs.readFileSync(versionFile, "utf8").trim();
-  if (version !== `codex-cli ${subset.codex}`)
-    fail(`the schema in ${dir} comes from "${version}", subset.json pins codex-cli ${subset.codex}`);
-  const bundle = readJson(path.join(dir, BUNDLE)).definitions;
+export function flattenBundle(dir) {
+  const file = path.join(dir, BUNDLE);
+  if (!fs.existsSync(file)) fail(`${file} is missing: codex app-server generate-json-schema did not write its bundle there`);
+  const bundle = readJson(file).definitions;
   const v2 = bundle.v2 ?? {};
   const rewrite = (node) => {
     if (Array.isArray(node)) return node.map(rewrite);
@@ -120,6 +134,16 @@ function flattenBundle(dir, subset) {
     defs[name] = s;
   }
   return defs;
+}
+
+/** The four method tables of a flattened schema, by the keys subset.json uses. */
+export function methodTables(defs) {
+  return {
+    clientRequests: methodTable(defs, "ClientRequest"),
+    clientNotifications: methodTable(defs, "ClientNotification"),
+    serverRequests: methodTable(defs, "ServerRequest"),
+    serverNotifications: methodTable(defs, "ServerNotification"),
+  };
 }
 
 /** method → {params, paramsRequired} from one of the four method unions of the bundle. */
@@ -156,18 +180,13 @@ function responseType(method, entry, defs, overrides) {
   return found;
 }
 
-function refName(ref) {
+export function refName(ref) {
   return typeof ref === "string" ? ref.replace(/^#\/definitions\//, "") : undefined;
 }
 
 /** Reduces the whole schema to the methods of subset.json and every type they reach. */
-function reduceSchema(defs, subset) {
-  const tables = {
-    clientRequests: methodTable(defs, "ClientRequest"),
-    clientNotifications: methodTable(defs, "ClientNotification"),
-    serverRequests: methodTable(defs, "ServerRequest"),
-    serverNotifications: methodTable(defs, "ServerNotification"),
-  };
+export function reduceSchema(defs, subset) {
+  const tables = methodTables(defs);
   const doc = { codex: subset.codex, experimental: subset.experimental, source: "codex app-server generate-json-schema" };
   const roots = [];
   for (const kind of Object.keys(tables)) {
@@ -1195,7 +1214,7 @@ function main() {
   let doc;
   if (args.schema || args.codex) {
     const dir = args.codex ? schemaFromCodex(args.codex, subset) : path.resolve(args.schema);
-    doc = reduceSchema(flattenBundle(dir, subset), subset);
+    doc = reduceSchema(pinnedSchema(dir, subset), subset);
   } else {
     doc = readJson(SCHEMA_SUBSET);
     if (doc.codex !== subset.codex) fail(`schema.subset.json is codex ${doc.codex}, subset.json pins ${subset.codex}: run with --schema`);
@@ -1228,4 +1247,13 @@ function main() {
   if (stale) process.exit(1);
 }
 
-main();
+// Run as a script, not when diff-schema.mjs (or a test) imports the reduction above.
+if (process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url))) {
+  try {
+    main();
+  } catch (e) {
+    if (!(e instanceof ProtocolError)) throw e;
+    console.error(`codex-protocol: ${e.message}`);
+    process.exit(1);
+  }
+}
