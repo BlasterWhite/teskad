@@ -24,6 +24,13 @@
 //!   which Windows' MCP setups wrap their servers in (`cmd /c npx …`) and no
 //!   agent runs its commands with.
 //!
+//! A Codex pane attached to its own server (`pty/codex_server.rs`, D5) has
+//! its agent in two places: the TUI below the pane's shell, which runs no
+//! command, and the server Hangar started beside it, which runs them all.
+//! Both trees are walked; the server is the agent of its own — so it, its MCP
+//! servers and npm's launcher above Codex count no more than Claude Code
+//! does, and only the commands it runs are jobs.
+//!
 //! A pane this manager does not run, or a process table that cannot be read,
 //! is `Unknown`: the caller then does what it did before it could ask.
 //!
@@ -81,22 +88,46 @@ const SHELLS: [&str; 14] = [
     "cmd",
 ];
 
-/// What the shell of pane `id` has below it that its agent started.
+/// What the agent of pane `id` started that still runs: below its shell, and
+/// below its Codex server when it has one.
 pub fn pane_job(manager: &PtyManager, id: &str) -> PaneJob {
-    let Some(shell) = super::shell_pid(manager, id) else {
+    let Some((shell, server)) = super::pane_pids(manager, id) else {
         return PaneJob::Unknown;
     };
     match table() {
-        Some(table) => job_below(&table, shell, crate::procs::started),
+        Some(table) => job_of_pane(&table, shell, server, crate::procs::started),
         None => PaneJob::Unknown,
     }
 }
 
+/// What runs below the shell `shell` that its agent started, and, for a pane
+/// attached to a Codex server, below `server`, which is that agent itself.
+/// A server no longer in the table leaves the shell's answer.
+pub fn job_of_pane(
+    table: &[ProcCommand],
+    shell: u32,
+    server: Option<u32>,
+    started: impl Fn(u32) -> Option<u64>,
+) -> PaneJob {
+    let in_shell = job_below(table, shell, &started);
+    let Some(server) = server else {
+        return in_shell;
+    };
+    match (in_shell, job_below(table, server, &started)) {
+        (PaneJob::Running(job), _) | (_, PaneJob::Running(job)) => PaneJob::Running(job),
+        (in_shell, _) => in_shell,
+    }
+}
+
 /// What an agent may start its commands through: a sandbox (Claude Code's,
-/// on Linux and macOS) or a plain wrapper. Their children are the agent's.
-const WRAPPERS: [&str; 7] = [
+/// on Linux and macOS; Codex's `codex-linux-sandbox`, which then runs
+/// `bwrap`), a plain wrapper, or Codex's own program below npm's `node`
+/// launcher (`@openai/codex`'s `codex.js`). Their children are the agent's.
+const WRAPPERS: [&str; 9] = [
     "bwrap",
     "sandbox-exec",
+    "codex-linux-sandbox",
+    "codex",
     "env",
     "nice",
     "nohup",
@@ -252,7 +283,7 @@ fn parse_ps(output: &str) -> Vec<ProcCommand> {
 /// The process table with each command line, or `None` when it cannot be
 /// read — which is not an empty one.
 #[cfg(unix)]
-fn table() -> Option<Vec<ProcCommand>> {
+pub(in crate::pty) fn table() -> Option<Vec<ProcCommand>> {
     let out = std::process::Command::new("ps")
         .args(["-A", "-ww", "-o", "pid=", "-o", "ppid=", "-o", "args="])
         .output()
@@ -265,7 +296,7 @@ fn table() -> Option<Vec<ProcCommand>> {
 /// not carry command lines, and reading each one out of its process would
 /// cost what this question is not worth.
 #[cfg(windows)]
-fn table() -> Option<Vec<ProcCommand>> {
+pub(in crate::pty) fn table() -> Option<Vec<ProcCommand>> {
     use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
     use windows_sys::Win32::System::Diagnostics::ToolHelp::{
         CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
@@ -299,7 +330,7 @@ fn table() -> Option<Vec<ProcCommand>> {
 }
 
 #[cfg(not(any(unix, windows)))]
-fn table() -> Option<Vec<ProcCommand>> {
+pub(in crate::pty) fn table() -> Option<Vec<ProcCommand>> {
     None
 }
 
@@ -478,6 +509,102 @@ mod tests {
         assert_eq!(
             job(&direct, 10),
             PaneJob::Running("bash -lc pytest -x".into())
+        );
+    }
+
+    /// A Codex pane attached to its server, at rest: 10 the pane's shell,
+    /// 11 the TUI attached to the server; 50 the server Hangar (5) started,
+    /// npm's launcher, 51 Codex itself below it, 52 Hangar's MCP server and
+    /// 53 another one, 54 a shell that wraps a third.
+    fn codex_at_rest() -> Vec<(u32, u32, String)> {
+        let socket = "unix:///run/user/1000/hangar/codex-0123456789ab.sock";
+        vec![
+            (1, 0, "/sbin/init".into()),
+            (5, 1, "/usr/bin/hangar".into()),
+            (10, 1, "/bin/bash".into()),
+            (11, 10, format!("codex --remote {socket} -c model=gpt-5.1-codex")),
+            (
+                50,
+                5,
+                format!(
+                    "node /usr/lib/node_modules/@openai/codex/bin/codex.js app-server --listen {socket}"
+                ),
+            ),
+            (
+                51,
+                50,
+                format!(
+                    "/usr/lib/node_modules/@openai/codex/vendor/x86_64-unknown-linux-musl/codex/codex \
+                     app-server --listen {socket}"
+                ),
+            ),
+            (52, 51, "/usr/bin/hangar-ai --mcp".into()),
+            (53, 51, "npm exec @acme/tickets".into()),
+            (54, 51, "sh -c npx -y @modelcontextprotocol/server-github".into()),
+        ]
+    }
+
+    #[test]
+    fn a_codex_server_with_only_its_mcp_servers_has_nothing_running() {
+        assert_eq!(
+            job_of_pane(&rows(&codex_at_rest()), 10, Some(50), UNKNOWN),
+            PaneJob::Nothing
+        );
+    }
+
+    /// The commands of an attached Codex pane run below its server, through
+    /// Codex's Linux sandbox and `bwrap`: they are the pane's jobs.
+    #[test]
+    fn a_command_its_codex_server_runs_is_the_panes_job() {
+        let mut busy = codex_at_rest();
+        busy.push((
+            60,
+            51,
+            "codex-linux-sandbox --sandbox-policy-cwd /work -- /bin/bash -lc cargo test".into(),
+        ));
+        busy.push((
+            61,
+            60,
+            "bwrap --ro-bind / / --dev /dev -- /bin/bash -lc cargo test".into(),
+        ));
+        busy.push((62, 61, "/bin/bash -lc cargo test".into()));
+        busy.push((63, 62, "cargo test".into()));
+        assert_eq!(
+            job_of_pane(&rows(&busy), 10, Some(50), UNKNOWN),
+            PaneJob::Running("cargo test".into())
+        );
+        // Without its server, the pane's shell alone shows nothing.
+        assert_eq!(job(&rows(&busy), 10), PaneJob::Nothing);
+    }
+
+    /// A server that ended is no longer in the table: what the shell says
+    /// stands, the floor's commands below it included.
+    #[test]
+    fn without_its_server_a_pane_is_what_its_shell_says() {
+        let rows = rows(&codex_at_rest());
+        assert_eq!(job_of_pane(&rows, 10, Some(99), UNKNOWN), PaneJob::Nothing);
+        assert_eq!(job_of_pane(&rows, 99, Some(50), UNKNOWN), PaneJob::Unknown);
+        assert_eq!(job_of_pane(&rows, 99, None, UNKNOWN), PaneJob::Unknown);
+    }
+
+    /// On the floor, npm's launcher runs in the pane and Codex below it:
+    /// what Codex runs is still the agent's command.
+    #[test]
+    fn the_floors_codex_below_npms_launcher_still_has_its_jobs() {
+        let floor = table(&[
+            (10, 1, "-zsh"),
+            (11, 10, "node /opt/homebrew/bin/codex"),
+            (
+                12,
+                11,
+                "/opt/homebrew/lib/node_modules/@openai/codex/vendor/codex/codex",
+            ),
+            (13, 12, "/bin/zsh -lc pytest -x"),
+            (14, 13, "python -m pytest -x"),
+        ]);
+        assert_eq!(
+            job(&floor, 10),
+            PaneJob::Running("python -m pytest -x".into())
         );
     }
 
