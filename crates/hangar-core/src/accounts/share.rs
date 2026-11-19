@@ -65,7 +65,7 @@ pub struct Issue {
 }
 
 impl Issue {
-    fn new(item: &str, reason: impl ToString) -> Self {
+    pub(super) fn new(item: &str, reason: impl ToString) -> Self {
         Issue {
             item: item.to_string(),
             reason: reason.to_string(),
@@ -107,8 +107,9 @@ pub fn prepare(main: &ClaudeHome, profile: &ClaudeHome) -> Vec<Issue> {
 /// `here` made a link to `source` when the main account has that folder. A
 /// link that leads elsewhere, or nowhere, is replaced; a folder of the
 /// profile's own is kept when it holds anything — it is never deleted to
-/// make room — and said.
-fn share_dir(source: &Path, here: &Path) -> Result<(), String> {
+/// make room — and said. A Codex account's shadow home shares main's
+/// folders the same way (codex_home.rs).
+pub(super) fn share_dir(source: &Path, here: &Path) -> Result<(), String> {
     let wanted = source.is_dir();
     if link::is_link(here) {
         if wanted && link::same_place(here, source) {

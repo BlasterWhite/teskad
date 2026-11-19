@@ -23,6 +23,21 @@ pub fn link_dir(target: &Path, link: &Path) -> io::Result<()> {
     imp::link_dir(&target, link)
 }
 
+/// Makes `link` a symbolic link to `target`, which must be a file. `link`
+/// must not exist yet. Windows grants a file link only to an administrator
+/// or with Developer Mode on (there is no junction for a file): elsewhere it
+/// fails there, and the caller does without (accounts/codex_home.rs).
+pub fn link_file(target: &Path, link: &Path) -> io::Result<()> {
+    let target = dunce::canonicalize(target)?;
+    if !target.is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "the file to share is not a file",
+        ));
+    }
+    imp::link_file(&target, link)
+}
+
 /// A symbolic link or a junction: an entry that stands for another path.
 pub fn is_link(path: &Path) -> bool {
     fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_symlink())
@@ -96,6 +111,10 @@ mod imp {
         result
     }
 
+    pub fn link_file(target: &Path, link: &Path) -> io::Result<()> {
+        std::os::windows::fs::symlink_file(target, link)
+    }
+
     /// A REPARSE_DATA_BUFFER for a mount point: the tag, the length of what
     /// follows, the offsets and lengths of both names, then the names, each
     /// ended by a NUL.
@@ -161,6 +180,10 @@ mod imp {
     pub fn link_dir(target: &Path, link: &Path) -> io::Result<()> {
         std::os::unix::fs::symlink(target, link)
     }
+
+    pub fn link_file(target: &Path, link: &Path) -> io::Result<()> {
+        std::os::unix::fs::symlink(target, link)
+    }
 }
 
 #[cfg(not(any(unix, windows)))]
@@ -172,6 +195,13 @@ mod imp {
         Err(io::Error::new(
             io::ErrorKind::Unsupported,
             "folders cannot be linked on this system",
+        ))
+    }
+
+    pub fn link_file(_target: &Path, _link: &Path) -> io::Result<()> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "files cannot be linked on this system",
         ))
     }
 }
@@ -209,6 +239,27 @@ mod tests {
         assert!(!is_link(&real));
         assert!(remove_link(&real).is_err());
         assert!(real.join("file").is_file());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_file_link_is_read_and_written_through() {
+        let scratch = Scratch::new("link-file");
+        let target = scratch.file("main/config.toml", "model = \"a\"\n");
+        let link = scratch.root.join("shadow-config.toml");
+
+        link_file(&target, &link).unwrap();
+        assert!(is_link(&link));
+        assert!(same_place(&link, &target));
+        fs::write(&link, "model = \"b\"\n").unwrap();
+        assert_eq!(fs::read_to_string(&target).unwrap(), "model = \"b\"\n");
+
+        remove_link(&link).unwrap();
+        assert!(!exists(&link));
+        assert!(target.is_file());
+        // A folder is not a file to link.
+        assert!(link_file(&scratch.dir("main"), &link).is_err());
+        assert!(!exists(&link));
     }
 
     #[test]
