@@ -12,7 +12,11 @@
 //!   one store write on release, as `paintLayout` painted the DOM and
 //!   committed once), double-clicked to even out, and resized by the keyboard
 //!   once one is selected (a click that goes nowhere, or `Mod+Alt+R`): see
-//!   [`BoundaryKey`];
+//!   [`BoundaryKey`]. The boundary of a pinned pane keeps it within what the
+//!   engine lets it take ([`pin_bounded`]), and what it is let go at is the
+//!   size in pixels the pane keeps from then on (`StoreAction::ResizeSplit`);
+//!   the tree it is drawn from holds the pinned panes at those pixels
+//!   (`layout::drawn_tree`);
 //! - a pane dragged by its header onto another: a ghost with its name, a hint
 //!   over the half it would take (or the whole pane for a swap), the move on
 //!   release; a cancelled gesture (the window losing the focus) moves
@@ -33,7 +37,8 @@ use iced::advanced::mouse::{self, Click};
 use iced::advanced::overlay;
 use iced::advanced::renderer::{self, Quad};
 use iced::advanced::text::{self as core_text, Paragraph as _, Renderer as _, Text};
-use iced::advanced::widget::{Operation, Tree, tree};
+use iced::advanced::widget::operation::Focusable;
+use iced::advanced::widget::{Id, Operation, Tree, tree};
 use iced::advanced::{Clipboard, Renderer as _, Shell, Widget};
 use iced::keyboard::key::{Named, Physical};
 use iced::keyboard::{self, Key, Modifiers};
@@ -45,8 +50,8 @@ use iced::{
 use crate::message::Message;
 use crate::panes::Msg;
 use crate::panes::zoom_bar;
-use crate::state::layout::{self as geometry, Handle, Path, Rect};
-use crate::state::types::{DropZone, SplitDir, SplitNode};
+use crate::state::layout::{self as geometry, Handle, Path, Rect, Side};
+use crate::state::types::{DropZone, PinEdge, SplitDir, SplitNode};
 use crate::state::{PaneId, WsId};
 
 /// How far either side of a boundary its grab area reaches.
@@ -89,6 +94,8 @@ pub struct Grid<'a> {
     zoomed: Option<usize>,
     tree: SplitNode,
     handles: Vec<Handle>,
+    /// The boundaries that carve a pinned pane out, by path, with its edge.
+    pins: Vec<(Path, PinEdge)>,
     focused: Option<&'a PaneId>,
     /// The keyboard is somewhere else than the grid (the sidebar's tree, a
     /// field): a press on the focused pane has to bring it back too.
@@ -133,6 +140,7 @@ impl<'a> Grid<'a> {
             zoomed,
             tree,
             handles,
+            pins: Vec::new(),
             focused,
             keyboard_elsewhere: false,
             known,
@@ -164,6 +172,33 @@ impl<'a> Grid<'a> {
         self
     }
 
+    /// Says which boundaries carve a pinned pane out of the grid, and on
+    /// which edge (`workspace_terminals::pin_splits`): dragged, or moved by
+    /// the keys, those keep the pinned pane within what the engine lets it
+    /// take, where it will stay once let go.
+    pub fn pinned(mut self, pins: Vec<(Path, PinEdge)>) -> Self {
+        self.pins = pins;
+        self
+    }
+
+    /// The edge of the pinned pane the boundary at `path` carves out, if it
+    /// is one.
+    fn pin_at(&self, path: &[Side]) -> Option<PinEdge> {
+        self.pins
+            .iter()
+            .find(|(at, _)| at.as_slice() == path)
+            .map(|(_, edge)| *edge)
+    }
+
+    /// `ratio` for `handle`'s boundary, kept within what the engine lets a
+    /// pinned pane take when it carves one out ([`pin_bounded`]).
+    fn bounded(&self, handle: &Handle, bounds: Rectangle, ratio: f64) -> f64 {
+        match self.pin_at(&handle.path) {
+            Some(edge) => pin_bounded(ratio, span_of(handle, bounds), edge),
+            None => ratio,
+        }
+    }
+
     /// Says the keyboard is not the grid's, so a press on the focused pane
     /// asks for the focus as a press on any other one does.
     pub fn keyboard_elsewhere(mut self, elsewhere: bool) -> Self {
@@ -182,6 +217,32 @@ impl<'a> Grid<'a> {
     fn publish(&self, shell: &mut Shell<'_, Message>, msg: Msg) {
         shell.publish(Message::Panes(msg));
     }
+}
+
+/// Whether a field in a pane's element has the keyboard.
+fn field_focused(
+    element: &mut Element<'_, Message>,
+    tree: &mut Tree,
+    layout: Layout<'_>,
+    renderer: &iced::Renderer,
+) -> bool {
+    struct AnyFocused(bool);
+
+    impl Operation for AnyFocused {
+        fn traverse(&mut self, operate: &mut dyn FnMut(&mut dyn Operation)) {
+            operate(self);
+        }
+
+        fn focusable(&mut self, _id: Option<&Id>, _bounds: Rectangle, state: &mut dyn Focusable) {
+            self.0 |= state.is_focused();
+        }
+    }
+
+    let mut found = AnyFocused(false);
+    element
+        .as_widget_mut()
+        .operate(tree, layout, renderer, &mut found);
+    found.0
 }
 
 /// A boundary being dragged.
@@ -337,6 +398,28 @@ fn ratio_after(current: f64, span: f32, key: BoundaryKey) -> Option<f64> {
     ((next - current).abs() > 1e-9).then_some(next)
 }
 
+/// `ratio` of the boundary that carves a pane pinned to `edge` out of a
+/// room `span` pixels long, kept where the engine keeps the pinned pane
+/// (`layout::sized_tree`): at most `MAX_PIN_SHARE` of the room, at least
+/// `MIN_PANE` (the most, in a room too small for both). A drag shows the
+/// size the pane keeps once let go.
+fn pin_bounded(ratio: f64, span: f32, edge: PinEdge) -> f64 {
+    let span = f64::from(span.max(1.0));
+    let most = geometry::MAX_PIN_SHARE;
+    let least = (f64::from(MIN_PANE) / span).min(most);
+    let turn = |value: f64| if edge.leads() { value } else { 1.0 - value };
+    turn(turn(ratio).clamp(least, most))
+}
+
+/// The pixels along its axis of what `handle`'s boundary divides.
+fn span_of(handle: &Handle, bounds: Rectangle) -> f32 {
+    let area = to_px(handle.bounds, bounds);
+    match handle.dir {
+        SplitDir::Row => area.width,
+        SplitDir::Col => area.height,
+    }
+}
+
 /// A fraction of the grid in pixels, snapped to whole pixels so that panes
 /// meet without seams.
 fn to_px(rect: Rect, bounds: Rectangle) -> Rectangle {
@@ -444,13 +527,12 @@ impl Grid<'_> {
                 state.selected = Some(self.handles[next].path.clone());
             }
             moving => {
-                let area = to_px(handle.bounds, bounds);
-                let span = match handle.dir {
-                    SplitDir::Row => area.width,
-                    SplitDir::Col => area.height,
-                };
+                let span = span_of(handle, bounds);
                 let current = geometry::ratio_at(&self.tree, &handle.path);
-                if let Some(ratio) = ratio_after(current, span, moving) {
+                if let Some(ratio) = ratio_after(current, span, moving)
+                    .map(|ratio| self.bounded(handle, bounds, ratio))
+                    .filter(|ratio| (ratio - current).abs() > 1e-9)
+                {
                     self.publish(
                         shell,
                         Msg::SetRatio(self.ws.clone(), handle.path.clone(), ratio),
@@ -673,7 +755,8 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
                 match event {
                     Event::Mouse(mouse::Event::CursorMoved { position }) => {
                         if let Some(handle) = self.handles.iter().find(|h| h.path == resize.path) {
-                            resize.latest = ratio_for(handle, bounds, *position);
+                            let ratio = ratio_for(handle, bounds, *position);
+                            resize.latest = self.bounded(handle, bounds, ratio);
                         }
                         shell.invalidate_layout();
                         shell.request_redraw();
@@ -847,9 +930,10 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
                 );
                 state.last_click = Some((usize::MAX, click));
                 if click.kind() == mouse::click::Kind::Double {
+                    let even = self.bounded(handle, bounds, 0.5);
                     self.publish(
                         shell,
-                        Msg::SetRatio(self.ws.clone(), handle.path.clone(), 0.5),
+                        Msg::SetRatio(self.ws.clone(), handle.path.clone(), even),
                     );
                 } else {
                     let at = geometry::ratio_at(&self.tree, &handle.path);
@@ -957,7 +1041,25 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
             // The pane the workspace remembers is not always the one with the
             // keyboard: after a click in the sidebar it keeps the arrows.
             if self.focused != Some(pane) || self.keyboard_elsewhere {
-                self.publish(shell, Msg::Focus(self.ws.clone(), pane.clone()));
+                // A field of the pane that took the press (the terminal's
+                // search bar) keeps the keyboard: the pane becomes the
+                // focused one, and its terminal does not take what is typed
+                // in the field.
+                let in_field = match layout.children().nth(index) {
+                    Some(child_layout) => field_focused(
+                        &mut self.children[index],
+                        &mut tree.children[index],
+                        child_layout,
+                        renderer,
+                    ),
+                    None => false,
+                };
+                let msg = if in_field {
+                    Msg::Select(self.ws.clone(), pane.clone())
+                } else {
+                    Msg::Focus(self.ws.clone(), pane.clone())
+                };
+                self.publish(shell, msg);
             }
             let slot = layout.children().nth(index).map(|child| child.bounds());
             let on_header =
@@ -1051,8 +1153,20 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
         let state = tree.state.downcast_ref::<State>();
         let c = &self.theme.colors;
         let bounds = layout.bounds();
-        // What shows between the panes is the separator colour.
-        fill(renderer, bounds, c.sep, None);
+        // What shows between the panes is the separator colour. On a window
+        // the desktop shows through, only the strips between them, at the
+        // window's alpha: under the panes is the page (shell/frame.rs), which
+        // a fill here would make opaque.
+        if !self.theme.is_translucent() {
+            fill(renderer, bounds, c.sep, None);
+        } else if self.zoomed.is_none() {
+            let sep = self.theme.see_through(c.sep);
+            for pane in layout.children().take(self.slots()) {
+                for strip in separator_strips(pane.bounds(), bounds) {
+                    fill(renderer, strip, sep, None);
+                }
+            }
+        }
 
         let dragging = state
             .press
@@ -1219,6 +1333,26 @@ fn resize_cursor(dir: SplitDir) -> mouse::Interaction {
     }
 }
 
+/// The 1 px separators `layout` takes from the left and the top of a pane's
+/// slot when the pane is off the grid's left or top edge, as strips: the
+/// corner where the two meet is in the left one.
+fn separator_strips(pane: Rectangle, grid: Rectangle) -> impl Iterator<Item = Rectangle> {
+    let left = pane.x - grid.x >= 0.5;
+    let top = pane.y - grid.y >= 0.5;
+    let above = if top { 1.0 } else { 0.0 };
+    [
+        left.then(|| {
+            Rectangle::new(
+                Point::new(pane.x - 1.0, pane.y - above),
+                Size::new(1.0, pane.height + above),
+            )
+        }),
+        top.then(|| Rectangle::new(Point::new(pane.x, pane.y - 1.0), Size::new(pane.width, 1.0))),
+    ]
+    .into_iter()
+    .flatten()
+}
+
 fn fill(
     renderer: &mut iced::Renderer,
     bounds: Rectangle,
@@ -1320,6 +1454,32 @@ mod tests {
     use iced_test::Simulator;
 
     const WINDOW: Size = Size::new(800.0, 600.0);
+
+    #[test]
+    fn the_strips_between_panes_are_the_pixels_their_slots_give_up() {
+        let grid = Rectangle::new(Point::new(10.0, 20.0), Size::new(400.0, 300.0));
+        // The top-left pane gives up nothing.
+        let first = Rectangle::new(Point::new(10.0, 20.0), Size::new(200.0, 150.0));
+        assert_eq!(separator_strips(first, grid).count(), 0);
+        // The one to its right, its first column.
+        let right = Rectangle::new(Point::new(211.0, 20.0), Size::new(199.0, 150.0));
+        assert_eq!(
+            separator_strips(right, grid).collect::<Vec<_>>(),
+            [Rectangle::new(
+                Point::new(210.0, 20.0),
+                Size::new(1.0, 150.0)
+            )]
+        );
+        // The bottom-right one, its first column and row, corner included.
+        let corner = Rectangle::new(Point::new(211.0, 171.0), Size::new(199.0, 149.0));
+        assert_eq!(
+            separator_strips(corner, grid).collect::<Vec<_>>(),
+            [
+                Rectangle::new(Point::new(210.0, 170.0), Size::new(1.0, 150.0)),
+                Rectangle::new(Point::new(211.0, 170.0), Size::new(199.0, 1.0)),
+            ]
+        );
+    }
 
     fn leaf(id: &str) -> SplitNode {
         SplitNode::Pane { id: id.into() }

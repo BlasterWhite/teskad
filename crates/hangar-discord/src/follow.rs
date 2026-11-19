@@ -1,11 +1,15 @@
-//! What the bot follows of the panes: each turn of the agent a channel (or
-//! a worker's thread) shows, as a card edited while it runs and folded when
-//! it ends, Claude's answer read whole from the transcript; what waits on
-//! the person (a permission, questions, a plan), as a card in the
-//! workspace's channel; and the orchestration's journal: workers started
-//! (their line, and their thread opened on it at once, the button that
-//! opens it left for when Discord refused) and stopped, deliveries ready,
-//! tasks that need the person.
+//! What the bot follows of the panes, of either agent alike: each turn of
+//! the agent a channel (or a worker's thread) shows, as a card edited while
+//! it runs and folded when it ends, its answer read whole from its
+//! conversation; what waits on the person (a permission, questions, a
+//! plan), as a card in the workspace's channel; and the orchestration's
+//! journal: workers started (their line, and their thread opened on it at
+//! once, the button that opens it left for when Discord refused) and
+//! stopped, deliveries ready, tasks that need the person.
+//!
+//! A pane's turns and calls come as its side channel reports them: Claude
+//! Code's mod, or the client Hangar attaches to a Codex pane, which reports
+//! the same events (hangar-core's `agent/codex_attach.rs`).
 
 use std::time::Instant;
 
@@ -31,7 +35,9 @@ pub(crate) fn now_secs() -> u64 {
         .map_or(0, |d| d.as_secs())
 }
 
-/// One line for a call of the agent's: the tool and what it acts on.
+/// One line for a call of the agent's: the tool and what it acts on. A
+/// patch (Codex's `apply_patch`, its `changes` as the attached client
+/// reports them) acts on its files: the first, and how many more.
 pub(crate) fn describe(tool: &str, input: &Value) -> String {
     let field = |name: &str| input.get(name).and_then(Value::as_str).map(str::trim);
     let what = match tool {
@@ -45,12 +51,28 @@ pub(crate) fn describe(tool: &str, input: &Value) -> String {
         "Task" | "Agent" => field("description"),
         _ => None,
     };
-    match what.filter(|w| !w.is_empty()) {
-        Some(what) => format!(
+    if let Some(what) = what.filter(|w| !w.is_empty()) {
+        return format!(
             "{tool} {}",
             cards::clip(what.lines().next().unwrap_or(what), 120)
-        ),
-        None => tool.to_string(),
+        );
+    }
+    let files: Vec<&str> = input
+        .get("changes")
+        .and_then(Value::as_array)
+        .map(|changes| {
+            changes
+                .iter()
+                .filter_map(|change| change.get("path").and_then(Value::as_str))
+                .map(str::trim)
+                .filter(|path| !path.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+    match files.as_slice() {
+        [] => tool.to_string(),
+        [one] => format!("{tool} {}", cards::clip(one, 120)),
+        [first, rest @ ..] => format!("{tool} {} +{}", cards::clip(first, 120), rest.len()),
     }
 }
 
@@ -79,6 +101,16 @@ pub(crate) fn fresh_in(journal: Vec<JournalEntry>, seen: (u64, usize)) -> Vec<Jo
         .collect()
 }
 
+/// The card of `turn` folded to one line once it is over, the images its
+/// agent generated still shown under it.
+fn folded(words: crate::words::Words, name: &str, turn: &Turn) -> Value {
+    let minutes = now_secs().saturating_sub(turn.started).div_ceil(60);
+    cards::with_images(
+        cards::turn_folded(words, name, turn.calls.len(), minutes),
+        &turn.images,
+    )
+}
+
 /// What a pending ask is known by: answering it again is refused unless it
 /// is still the one asked.
 pub(crate) fn ask_key(pending: &ChatPending) -> String {
@@ -91,7 +123,7 @@ pub(crate) fn ask_key(pending: &ChatPending) -> String {
 impl Bot {
     /// Where pane `pane`'s conversation is shown: its workspace's channel
     /// when it is that channel's voice, its thread when one is open.
-    fn shown_in(&self, pane: &str) -> Option<(String, Option<String>, String)> {
+    pub(crate) fn shown_in(&self, pane: &str) -> Option<(String, Option<String>, String)> {
         let snapshot = self.host().snapshot();
         let (ws, found) = find(&snapshot.state, pane)?;
         self.place(&ws.id)?;
@@ -107,7 +139,7 @@ impl Bot {
         Some((ws.id.clone(), Some(thread), found.name.clone()))
     }
 
-    /// One of the mod's reports about a turn, in its pane's lane.
+    /// One of the side channel's reports about a turn, in its pane's lane.
     pub(crate) async fn on_bridge(&self, pane: &str, event: BridgeEvent) {
         match event {
             BridgeEvent::Turn(TurnPhase::Start) => {
@@ -129,6 +161,7 @@ impl Bot {
                                 message,
                                 started,
                                 calls: Vec::new(),
+                                images: Vec::new(),
                                 edited: Instant::now(),
                                 dirty: false,
                                 left: None,
@@ -150,9 +183,8 @@ impl Bot {
                     return;
                 };
                 if let Some(turn) = &turn {
-                    let minutes = now_secs().saturating_sub(turn.started).div_ceil(60);
-                    let folded = cards::turn_folded(self.words(), &name, turn.calls.len(), minutes);
-                    self.edit_as(&turn.ws, turn.thread.as_deref(), &turn.message, folded)
+                    let card = folded(self.words(), &name, turn);
+                    self.edit_as(&turn.ws, turn.thread.as_deref(), &turn.message, card)
                         .await;
                 }
                 let whole = self.last_answer(&ws, pane).await.unwrap_or(answer);
@@ -169,8 +201,9 @@ impl Bot {
         }
     }
 
-    /// Claude's last answer, whole: what it wrote after the last thing it
-    /// was told, read from the transcript.
+    /// The agent's last answer, whole: what it wrote after the last thing it
+    /// was told, read from its conversation as the chat view reads it. Where
+    /// that cannot be read, the turn's end says the answer's first line.
     async fn last_answer(&self, ws: &str, pane: &str) -> Option<String> {
         let desk_ = self.host().desk()?;
         let port = self.host().port();
@@ -217,7 +250,10 @@ impl Bot {
         let name = find(&snapshot.state, &pane)
             .map(|(_, p)| p.name.clone())
             .unwrap_or_default();
-        let card = cards::turn(self.words(), &name, turn.started, &turn.calls, &pane);
+        let card = cards::with_images(
+            cards::turn(self.words(), &name, turn.started, &turn.calls, &pane),
+            &turn.images,
+        );
         self.edit_as(&turn.ws, turn.thread.as_deref(), &turn.message, card)
             .await;
     }
@@ -256,9 +292,8 @@ impl Bot {
         let name = find(&snapshot.state, &pane)
             .map(|(_, p)| p.name.clone())
             .unwrap_or_default();
-        let minutes = now_secs().saturating_sub(turn.started).div_ceil(60);
-        let folded = cards::turn_folded(self.words(), &name, turn.calls.len(), minutes);
-        self.edit_as(&turn.ws, turn.thread.as_deref(), &turn.message, folded)
+        let card = folded(self.words(), &name, &turn);
+        self.edit_as(&turn.ws, turn.thread.as_deref(), &turn.message, card)
             .await;
     }
 
@@ -793,5 +828,42 @@ mod tests {
             "Edit src/a.rs"
         );
         assert_eq!(describe("TodoWrite", &json!({})), "TodoWrite");
+    }
+
+    #[test]
+    fn a_codex_call_reads_as_its_command_or_the_files_it_patches() {
+        // As the client attached to a Codex pane reports them
+        // (codex_attach.rs, `tool_of`): a command as a shell command, a
+        // patch with its changes.
+        assert_eq!(
+            describe(
+                "Bash",
+                &json!({ "command": "cargo test -p shop", "cwd": "/work/shop" })
+            ),
+            "Bash cargo test -p shop"
+        );
+        let change = |path: &str| json!({ "path": path, "kind": "update", "diff": "@@" });
+        assert_eq!(
+            describe(
+                "apply_patch",
+                &json!({ "changes": [change("src/cart.rs")] })
+            ),
+            "apply_patch src/cart.rs"
+        );
+        assert_eq!(
+            describe(
+                "apply_patch",
+                &json!({ "changes": [change("src/cart.rs"), change("src/pay.rs"), change("README.md")] })
+            ),
+            "apply_patch src/cart.rs +2"
+        );
+        assert_eq!(
+            describe("apply_patch", &json!({ "changes": [] })),
+            "apply_patch"
+        );
+        assert_eq!(
+            describe("mcp__hangar__board_list_tasks", &json!({})),
+            "mcp__hangar__board_list_tasks"
+        );
     }
 }

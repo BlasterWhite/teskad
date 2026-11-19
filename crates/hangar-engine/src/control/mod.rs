@@ -12,7 +12,8 @@
 //! - `run.rs`: the dispatch, the gate, which workspace and pane a request
 //!   means; `paths.rs`: paths as agents give them;
 //! - `panes.rs`, `preview.rs`, `kit_tabs.rs`, `workspace.rs`, `manager.rs`,
-//!   `delivery.rs` (+ `delivery_text.rs`), `board_relay.rs`: the operations;
+//!   `delivery.rs` (+ `delivery_text.rs`), `board_relay.rs`, `delegate.rs`:
+//!   the operations;
 //! - `requests.rs`: what they ask of the host beyond the model's writes.
 //!
 //! The host (the app's `control` package on the desktop) builds the port
@@ -20,6 +21,7 @@
 //! hooks.
 
 pub mod board_relay;
+pub mod delegate;
 pub mod delivery;
 pub mod delivery_text;
 pub mod kit_tabs;

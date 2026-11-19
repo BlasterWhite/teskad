@@ -71,17 +71,21 @@ const KINDS: [Kind; 8] = [
     Kind::Other,
 ];
 
-/// The kind of a call, by its tool.
+/// The kind of a call, by its tool: Claude Code's tools, and the items of a
+/// Codex thread as the core names them (`chat/codex.rs`: a command run, a
+/// patch, a web search). An MCP call is named the same way for both
+/// (`mcp__<server>__<tool>`), so Hangar's own read alike.
 pub fn kind(tool: &str) -> Kind {
     let name = tool
         .strip_prefix("mcp__")
         .and_then(|rest| rest.split_once("__"))
         .map_or(tool, |(_, name)| name);
     match name {
-        "Bash" | "PowerShell" | "BashOutput" | "KillShell" => Kind::Command,
-        "Edit" | "MultiEdit" | "Write" | "NotebookEdit" => Kind::Edit,
+        "Bash" | "PowerShell" | "BashOutput" | "KillShell" | "commandExecution" => Kind::Command,
+        "Edit" | "MultiEdit" | "Write" | "NotebookEdit" | "fileChange" => Kind::Edit,
         "Read" => Kind::Read,
-        "Grep" | "Glob" | "WebSearch" | "WebFetch" | "ToolSearch" | "memory_search" => Kind::Search,
+        "Grep" | "Glob" | "WebSearch" | "WebFetch" | "ToolSearch" | "memory_search"
+        | "webSearch" => Kind::Search,
         "board_create_task" => Kind::Task,
         "memory_write" | "memory_update" => Kind::Memory,
         "pane_send" | "project_send" | "SendMessage" => Kind::Message,

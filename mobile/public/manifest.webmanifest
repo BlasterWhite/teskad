@@ -1,6 +1,6 @@
 {
-  "name": "Hangar",
-  "short_name": "Hangar",
+  "name": "HangarAI",
+  "short_name": "HangarAI",
   "description": "Follow and steer your Hangar projects from your phone.",
   "id": "./",
   "start_url": "./",

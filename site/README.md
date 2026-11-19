@@ -1,6 +1,6 @@
 # site
 
-The Hangar.AI landing page, served at https://hangar.simnjs.fr. Plain HTML, CSS
+The HangarAI landing page, served at https://hangarai.dev. Plain HTML, CSS
 and JavaScript, no framework, no build step for the page itself, and nothing
 loaded from another origin.
 
@@ -32,12 +32,16 @@ the demo went with the React sources (it is at tag `v1.12.1`, under `demo/`).
 
 ## The page
 
-One story, short, in order: what Hangar.AI is (hero: one line, a download for
+One story, short, in order: what HangarAI is (hero: one line, a download for
 the visitor's system and one link per OS, the chat view), the chat view, the
-orchestrator with its workers and deliveries, Hangar Mobile, kits and
-previews, the experiments (nodes, pane scopes), performance, "Also in the
-box", downloads, questions. Hangar runs Claude Code only since 2.0, and the
-page names no other agent.
+orchestrator with its workers and deliveries (checked in batches, their stage
+on the worker's pane, the orchestrator woken for what matters), Hangar Mobile,
+kits and previews, the experiments (nodes, pane scopes), performance, "Also in
+the box" (Claude Code and Codex, delegate and images, the agents set up for
+you, the viewers, Discord, the optional account), downloads (macOS on 2.2.0,
+NixOS), questions (the account, the Mac and Codex's beta among them). Hangar
+runs Claude Code and Codex: the page names both, Codex always marked beta, and
+no other agent.
 
 Every claim on it comes from the code, `CHANGELOG.md` or the English strings.
 When a feature changes, check the copy against `crates/hangar-i18n/dict/en.json`
@@ -161,7 +165,7 @@ then map the `--*` names to the keys `TOKENS` lists in `main.js`.
 ## Captures
 
 Everything in `img/` but the phone screens is the real app: a debug build of
-Hangar.AI 2.2 on Linux, on demo states written for the site, with no path,
+HangarAI 2.2 on Linux, on demo states written for the site, with no path,
 account or project of the person taking them. The scripts live outside the
 repository, in `~/dev/bench/site-shots/`:
 
@@ -249,18 +253,23 @@ bleeding off the bottom (`~/dev/bench/site-shots/og/og.html`).
 ## Releasing a new version
 
 The version is written into `index.html` by hand, so the download buttons point
-straight at the files. Replace the version (`2.2.0` now) everywhere in the page
-(the brand, the download heading, the hero's three links, the five asset links and the JSON-LD). The
-asset names are the ones the release workflow uploads, kept from the Tauri
-builds (`docs/native/PACKAGING.md`):
+straight at the files. Replace the version (`2.5.0` now) everywhere in the page
+(the brand, the download heading, the hero's Windows and Linux links, the four
+asset links of the Windows and Linux cards and the JSON-LD; the share titles
+name the minor version). The asset names are the ones the release workflow
+uploads, kept from the Tauri builds (`docs/native/PACKAGING.md`):
 
 ```
 Hangar.AI_<v>_x64-setup.exe
-Hangar.AI_<v>_universal.dmg
 Hangar.AI_<v>_amd64.AppImage
 Hangar.AI_<v>_amd64.deb
 Hangar.AI-<v>-1.x86_64.rpm
 ```
+
+Releases after 2.2.0 are not built for the Mac, so the macOS card and the
+hero's macOS link stay on `Hangar.AI_2.2.0_universal.dmg`, the last one, and
+send later versions to the README's "Build on macOS"; on a Mac, `main.js` says
+the same under the hero's button. Leave them out of the bump.
 
 `gh release view v<v> --json assets` lists them once the release is out.
 Forgetting to bump is not fatal: the app offers each new version once installed,
@@ -280,8 +289,8 @@ the page uses right (`image/avif`, `image/webp`, `font/woff2`, `image/x-icon`,
 refuses the file. After a change of server or of image format, check them:
 
 ```bash
-curl -sI https://hangar.simnjs.fr/img/hero-1280.avif | grep -i content-type
+curl -sI https://hangarai.dev/img/hero-1280.avif | grep -i content-type
 ```
 
-The canonical address is https://hangar.simnjs.fr, which the canonical link and
+The canonical address is https://hangarai.dev, which the canonical link and
 the Open Graph tags name.

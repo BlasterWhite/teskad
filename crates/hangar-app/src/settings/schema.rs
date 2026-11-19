@@ -20,7 +20,7 @@ use hangar_i18n::{Key, Locale, Translator, args};
 use hangar_ui::Icon;
 use hangar_ui::shortcut::Platform as KeyboardPlatform;
 
-use super::change::{Target, cursor_style_id, voice_engine_id};
+use super::change::{Target, agent_choice_id, cursor_style_id, voice_engine_id};
 use super::experiments::{
     DISCORD_CONNECTOR, Experiment, NODES, Platform, available_experiments, is_experiment_enabled,
 };
@@ -30,7 +30,8 @@ use crate::keymap::KeymapIndex;
 use crate::panes_logic::agents::DEFAULT_CLAUDE_COMMAND;
 use crate::shell::SettingsCategory;
 use crate::state::types::{
-    AgentId, CursorStyle, Settings, ShellInfo, UI_SCALE_MAX, UI_SCALE_MIN, VoiceEngine, Workspace,
+    AgentId, AgentKind, CursorStyle, Settings, ShellInfo, UI_SCALE_MAX, UI_SCALE_MIN, VoiceEngine,
+    Workspace,
 };
 
 /// A choice of a select or a segmented control.
@@ -220,6 +221,21 @@ pub struct Context<'a> {
     pub keymap: &'a KeymapIndex,
 }
 
+/// The least opaque the window opacity slider goes, in percent
+/// (`hangar_theme::MIN_WINDOW_OPACITY`).
+pub const WINDOW_OPACITY_MIN: f64 = 50.0;
+
+/// The window opacity of the settings as the slider shows it: a whole
+/// percent from [`WINDOW_OPACITY_MIN`] to 100, and 100 for a value that is
+/// not a number.
+pub fn window_opacity_percent(opacity: f64) -> f64 {
+    if opacity.is_finite() {
+        (opacity * 100.0).round().clamp(WINDOW_OPACITY_MIN, 100.0)
+    } else {
+        100.0
+    }
+}
+
 /// The delays the settings offer for hibernation, in minutes.
 pub const HIBERNATE_DELAYS: [f64; 5] = [5.0, 10.0, 20.0, 30.0, 60.0];
 
@@ -330,6 +346,30 @@ impl Section {
         self.hint = Some(hint.into());
         self
     }
+}
+
+/// A row or a choice that belongs to Codex says so: it is in beta
+/// (docs/native/agents.md, D21), and a search for "beta" finds it.
+fn beta(t: Translator, label: impl AsRef<str>) -> String {
+    format!("{} ({})", label.as_ref(), t.t(Key::SettingsAgentBeta))
+}
+
+/// Codex's name as the settings list it, with its « beta ».
+fn codex_label(t: Translator) -> String {
+    beta(t, AgentKind::Codex.info().label)
+}
+
+/// The choices of a default-agent select: the one that names none, then
+/// Claude Code and Codex.
+fn agent_choices(t: Translator, none: Key) -> Vec<Choice> {
+    vec![
+        Choice::new("", t.t(none)),
+        Choice::new(
+            agent_choice_id(Some(AgentKind::Claude)),
+            AgentKind::Claude.info().label,
+        ),
+        Choice::new(agent_choice_id(Some(AgentKind::Codex)), codex_label(t)),
+    ]
 }
 
 fn slider(
@@ -488,6 +528,26 @@ pub fn build_categories(ctx: &Context) -> Vec<Category> {
                         )
                         .keywords(format!("theme {}", names.join(" "))),
                     );
+                    // Linux's only: its windows are made transparent, the
+                    // others' are not and stay opaque. Every theme's.
+                    if ctx.platform == Some(Platform::Linux) {
+                        let percent = window_opacity_percent(settings.window_opacity);
+                        items.push(
+                            slider(
+                                "windowOpacity",
+                                tx(Key::SettingsWindowOpacity),
+                                percent,
+                                (WINDOW_OPACITY_MIN, 100.0),
+                                1.0,
+                                format!("{} %", plain(percent)),
+                                Target::WindowOpacity,
+                            )
+                            .hint(tx(Key::SettingsWindowOpacityHint))
+                            .keywords(
+                                "opacity opacité transparency transparence transparent translucent translucide window fenêtre desktop bureau blur flou",
+                            ),
+                        );
+                    }
                     items
                 })
                 .hint(tx(Key::SettingsThemeHint)),
@@ -731,6 +791,16 @@ fn general(ctx: &Context, locale: Locale) -> Category {
                     )
                     .hint(tx(Key::SettingsClaudeBridgeHint))
                     .keywords("mod plugin hangar-bridge claude code permission usage forfait"),
+                    toggle(
+                        "codexAttach",
+                        beta(t, tx(Key::SettingsCodexAttach)),
+                        settings.codex_attach,
+                        Target::CodexAttach,
+                    )
+                    .hint(tx(Key::SettingsCodexAttachHint))
+                    .keywords(
+                        "codex attach attacher attached attaché openai app-server remote tui plain terminal fallback repli bêta beta",
+                    ),
                     slider(
                         "launchDelay",
                         tx(Key::SettingsLaunchDelay),
@@ -814,9 +884,59 @@ fn general(ctx: &Context, locale: Locale) -> Category {
                         },
                     )
                     .keywords("claude command commande launch lancement alias"),
+                    item(
+                        "agentCommand.codex",
+                        Some(codex_label(t)),
+                        Kind::Input {
+                            value: settings.agent_commands.codex.clone().unwrap_or_default(),
+                            placeholder: AgentKind::Codex.info().program.into(),
+                            target: Target::CodexCommand,
+                        },
+                    )
+                    .keywords("codex command commande launch lancement alias openai beta bêta"),
                 ],
             )
             .hint(tx(Key::SettingsAgentCommandsHint)),
+            section(
+                "defaultAgents",
+                tx(Key::SettingsAgentsDefaults),
+                vec![
+                    item(
+                        "defaultOrchestratorAgent",
+                        Some(tx(Key::SettingsAgentsOrchestrator)),
+                        Kind::Select {
+                            value: agent_choice_id(settings.default_orchestrator_agent).into(),
+                            choices: agent_choices(t, Key::SettingsAgentsAutomatic),
+                            target: Target::DefaultOrchestratorAgent,
+                        },
+                    )
+                    .hint(tx(Key::SettingsAgentsOrchestratorHint))
+                    .keywords(tx(Key::SettingsAgentsKeywords)),
+                    item(
+                        "defaultWorkerAgent",
+                        Some(tx(Key::SettingsAgentsWorker)),
+                        Kind::Select {
+                            value: agent_choice_id(settings.default_worker_agent).into(),
+                            choices: agent_choices(t, Key::SettingsAgentsSameAsOrchestrator),
+                            target: Target::DefaultWorkerAgent,
+                        },
+                    )
+                    .hint(tx(Key::SettingsAgentsWorkerHint))
+                    .keywords(tx(Key::SettingsAgentsKeywords)),
+                    item(
+                        "defaultReviewerAgent",
+                        Some(tx(Key::SettingsAgentsReviewer)),
+                        Kind::Select {
+                            value: agent_choice_id(settings.default_reviewer_agent).into(),
+                            choices: agent_choices(t, Key::SettingsAgentsSameAsOrchestrator),
+                            target: Target::DefaultReviewerAgent,
+                        },
+                    )
+                    .hint(tx(Key::SettingsAgentsReviewerHint))
+                    .keywords(tx(Key::SettingsAgentsKeywords)),
+                ],
+            )
+            .hint(tx(Key::SettingsAgentsDefaultsHint)),
             section(
                 "claudeSetup",
                 AgentId::Claude.info().label.to_string(),
@@ -1340,7 +1460,7 @@ fn about(ctx: &Context, version: &str) -> Category {
     let tx = |key: Key| t.t(key).into_owned();
     let mut identity = vec![item(
         "appName",
-        Some("Hangar.AI".to_string()),
+        Some("HangarAI".to_string()),
         Kind::Text {
             value: "hangar-ai".to_string(),
         },

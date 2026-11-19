@@ -11,9 +11,19 @@
 //! the ones that come with them, and for the orchestrator to be between turns;
 //! then they go as one message, read again just before — a worker that stopped
 //! waiting in the meantime is no longer news — deduplicated, ranked, capped.
+//! Only what is urgent goes that fast (`is_urgent`): the rest — plain
+//! comments, idle workers, tasks unblocked — waits for a digest, at most every
+//! few minutes, which an urgent event takes along when it goes first.
 //! What the orchestrator did itself, it is not told about. Everything, told or
 //! not, is kept in a short journal its briefing hands back after a compaction.
 //! A workspace without an orchestrator is never looked at.
+//!
+//! A worker is called idle once, when it ended a turn without delivering a
+//! while ago and has nothing of its own running — a build, a benchmark, a
+//! watch on its CI it waits on (`EngineIo::pane_job`) — and again only once it
+//! did something since (a comment, a progress report, a commit, a delivery) or
+//! after a long while: the orchestrator nudging it is not the worker doing
+//! something.
 //!
 //! The engine is a plain state machine: every input takes the time it happens
 //! at, timers are deadlines it keeps (`next_wake`, `fire_due`), and what it
@@ -29,6 +39,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use hangar_core::board::Task;
+use hangar_core::pty::PaneJob;
 
 use super::text::{MAX_TEXT, is_hangar_author, minutes, one_line, same_name, task_ref};
 use crate::live::{BridgeEvent, TurnPhase};
@@ -82,6 +93,10 @@ pub enum OrchestratorEvent {
         worker: String,
         task_id: Option<String>,
         for_ms: u64,
+        /// A command it started that still runs in its pane after
+        /// `JOB_HOLD_MS`: it no longer holds the alert back.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        job: Option<String>,
     },
     #[serde(rename_all = "camelCase")]
     TaskMoved {
@@ -225,6 +240,18 @@ pub mod timing {
     pub const WAITING_MS: u64 = 2 * 60_000;
     /// A worker that ended its turn without delivering, this long ago.
     pub const IDLE_MS: u64 = 10 * 60_000;
+    /// Told idle, a worker is told so again only after it did something, or
+    /// this long after.
+    pub const IDLE_AGAIN_MS: u64 = 30 * 60_000;
+    /// A worker's pane is looked into for a job of its own at most this
+    /// often, and this often while one runs.
+    pub const JOB_POLL_MS: u64 = 60_000;
+    /// A job of its own holds a worker's idle alert back this long at most
+    /// after its turn: past it, the alert goes and names the job.
+    pub const JOB_HOLD_MS: u64 = 60 * 60_000;
+    /// What is not urgent waits this long after the first of it, at most,
+    /// and goes as one digest.
+    pub const DIGEST_MS: u64 = 5 * 60_000;
     /// Two events about one task this close are one story.
     pub const NEAR_MS: u64 = 60_000;
     /// A tool call often writes a board twice (claim, then comment): one read.
@@ -238,6 +265,11 @@ const MAX_PENDING: usize = 200;
 /// Event lines in one message; the rest is counted, not listed.
 const MAX_LINES: usize = 12;
 const MAX_DETAIL: usize = 400;
+/// Plain comments on one task in one message: from this many on, one line.
+const MERGED_FROM: usize = 3;
+/// How an idle line goes on when a command of the worker's still runs
+/// (`heard` reads the line up to it).
+pub const IDLE_JOB: &str = "; a command it started still runs in its pane, over an hour later: ";
 
 /* ── Wording ───────────────────────────────────────────────────── */
 
@@ -391,12 +423,101 @@ pub fn describe_event(
             worker,
             task_id,
             for_ms,
+            job,
         } => format!(
-            "{worker} ended its turn {} ago without delivering{}",
+            "{worker} ended its turn {} ago without delivering{}{}",
             minutes(*for_ms),
-            on_task(task_id.as_deref(), titles)
+            on_task(task_id.as_deref(), titles),
+            job.as_deref()
+                .map(|job| format!("{IDLE_JOB}{}", one_line(job, MAX_TEXT)))
+                .unwrap_or_default()
         ),
     }
+}
+
+/// Several plain comments on one task, as one line: how many, by whom, and
+/// the last one. `comments` are `TaskCommented`, on one task.
+fn describe_comments(comments: &[&OrchestratorEvent]) -> String {
+    let mut authors: Vec<&str> = Vec::new();
+    let mut last: Option<(&str, &str, &str, &str)> = None;
+    for event in comments {
+        if let OrchestratorEvent::TaskCommented {
+            task_id,
+            title,
+            by,
+            text,
+        } = event
+        {
+            if !authors.contains(&by.as_str()) {
+                authors.push(by.as_str());
+            }
+            last = Some((task_id.as_str(), title.as_str(), by.as_str(), text.as_str()));
+        }
+    }
+    let Some((task_id, title, by, text)) = last else {
+        return String::new();
+    };
+    let authors = match authors.split_last() {
+        Some((only, [])) => only.to_string(),
+        Some((last, rest)) => format!("{} and {last}", rest.join(", ")),
+        None => String::new(),
+    };
+    format!(
+        "{} comments on {} by {authors}; the last, {by}'s: \"{}\" (board_list_tasks has them all)",
+        comments.len(),
+        task_ref(Some(title), task_id),
+        one_line(text, MAX_TEXT)
+    )
+}
+
+/* ── What cannot wait ──────────────────────────────────────────── */
+
+/// Whether an event goes to the orchestrator within seconds, or waits for
+/// the next digest (`DIGEST_MS`): what needs it or the person now does — a
+/// delivery, a worker waiting for the person or gone, a task that needs the
+/// person, got blocked or is done (others may be ready), a comment of the
+/// person's, or one that asks something or says its author is stuck.
+pub fn is_urgent(event: &OrchestratorEvent) -> bool {
+    use OrchestratorEvent as E;
+    match event {
+        E::Delivery { .. }
+        | E::WorkerWaiting { .. }
+        | E::WorkerExited { .. }
+        | E::TaskNeedsYou { .. }
+        | E::TaskBlocked { .. } => true,
+        E::TaskMoved { to, .. } => to == "done",
+        E::TaskCommented { by, text, .. } => by == "user" || asks(text),
+        E::WorkerStarted { .. }
+        | E::WorkerStopped { .. }
+        | E::WorkerIdle { .. }
+        | E::TaskUnblocked { .. }
+        | E::TaskRecheckDue { .. } => false,
+    }
+}
+
+/// Words that say a comment's author is stuck, in the languages the person
+/// and the agents write in.
+const STUCK: [&str; 7] = [
+    "blocked",
+    "blocker",
+    "stuck",
+    "bloqué",
+    "bloque",
+    "coincé",
+    "can't continue",
+];
+
+/// A comment that asks something — a question mark that ends a sentence, not
+/// the `?` of some code — or says its author is stuck.
+fn asks(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    let question = lower.char_indices().any(|(at, c)| {
+        c == '?'
+            && lower[at + 1..].chars().next().is_none_or(|next| {
+                next.is_whitespace() || matches!(next, '"' | '\'' | ')' | '*' | '_' | '»')
+            })
+    });
+    question || STUCK.iter().any(|word| lower.contains(word))
 }
 
 /* ── Batching ──────────────────────────────────────────────────── */
@@ -617,29 +738,78 @@ pub fn ready_tasks(tasks: &[Task]) -> Vec<&Task> {
     ready
 }
 
+/// The lines a message tells `events` in, one each but for the plain
+/// comments on one task: from `MERGED_FROM` on, they are one line. A comment
+/// that cannot wait (`is_urgent`) keeps a line of its own.
+fn lines_of(events: &[OrchestratorEvent], titles: &dyn Fn(&str) -> Option<String>) -> Vec<String> {
+    let plain =
+        |event: &OrchestratorEvent| event.kind() == EventKind::TaskCommented && !is_urgent(event);
+    let mut counts: HashMap<&str, usize> = HashMap::new();
+    for event in events.iter().filter(|event| plain(event)) {
+        *counts
+            .entry(event.task_id().unwrap_or_default())
+            .or_default() += 1;
+    }
+    let mut merged: HashSet<&str> = HashSet::new();
+    let mut lines = Vec::new();
+    for event in events {
+        let task_id = event.task_id().unwrap_or_default();
+        if plain(event)
+            && counts
+                .get(task_id)
+                .is_some_and(|count| *count >= MERGED_FROM)
+        {
+            if merged.insert(task_id) {
+                let on_it: Vec<&OrchestratorEvent> = events
+                    .iter()
+                    .filter(|other| plain(other) && other.task_id() == Some(task_id))
+                    .collect();
+                lines.push(describe_comments(&on_it));
+            }
+            continue;
+        }
+        lines.push(describe_event(event, titles));
+    }
+    lines
+}
+
 /// The message a batch becomes (`renderDelta`).
 pub fn render_delta(events: &[OrchestratorEvent], tasks: &[Task], workspace: &str) -> String {
+    render(events, tasks, workspace, false)
+}
+
+/// The message a batch becomes; `digest`: nothing in it is urgent, it waited
+/// for the others.
+fn render(events: &[OrchestratorEvent], tasks: &[Task], workspace: &str, digest: bool) -> String {
     let titles = |id: &str| {
         tasks
             .iter()
             .find(|task| task.id == id)
             .map(|task| task.title.clone())
     };
-    let shown = &events[..events.len().min(MAX_LINES)];
-    let mut lines: Vec<String> = shown
+    let all = lines_of(events, &titles);
+    let shown = all.len().min(MAX_LINES);
+    let mut lines: Vec<String> = all[..shown]
         .iter()
-        .map(|event| format!("- {}", describe_event(event, &titles)))
+        .map(|line| format!("- {line}"))
         .collect();
-    let hidden = events.len() - shown.len();
+    let hidden = all.len() - shown;
     if hidden > 0 {
         lines.push(format!(
             "- …and {hidden} more: board_list_tasks and worker_list have the rest."
         ));
     }
-    let head = if events.len() == 1 {
-        format!("1 update in workspace \"{workspace}\":")
+    let count = if events.len() == 1 {
+        "1 update".to_string()
     } else {
-        format!("{} updates in workspace \"{workspace}\":", events.len())
+        format!("{} updates", events.len())
+    };
+    let head = if digest {
+        format!(
+            "{count} in workspace \"{workspace}\", a digest of the last minutes (nothing urgent):"
+        )
+    } else {
+        format!("{count} in workspace \"{workspace}\":")
     };
     let mut out = vec![head];
     out.extend(lines);
@@ -679,6 +849,8 @@ pub struct TaskSnap {
     pub labels: Vec<String>,
     pub comments: Vec<String>,
     pub blocked: Option<BlockSnap>,
+    /// When its progress was last reported.
+    pub progress_at: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -701,8 +873,26 @@ pub fn snap_board(tasks: &[Task]) -> HashMap<String, TaskSnap> {
                         reason: blocked.reason.clone(),
                         reminded: blocked.reminded.is_some_and(|at| at != 0),
                     }),
+                    progress_at: task.progress.as_ref().map(|progress| progress.at),
                 },
             )
+        })
+        .collect()
+}
+
+/// Who reported progress on a task since the last read: the reporter, else
+/// the task's assignee. No event: the orchestrator reads progress on the
+/// board; it only tells that a worker told idle did something since.
+fn progress_reported(before: &HashMap<String, TaskSnap>, after: &[Task]) -> Vec<String> {
+    after
+        .iter()
+        .filter_map(|task| {
+            let progress = task.progress.as_ref()?;
+            let was = before.get(&task.id)?;
+            if was.progress_at == Some(progress.at) {
+                return None;
+            }
+            progress.by.clone().or_else(|| task.assignee.clone())
         })
         .collect()
 }
@@ -836,6 +1026,22 @@ pub trait EngineIo {
     fn load_board(&self, cwd: &str) -> Result<Vec<Task>, String>;
     /// `bridgeEnqueue`: the pane's mod submits it once the session is idle.
     fn enqueue(&self, pane: &str, text: &str, from: &str) -> Result<(), String>;
+    /// What the agent of pane `pane` has running of its own between two
+    /// turns — a build, a benchmark, a watch on its CI it started in the
+    /// background (`hangar_core::pty::pane_job`). `Unknown`, the default: a
+    /// pane on a node, or one nobody can look into, is called idle as it
+    /// always was.
+    fn pane_job(&self, pane: &str) -> PaneJob {
+        let _ = pane;
+        PaneJob::Unknown
+    }
+    /// How far the HEAD of the checkout at `cwd` has moved (`head::moves`):
+    /// a worker that committed moved it. `None`, the default: a checkout on
+    /// a node, or none.
+    fn head_moves(&self, cwd: &str) -> Option<u64> {
+        let _ = cwd;
+        None
+    }
 }
 
 /// A deadline the engine keeps; `seq` orders two that fall on the same
@@ -851,6 +1057,9 @@ struct Space {
     journal: Vec<JournalEntry>,
     pending: Vec<JournalEntry>,
     first_pending_at: Option<u64>,
+    /// The first urgent event pending: the batch goes within `MAX_WAIT_MS`
+    /// of it. `None`: what is pending waits for the digest.
+    first_urgent_at: Option<u64>,
     last_sent_at: u64,
     timer: Option<Timer>,
     /// The batch waits for the orchestrator's turn to end.
@@ -870,8 +1079,54 @@ struct WorkerWatch {
     /// The worker had a turn and handed back; not merely never started.
     after_turn: bool,
     waiting_sent: bool,
+    /// Told idle since its activity last changed: once a spell.
     idle_sent: bool,
     exit_sent: bool,
+    /// When it was last told idle, and its checkout's HEAD then
+    /// (`EngineIo::head_moves`): the next time waits for it to do something.
+    idle_told_at: Option<u64>,
+    head_told: Option<u64>,
+    /// When it last commented, reported progress or delivered.
+    progress_at: Option<u64>,
+    /// A command of its own that runs between its turns, as last seen, and
+    /// when it was; when its pane was last looked into.
+    job: Option<String>,
+    job_seen_at: Option<u64>,
+    job_checked_at: Option<u64>,
+}
+
+impl WorkerWatch {
+    fn new(workspace_id: WsId, pane: &Pane, activity: AgentActivity, now: u64) -> Self {
+        WorkerWatch {
+            workspace_id,
+            name: pane.name.clone(),
+            task_id: pane.task_id.clone(),
+            activity,
+            since: now,
+            after_turn: false,
+            waiting_sent: false,
+            idle_sent: false,
+            exit_sent: false,
+            idle_told_at: None,
+            head_told: None,
+            progress_at: None,
+            job: None,
+            job_seen_at: None,
+            job_checked_at: None,
+        }
+    }
+
+    /// Whether it may be told idle again: never told, told long enough ago,
+    /// or it did something since — commented, reported, delivered (noted as
+    /// they come), committed (`head` is its HEAD now).
+    fn may_be_told_idle(&self, head: impl FnOnce() -> Option<u64>, now: u64) -> bool {
+        let Some(told) = self.idle_told_at else {
+            return true;
+        };
+        now.saturating_sub(told) >= IDLE_AGAIN_MS
+            || self.progress_at.is_some_and(|at| at > told)
+            || head().is_some_and(|head| Some(head) != self.head_told)
+    }
 }
 
 /// Where a pane's session stands, from its mod's own reports.
@@ -979,6 +1234,7 @@ impl OrchestratorEngine {
             event,
             quiet: quiet || own,
         };
+        self.note_progress(workspace_id, &entry.event, now);
         let s = self.space(workspace_id);
         s.journal.push(entry.clone());
         if s.journal.len() > JOURNAL_SIZE {
@@ -989,6 +1245,9 @@ impl OrchestratorEngine {
             return;
         }
         s.first_pending_at.get_or_insert(entry.at);
+        if is_urgent(&entry.event) {
+            s.first_urgent_at.get_or_insert(entry.at);
+        }
         s.pending.push(entry);
         if s.pending.len() > MAX_PENDING {
             let over = s.pending.len() - MAX_PENDING;
@@ -1000,22 +1259,44 @@ impl OrchestratorEngine {
         }
     }
 
-    /// The next look at a workspace's batch: once things quieten (never later
-    /// than the first event's deadline), or — `hold` — a few seconds on,
-    /// while the orchestrator is in a turn. Never closer than the gap to the
-    /// last message.
+    /// A worker that commented or delivered did something: told idle, it
+    /// may be told so again (`WorkerWatch::may_be_told_idle`).
+    fn note_progress(&mut self, workspace_id: &str, event: &OrchestratorEvent, now: u64) {
+        let who = match event {
+            OrchestratorEvent::TaskCommented { by, .. } => by,
+            OrchestratorEvent::Delivery { worker, .. } => worker,
+            _ => return,
+        };
+        self.progressed(workspace_id, who, now);
+    }
+
+    fn progressed(&mut self, workspace_id: &str, who: &str, now: u64) {
+        for (_, w) in &mut self.workers {
+            if w.workspace_id == workspace_id && same_name(&w.name, who) {
+                w.progress_at = Some(now);
+            }
+        }
+    }
+
+    /// The next look at a workspace's batch: with something urgent in it,
+    /// once things quieten (never later than the first urgent event's
+    /// deadline); without, when the digest is due; or — `hold` — a few
+    /// seconds on, while the orchestrator is in a turn. Never closer than the
+    /// gap to the last message.
     fn schedule(&mut self, workspace_id: &str, hold: bool, now: u64) {
-        let (last_sent_at, first_pending_at) = {
+        let (last_sent_at, first_pending_at, first_urgent_at) = {
             let s = self.space(workspace_id);
-            (s.last_sent_at, s.first_pending_at)
+            (s.last_sent_at, s.first_pending_at, s.first_urgent_at)
         };
         let t = now as i128;
         let gap = last_sent_at as i128 + MIN_GAP_MS as i128 - t;
-        let deadline = first_pending_at.map_or(t, |at| at as i128) + MAX_WAIT_MS as i128 - t;
         let wanted = if hold {
             HOLD_MS as i128
-        } else {
+        } else if let Some(urgent) = first_urgent_at {
+            let deadline = urgent as i128 + MAX_WAIT_MS as i128 - t;
             (DEBOUNCE_MS as i128).min(deadline)
+        } else {
+            first_pending_at.map_or(t, |at| at as i128) + DIGEST_MS as i128 - t
         };
         let delay = wanted.max(gap).max(0) as u64;
         let timer = self.timer(now + delay);
@@ -1036,6 +1317,7 @@ impl OrchestratorEngine {
             let s = self.space(workspace_id);
             s.pending.clear();
             s.first_pending_at = None;
+            s.first_urgent_at = None;
             return;
         };
         // Queued now, it would sit in the pane's queue while the news aged;
@@ -1061,6 +1343,7 @@ impl OrchestratorEngine {
         let s = self.space(&ws.id);
         let batch = std::mem::take(&mut s.pending);
         s.first_pending_at = None;
+        s.first_urgent_at = None;
         if batch.is_empty() {
             return None;
         }
@@ -1073,7 +1356,9 @@ impl OrchestratorEngine {
         if events.is_empty() {
             return None;
         }
-        let text = render_delta(&events, &s.tasks, &ws.name);
+        // Nothing urgent left in it: it waited for the digest.
+        let digest = !events.iter().any(is_urgent);
+        let text = render(&events, &s.tasks, &ws.name, digest);
         s.last_sent_at = now;
         // A pane that cannot take it now gets the next batch; nothing to undo.
         let _ = io.enqueue(&orchestrator.id, &text, "hangar");
@@ -1103,8 +1388,16 @@ impl OrchestratorEngine {
                 },
             )
         });
+        let reported = s
+            .board
+            .as_ref()
+            .map(|before| progress_reported(before, &tasks))
+            .unwrap_or_default();
         s.board = Some(snap_board(&tasks));
         s.tasks = tasks;
+        for who in reported {
+            self.progressed(&ws.id, &who, now);
+        }
         for (event, quiet) in changes.unwrap_or_default() {
             self.post(io, &ws.id, event, quiet, now);
         }
@@ -1131,20 +1424,9 @@ impl OrchestratorEngine {
                 let at = match self.workers.iter().position(|(id, _)| *id == pane.id) {
                     Some(at) => at,
                     None => {
-                        self.workers.push((
-                            pane.id.clone(),
-                            WorkerWatch {
-                                workspace_id: ws.id.clone(),
-                                name: pane.name.clone(),
-                                task_id: pane.task_id.clone(),
-                                activity,
-                                since: now,
-                                after_turn: activity == AgentActivity::Yours,
-                                waiting_sent: false,
-                                idle_sent: false,
-                                exit_sent: false,
-                            },
-                        ));
+                        let mut w = WorkerWatch::new(ws.id.clone(), pane, activity, now);
+                        w.after_turn = activity == AgentActivity::Yours;
+                        self.workers.push((pane.id.clone(), w));
                         self.workers.len() - 1
                     }
                 };
@@ -1186,12 +1468,21 @@ impl OrchestratorEngine {
                     let open = task.is_none_or(|task| {
                         task.column == "doing" && !task.labels.iter().any(|l| l == NEEDS_YOU_LABEL)
                     });
-                    if !delivered && open {
-                        self.workers[at].1.idle_sent = true;
+                    let cwd = pane.cwd.clone().unwrap_or_else(|| ws.cwd.clone());
+                    if !delivered
+                        && open
+                        && w.may_be_told_idle(|| io.head_moves(&cwd), now)
+                        && let Some(job) = self.idle_now(io, at, &pane.id, for_ms, now)
+                    {
+                        let w = &mut self.workers[at].1;
+                        w.idle_sent = true;
+                        w.idle_told_at = Some(now);
+                        w.head_told = io.head_moves(&cwd);
                         let event = OrchestratorEvent::WorkerIdle {
                             worker: pane.name.clone(),
                             task_id: w.task_id.clone(),
                             for_ms,
+                            job,
                         };
                         self.post(io, &ws.id, event, false, now);
                     }
@@ -1228,6 +1519,50 @@ impl OrchestratorEngine {
         }
     }
 
+    /// Whether worker `at`, which ended its turn `for_ms` ago, is idle now:
+    /// `Some(None)` when nothing of its own runs in its pane, and nothing has
+    /// for `IDLE_MS`; `Some(Some(job))` when a job of its own has run for
+    /// `JOB_HOLD_MS`, long enough to tell; `None` while it waits on its job.
+    /// Its pane is looked into once a `JOB_POLL_MS` at most, which is also
+    /// how often a running job is looked at again until it ends.
+    fn idle_now(
+        &mut self,
+        io: &dyn EngineIo,
+        at: usize,
+        pane: &str,
+        for_ms: u64,
+        now: u64,
+    ) -> Option<Option<String>> {
+        let w = &mut self.workers[at].1;
+        let looked = w
+            .job_checked_at
+            .is_some_and(|checked| now.saturating_sub(checked) < JOB_POLL_MS);
+        if !looked {
+            w.job_checked_at = Some(now);
+            match io.pane_job(pane) {
+                PaneJob::Running(job) => {
+                    w.job = Some(job);
+                    w.job_seen_at = Some(now);
+                }
+                // Unknown: a pane on a node, or one nobody can look into;
+                // idle as it always was.
+                PaneJob::Nothing | PaneJob::Unknown => w.job = None,
+            }
+        }
+        match &w.job {
+            Some(job) if for_ms >= JOB_HOLD_MS => Some(Some(job.clone())),
+            Some(_) => None,
+            // Its job ended a moment ago: it is quiet from then on.
+            None if w
+                .job_seen_at
+                .is_some_and(|seen| now.saturating_sub(seen) < IDLE_MS) =>
+            {
+                None
+            }
+            None => Some(None),
+        }
+    }
+
     fn exited(&mut self, io: &dyn EngineIo, pane_id: &str, now: u64) {
         let state = io.state();
         for (ws, _) in orchestrated(&state) {
@@ -1241,20 +1576,11 @@ impl OrchestratorEngine {
             match self.workers.iter_mut().find(|(id, _)| id == pane_id) {
                 Some((_, w)) if w.exit_sent => return,
                 Some((_, w)) => w.exit_sent = true,
-                None => self.workers.push((
-                    pane_id.to_string(),
-                    WorkerWatch {
-                        workspace_id: ws.id.clone(),
-                        name: pane.name.clone(),
-                        task_id: pane.task_id.clone(),
-                        activity: AgentActivity::Idle,
-                        since: now,
-                        after_turn: false,
-                        waiting_sent: false,
-                        idle_sent: false,
-                        exit_sent: true,
-                    },
-                )),
+                None => {
+                    let mut w = WorkerWatch::new(ws.id.clone(), &pane, AgentActivity::Idle, now);
+                    w.exit_sent = true;
+                    self.workers.push((pane_id.to_string(), w));
+                }
             }
             let event = OrchestratorEvent::WorkerExited {
                 worker: pane.name.clone(),

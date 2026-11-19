@@ -1,6 +1,7 @@
 //! Settings › Kits: the kits installed on this machine, adding one from a
 //! folder or a GitHub link, checking and applying updates, removing
-//! (`KitsView` and `KitsSettings` of `settings/KitsSettings.tsx`).
+//! (`KitsView` and `KitsSettings` of `settings/KitsSettings.tsx`); for a kit
+//! with skills or hooks for Codex, « Add to Codex » (`super::codex`).
 //!
 //! The page is a model ([`PageModel`], from the kits and what the page
 //! remembers) and its drawing. The library sits above the list
@@ -19,12 +20,14 @@ use hangar_ui::badge::Tone;
 use hangar_ui::{button, form, input, text as typography};
 
 use super::activation_model::{Loadable, Tag, TagTone};
-use super::{gallery, msg, notice, tag};
+use super::codex::{self as codex_view, CodexControl};
+use super::{agents_tag, gallery, msg, notice, tag};
 use crate::ctx::Ctx;
 use crate::kits::activation::{
     KitState, SourceKind, hooks_to_accept, kit_name, kit_requested, kit_state,
     only_commands_to_accept, permission_diff, source_line,
 };
+use crate::kits::codex::CodexEntries;
 use crate::kits::icon::kit_icon;
 use crate::kits::model::{everywhere_kits, kit_pinned_tag, workspace_kits};
 use crate::kits::{Adding, Msg, Page, State, UpdateNote};
@@ -123,6 +126,8 @@ pub struct RowModel {
     pub id: String,
     pub name: String,
     pub version: Option<String>,
+    /// « Claude Code only »: its manifest names one agent.
+    pub agents: Option<Tag>,
     pub description: Option<String>,
     pub source: String,
     /// « This kit cannot be used » and why.
@@ -132,6 +137,8 @@ pub struct RowModel {
     pub note_extra: Option<String>,
     pub available: Option<String>,
     pub everywhere: EverywhereModel,
+    /// « Add to Codex », for a kit with skills or hooks for Codex.
+    pub codex: Option<CodexControl>,
     pub actions: Actions,
 }
 
@@ -187,6 +194,8 @@ pub struct PageInput<'a> {
     pub everywhere: &'a [WorkspaceKit],
     /// Whether a workspace is active, to open a pane for a setup step in.
     pub has_active_workspace: bool,
+    /// Where each kit stands with Codex.
+    pub codex: &'a CodexEntries,
 }
 
 /// The example the hint gives.
@@ -441,6 +450,7 @@ impl PageModel {
                     .t_with(Key::KitsManageBrokenName, &args!("id" => kit.id.as_str()))
                     .into_owned(),
             },
+            agents: manifest.and_then(|manifest| agents_tag(t, &manifest.agents)),
             version: manifest.map(|_| {
                 t.t_with(
                     Key::KitsManageVersion,
@@ -479,6 +489,10 @@ impl PageModel {
                 review,
                 hint,
             },
+            codex: input
+                .codex
+                .get(&kit.id)
+                .and_then(|entry| CodexControl::build(t, &kit.id, &name, entry)),
             actions,
         }
     }
@@ -503,6 +517,7 @@ impl PageModel {
                 for row in rows {
                     out.push(row.name.clone());
                     out.extend(row.version.clone());
+                    out.extend(row.agents.as_ref().map(|tag| tag.label.clone()));
                     out.extend(row.description.clone());
                     out.push(row.source.clone());
                     if let Some((title, detail)) = &row.error {
@@ -516,6 +531,7 @@ impl PageModel {
                     out.extend(row.everywhere.tags.iter().map(|tag| tag.label.clone()));
                     out.extend(row.everywhere.review.clone());
                     out.push(row.everywhere.hint.clone());
+                    out.extend(row.codex.as_ref().map(CodexControl::text));
                     match &row.actions {
                         Actions::Confirm {
                             ask,
@@ -582,6 +598,7 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
         workspaces: &workspaces,
         everywhere: &everywhere,
         has_active_workspace: ctx.model.active_workspace().is_some(),
+        codex: &st.codex,
     };
     let model = PageModel::build(ctx.i18n, &input);
     draw(ctx, st, &model, live.kits())
@@ -701,6 +718,9 @@ fn row_view<'a>(ctx: Ctx<'a>, one: &RowModel, installed: &[KitInfo]) -> Element<
     if let Some(version) = &one.version {
         title = title.push(typography::mono(ctx.theme, version.clone()));
     }
+    if let Some(agents) = &one.agents {
+        title = title.push(tag(ctx, agents));
+    }
     let mut text_column = column![title.wrap()].spacing(tokens::space::XXS);
     if let Some(description) = &one.description {
         text_column = text_column.push(typography::hint(ctx.theme, description.clone()));
@@ -761,6 +781,9 @@ fn row_view<'a>(ctx: Ctx<'a>, one: &RowModel, installed: &[KitInfo]) -> Element<
             .width(Length::Fill)
             .into(),
     );
+    if let Some(control) = &one.codex {
+        parts.push(codex_view::view(ctx, control));
+    }
 
     match &one.actions {
         Actions::Confirm {

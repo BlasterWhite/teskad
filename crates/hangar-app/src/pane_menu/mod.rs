@@ -2,10 +2,17 @@
 //! `TerminalPane.tsx` gave it; inventory §2.1/0).
 //!
 //! What a pane can do that is not worth a button of its own in a header that
-//! eight panes share: restart it, resume another session, split it; zoom,
-//! its saved commands and its changes when the header folded those buttons
-//! away; its part in the orchestration; then the Claude account it runs on
-//! (`accounts::menu_items`).
+//! eight panes share: restart it, resume another session, split it, open a
+//! pane of another agent beside it, pin it to its edge of the grid or let it
+//! go (`panes::Msg::Pin`); zoom, its saved commands and its changes when the
+//! header folded those buttons away; its part in the orchestration; the model
+//! its agent runs; then the account it runs on (`accounts::menu_items`).
+//!
+//! What the pane's agent can do decides which lines are there, never which
+//! agent it is (docs/native/agents.md D3): sessions to resume for an agent
+//! that resumes one, models for one that takes a model at launch. A line its
+//! agent could take but cannot now (an agent not on this computer, a role it
+//! could not hold) is greyed with the reason.
 //!
 //! The menu opens with its first line highlighted, so the arrows work
 //! straight away. Every line closes the menu and gives the keyboard back to
@@ -14,7 +21,7 @@
 
 use iced::{Element, Subscription, Task};
 
-use hangar_i18n::Key;
+use hangar_i18n::{Key, args};
 use hangar_ui::icon::Icon;
 use hangar_ui::{button, layer, menu};
 
@@ -22,12 +29,14 @@ use crate::commands::CommandId;
 use crate::ctx::Ctx;
 use crate::message::{Intent, Message};
 use crate::navigator::menu::set_off;
-use crate::orchestration_ui::actions::pin_refusal;
+use crate::orchestration_ui::actions::{PinRefusal, pin_refusal};
+use crate::orchestration_ui::models;
 use crate::palette::sources::workspace_of;
 use crate::services::{CoreEvent, Services};
 use crate::shell::MenuEntry;
-use crate::state::types::{Pane, PaneRole, Workspace};
-use crate::state::{Model, PaneId, Patch, SplitDir};
+use crate::state::roles::RoleRefusal;
+use crate::state::types::{AgentKind, Pane, PaneRole, Workspace};
+use crate::state::{Model, PaneId, Patch, SplitDir, StoreAction, WsId};
 
 /// The menu's width bounds (`.pane-menu`).
 const MIN_WIDTH: f32 = 232.0;
@@ -63,6 +72,13 @@ pub enum Msg {
     /// A line: the menu closes, the terminal gets the keyboard back, then
     /// what the line does.
     Pick(PaneId, Box<Message>),
+    /// « New Codex pane »: a pane of `kind`'s agent beside `near`, which
+    /// takes the keyboard.
+    NewPane {
+        ws: WsId,
+        near: PaneId,
+        kind: AgentKind,
+    },
 }
 
 fn send(msg: Msg) -> Message {
@@ -71,11 +87,28 @@ fn send(msg: Msg) -> Message {
 
 pub fn update(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Message> {
     let _ = sv;
+    step(st, m, msg)
+}
+
+/// Everything a message does, which needs nothing from the services.
+fn step(st: &mut State, m: &mut Model, msg: Msg) -> Task<Message> {
     match msg {
         Msg::Toggle(pane, folded) => {
             let again = st.open.as_ref().is_some_and(|(open, _)| open == &pane);
-            st.open = if again { None } else { Some((pane, folded)) };
-            Task::none()
+            st.open = if again {
+                None
+            } else {
+                Some((pane.clone(), folded))
+            };
+            // An agent that lists its own models is asked for them as its
+            // menu opens, for the model lines.
+            let kind = workspace_of(m, &pane)
+                .and_then(|ws| ws.panes.iter().find(|entry| entry.id == pane))
+                .and_then(|entry| entry.agent.kind());
+            match kind {
+                Some(kind) if !again => models::ask(m, kind),
+                _ => Task::none(),
+            }
         }
         Msg::Close => {
             let Some((pane, _)) = st.open.take() else {
@@ -86,6 +119,27 @@ pub fn update(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Me
         Msg::Pick(pane, action) => {
             st.open = None;
             focus_terminal(m, pane).chain(Task::done(*action))
+        }
+        Msg::NewPane { ws, near, kind } => {
+            let made = m
+                .apply(StoreAction::AddPane {
+                    ws: ws.clone(),
+                    agent: Some(kind.into()),
+                    near: Some(near),
+                    dir: None,
+                    cwd: None,
+                    name: None,
+                    init: None,
+                })
+                .pane;
+            match made {
+                Some(pane) => Task::done(Message::Intent(Intent::FocusPane {
+                    ws,
+                    pane,
+                    terminal: true,
+                })),
+                None => Task::none(),
+            }
         }
     }
 }
@@ -139,16 +193,24 @@ pub enum Part {
     Orchestrator,
     /// It may become the orchestrator: the menu offers to pin it.
     Free,
+    /// Its agent (named) cannot hold the role: the line is there, greyed,
+    /// with why.
+    Unable(&'static str),
 }
 
 /// The pane's part, by the orchestration panels' own rule (`pinRefusal`: one
-/// orchestrator per workspace, Claude Code only, never a worker, never the
-/// manager, never in the HQ). `None` for a pane the menu says nothing about.
+/// orchestrator per workspace, an agent that can hold the role, never a
+/// worker, never the manager, never in the HQ). `None` for a pane the menu
+/// says nothing about: a shell, or a pane the other rules leave out.
 pub fn part_in_orchestration(ws: &Workspace, pane: &Pane) -> Option<Part> {
     if pane.role == Some(PaneRole::Orchestrator) {
         return Some(Part::Orchestrator);
     }
-    pin_refusal(ws, &pane.id).is_none().then_some(Part::Free)
+    match pin_refusal(ws, &pane.id) {
+        None => Some(Part::Free),
+        Some(PinRefusal::Agent(RoleRefusal::Unable { label })) => Some(Part::Unable(label)),
+        Some(_) => None,
+    }
 }
 
 /// A line that closes the menu, gives the terminal the keyboard back, then
@@ -168,6 +230,21 @@ fn line(
         item = item.shortcut(binding);
     }
     item.into()
+}
+
+/// The line that pins `pane` of `ws` to the edge of the grid it lies along,
+/// or lets it go when it is `pinned` (`panes::Msg::Pin`).
+fn pin_line(ctx: Ctx<'_>, ws: &WsId, pane: &PaneId, pinned: bool) -> menu::Entry<Message> {
+    let label = if pinned { Key::PaneUnpin } else { Key::PanePin };
+    let action = Message::Panes(crate::panes::Msg::Pin(ws.clone(), pane.clone(), !pinned));
+    line(
+        ctx,
+        pane,
+        label,
+        Icon::Pin,
+        Some(CommandId::PanePin),
+        action,
+    )
 }
 
 /// The menu's lines for `pane`, with what the header folded.
@@ -192,7 +269,10 @@ pub fn entries(ctx: Ctx<'_>, pane: &PaneId, folded: Folded) -> Vec<menu::Entry<M
             patch: Patch::none(),
         }),
     )];
-    if entry.agent.info().resumable {
+    // Sessions to resume for an agent that resumes one, where its kind keeps
+    // them (the session picker lists them by kind).
+    let kind = entry.agent.kind();
+    if kind.is_some_and(|kind| kind.info().caps.sessions.resume) {
         entries.push(line(
             ctx,
             pane,
@@ -233,6 +313,16 @@ pub fn entries(ctx: Ctx<'_>, pane: &PaneId, folded: Folded) -> Vec<menu::Entry<M
             }),
         ));
     }
+    // The splits open a pane of the same agent; one of each other agent
+    // opens beside it from here.
+    for other in AgentKind::ALL {
+        if kind != Some(other) {
+            entries.push(new_pane_line(ctx, ws, pane, other));
+        }
+    }
+    // With the splits, what else shapes the grid: the pane kept on its edge,
+    // at its size, whatever opens or closes beside it; or let go again.
+    entries.push(pin_line(ctx, &ws_id, pane, ws.pin_of(pane).is_some()));
 
     // Nothing to zoom out of, or onto, with a single pane.
     let zoomable = folded.zoom && ws.panes.len() > 1;
@@ -327,18 +417,133 @@ pub fn entries(ctx: Ctx<'_>, pane: &PaneId, folded: Folded) -> Vec<menu::Entry<M
                 pinned: true,
             }),
         ));
+    } else if let Some(Part::Unable(agent)) = part {
+        entries.push(menu::separator());
+        let reason = ctx
+            .i18n
+            .t_with(Key::PaneMenuPinUnable, &args!("agent" => agent));
+        entries.push(
+            menu::item(ctx.t(Key::OrchPin))
+                .icon(Icon::Orchestrator)
+                .disabled_because(reason.into_owned())
+                .into(),
+        );
     }
 
-    // The Claude account of the pane, which says nothing for a pane that
-    // does not run Claude Code. The accounts package starts its block with its
-    // own separator and heading, so none is added here: a second one would
-    // draw twice.
+    // The model its agent runs, for an agent that takes one at launch.
+    if let Some(kind) = kind.filter(|kind| kind.info().caps.launch.model) {
+        entries.push(menu::separator());
+        entries.extend(model_lines(ctx, &ws_id, entry, kind));
+    }
+
+    // The account of the pane's agent, which says nothing for a shell. The
+    // accounts package starts its block with its own separator and heading,
+    // so none is added here: a second one would draw twice.
     entries.extend(
         set_off(crate::accounts::menu_items(ctx, &ws.id, Some(pane)))
             .into_iter()
             .map(|entry| account_line(pane, entry)),
     );
     entries
+}
+
+/// « New Codex pane (beta) »: a pane of `kind`'s agent beside `pane`, greyed
+/// with why when that agent is not on this computer.
+fn new_pane_line(
+    ctx: Ctx<'_>,
+    ws: &Workspace,
+    pane: &PaneId,
+    kind: AgentKind,
+) -> menu::Entry<Message> {
+    let agent = kind.info().label;
+    let mut label = ctx
+        .i18n
+        .t_with(Key::PaneMenuNewAgentPane, &args!("agent" => agent))
+        .into_owned();
+    if crate::accounts::BETA.contains(&kind) {
+        label = ctx
+            .i18n
+            .t_with(Key::AccountsAgentBeta, &args!("agent" => label))
+            .into_owned();
+    }
+    let item = menu::item(label).icon(Icon::Plus);
+    // A workspace on a node runs the node's agents, which this computer
+    // cannot tell here: the node says so if it lacks one.
+    if ws.node.is_none() && !crate::shell::setup::installed(ctx.model, kind) {
+        let reason = ctx
+            .i18n
+            .t_with(Key::PaneMenuNotInstalled, &args!("agent" => agent));
+        return item.disabled_because(reason.into_owned()).into();
+    }
+    let action = send(Msg::NewPane {
+        ws: ws.id.clone(),
+        near: pane.clone(),
+        kind,
+    });
+    item.on_select(send(Msg::Pick(pane.clone(), Box::new(action))))
+        .into()
+}
+
+/// « Model · Codex »: the models the pane's agent is offered
+/// (`orchestration_ui::models`), its own default first and the one it runs
+/// ticked. Another one restarts it with that model, on its conversation.
+fn model_lines(
+    ctx: Ctx<'_>,
+    ws: &WsId,
+    entry: &Pane,
+    kind: AgentKind,
+) -> Vec<menu::Entry<Message>> {
+    let agent = kind.info().label;
+    let mut lines = vec![menu::heading(
+        ctx.i18n
+            .t_with(Key::PaneMenuModel, &args!("agent" => agent))
+            .into_owned(),
+    )];
+    let current = entry
+        .model
+        .as_deref()
+        .map(str::trim)
+        .filter(|model| !model.is_empty());
+    let offered = models::offered(ctx.model, kind);
+    // None is the agent's own default.
+    let mut names: Vec<Option<String>> = vec![None];
+    names.extend(offered.iter().flatten().cloned().map(Some));
+    if let Some(current) = current
+        && !names.iter().any(|name| name.as_deref() == Some(current))
+    {
+        names.push(Some(current.to_owned()));
+    }
+    for name in names {
+        let ticked = name.as_deref() == current;
+        let item = match &name {
+            Some(model) => menu::item(model.clone()).mono(),
+            None => menu::item(
+                ctx.i18n
+                    .t_with(Key::PaneMenuModelDefault, &args!("agent" => agent))
+                    .into_owned(),
+            ),
+        }
+        .checked(ticked);
+        // The one it runs is kept: picking it only closes the menu.
+        let action = if ticked {
+            send(Msg::Close)
+        } else {
+            let respawn = Message::Intent(Intent::ReplacePane {
+                ws: ws.clone(),
+                pane: entry.id.clone(),
+                patch: Patch::new(move |pane: &mut Pane| pane.model = name.clone()),
+            });
+            send(Msg::Pick(entry.id.clone(), Box::new(respawn)))
+        };
+        lines.push(item.on_select(action).into());
+    }
+    if offered.is_none() && models::asking(ctx.model, kind) {
+        let asking = ctx
+            .i18n
+            .t_with(Key::OrchModelsAsking, &args!("agent" => agent));
+        lines.push(menu::item(asking.into_owned()).disabled().into());
+    }
+    lines
 }
 
 /// One of the accounts package's lines, in this menu: picking it closes the

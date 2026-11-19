@@ -176,11 +176,18 @@ fn general_has_every_row_of_the_old_schema_with_its_default() {
             "projectsFolder: custom ProjectsFolder",
             "autoResume: toggle AutoResume = true",
             "claudeBridge: toggle ClaudeBridge = true",
+            // Attached by default (D5).
+            "codexAttach: toggle CodexAttach = true",
             r#"launchDelay: slider LaunchDelayMs = 700 [0..4000 by 100] "700 ms""#,
             "hibernateIdle: toggle HibernateIdle = true",
             r#"hibernateAfter: select HibernateAfterMin = "10""#,
             "agentPaneControl: toggle AgentPaneControl = true",
             r#"agentCommand.claude: input ClaudeCommand = "" ("claude")"#,
+            r#"agentCommand.codex: input CodexCommand = "" ("codex")"#,
+            // Automatic, and the orchestrator's own.
+            r#"defaultOrchestratorAgent: select DefaultOrchestratorAgent = """#,
+            r#"defaultWorkerAgent: select DefaultWorkerAgent = """#,
+            r#"defaultReviewerAgent: select DefaultReviewerAgent = """#,
             // The Claude Code setup's way out (shell/setup).
             "shellsOnly: toggle ShellsOnly = false",
         ]
@@ -200,6 +207,8 @@ fn appearance_terminal_shell_and_notifications_have_every_row_too() {
         appearance.push("systemTitleBar: toggle SystemTitleBar = false");
     }
     appearance.push(r#"themePick: custom Themes { active: "graphite" }"#);
+    // Linux's, the platform of the world these tests build.
+    appearance.push(r#"windowOpacity: slider WindowOpacity = 100 [50..100 by 1] "100 %""#);
     assert_eq!(table(&built, SettingsCategory::Appearance), appearance);
     assert_eq!(
         table(&built, SettingsCategory::Terminal),
@@ -266,7 +275,7 @@ fn voice_has_every_row_of_the_old_schema_with_a_local_engine() {
             "voiceApiKey: custom VoiceKey",
             "voiceCleanup: toggle VoiceCleanup = false",
             r#"voiceCleanupModel: input VoiceCleanupModel = "" ("llama-3.1-8b-instant")"#,
-            r#"voiceCleanupHint: input VoiceCleanupHint = "" ("Hangar.AI, pnpm, Tauri, simnJS")"#,
+            r#"voiceCleanupHint: input VoiceCleanupHint = "" ("HangarAI, pnpm, Tauri, simnJS")"#,
         ]
     );
 }
@@ -340,7 +349,7 @@ fn about_shows_the_name_the_version_and_a_two_step_reset() {
             "reset: action ResetSettings (confirm) (danger)",
         ]
     );
-    assert_eq!(find(&built, "appName").label.as_deref(), Some("Hangar.AI"));
+    assert_eq!(find(&built, "appName").label.as_deref(), Some("HangarAI"));
 }
 
 #[test]
@@ -370,7 +379,7 @@ fn the_rows_that_need_a_workspace_exist_only_with_one() {
     if crate::shell::title_bar::has_own_bar() {
         appearance.push("systemTitleBar");
     }
-    appearance.extend(["themeScope", "themePick"]);
+    appearance.extend(["themeScope", "themePick", "windowOpacity"]);
     assert_eq!(
         ids(category(&with, SettingsCategory::Appearance)),
         appearance
@@ -424,6 +433,38 @@ fn the_theme_row_is_found_by_the_name_of_any_theme() {
     assert!(keywords.starts_with("theme "));
     for theme in hangar_theme::themes() {
         assert!(keywords.contains(theme.name), "{}", theme.name);
+    }
+}
+
+#[test]
+fn the_window_opacity_is_offered_on_linux_only_whatever_the_theme() {
+    let mut world = World::new();
+    world.settings.window_opacity = 0.854;
+    world.settings.theme_id = "tokyo-night".into();
+    let built = world.build();
+    let row = find(&built, "windowOpacity");
+    assert_eq!(
+        describe(row),
+        r#"slider WindowOpacity = 85 [50..100 by 1] "85 %""#
+    );
+    assert!(
+        row.hint
+            .as_deref()
+            .is_some_and(|hint| hint.contains("Blur my Shell"))
+    );
+    assert!(row.keywords.contains("transparent"));
+    // Out of range in the file: shown within the slider's bounds.
+    world.settings.window_opacity = 0.2;
+    assert_eq!(
+        describe(find(&world.build(), "windowOpacity")),
+        r#"slider WindowOpacity = 50 [50..100 by 1] "50 %""#
+    );
+    // Windows and macOS draw their windows opaque: no row there.
+    for platform in [Platform::Windows, Platform::Macos] {
+        world.platform = Some(platform);
+        let built = world.build();
+        let rows = ids(category(&built, SettingsCategory::Appearance));
+        assert!(!rows.contains(&"windowOpacity"), "{platform:?}");
     }
 }
 
@@ -532,6 +573,193 @@ fn a_launch_command_row_shows_what_the_person_typed() {
         describe(find(&built, "agentCommand.claude")),
         r#"input ClaudeCommand = "claude --verbose" ("claude")"#
     );
+}
+
+#[test]
+fn a_codex_launch_command_row_shows_what_the_person_typed() {
+    let mut world = World::new();
+    world.settings.agent_commands.codex = Some("codex --profile work".into());
+    let built = world.build();
+    assert_eq!(
+        describe(find(&built, "agentCommand.codex")),
+        r#"input CodexCommand = "codex --profile work" ("codex")"#
+    );
+    // Claude Code's row does not follow it.
+    assert_eq!(
+        describe(find(&built, "agentCommand.claude")),
+        r#"input ClaudeCommand = "" ("claude")"#
+    );
+}
+
+#[test]
+fn attaching_hangar_to_codex_is_a_switch_that_explains_itself_and_its_fallback() {
+    let mut world = World::new();
+    let built = world.build();
+    let attach = find(&built, "codexAttach");
+    assert_eq!(
+        attach.label.as_deref(),
+        Some("Attach Hangar to Codex (beta)")
+    );
+    let hint = attach.hint.as_deref().unwrap_or_default();
+    assert!(hint.contains("Codex's own server"), "{hint}");
+    // The fallback: the plain terminal, when it is off or cannot be attached.
+    assert!(hint.contains("plain terminal"), "{hint}");
+    // The Claude Code bridge stays as it was, beside it.
+    assert_eq!(
+        find(&built, "claudeBridge").label.as_deref(),
+        Some("Claude Code bridge")
+    );
+    world.settings.codex_attach = false;
+    assert_eq!(
+        describe(find(&world.build(), "codexAttach")),
+        "toggle CodexAttach = false"
+    );
+}
+
+#[test]
+fn the_codex_rows_say_they_are_in_beta_in_both_languages_and_claude_code_does_not() {
+    for (locale, beta) in [(Locale::En, "beta"), (Locale::Fr, "bêta")] {
+        let mut world = World::new();
+        world.locale = locale;
+        let built = world.build();
+        for id in ["codexAttach", "agentCommand.codex"] {
+            let label = find(&built, id).label.clone().unwrap_or_default();
+            assert!(label.ends_with(&format!("({beta})")), "{id}: {label}");
+        }
+        let Kind::Select { choices, .. } = &find(&built, "defaultOrchestratorAgent").kind else {
+            panic!("a select");
+        };
+        assert_eq!(choices[1].label, "Claude Code");
+        assert_eq!(choices[2].label, format!("Codex ({beta})"));
+        assert_eq!(
+            find(&built, "agentCommand.claude").label.as_deref(),
+            Some("Claude Code")
+        );
+    }
+}
+
+#[test]
+fn the_default_agents_offer_automatic_or_an_agent_and_show_the_one_chosen() {
+    let mut world = World::new();
+    let built = world.build();
+    let choices = |built: &[Category], id: &str| -> Vec<(String, String)> {
+        let Kind::Select { choices, .. } = &find(built, id).kind else {
+            panic!("{id} is a select");
+        };
+        choices
+            .iter()
+            .map(|c| (c.value.clone(), c.label.to_string()))
+            .collect()
+    };
+    let pair = |value: &str, label: &str| (value.to_string(), label.to_string());
+    // Automatic is the D20 rule; the others default to the orchestrator's.
+    assert_eq!(
+        choices(&built, "defaultOrchestratorAgent"),
+        [
+            pair("", "Automatic"),
+            pair("claude", "Claude Code"),
+            pair("codex", "Codex (beta)")
+        ]
+    );
+    for id in ["defaultWorkerAgent", "defaultReviewerAgent"] {
+        assert_eq!(
+            choices(&built, id)[0],
+            pair("", "Same as the orchestrator"),
+            "{id}"
+        );
+    }
+    assert!(
+        find(&built, "defaultOrchestratorAgent")
+            .hint
+            .as_deref()
+            .is_some_and(|hint| hint.contains("Claude Code when both"))
+    );
+
+    world.settings.default_orchestrator_agent = Some(AgentKind::Codex);
+    world.settings.default_worker_agent = Some(AgentKind::Claude);
+    world.settings.default_reviewer_agent = Some(AgentKind::Codex);
+    let chosen = world.build();
+    assert_eq!(
+        describe(find(&chosen, "defaultOrchestratorAgent")),
+        r#"select DefaultOrchestratorAgent = "codex""#
+    );
+    assert_eq!(
+        describe(find(&chosen, "defaultWorkerAgent")),
+        r#"select DefaultWorkerAgent = "claude""#
+    );
+    assert_eq!(
+        describe(find(&chosen, "defaultReviewerAgent")),
+        r#"select DefaultReviewerAgent = "codex""#
+    );
+}
+
+#[test]
+fn every_value_a_default_agent_select_offers_is_accepted_by_its_target() {
+    let built = World::new().build();
+    let scope = Scope {
+        workspace: None,
+        theme_id: "graphite",
+    };
+    for id in [
+        "defaultOrchestratorAgent",
+        "defaultWorkerAgent",
+        "defaultReviewerAgent",
+    ] {
+        let Kind::Select {
+            choices, target, ..
+        } = &find(&built, id).kind
+        else {
+            panic!("{id} is a select");
+        };
+        for choice in choices {
+            assert!(
+                action(
+                    scope,
+                    &Change::set(target.clone(), Value::Text(choice.value.clone()))
+                )
+                .is_some(),
+                "{id}: {:?}",
+                choice.value
+            );
+        }
+    }
+}
+
+#[test]
+fn the_agent_rows_are_found_by_the_search_box_in_both_languages() {
+    use crate::settings::search::filter;
+    let found = |locale: Locale, query: &str| -> Vec<String> {
+        let mut world = World::new();
+        world.locale = locale;
+        filter(world.build(), query)
+            .iter()
+            .flat_map(items)
+            .map(|item| item.id.clone())
+            .collect()
+    };
+    let has = |ids: &[String], id: &str| ids.iter().any(|found| found == id);
+    for query in ["codex", "beta", "bêta"] {
+        for locale in [Locale::En, Locale::Fr] {
+            let ids = found(locale, query);
+            assert!(has(&ids, "codexAttach"), "{query} {locale:?}: {ids:?}");
+            assert!(
+                has(&ids, "agentCommand.codex"),
+                "{query} {locale:?}: {ids:?}"
+            );
+            assert!(
+                has(&ids, "defaultOrchestratorAgent"),
+                "{query} {locale:?}: {ids:?}"
+            );
+        }
+    }
+    assert!(has(&found(Locale::En, "attach"), "codexAttach"));
+    assert!(has(&found(Locale::Fr, "attacher"), "codexAttach"));
+    assert!(has(&found(Locale::En, "reviewer"), "defaultReviewerAgent"));
+    assert!(has(&found(Locale::Fr, "relecteur"), "defaultReviewerAgent"));
+    assert!(has(
+        &found(Locale::En, "orchestrator"),
+        "defaultOrchestratorAgent"
+    ));
 }
 
 #[test]

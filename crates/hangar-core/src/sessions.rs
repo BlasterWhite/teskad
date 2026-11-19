@@ -1,6 +1,11 @@
-//! The Claude Code conversations a pane can resume. Claude Code is the only
-//! agent Hangar runs (owner's decision, 2026-11-03): a plain shell pane keeps
-//! no session, so nothing here takes an agent.
+//! The conversations a pane can resume: Claude Code's transcripts and
+//! Codex's rollouts (codex.rs). A plain shell pane keeps no session.
+//!
+//! The functions taking an `AgentKind` answer for either agent; the older
+//! ones without it (`list_sessions`, `session_exists`, …) are Claude Code's,
+//! kept as they were for their callers.
+
+pub mod codex;
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -10,6 +15,8 @@ use std::sync::{Mutex, OnceLock};
 use std::time::UNIX_EPOCH;
 
 use serde::Serialize;
+
+use crate::agent::AgentKind;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AgentSession {
@@ -32,12 +39,51 @@ pub(crate) fn encode_project_dir(cwd: &str) -> String {
 /// can be tens of MB (a paste), so lines are not read whole.
 const LABEL_HEAD_BYTES: u64 = 256 * 1024;
 
-/// Labels already read, by transcript: valid while its size and mtime hold.
-/// The last field is when it was stored, to drop the oldest first.
-type LabelCache = HashMap<PathBuf, (u64, u64, String, u64)>;
+/// What was read from files, by path: valid while the file's size and mtime
+/// hold. The last field is when it was stored, to drop the oldest first.
+pub(crate) type FileCache<T> = HashMap<PathBuf, (u64, u64, T, u64)>;
+
+/// Labels already read, by transcript.
+type LabelCache = FileCache<String>;
 
 /// Labels kept at most; the oldest stored go first.
 const LABEL_CACHE_MAX: usize = 2000;
+
+/// What `cache` holds for `path` while its size and mtime are still these.
+pub(crate) fn cached<T: Clone>(
+    cache: &FileCache<T>,
+    path: &Path,
+    size: u64,
+    modified_ms: u64,
+) -> Option<T> {
+    cache
+        .get(path)
+        .filter(|(s, m, _, _)| *s == size && *m == modified_ms)
+        .map(|(_, _, value, _)| value.clone())
+}
+
+/// Stores `value` for `path`, dropping the oldest entry first when `cache`
+/// already holds `max`.
+pub(crate) fn insert_cached<T>(
+    cache: &mut FileCache<T>,
+    max: usize,
+    path: &Path,
+    size: u64,
+    modified_ms: u64,
+    value: T,
+) {
+    if cache.len() >= max && !cache.contains_key(path) {
+        let oldest = cache
+            .iter()
+            .min_by_key(|(_, (_, _, _, stored))| *stored)
+            .map(|(key, _)| key.clone());
+        if let Some(key) = oldest {
+            cache.remove(&key);
+        }
+    }
+    let stored = cache.values().map(|v| v.3).max().map_or(0, |max| max + 1);
+    cache.insert(path.to_path_buf(), (size, modified_ms, value, stored));
+}
 
 fn label_cache() -> &'static Mutex<LabelCache> {
     static CACHE: OnceLock<Mutex<LabelCache>> = OnceLock::new();
@@ -91,19 +137,13 @@ fn label_from_jsonl(path: &Path) -> String {
 }
 
 fn insert_label(cache: &mut LabelCache, path: &Path, size: u64, modified_ms: u64, label: &str) {
-    if cache.len() >= LABEL_CACHE_MAX && !cache.contains_key(path) {
-        let oldest = cache
-            .iter()
-            .min_by_key(|(_, (_, _, _, stored))| *stored)
-            .map(|(key, _)| key.clone());
-        if let Some(key) = oldest {
-            cache.remove(&key);
-        }
-    }
-    let stored = cache.values().map(|v| v.3).max().map_or(0, |max| max + 1);
-    cache.insert(
-        path.to_path_buf(),
-        (size, modified_ms, label.to_string(), stored),
+    insert_cached(
+        cache,
+        LABEL_CACHE_MAX,
+        path,
+        size,
+        modified_ms,
+        label.to_string(),
     );
 }
 
@@ -112,9 +152,8 @@ fn cached_label(path: &Path, size: u64, modified_ms: u64) -> String {
     let hit = label_cache()
         .lock()
         .ok()
-        .and_then(|c| c.get(path).cloned())
-        .filter(|(s, m, _, _)| *s == size && *m == modified_ms);
-    if let Some((_, _, label, _)) = hit {
+        .and_then(|c| cached(&*c, path, size, modified_ms));
+    if let Some(label) = hit {
         return label;
     }
     let label = label_from_jsonl(path);
@@ -186,16 +225,76 @@ fn claude_sessions_in(roots: &[PathBuf], cwd: &str) -> Vec<AgentSession> {
 /// newest first. Cheap: a directory listing and metadata, no transcript is
 /// opened. For what only needs to know which sessions exist.
 pub fn list_session_ids(cwd: String) -> Vec<(String, u64)> {
-    transcripts_in(&crate::accounts::projects_dirs(), &cwd)
-        .into_iter()
-        .map(|t| (t.id, t.modified_ms))
-        .collect()
+    list_session_ids_for(AgentKind::Claude, cwd)
+}
+
+/// `list_session_ids` for either agent. Codex files its rollouts by date, not
+/// by folder, so for it the head of each rollout is read once (its first
+/// line, which names the folder) and remembered while the file is unchanged.
+pub fn list_session_ids_for(agent: AgentKind, cwd: String) -> Vec<(String, u64)> {
+    list_session_ids_in(agent, &history_roots(agent), &cwd)
+}
+
+/// The folders `agent` files its conversations in on this machine: the
+/// `projects/` folder of every Claude Code account, Codex's `sessions/` (its
+/// accounts share it). Reads the accounts' index, not the conversations.
+fn history_roots(agent: AgentKind) -> Vec<PathBuf> {
+    match agent {
+        AgentKind::Claude => crate::accounts::projects_dirs(),
+        AgentKind::Codex => codex::home()
+            .map(|home| home.join(codex::SESSIONS))
+            .into_iter()
+            .collect(),
+    }
+}
+
+/// `list_session_ids_for`, under `roots` instead of the folders `agent`
+/// keeps its conversations in here: for a caller that names them itself (a
+/// test, with conversations of its own). Newest first, each id once.
+pub fn list_session_ids_in(agent: AgentKind, roots: &[PathBuf], cwd: &str) -> Vec<(String, u64)> {
+    match agent {
+        AgentKind::Claude => transcripts_in(roots, cwd)
+            .into_iter()
+            .map(|t| (t.id, t.modified_ms))
+            .collect(),
+        AgentKind::Codex => {
+            let mut ids: Vec<(String, u64)> = roots
+                .iter()
+                .flat_map(|root| codex::session_ids_in(root, cwd))
+                .collect();
+            ids.sort_by_key(|(_, modified_ms)| std::cmp::Reverse(*modified_ms));
+            let mut seen = HashSet::new();
+            ids.retain(|(id, _)| seen.insert(id.clone()));
+            ids
+        }
+    }
 }
 
 /// The Claude Code conversations kept for `cwd`, newest first, with their
 /// labels.
 pub fn list_sessions(cwd: String) -> Vec<AgentSession> {
-    claude_sessions_in(&crate::accounts::projects_dirs(), &cwd)
+    list_sessions_for(AgentKind::Claude, cwd)
+}
+
+/// The conversations `agent` kept for `cwd`, newest first, with their labels:
+/// what the session picker offers to resume. Codex's sub-agents and its own
+/// background threads are left out — not conversations a person had.
+pub fn list_sessions_for(agent: AgentKind, cwd: String) -> Vec<AgentSession> {
+    match agent {
+        AgentKind::Claude => claude_sessions_in(&crate::accounts::projects_dirs(), &cwd),
+        AgentKind::Codex => codex::home()
+            .map(|home| codex::sessions_in(&home.join(codex::SESSIONS), &cwd))
+            .unwrap_or_default(),
+    }
+}
+
+/// Whether an id can be looked for on disk: it is joined into paths and
+/// compared with file names, so anything but a plain id is not ours to judge.
+fn plain_id(id: &str) -> bool {
+    !id.is_empty()
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
 /// Whether the conversation a pane is about to resume has a transcript left:
@@ -209,15 +308,40 @@ pub fn list_sessions(cwd: String) -> Vec<AgentSession> {
 /// pane's: a transcript filed under another spelling of the path is still
 /// worth handing to the agent.
 pub fn session_exists(id: String) -> Option<bool> {
-    // Joined into a path below: anything but a plain id is not ours to judge.
-    if id.is_empty()
-        || !id
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-    {
+    session_exists_for(AgentKind::Claude, id)
+}
+
+/// `session_exists` for either agent. Codex's `codex resume <id>` looks in
+/// `sessions/` only — an archived thread has to be unarchived first — so
+/// that is where its rollout is looked for.
+pub fn session_exists_for(agent: AgentKind, id: String) -> Option<bool> {
+    if !plain_id(&id) {
         return None;
     }
-    claude_transcript_exists_in(&crate::accounts::projects_dirs(), &id)
+    session_exists_in(agent, &history_roots(agent), &id)
+}
+
+/// `session_exists_for`, under `roots` instead of the folders `agent` keeps
+/// its conversations in here (`list_session_ids_in`). Found under any of
+/// them, or `None` when none could be read.
+pub fn session_exists_in(agent: AgentKind, roots: &[PathBuf], id: &str) -> Option<bool> {
+    if !plain_id(id) {
+        return None;
+    }
+    match agent {
+        AgentKind::Claude => claude_transcript_exists_in(roots, id),
+        AgentKind::Codex => {
+            let answers: Vec<bool> = roots
+                .iter()
+                .filter_map(|root| codex::rollout_exists(root, id))
+                .collect();
+            if answers.is_empty() {
+                None
+            } else {
+                Some(answers.contains(&true))
+            }
+        }
+    }
 }
 
 /// Found under any of `roots` — the folders every Claude account files its
@@ -260,18 +384,10 @@ fn claude_transcript_exists(projects: &Path, id: &str) -> Option<bool> {
 }
 
 /// Whether Claude Code is on PATH, so the UI can say when a pane will not
-/// find it.
+/// find it. `crate::install::agent` answers the same for either agent, with
+/// the path and the version.
 pub fn claude_installed() -> bool {
-    // Without this the answer on macOS is "no": a bundled app is handed the
-    // bare system PATH, and Claude Code does not install into it.
-    crate::path_env::ensure();
-
-    let paths: Vec<PathBuf> = std::env::var_os("PATH")
-        .map(|p| std::env::split_paths(&p).collect())
-        .unwrap_or_default();
-    ["claude.exe", "claude.cmd", "claude"]
-        .iter()
-        .any(|bin| paths.iter().any(|dir| dir.join(bin).is_file()))
+    crate::install::agent::on_path(AgentKind::Claude).is_some()
 }
 
 #[cfg(test)]
@@ -464,5 +580,62 @@ mod tests {
     fn an_id_that_is_not_plain_is_left_to_the_agent() {
         assert_eq!(session_exists("../escape".into()), None);
         assert_eq!(session_exists(String::new()), None);
+        for agent in AgentKind::ALL {
+            assert_eq!(session_exists_for(agent, "../escape".into()), None);
+            assert_eq!(session_exists_for(agent, "a b".into()), None);
+            assert_eq!(session_exists_in(agent, &[], "../escape"), None);
+        }
+    }
+
+    /// Codex's folders named by the caller: a thread found in either is
+    /// listed once, by its newest file, and is there to resume; a folder that
+    /// cannot be read says nothing.
+    #[test]
+    fn codex_threads_are_listed_and_found_under_the_folders_named() {
+        use codex::tests::{
+            put, CWD, LEGACY, LEGACY_ID, LEGACY_NAME, PAGINATED, PAGINATED_ID, PAGINATED_NAME,
+        };
+        let first = temp_dir("codex-roots-1");
+        let second = temp_dir("codex-roots-2");
+        let older = put(&first, LEGACY_NAME, LEGACY.as_bytes());
+        let paginated = put(&first, PAGINATED_NAME, PAGINATED.as_bytes());
+        let newer = put(&second, LEGACY_NAME, LEGACY.as_bytes());
+        let at = |path: &Path, secs: u64| {
+            fs::File::options()
+                .write(true)
+                .open(path)
+                .expect("open")
+                .set_modified(UNIX_EPOCH + std::time::Duration::from_secs(secs))
+                .expect("mtime");
+        };
+        at(&older, 1_000);
+        at(&paginated, 2_000);
+        at(&newer, 3_000);
+        let roots = [first.clone(), second.clone()];
+
+        assert_eq!(
+            list_session_ids_in(AgentKind::Codex, &roots, CWD),
+            [
+                (LEGACY_ID.to_string(), 3_000_000),
+                (PAGINATED_ID.to_string(), 2_000_000)
+            ]
+        );
+        assert_eq!(
+            session_exists_in(AgentKind::Codex, &roots, LEGACY_ID),
+            Some(true)
+        );
+        assert_eq!(
+            session_exists_in(
+                AgentKind::Codex,
+                &roots,
+                "019a0000-0000-7000-8000-000000000000"
+            ),
+            Some(false)
+        );
+        let gone = first.join("not-there");
+        assert_eq!(
+            session_exists_in(AgentKind::Codex, &[gone], LEGACY_ID),
+            None
+        );
     }
 }

@@ -373,7 +373,7 @@ pub fn terminal_preview<'a>(ctx: Ctx<'a>) -> Element<'a, Message> {
     };
     let run = |content: &str, color: Color| spaced_text(content, size, font, line, color, spacing);
     let prompt = row![run("❯", c.success), run(" claude --resume", c.fg)];
-    let dim = run("Hangar.AI · 4 panes · session restored", c.fg_subtle);
+    let dim = run("HangarAI · 4 panes · session restored", c.fg_subtle);
     let last = row![
         run("0123456789 => != -> |&", c.fg),
         container(cursor).padding(Padding {

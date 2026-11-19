@@ -218,7 +218,7 @@ fn card<'a>(ctx: Ctx<'a>, presence: &Presence, now: i64, enabled: bool) -> Eleme
 
     let mut lines = column![
         typography::heading(t, ctx.t(Key::DiscordCardHead).into_owned()),
-        typography::ui(t, "Hangar.AI".to_string()).font(fonts::ui_semibold()),
+        typography::ui(t, "HangarAI".to_string()).font(fonts::ui_semibold()),
         typography::muted(t, presence.details.clone()),
         typography::muted(t, presence.state.clone()),
         typography::hint(

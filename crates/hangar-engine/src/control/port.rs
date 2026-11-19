@@ -36,8 +36,9 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 
 use hangar_core::accounts::Account;
+use hangar_core::agent::AgentKind;
 use hangar_core::board::{Board, Task, TaskPatch};
-use hangar_core::delivery::{Cleanup, Delivery, Outcome, Plan, Running};
+use hangar_core::delivery::{Cleanup, Delivery, Outcome, Plan, ReviewerChoice, Running};
 use hangar_core::git::Worktree;
 use hangar_core::kits::KitInfo;
 use hangar_core::shells::ShellInfo;
@@ -290,6 +291,14 @@ pub trait AppPort: Send + Sync + 'static {
 
     /// Hangar Mobile's operations (P20): `remote_*`.
     fn mobile(&self) -> Option<Arc<dyn MobileHooks>> {
+        None
+    }
+
+    /// core's host on this machine: what a delegation's child runs beside
+    /// and reports through (`hangar_core::delegate`, delegate.rs). `None`
+    /// where no child may start: the requests of a node's panes, whose
+    /// folders are on the node.
+    fn core(&self) -> Option<hangar_core::Host> {
         None
     }
 
@@ -584,8 +593,13 @@ pub trait DeliveryDeps: Send + Sync {
         landing: bool,
         task: Option<String>,
     ) -> BoxFuture<Result<Plan, String>>;
-    /// Answers once the delivery is over: minutes, with a check and a review.
-    fn run(&self, delivery: Delivery) -> BoxFuture<Result<Outcome, String>>;
+    /// Answers once the delivery is over: minutes, with a check and a review,
+    /// by the agent `reviewer` names (core's `delivery_run_with`).
+    fn run(
+        &self,
+        delivery: Delivery,
+        reviewer: ReviewerChoice,
+    ) -> BoxFuture<Result<Outcome, String>>;
     fn cleanup(
         &self,
         worktree: String,
@@ -594,8 +608,9 @@ pub trait DeliveryDeps: Send + Sync {
         task_id: String,
     ) -> BoxFuture<Result<Cleanup, String>>;
     fn running(&self) -> BoxFuture<Result<Vec<Running>, String>>;
-    /// The Claude accounts that exist, to resolve the workspace's.
-    fn accounts(&self) -> BoxFuture<Result<Vec<Account>, String>>;
+    /// The accounts of `kind`'s agent that exist, to resolve the workspace's
+    /// for a review by that agent.
+    fn accounts(&self, kind: AgentKind) -> BoxFuture<Result<Vec<Account>, String>>;
     /// The shells detected on this machine, for the worker's own.
     fn shells(&self) -> Vec<ShellInfo>;
     fn board_load(&self, cwd: &str) -> BoxFuture<Result<Board, String>>;

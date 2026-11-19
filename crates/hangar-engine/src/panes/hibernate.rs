@@ -16,6 +16,7 @@ use std::collections::HashMap;
 
 use hangar_i18n::{Key, Translator, args};
 
+use super::session_watch::resumes;
 use crate::live::EpochMs;
 use crate::state::types::{AgentId, Pane, PaneId, PaneRole, WsId};
 
@@ -164,9 +165,11 @@ fn waited(since: EpochMs, now: EpochMs, delay_ms: u64) -> bool {
 /// 2. Nobody has touched it for the delay.
 /// 3. At least one pane runs an agent: freeing agents is the point, and a
 ///    workspace of shells holds little memory and all its value on screen.
-/// 4. Every agent pane can come back as it was: its Claude Code has a
-///    session id captured. A pane without an id would come back on a blank
-///    conversation.
+/// 4. Every agent pane can come back as it was: its agent resumes a session
+///    by id (`sessions.resume`, `session_watch::resumes`), whichever agent it
+///    is, and the pane holds the id of its own. A pane without one would come
+///    back on a blank conversation, and an agent that resumes none would
+///    start afresh: either keeps the workspace awake.
 /// 5. Every agent has been idle or handed back for the delay (not working,
 ///    not waiting for an answer) with nothing queued for it.
 /// 6. Every shell has printed nothing for the delay and runs no process of
@@ -267,7 +270,7 @@ fn panes_at_rest(
 
         let mut shell = pane.agent == AgentId::Shell;
         if !shell {
-            if pane.session_id.as_deref().is_none_or(str::is_empty) {
+            if !resumes(pane.agent) || pane.session_id.as_deref().is_none_or(str::is_empty) {
                 return awake(Blocker::NoSession);
             }
             if state.busy {
@@ -593,6 +596,46 @@ mod tests {
         assert_eq!(
             verdict_of(&panes, &rest, |_| {}),
             awake(Blocker::NoSession, "b")
+        );
+    }
+
+    /// Codex resumes a thread by its id (`codex resume <id>`) as Claude Code
+    /// resumes a session: a workspace of either, or of both, sleeps on the
+    /// same rules, its thread ids standing for its sessions.
+    #[test]
+    fn puts_codex_panes_to_sleep_on_the_same_rules_as_claude_codes() {
+        let panes = [
+            pane("x", AgentId::Codex),
+            pane("a", AgentId::Claude),
+            pane("y", AgentId::Codex),
+        ];
+        let resting = all_resting(&panes);
+        assert_eq!(
+            verdict_of(&panes, &resting, |_| {}),
+            Verdict::Sleep { agents: 3 }
+        );
+
+        let without_thread = [
+            pane("a", AgentId::Claude),
+            with_session("x", AgentId::Codex, None),
+        ];
+        let resting = all_resting(&without_thread);
+        assert_eq!(
+            verdict_of(&without_thread, &resting, |_| {}),
+            awake(Blocker::NoSession, "x")
+        );
+
+        let working = [pane("x", AgentId::Codex)];
+        let busy = rests(&[(
+            "x",
+            PaneRest {
+                busy: true,
+                ..rest()
+            },
+        )]);
+        assert_eq!(
+            verdict_of(&working, &busy, |_| {}),
+            awake(Blocker::Busy, "x")
         );
     }
 
@@ -1010,6 +1053,24 @@ mod tests {
             assert_eq!(
                 forced_of(&fresh, &rest, |_| {}),
                 awake(Blocker::NoSession, "b")
+            );
+
+            // A Codex pane with its thread comes back on it; one without
+            // does not.
+            let codex = [pane("a", AgentId::Claude), pane("x", AgentId::Codex)];
+            let rest = just_now_all(&codex);
+            assert_eq!(
+                forced_of(&codex, &rest, |_| {}),
+                Verdict::Sleep { agents: 2 }
+            );
+            let codex = [
+                pane("a", AgentId::Claude),
+                with_session("x", AgentId::Codex, None),
+            ];
+            let rest = just_now_all(&codex);
+            assert_eq!(
+                forced_of(&codex, &rest, |_| {}),
+                awake(Blocker::NoSession, "x")
             );
         }
 

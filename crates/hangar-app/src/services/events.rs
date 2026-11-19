@@ -166,6 +166,8 @@ pub fn message(event: Event) -> Message {
             workspace: activated.workspace_id,
             pane: activated.pane_id,
         }),
+        // A Codex image: the window shows them with T26 (agents.md §5.3).
+        Event::ImageGenerated { .. } => Message::Noop,
     }
 }
 

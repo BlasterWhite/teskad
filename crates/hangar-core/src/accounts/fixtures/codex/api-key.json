@@ -1,0 +1,5 @@
+{
+  "_fixture": "Written by hand for Hangar's tests from the source (codex-rs/login/src/auth/storage.rs `AuthDotJson`, Codex 0.170.0): what `codex login --with-api-key` keeps. The key is a placeholder.",
+  "auth_mode": "apikey",
+  "OPENAI_API_KEY": "sk-fixture-placeholder"
+}

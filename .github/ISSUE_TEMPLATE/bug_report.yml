@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in Hangar.AI does not work as it should.
+description: Something in HangarAI does not work as it should.
 labels: ["bug"]
 body:
   - type: markdown

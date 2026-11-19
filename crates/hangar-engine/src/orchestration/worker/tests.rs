@@ -97,6 +97,8 @@ struct World {
     /// The nodes connected, and what the start sent to them.
     nodes: Mutex<Vec<(String, String)>>,
     sent: Mutex<Option<String>>,
+    /// The agents not installed on this machine.
+    missing: Mutex<Vec<AgentKind>>,
     /// Lets a concurrent start run while this one waits on git, as the TS's
     /// awaits did.
     yields: bool,
@@ -159,6 +161,7 @@ fn world(options: Options) -> World {
         starting: Mutex::new(Starting::default()),
         nodes: Mutex::new(Vec::new()),
         sent: Mutex::new(None),
+        missing: Mutex::new(Vec::new()),
         yields: false,
     }
 }
@@ -259,6 +262,11 @@ impl WorkerPort for World {
     // The machine's own ports are not the tests' business.
     fn port_free(&self, _port: u32) -> bool {
         true
+    }
+
+    // Nor are the agents it has installed.
+    fn installed(&self, kind: AgentKind) -> bool {
+        !self.missing.lock().unwrap().contains(&kind)
     }
 
     fn journal(&self, workspace_id: &str) -> Vec<JournalEntry> {
@@ -1383,9 +1391,242 @@ async fn refuses_to_start_a_worker_that_could_never_receive_its_brief() {
         ..Options::default()
     });
     app.state.lock().unwrap().settings.claude_bridge = false;
+    let refused = err(app.call("worker_spawn", json!({"task": "t1"})).await);
     assert!(
-        err(app.call("worker_spawn", json!({"task": "t1"})).await).contains("bridge is turned off")
+        refused.starts_with("A Claude Code worker would never receive its brief: « Claude Code bridge » is turned off (Settings › Sessions)"),
+        "{refused}"
     );
+    // Codex can run one, and the refusal says so; nothing was started.
+    assert!(
+        refused.ends_with(
+            "Ask the person to turn it on, or start the worker on Codex (agent: \"codex\")."
+        ),
+        "{refused}"
+    );
+    assert!(app.log().is_empty());
+}
+
+/* ── either agent, under either agent ─────────────────────────── */
+
+fn codex_orchestrator() -> Pane {
+    Pane {
+        agent: AgentId::Codex,
+        ..orchestrator_pane()
+    }
+}
+
+/// A Claude Code orchestrator starts a Codex worker when it names Codex:
+/// the pane runs Codex, on Codex's own default model when the workspace
+/// chose none, and everything else is what a Claude Code worker gets.
+#[tokio::test]
+async fn a_claude_code_orchestrator_starts_a_codex_worker_when_it_names_codex() {
+    let app = world(Options {
+        tasks: tasks_one_two(),
+        ..Options::default()
+    });
+    let spawned = app
+        .call("worker_spawn", json!({"task": "t1", "agent": "codex"}))
+        .await
+        .unwrap();
+    assert_eq!(spawned["worker"], "Mia");
+    assert_eq!(spawned["agent"], "codex");
+    assert_eq!(spawned["model"], Value::Null);
+    assert_eq!(spawned["branch"], "hangar/one-t1");
+    assert_eq!(
+        spawned["brief"],
+        "queued: submitted as soon as its Codex session is ready"
+    );
+    let mia = app.pane_named("Mia").unwrap();
+    assert_eq!(mia.agent, AgentId::Codex);
+    assert_eq!(mia.role, Some(PaneRole::Worker));
+    assert_eq!(mia.task_id.as_deref(), Some("t1"));
+    let add =
+        json!({"agent": "codex", "cwd": sibling("hangar-one-t1"), "name": "Mia", "near": "p1"})
+            .to_string();
+    assert!(app.log().contains(&format!("add:{add}")), "{:?}", app.log());
+    // Its brief is a worker's brief, queued from its orchestrator.
+    assert!(app.log().contains(&format!("enqueue:{}:Ava", mia.id)));
+    let brief = app.brief("Mia");
+    assert!(brief.contains("## Task t1: One"), "{brief}");
+    assert!(brief.contains("delivery_submit"), "{brief}");
+
+    // Its own Claude Code worker, beside it, as before.
+    let sam = app
+        .call("worker_spawn", json!({"task": "t2"}))
+        .await
+        .unwrap();
+    assert_eq!(
+        (sam["agent"].clone(), sam["model"].clone()),
+        (json!("claude"), json!("sonnet"))
+    );
+    assert_eq!(app.pane_named("Sam").unwrap().agent, AgentId::Claude);
+
+    let listed = app.call("worker_list", json!({})).await.unwrap();
+    let agents: Vec<(Value, Value)> = listed["workers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|worker| (worker["agent"].clone(), worker["model"].clone()))
+        .collect();
+    assert_eq!(
+        agents,
+        [
+            (json!("codex"), Value::Null),
+            (json!("claude"), json!("sonnet"))
+        ]
+    );
+}
+
+/// A Codex orchestrator's workers run Codex unless it names Claude Code,
+/// each on the model the workspace gives that agent.
+#[tokio::test]
+async fn a_codex_orchestrator_starts_codex_workers_and_claude_code_ones_when_asked() {
+    let app = world(Options {
+        tasks: tasks_one_two(),
+        panes: Some(vec![codex_orchestrator(), shell("p2", "Max")]),
+        orchestration: Some(OrchestrationSettings {
+            codex_models: crate::state::types::CodexModels {
+                worker: Some("gpt-5.5".into()),
+                ..Default::default()
+            },
+            ..Default::default()
+        }),
+        ..Options::default()
+    });
+    let mia = app
+        .call("worker_spawn", json!({"task": "t1"}))
+        .await
+        .unwrap();
+    assert_eq!(
+        (mia["agent"].clone(), mia["model"].clone()),
+        (json!("codex"), json!("gpt-5.5"))
+    );
+    let pane = app.pane_named("Mia").unwrap();
+    assert_eq!(pane.agent, AgentId::Codex);
+    assert_eq!(pane.model.as_deref(), Some("gpt-5.5"));
+
+    let sam = app
+        .call("worker_spawn", json!({"task": "t2", "agent": "claude"}))
+        .await
+        .unwrap();
+    assert_eq!(
+        (sam["agent"].clone(), sam["model"].clone()),
+        (json!("claude"), json!("sonnet"))
+    );
+    assert_eq!(app.pane_named("Sam").unwrap().agent, AgentId::Claude);
+    assert_eq!(
+        sam["brief"],
+        "queued: submitted as soon as its Claude Code session is ready"
+    );
+}
+
+/// The workspace's worker agent is the default, whatever its orchestrator
+/// runs; a model named is the worker's, on whichever agent.
+#[tokio::test]
+async fn the_workspaces_worker_agent_is_the_default() {
+    let app = world(Options {
+        tasks: tasks_one_two(),
+        orchestration: Some(OrchestrationSettings {
+            worker_agent: Some(AgentKind::Codex),
+            ..Default::default()
+        }),
+        ..Options::default()
+    });
+    let mia = app
+        .call("worker_spawn", json!({"task": "t1", "model": "o3"}))
+        .await
+        .unwrap();
+    assert_eq!(
+        (mia["agent"].clone(), mia["model"].clone()),
+        (json!("codex"), json!("o3"))
+    );
+    assert_eq!(app.pane_named("Mia").unwrap().agent, AgentId::Codex);
+}
+
+/// An agent that cannot run a worker here is refused with the reason —
+/// never another agent started in its place, nothing claimed.
+#[tokio::test]
+async fn refuses_an_agent_that_cannot_run_a_worker_here_and_starts_no_other() {
+    let app = world(Options {
+        tasks: tasks_one_two(),
+        ..Options::default()
+    });
+
+    // « Attach Hangar to Codex » off: a Codex worker would never get its brief.
+    app.state.lock().unwrap().settings.codex_attach = false;
+    let refused = err(app
+        .call("worker_spawn", json!({"task": "t1", "agent": "codex"}))
+        .await);
+    assert!(
+        refused.starts_with("A Codex worker would never receive its brief: « Attach Hangar to Codex » is turned off (Settings › Sessions)"),
+        "{refused}"
+    );
+    assert!(
+        refused.contains("or start the worker on Claude Code (agent: \"claude\")"),
+        "{refused}"
+    );
+    // The workspace's worker agent too, when it is Codex: refused, not
+    // replaced by Claude Code.
+    app.map_shop(|ws| {
+        ws.orchestration = Some(OrchestrationSettings {
+            worker_agent: Some(AgentKind::Codex),
+            ..Default::default()
+        })
+    });
+    let refused = err(app.call("worker_spawn", json!({"task": "t1"})).await);
+    assert!(
+        refused.starts_with("A Codex worker would never receive its brief"),
+        "{refused}"
+    );
+    app.state.lock().unwrap().settings.codex_attach = true;
+
+    // Not installed here.
+    app.missing.lock().unwrap().push(AgentKind::Codex);
+    let refused = err(app
+        .call("worker_spawn", json!({"task": "t1", "agent": "codex"}))
+        .await);
+    assert_eq!(
+        refused,
+        "Codex is not installed on this computer, so a worker cannot run it. Ask the person to install it, or start the worker on Claude Code (agent: \"claude\")."
+    );
+
+    // Not an agent a worker runs.
+    for wanted in [json!("shell"), json!("gemini"), json!("Codex"), json!(3)] {
+        let refused = err(app
+            .call("worker_spawn", json!({"task": "t1", "agent": wanted}))
+            .await);
+        assert!(
+            refused.contains("is not an agent a worker can run. agent is one of: claude (Claude Code), codex (Codex)"),
+            "{refused}"
+        );
+    }
+
+    assert!(app.log().is_empty(), "{:?}", app.log());
+    assert!(app.pane_named("Mia").is_none());
+    assert_eq!(app.task("t1").column, "todo");
+}
+
+/// A worker sent to a node runs the node's agent: whether it is installed
+/// here is not asked.
+#[tokio::test]
+async fn does_not_look_for_a_node_workers_agent_on_this_machine() {
+    let app = with_node(Options {
+        tasks: tasks_one_two(),
+        ..Options::default()
+    });
+    app.missing.lock().unwrap().push(AgentKind::Codex);
+    let spawned = app
+        .call(
+            "worker_spawn",
+            json!({"task": "t1", "agent": "codex", "node": "gpu box"}),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        (spawned["agent"].clone(), spawned["node"].clone()),
+        (json!("codex"), json!("n1"))
+    );
+    assert_eq!(app.pane_named("Mia").unwrap().agent, AgentId::Codex);
 }
 
 /* ── a workspace that is not a git repository ──────────────────── */
@@ -1834,6 +2075,7 @@ async fn lists_each_worker_with_its_task_branch_ports_and_delivery() {
         listed["workers"][0],
         json!({
             "name": "Mia",
+            "agent": "claude",
             "task": {"id": "t1", "title": "One", "column": "doing", "attempts": 1},
             "activity": "working",
             "running": true,

@@ -1,31 +1,47 @@
-//! « Comptes Claude »: several Claude subscriptions in Hangar, one profile per
-//! account through Claude Code's `CLAUDE_CONFIG_DIR` (`lib/accounts.ts`). The
-//! account is chosen per workspace first, with a global default and a per-pane
-//! override. Switching is always the person's click, never an automatic
-//! rotation.
+//! « Comptes »: several subscriptions of each agent in Hangar — one Claude
+//! Code profile (`CLAUDE_CONFIG_DIR`) or one Codex home (`CODEX_HOME`) per
+//! account (docs/native/agents.md §6.1). The account is chosen per workspace
+//! first, with a global default, a per-pane override, and a navigator
+//! folder's account for the workspaces filed in it that chose none; each of
+//! these levels holds one choice per agent kind (`claude_account`,
+//! `codex_account`), so a workspace can run its Claude Code panes on « Pro »
+//! and its Codex panes on « Team ». Switching is always the person's click,
+//! never an automatic rotation.
 //!
 //! The backend (`hangar_core::accounts`) lists, adds, renames and removes the
-//! accounts; this file is the pure part around it: reading a choice,
-//! resolving the account of a pane, and the registry of the accounts panes
-//! were launched on.
+//! accounts of each kind; this file is the pure part around it: reading a
+//! choice, resolving the account of a pane, and the registry of the accounts
+//! panes were launched on.
 //!
-//! Only Claude Code panes run on an account: P5 resolves it at each launch
-//! (`launch_account`) and hands it to `pty_spawn`, which sets
-//! `CLAUDE_CONFIG_DIR` for a profile. Workers follow their workspace, like any
-//! pane without an account of its own.
+//! Only agent panes run on an account: their launch resolves it
+//! ([`AccountLevels::of_kind`], then [`AccountLevels::launch_of`]) and hands
+//! it to `pty_spawn`, which sets the kind's variable for an account other
+//! than main. Workers follow their workspace, like any pane without an
+//! account of its own.
 
 use std::collections::HashMap;
 
 use serde_json::Value;
 
+pub use hangar_core::accounts::Account;
+/// The name the accounts had when Claude Code's were the only ones; an
+/// account of any kind is the same record.
 pub use hangar_core::accounts::Account as ClaudeAccount;
 
 use crate::state::PaneId;
+use crate::state::types::{AgentKind, AppState, Pane, Workspace};
 
 /// `"main"` is the default Claude Code config: always present, never removed.
 pub type AccountId = String;
 
 pub const MAIN_ACCOUNT: &str = "main";
+
+/// The choice of a workspace (or a pane) that picked « Default »: the
+/// person's default account, even inside a folder that names another one.
+/// No choice at all (`None`) follows the folder. No account can be called
+/// this: their ids are `[a-z0-9-]` only. A Hangar from before reads it as an
+/// account that is gone, whose fallback is the same default.
+pub const DEFAULT_CHOICE: &str = "@default";
 
 /// Logs the profile a pane runs on in, in the browser (Claude Code 2.1.316;
 /// `claude` then `/login` does the same). Typed by a `Pane.login` pane, which
@@ -58,6 +74,8 @@ pub fn names_account(choice: Option<&str>, id: &str) -> bool {
 pub enum AccountSource {
     Pane,
     Workspace,
+    /// The navigator folder the workspace is filed in.
+    Folder,
     Default,
     Main,
 }
@@ -71,25 +89,132 @@ pub struct ResolvedAccount {
     pub missing: Option<String>,
 }
 
+/// The choices an account is looked up in, first to last: the pane's own,
+/// its workspace's, the account of the folder the workspace is filed in, and
+/// the settings' default. Owned, so that it can go where a launch runs.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AccountLevels {
+    pub pane: Option<String>,
+    pub workspace: Option<String>,
+    pub folder: Option<String>,
+    pub default: Option<String>,
+}
+
+impl AccountLevels {
+    /// The levels of `kind`'s agent for `pane` of `ws` (`None`: the
+    /// workspace itself, as a review or an agent's MCP listing runs on it),
+    /// as `state` holds them: each level's choice for that kind. A workspace
+    /// its node runs has no folder level: its account is chosen on that
+    /// machine, and the folders are this one's presentation.
+    ///
+    /// There is no kind-less reading: every caller names the agent the
+    /// account is for (docs/native/agents.md §6.1), so that a Codex pane,
+    /// reviewer or workspace never runs on a Claude Code account.
+    pub fn of_kind(
+        state: &AppState,
+        ws: &Workspace,
+        pane: Option<&Pane>,
+        kind: AgentKind,
+    ) -> AccountLevels {
+        let owned = |choice: Option<&str>| choice.map(str::to_string);
+        AccountLevels {
+            pane: owned(pane.and_then(|pane| pane.account(kind))),
+            workspace: owned(ws.account(kind)),
+            folder: owned(folder_account(state, ws, kind)),
+            default: owned(state.settings.account(kind)),
+        }
+    }
+
+    fn borrowed(&self) -> [(AccountSource, Option<&str>); 4] {
+        [
+            (AccountSource::Pane, self.pane.as_deref()),
+            (AccountSource::Workspace, self.workspace.as_deref()),
+            (AccountSource::Folder, self.folder.as_deref()),
+            (AccountSource::Default, self.default.as_deref()),
+        ]
+    }
+
+    /// Pane > workspace > folder > settings > main, as [`resolve_account`]
+    /// says.
+    pub fn resolve(&self, accounts: &[ClaudeAccount]) -> ResolvedAccount {
+        resolve_levels(accounts, self.borrowed())
+    }
+
+    /// [`launch_account_with`], with the folder's level.
+    pub fn launch_with(
+        &self,
+        list: impl FnOnce() -> Result<Vec<ClaudeAccount>, String>,
+    ) -> ResolvedAccount {
+        launch_levels_with(list, self.borrowed())
+    }
+
+    /// The account a pane of `kind`'s agent starts on, among that kind's
+    /// accounts on this machine (`hangar_core::accounts::accounts_of`, read
+    /// only when a level names one other than main).
+    pub fn launch_of(&self, kind: AgentKind) -> ResolvedAccount {
+        self.launch_with(|| Ok(hangar_core::accounts::accounts_of(kind)))
+    }
+}
+
+/// The account of `kind` `ws` inherits from the navigator folder it is
+/// filed in, trimmed (`state.json` is hand-edited): nothing for a workspace
+/// at the top level, in a folder that is gone or names none, or that its
+/// node runs (`folders::account_of`, for every kind).
+fn folder_account<'a>(state: &'a AppState, ws: &Workspace, kind: AgentKind) -> Option<&'a str> {
+    if ws.is_hosted() {
+        return None;
+    }
+    let folder = ws.folder_id.as_deref()?;
+    let id = state
+        .folders
+        .iter()
+        .find(|entry| entry.id == folder)?
+        .account(kind)?
+        .trim();
+    (!id.is_empty()).then_some(id)
+}
+
 /// Pane > workspace > settings > main. A choice naming an unknown account is
 /// skipped for the next level, and reported in `missing` (the first one met).
-/// Main is always known, listed or not: it is never removed.
+/// Main is always known, listed or not: it is never removed. A pane or a
+/// workspace that chose [`DEFAULT_CHOICE`] goes straight to the settings'
+/// default. [`AccountLevels::resolve`] adds the folder's level, between the
+/// workspace's and the default.
 pub fn resolve_account(
     accounts: &[ClaudeAccount],
     default: Option<&str>,
     workspace: Option<&str>,
     pane: Option<&str>,
 ) -> ResolvedAccount {
-    let levels = [
-        (AccountSource::Pane, pane),
-        (AccountSource::Workspace, workspace),
-        (AccountSource::Default, default),
-    ];
+    resolve_levels(
+        accounts,
+        [
+            (AccountSource::Pane, pane),
+            (AccountSource::Workspace, workspace),
+            (AccountSource::Folder, None),
+            (AccountSource::Default, default),
+        ],
+    )
+}
+
+fn resolve_levels(
+    accounts: &[ClaudeAccount],
+    levels: [(AccountSource, Option<&str>); 4],
+) -> ResolvedAccount {
     let mut missing: Option<String> = None;
+    // « Default » chosen: what lies between it and the settings' is skipped.
+    let mut to_default = false;
     for (source, raw) in levels {
+        if to_default && source != AccountSource::Default {
+            continue;
+        }
         let Some(id) = read_account_choice(raw) else {
             continue;
         };
+        if id == DEFAULT_CHOICE {
+            to_default = true;
+            continue;
+        }
         if id == MAIN_ACCOUNT || accounts.iter().any(|account| account.id == id) {
             return ResolvedAccount {
                 id,
@@ -106,9 +231,10 @@ pub fn resolve_account(
     }
 }
 
-/// The account a Claude Code pane starts on, as [`resolve_account`] decides:
-/// asking for the accounts only when some level names one other than main, so
-/// a machine with a single account never asks. When the list cannot be had,
+/// The account a pane starts on, among the accounts of its kind that `list`
+/// gives, as [`resolve_account`] decides: asking for the accounts only when
+/// some level names one other than main, so a machine with a single account
+/// never asks. When the list cannot be had,
 /// every other account counts as gone: the pane starts on main, and `missing`
 /// says which was asked for.
 pub fn launch_account_with(
@@ -117,39 +243,39 @@ pub fn launch_account_with(
     workspace: Option<&str>,
     pane: Option<&str>,
 ) -> ResolvedAccount {
-    let named = [pane, workspace, default]
-        .into_iter()
-        .any(|level| read_account_choice(level).is_some_and(|id| id != MAIN_ACCOUNT));
+    launch_levels_with(
+        list,
+        [
+            (AccountSource::Pane, pane),
+            (AccountSource::Workspace, workspace),
+            (AccountSource::Folder, None),
+            (AccountSource::Default, default),
+        ],
+    )
+}
+
+fn launch_levels_with(
+    list: impl FnOnce() -> Result<Vec<ClaudeAccount>, String>,
+    levels: [(AccountSource, Option<&str>); 4],
+) -> ResolvedAccount {
+    let named = levels.iter().any(|(_, level)| {
+        read_account_choice(*level).is_some_and(|id| id != MAIN_ACCOUNT && id != DEFAULT_CHOICE)
+    });
     let accounts = if named {
         list().unwrap_or_default()
     } else {
         Vec::new()
     };
-    resolve_account(&accounts, default, workspace, pane)
+    resolve_levels(&accounts, levels)
 }
 
-/// [`launch_account_with`] on the accounts of this machine
-/// (`hangar_core::accounts::accounts_list`, which reads a few small files).
-pub fn launch_account(
-    default: Option<&str>,
-    workspace: Option<&str>,
-    pane: Option<&str>,
-) -> ResolvedAccount {
-    launch_account_with(
-        || Ok(hangar_core::accounts::accounts_list()),
-        default,
-        workspace,
-        pane,
-    )
-}
-
-/// The account each running Claude Code pane was launched on, by pane id. A
-/// pane keeps the account it started on until it restarts, whatever is chosen
-/// meanwhile: this is what its usage counts against
-/// ([`usage_by_account`](super::switch::usage_by_account)).
+/// The account each running agent pane was launched on, by pane id: an
+/// account of that pane's agent kind. A pane keeps the account it started on
+/// until it restarts, whatever is chosen meanwhile: this is what its usage
+/// counts against ([`usage_by_account`](super::switch::usage_by_account)).
 ///
 /// It lives in `Model.live.accounts.launched`: P5 notes the account when it
-/// launches a Claude Code pane (`note(pane, Some(account))`, in
+/// launches an agent pane (`note(pane, Some(account))`, in
 /// `panes::controller`) and forgets it when the pane's shell exits, or the
 /// pane is closed, restarted or put to sleep (`note(pane, None)`, same file).
 /// It is app state, so no subscription is needed: a view reads it when it is
@@ -158,9 +284,9 @@ pub fn launch_account(
 pub struct Launched(HashMap<PaneId, AccountId>);
 
 impl Launched {
-    /// `account` `None`: the pane no longer runs Claude Code on any account.
+    /// `account` `None`: the pane no longer runs its agent on any account.
     /// Returns whether anything changed. Called by P5 as it launches and
-    /// ends Claude Code panes.
+    /// ends agent panes.
     pub fn note(&mut self, pane: &str, account: Option<&str>) -> bool {
         match account {
             None => self.0.remove(pane).is_some(),
@@ -354,6 +480,173 @@ mod tests {
             ),
             resolved("main", AccountSource::Main, Some("old-pane"))
         );
+    }
+
+    fn levels(
+        pane: Option<&str>,
+        workspace: Option<&str>,
+        folder: Option<&str>,
+        default: Option<&str>,
+    ) -> AccountLevels {
+        AccountLevels {
+            pane: pane.map(str::to_string),
+            workspace: workspace.map(str::to_string),
+            folder: folder.map(str::to_string),
+            default: default.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn the_folder_comes_after_the_workspace_and_before_the_default() {
+        let all = accounts();
+        assert_eq!(
+            levels(None, None, Some("pro"), Some("perso")).resolve(&all),
+            resolved("pro", AccountSource::Folder, None)
+        );
+        assert_eq!(
+            levels(None, Some("main"), Some("pro"), Some("perso")).resolve(&all),
+            resolved("main", AccountSource::Workspace, None)
+        );
+        assert_eq!(
+            levels(Some("perso"), None, Some("pro"), None).resolve(&all),
+            resolved("perso", AccountSource::Pane, None)
+        );
+        // A folder naming an account that is gone: the default, and said.
+        assert_eq!(
+            levels(None, None, Some("gone"), Some("perso")).resolve(&all),
+            resolved("perso", AccountSource::Default, Some("gone"))
+        );
+    }
+
+    #[test]
+    fn the_default_chosen_skips_the_folder_and_is_never_missing() {
+        let all = accounts();
+        assert_eq!(
+            levels(None, Some(DEFAULT_CHOICE), Some("pro"), Some("perso")).resolve(&all),
+            resolved("perso", AccountSource::Default, None)
+        );
+        assert_eq!(
+            levels(None, Some(" @default "), Some("pro"), None).resolve(&all),
+            resolved("main", AccountSource::Main, None)
+        );
+        // A pane that chose it skips its workspace's too.
+        assert_eq!(
+            levels(Some(DEFAULT_CHOICE), Some("pro"), None, Some("perso")).resolve(&all),
+            resolved("perso", AccountSource::Default, None)
+        );
+        // The same rule without a folder level.
+        assert_eq!(
+            resolve_account(&all, Some("perso"), Some(DEFAULT_CHOICE), None),
+            resolved("perso", AccountSource::Default, None)
+        );
+    }
+
+    #[test]
+    fn a_folder_level_asks_for_the_accounts_and_the_default_chosen_does_not() {
+        let calls = std::cell::Cell::new(0);
+        let list = || {
+            calls.set(calls.get() + 1);
+            Ok(accounts())
+        };
+        assert_eq!(
+            levels(None, Some(DEFAULT_CHOICE), None, Some("main")).launch_with(list),
+            resolved("main", AccountSource::Default, None)
+        );
+        assert_eq!(calls.get(), 0);
+        assert_eq!(
+            levels(None, None, Some("pro"), None).launch_with(list),
+            resolved("pro", AccountSource::Folder, None)
+        );
+        assert_eq!(calls.get(), 1);
+    }
+
+    #[test]
+    fn the_levels_of_a_workspace_read_its_folder_unless_its_node_runs_it() {
+        let state = crate::state::read_state(json!({
+            "settings": { "claudeAccount": "perso" },
+            "folders": [{ "id": "games", "name": "Games", "claudeAccount": "pro" }],
+            "workspaces": [
+                { "id": "w", "folderId": "games", "panes": [
+                    { "id": "p", "claudeAccount": "main" }
+                ]},
+                { "id": "h", "folderId": "games", "hosted": true, "node": "n1",
+                  "panes": [{ "id": "q" }] }
+            ]
+        }));
+        let ws = &state.workspaces[0];
+        assert_eq!(
+            AccountLevels::of_kind(&state, ws, ws.panes.first(), AgentKind::Claude),
+            levels(Some("main"), None, Some("pro"), Some("perso"))
+        );
+        assert_eq!(
+            AccountLevels::of_kind(&state, ws, None, AgentKind::Claude),
+            levels(None, None, Some("pro"), Some("perso"))
+        );
+        assert_eq!(
+            AccountLevels::of_kind(&state, &state.workspaces[1], None, AgentKind::Claude),
+            levels(None, None, None, Some("perso"))
+        );
+    }
+
+    /// Each level holds one choice per kind: a Codex pane reads the Codex
+    /// ones, its own, its workspace's, its folder's and the default, and
+    /// none of the Claude ones (docs/native/agents.md §6.1).
+    #[test]
+    fn the_levels_of_a_kind_read_that_kinds_choice_at_every_level() {
+        let state = crate::state::read_state(json!({
+            "settings": { "claudeAccount": "perso", "codexAccount": "team" },
+            "folders": [{ "id": "games", "name": "Games",
+                          "claudeAccount": "pro", "codexAccount": " lab " }],
+            "workspaces": [
+                { "id": "w", "folderId": "games", "claudeAccount": "pro",
+                  "codexAccount": "work", "panes": [
+                    { "id": "p", "agent": "codex", "codexAccount": "side",
+                      "claudeAccount": "main" }
+                ]},
+                { "id": "h", "folderId": "games", "hosted": true, "node": "n1",
+                  "codexAccount": "node", "panes": [{ "id": "q" }] }
+            ]
+        }));
+        let ws = &state.workspaces[0];
+        assert_eq!(
+            AccountLevels::of_kind(&state, ws, ws.panes.first(), AgentKind::Codex),
+            levels(Some("side"), Some("work"), Some("lab"), Some("team"))
+        );
+        assert_eq!(
+            AccountLevels::of_kind(&state, ws, ws.panes.first(), AgentKind::Claude),
+            levels(Some("main"), Some("pro"), Some("pro"), Some("perso"))
+        );
+        // A workspace its node runs has no folder level, of any kind.
+        assert_eq!(
+            AccountLevels::of_kind(&state, &state.workspaces[1], None, AgentKind::Codex),
+            levels(None, Some("node"), None, Some("team"))
+        );
+    }
+
+    /// A Codex choice resolves among the Codex accounts: an id that is not
+    /// one of them (a Claude account's, or one removed) falls back, and says
+    /// which.
+    #[test]
+    fn a_codex_choice_resolves_among_the_codex_accounts_only() {
+        let codex = [account("main", true), account("team", false)];
+        assert_eq!(
+            levels(None, Some("team"), None, None).resolve(&codex),
+            resolved("team", AccountSource::Workspace, None)
+        );
+        assert_eq!(
+            levels(Some("perso"), Some("team"), None, None).resolve(&codex),
+            resolved("team", AccountSource::Workspace, Some("perso"))
+        );
+        let calls = std::cell::Cell::new(0);
+        let list = || {
+            calls.set(calls.get() + 1);
+            Ok(codex.to_vec())
+        };
+        assert_eq!(
+            levels(None, None, Some("team"), None).launch_with(list),
+            resolved("team", AccountSource::Folder, None)
+        );
+        assert_eq!(calls.get(), 1);
     }
 
     #[test]

@@ -39,7 +39,8 @@ pub use store::{
 };
 #[allow(unused_imports)]
 pub use types::{
-    AgentId, AppState, Pane, PaneId, Settings, SplitDir, SplitNode, ViewPane, Workspace, WsId,
+    AccountStyle, AccountTone, AgentId, AppState, Pane, PaneId, Settings, SplitDir, SplitNode,
+    ViewPane, Workspace, WsId,
 };
 
 use crate::shell::{Drawer, View, WindowKind};
@@ -253,24 +254,26 @@ impl Model {
     }
 
     /// The theme the chrome is drawn in: the active workspace's own, else the
-    /// settings' (inventory §1.11, "Theme application").
+    /// settings' (inventory §1.11, "Theme application"), at the window
+    /// opacity of the settings.
     pub fn theme(&self) -> &'static hangar_theme::Theme {
         let id = self
             .active_workspace()
             .and_then(|ws| ws.theme_id.as_deref())
             .unwrap_or(&self.state().settings.theme_id);
-        hangar_theme::by_id_or_default(id)
+        hangar_theme::by_id_or_default(id).with_window_opacity(self.state().settings.window_opacity)
     }
 
     /// The theme window `w` is drawn in: its workspace's own, else the
-    /// settings'. The main window showing a workspace drawn elsewhere takes
-    /// the settings' (App.tsx: `activeWorkspace` is null there).
+    /// settings', at the window opacity of the settings. The main window
+    /// showing a workspace drawn elsewhere takes the settings' (App.tsx:
+    /// `activeWorkspace` is null there).
     pub fn theme_in(&self, w: window::Id) -> &'static hangar_theme::Theme {
         let id = self
             .window_workspace(w)
             .and_then(|ws| ws.theme_id.as_deref())
             .unwrap_or(&self.state().settings.theme_id);
-        hangar_theme::by_id_or_default(id)
+        hangar_theme::by_id_or_default(id).with_window_opacity(self.state().settings.window_opacity)
     }
 
     /// The interface language: the settings' choice, else the system's.
@@ -442,5 +445,42 @@ mod tests {
     fn the_engine_s_default_theme_is_the_themes_default() {
         assert_eq!(types::DEFAULT_THEME_ID, hangar_theme::DEFAULT_ID);
         assert_eq!(Settings::default().theme_id, hangar_theme::DEFAULT_ID);
+    }
+
+    /// The window opacity of the settings is every theme's: the global one,
+    /// and a workspace's own. Opaque until it is set.
+    #[test]
+    fn the_window_opacity_applies_to_whatever_theme_is_shown() {
+        let mut m = Model::default();
+        m.hydrate(AppState {
+            workspaces: vec![Workspace {
+                id: "one".into(),
+                theme_id: Some("tokyo-night".into()),
+                ..Workspace::default()
+            }],
+            active_workspace_id: Some("one".into()),
+            ..AppState::default()
+        });
+        assert_eq!(Settings::default().window_opacity, 1.0);
+        assert_eq!(m.theme().id, "tokyo-night");
+        assert_eq!(m.theme().window_opacity, 1.0);
+        assert!(!m.theme().is_translucent());
+
+        let mut state = m.state().clone();
+        state.settings.window_opacity = 0.85;
+        m.hydrate(state.clone());
+        let tokyo = m.theme();
+        assert_eq!((tokyo.id, tokyo.window_opacity), ("tokyo-night", 0.85));
+        assert_eq!(tokyo.is_translucent(), cfg!(target_os = "linux"));
+        assert_eq!(
+            tokyo.colors,
+            hangar_theme::by_id_or_default("tokyo-night").colors
+        );
+        // The workspace follows the global theme: Graphite, at 0.85 too.
+        state.workspaces[0].theme_id = None;
+        m.hydrate(state);
+        let graphite = m.theme();
+        assert_eq!((graphite.id, graphite.window_opacity), ("graphite", 0.85));
+        assert_eq!(graphite.accent(), hangar_theme::default_theme().accent());
     }
 }

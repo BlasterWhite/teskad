@@ -11,6 +11,7 @@ use std::collections::{HashMap, HashSet};
 use serde::Serialize;
 
 use super::parse::Digest;
+use crate::agent::AgentKind;
 use crate::pricing::{self, CallTokens};
 
 /// The longest a silence inside a session counts for, in active time.
@@ -66,6 +67,8 @@ pub struct Bucket {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Aggregate {
     pub sessions: Vec<SessionInfo>,
+    /// The agent each of `sessions` ran, in the same order.
+    pub session_agents: Vec<AgentKind>,
     pub models: Vec<ModelInfo>,
     pub buckets: Vec<Bucket>,
 }
@@ -86,6 +89,7 @@ impl Window {
 /// A session being put together from its files.
 struct Gathering {
     info: SessionInfo,
+    agent: AgentKind,
     /// Whether `cwd` came from the main transcript, which a subagent's file
     /// does not overrule.
     main_cwd: bool,
@@ -171,7 +175,8 @@ pub fn aggregate<'a>(
         )
     });
 
-    let mut index: HashMap<&str, usize> = HashMap::new();
+    // By agent too: each agent's ids are its own.
+    let mut index: HashMap<(AgentKind, &str), usize> = HashMap::new();
     let mut gathered: Vec<Gathering> = Vec::new();
     let mut models: Vec<String> = Vec::new();
     let mut model_index: HashMap<&str, i32> = HashMap::new();
@@ -181,7 +186,8 @@ pub fn aggregate<'a>(
     let mut seen_stamps: HashSet<i64, Fast> = HashSet::default();
 
     for digest in &digests {
-        let at = *index.entry(digest.session.as_str()).or_insert_with(|| {
+        let key = (digest.agent, digest.session.as_str());
+        let at = *index.entry(key).or_insert_with(|| {
             gathered.push(Gathering {
                 info: SessionInfo {
                     id: digest.session.clone(),
@@ -190,6 +196,7 @@ pub fn aggregate<'a>(
                     first_at: 0,
                     last_at: 0,
                 },
+                agent: digest.agent,
                 main_cwd: false,
                 title_rank: 0,
                 stamps: Vec::new(),
@@ -309,6 +316,7 @@ pub fn aggregate<'a>(
 
     Aggregate {
         sessions: used.iter().map(|&at| gathered[at].info.clone()).collect(),
+        session_agents: used.iter().map(|&at| gathered[at].agent).collect(),
         models: models
             .into_iter()
             .map(|id| ModelInfo {
@@ -517,6 +525,26 @@ mod tests {
         assert_eq!(result.sessions.len(), 1);
         assert_eq!(result.sessions[0].id, "s-2");
         assert_eq!(result.buckets.iter().map(|row| row.output).sum::<u64>(), 20);
+    }
+
+    /// The same id from two agents is two sessions, each with its agent.
+    #[test]
+    fn sessions_are_told_apart_by_agent() {
+        let claude = digest("same-id", vec![call(1, DAY, 10)], vec![DAY], vec![]);
+        let codex = Digest {
+            agent: AgentKind::Codex,
+            models: vec!["gpt-6.1-sol".to_string()],
+            ..digest(
+                "same-id",
+                vec![call(2, DAY + HOUR, 20)],
+                vec![DAY + HOUR],
+                vec![],
+            )
+        };
+        let result = aggregate([&codex, &claude], Window::default(), utc_hour);
+        assert_eq!(result.sessions.len(), 2);
+        assert_eq!(result.session_agents, [AgentKind::Claude, AgentKind::Codex]);
+        assert!(result.models.iter().all(|model| model.priced));
     }
 
     #[test]

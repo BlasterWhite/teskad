@@ -54,8 +54,9 @@ the release as `hangar-node-<v>-linux-x86_64` and `-linux-aarch64`, for a node
 set up by hand (`chmod +x`, then `hangar-node serve`); not in `latest.json`, not
 signed.
 
-The release workflow's `node` job builds them, before the build jobs, which
-download them into `target/node` (`actions/download-artifact`) and whose
+The release workflow's `node` job builds them, beside the build jobs, which
+wait for its two files once they are compiled (up to 15 minutes, failing if a
+node job failed), download them into `target/node` (`actions/download-artifact`) and whose
 packaging scripts refuse to run without them: `common.sh`'s
 `stage_node_binaries` checks that each is an ELF file of the right machine and
 leaves it in `target/node`, where the packager reads resources (the
@@ -342,7 +343,8 @@ key compiled into the app, which is what the workflow does.
 
 ## 4. The workflow
 
-Triggers, matrix (`macos-latest` universal, `windows-latest`, `ubuntu-22.04`),
+Triggers (a `v*` tag or a dispatch; a push to main only warms the Rust caches,
+see below), matrix (`macos-latest` universal, `windows-latest`, `ubuntu-22.04`),
 secrets and the draft-first design are unchanged. Linux stays on 22.04: an
 AppImage runs on the glibc of the machine that built it or newer, so the
 release notes' "glibc 2.35 or later" is that runner's.
@@ -350,11 +352,12 @@ release notes' "glibc 2.35 or later" is that runner's.
 1. **draft** creates the release once, as a draft, and passes its id on.
 2. **node** (x86_64 and arm64, at once; see "hangar-node" in section 1) builds
    the node daemon the packages carry, and puts it on the draft.
-3. **build** (three at once, after `node`): Defender exclusion on Windows; build dependencies
+3. **build** (three at once, beside `node`): Defender exclusion on Windows; build dependencies
    on Linux; `pnpm mobile:build` and `check-mobile.sh`; the Apple secrets and
    whisper.cpp's portable-AVX2 pins as before; `MACOSX_DEPLOYMENT_TARGET=10.15`
    (what `minimumSystemVersion` did for the Tauri build); the two cargo builds;
-   `check-mobile.sh` again on the executable; the `hangar-node` files downloaded; the packaging script of the
+   `check-mobile.sh` again on the executable; a wait for `node`'s two files, then
+   the `hangar-node` files downloaded; the packaging script of the
    platform; upload to the draft by id (`upload-assets.sh`, which replaces an
    asset of the same name, so a re-run is harmless).
 4. **publish** downloads the updater artifacts from the draft, **signs** them
@@ -367,6 +370,34 @@ release notes' "glibc 2.35 or later" is that runner's.
    against the key the installs carry. A signing secret that is not the old key
    used to be found by the first person who tried to update; now the release
    stays a draft.
+
+### Rust caches: warmed on main, read by releases
+
+A GitHub cache is readable from the ref that saved it and from the default
+branch, nothing else: what a tag saves, the next tag cannot restore, and CI's
+caches on main belong to another job (`rust`) building another profile. So
+every push to main runs the same workflow in a warm mode (`RELEASING` is false
+for a push to a branch): `draft` and `publish` are skipped, and `node` and
+`build` run their steps up to and including the cargo builds (and the
+packaging tools' `cargo install`, so `~/.cargo/bin` carries them) and nothing
+after: no Hangar Mobile (an empty `dist-mobile/`), no packaging, no upload.
+Those runs save the caches (`save-if`), a release only restores them; when a
+warm run finds its exact key already saved, it skips the build and ends in a
+minute or two. A newer push to main waits for the warm run in progress rather
+than cancelling it.
+
+The release must restore only what this very job built. whisper-rs-sys hands
+the `GGML_*` variables to whisper.cpp's CMake without telling cargo to rebuild
+when they change, so a `target/` compiled without the portable-AVX2 pins would
+be reused as is, and the release would carry code for its runner's CPU. The
+pins are set before the build in both modes, and the cache key (job id, the
+`CARGO*`/`CC*`/`CFLAGS*`/`CXX*`/`CMAKE*`/`RUST*` variables, rustc, the
+lockfile without the workspace's own versions, so a version bump keeps it) is
+the same in both: nothing that differs between a warm run and a release enters
+it. A release whose exact key main has not saved yet (a dependency changed and
+its warm run is still going) restores main's previous one and compiles what
+changed; one built with a rustc main has not warmed yet finds nothing and
+compiles from scratch, as every release did before.
 
 Secrets, all as before: `TAURI_SIGNING_PRIVATE_KEY` and `_PASSWORD`,
 `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`,

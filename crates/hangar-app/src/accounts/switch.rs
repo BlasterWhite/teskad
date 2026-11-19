@@ -1,4 +1,4 @@
-//! The pure logic behind « Comptes Claude »'s interface (`lib/accountSwitch.ts`):
+//! The pure logic behind « Comptes »'s interface (`lib/accountSwitch.ts`):
 //! which panes restart after a switch, how much of each account's limits is
 //! used, and how an account is named. No store, no commands: the views and the
 //! update hand it plain data.
@@ -8,55 +8,76 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::state::live::RateLimit;
+use crate::state::types::AgentKind;
 
-use super::model::{AccountId, ClaudeAccount, read_account_choice, resolve_account};
+use super::model::{
+    AccountId, ClaudeAccount, DEFAULT_CHOICE, read_account_choice, resolve_account,
+};
 
 /// What this logic needs to know of a pane.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SwitchPane {
     pub id: String,
-    /// `claude` is the only agent an account applies to.
-    pub agent: String,
-    /// The pane's own account (override); absent or blank follows its
-    /// workspace.
-    pub claude_account: Option<String>,
+    /// The kind of its agent; `None` for a shell, or a pane opened to log
+    /// in, which no account change restarts.
+    pub kind: Option<AgentKind>,
+    /// The pane's own account of the workspace's `kind` (override); absent
+    /// or blank follows its workspace.
+    pub account: Option<String>,
     /// Only a running agent has anything to restart.
     pub running: bool,
 }
 
+/// A workspace as one kind's accounts see it: a switch of Codex accounts
+/// touches its Codex panes only.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SwitchWorkspace {
     pub id: String,
-    /// The workspace's own account; absent or blank follows the default.
-    pub claude_account: Option<String>,
+    pub kind: AgentKind,
+    /// The workspace's own account of `kind`; absent or blank follows its
+    /// folder's, then the default; `DEFAULT_CHOICE` follows the default.
+    pub account: Option<String>,
+    /// The account of `kind` it reads from its navigator folder, if that
+    /// names one.
+    pub folder_account: Option<String>,
     pub panes: Vec<SwitchPane>,
 }
 
-fn is_claude(pane: &SwitchPane) -> bool {
-    pane.agent == "claude"
+fn of_kind(pane: &SwitchPane, kind: AgentKind) -> bool {
+    pane.kind == Some(kind)
 }
 
 fn has_own(choice: Option<&str>) -> bool {
     read_account_choice(choice).is_some()
 }
 
-/// The Claude Code panes of `workspace` that follow it, so that change when
+/// The agent panes of `workspace`'s kind that follow it, so that change when
 /// its account does. A pane with an account of its own is untouched.
 pub fn panes_to_restart_on_workspace_change(workspace: &SwitchWorkspace) -> Vec<&SwitchPane> {
     workspace
         .panes
         .iter()
-        .filter(|pane| is_claude(pane) && !has_own(pane.claude_account.as_deref()))
+        .filter(|pane| of_kind(pane, workspace.kind) && !has_own(pane.account.as_deref()))
         .collect()
 }
 
-/// The Claude Code panes that follow the default when it changes: those of
-/// the workspaces without an account of their own, minus the panes with
-/// theirs.
+/// Whether `workspace` runs on the default account, and so changes when it
+/// does: it chose « Default », or chose nothing in a folder that names none.
+pub fn follows_default(workspace: &SwitchWorkspace) -> bool {
+    match read_account_choice(workspace.account.as_deref()).as_deref() {
+        Some(DEFAULT_CHOICE) => true,
+        Some(_) => false,
+        None => !has_own(workspace.folder_account.as_deref()),
+    }
+}
+
+/// The agent panes that follow the default when it changes: those of
+/// the workspaces that run on it (`follows_default`), minus the panes with
+/// an account of their own.
 pub fn panes_to_restart_on_default_change(workspaces: &[SwitchWorkspace]) -> Vec<&SwitchPane> {
     workspaces
         .iter()
-        .filter(|workspace| !has_own(workspace.claude_account.as_deref()))
+        .filter(|workspace| follows_default(workspace))
         .flat_map(panes_to_restart_on_workspace_change)
         .collect()
 }
@@ -90,19 +111,25 @@ pub struct AccountUsage {
     pub five_hour: Option<WindowUsage>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub weekly: Option<WindowUsage>,
+    /// The windows of a gateway Claude Code runs through, by their kind
+    /// (any but the plan's two), as the plan block shows them. Written only
+    /// when there are some, so a file from before stays as it was.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub others: BTreeMap<String, WindowUsage>,
 }
 
 /// The usage of each account, by id. The file `account-usage.json` is this,
 /// as the web app's `hangar.accountUsage` was.
 pub type Usage = BTreeMap<AccountId, AccountUsage>;
 
-const FIVE_HOUR: &str = "five_hour";
-const WEEKLY: &str = "seven_day";
+pub(super) const FIVE_HOUR: &str = "five_hour";
+pub(super) const WEEKLY: &str = "seven_day";
 
 /// The usage of each account, from the measures of the panes launched on it:
-/// the latest one per account and per window. A window an account never
-/// reported is absent, which the interface shows as « unknown ». A pane whose
-/// account is not known (`account_of` gives nothing) counts for nobody.
+/// the latest one per account and per window, the plan's two and a
+/// gateway's (`AccountUsage::others`). A window an account never reported
+/// is absent, which the interface leaves out. A pane whose account is not
+/// known (`account_of` gives nothing) counts for nobody.
 pub fn usage_by_account(
     measures: &[UsageMeasure],
     account_of: impl Fn(&str) -> Option<AccountId>,
@@ -114,35 +141,38 @@ pub fn usage_by_account(
             continue;
         };
         for limit in &measure.rate_limits {
-            // Only the two windows of the plan, and only a real number: an
-            // account that reported nothing usable gets no entry at all.
-            if !matches!(limit.kind.as_str(), FIVE_HOUR | WEEKLY) || !limit.percent_used.is_finite()
-            {
+            // Only a named window and a real number: an account that
+            // reported nothing usable gets no entry at all.
+            if limit.kind.is_empty() || !limit.percent_used.is_finite() {
                 continue;
             }
+            let fresh = WindowUsage {
+                percent_used: limit.percent_used,
+                resets_at: limit.resets_at.clone(),
+                at: measure.at,
+            };
             let entry = result.entry(account.clone()).or_default();
-            let slot = if limit.kind == FIVE_HOUR {
-                &mut entry.five_hour
-            } else {
-                &mut entry.weekly
+            let slot = match limit.kind.as_str() {
+                FIVE_HOUR => &mut entry.five_hour,
+                WEEKLY => &mut entry.weekly,
+                other => {
+                    if entry
+                        .others
+                        .get(other)
+                        .is_none_or(|known| known.at <= measure.at)
+                    {
+                        entry.others.insert(other.to_string(), fresh);
+                    }
+                    continue;
+                }
             };
             if slot.as_ref().is_some_and(|known| known.at > measure.at) {
                 continue;
             }
-            *slot = Some(WindowUsage {
-                percent_used: limit.percent_used,
-                resets_at: limit.resets_at.clone(),
-                at: measure.at,
-            });
+            *slot = Some(fresh);
         }
     }
     result
-}
-
-/// A usage as a whole percent between 0 and 100, `None` when unknown.
-pub fn usage_percent(usage: Option<&WindowUsage>) -> Option<u8> {
-    let usage = usage?;
-    Some(usage.percent_used.round().clamp(0.0, 100.0) as u8)
 }
 
 /// The account's label, or `unknown` when it does not exist (any more).
@@ -181,7 +211,7 @@ pub fn workspaces_using<'a>(
     workspaces
         .iter()
         .filter(|workspace| {
-            read_account_choice(workspace.claude_account.as_deref()).as_deref() == Some(id)
+            read_account_choice(workspace.account.as_deref()).as_deref() == Some(id)
         })
         .collect()
 }
@@ -203,8 +233,135 @@ pub fn merge_usage(known: &Usage, fresh: &Usage) -> Usage {
         if newer(&usage.weekly, &merged.weekly) {
             merged.weekly = usage.weekly.clone();
         }
+        for (kind, window) in &usage.others {
+            if merged
+                .others
+                .get(kind)
+                .is_none_or(|old| window.at >= old.at)
+            {
+                merged.others.insert(kind.clone(), window.clone());
+            }
+        }
     }
     result
+}
+
+/// What a running agent pane should do about its account, when the person
+/// does not want to be asked (`Settings::account_switch_ask` off).
+///
+/// An agent reads its login once, as it starts (`CLAUDE_CONFIG_DIR`,
+/// `CODEX_HOME`), so a pane moves to another account by restarting on its
+/// conversation, which every account of its kind finds, the conversations
+/// being shared (core's accounts.rs: Claude's `projects/`, Codex's
+/// `sessions/`). A restart ends whatever the agent runs, so a pane moves
+/// only once Hangar knows it has nothing to lose: its turn over as its side
+/// channel reports it (the hangar-bridge mod, Hangar's client of an attached
+/// Codex; never a guess read off the screen), nothing typed in its prompt,
+/// and no command of its own still running below it (a build, a watch on
+/// its CI: `hangar_core::pty::pane_job`). What is not known yet waits, and
+/// is looked at again.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Follow {
+    /// Nothing to do: on its account already, or not a pane an account moves.
+    Stay,
+    /// Everything else says go: ask whether a command it started still runs
+    /// below it, and move once nothing does.
+    Check,
+    /// Restart now on `FollowInput::wanted`.
+    Now,
+    /// Later: its agent is inside a turn (at work, or waiting on the person),
+    /// or its turns are not reported (no mod loaded, or nothing said yet).
+    AfterTurn,
+    /// Later: the person typed in it since its last turn and has not sent it.
+    AfterDraft,
+    /// Later: a command it started still runs, or nobody can tell: asked
+    /// again a little later.
+    AfterJob,
+    /// Not at all: the account it should move to is not logged in, so a
+    /// restart would only land it back where it is.
+    NotLoggedIn,
+}
+
+impl Follow {
+    /// The pane is to move, as soon as it can: its header says so.
+    pub fn pending(self) -> bool {
+        matches!(
+            self,
+            Follow::Check | Follow::AfterTurn | Follow::AfterDraft | Follow::AfterJob
+        )
+    }
+}
+
+/// Where a pane's agent stands in its turns, as its side channel reports it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Turn {
+    /// At work, or waiting on the person: the turn needs it.
+    Inside,
+    /// Between two turns.
+    Between,
+    /// Not reported: no side channel (the mod not loaded, a Codex that could
+    /// not be attached), or it has said nothing yet. What the screen suggests
+    /// is no ground for a restart.
+    Unknown,
+}
+
+/// What is known of the commands a pane's agent started itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Job {
+    /// Not asked yet.
+    Unasked,
+    /// Nothing it started runs.
+    Nothing,
+    /// One runs, or its process table could not be read.
+    Busy,
+}
+
+/// What `follow` reads of a pane, all of it known without a service.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FollowInput<'a> {
+    /// An agent pane run by this computer (not on a node, whose agent
+    /// starts on the node's own login), not opened to log in, of a kind
+    /// that can move (`accounts::movable_kind`).
+    pub movable: bool,
+    /// The account its agent was started on; `None` when none runs.
+    pub launched: Option<&'a str>,
+    /// The account it should run on now (pane > workspace > default).
+    pub wanted: &'a str,
+    /// Whether `wanted` is logged in; `None` while the list is not known.
+    pub wanted_logged_in: Option<bool>,
+    /// The account a move was already started for: core can fall back to
+    /// another account at launch, and a pane must not restart over and over
+    /// toward one it cannot run on.
+    pub tried: Option<&'a str>,
+    pub turn: Turn,
+    /// Typed in since its last turn, recently.
+    pub drafting: bool,
+    pub job: Job,
+}
+
+pub fn follow(input: &FollowInput<'_>) -> Follow {
+    let Some(launched) = input.launched else {
+        return Follow::Stay;
+    };
+    if !input.movable || launched == input.wanted || input.tried == Some(input.wanted) {
+        return Follow::Stay;
+    }
+    match input.wanted_logged_in {
+        None => return Follow::Stay,
+        Some(false) => return Follow::NotLoggedIn,
+        Some(true) => {}
+    }
+    if input.turn != Turn::Between {
+        return Follow::AfterTurn;
+    }
+    if input.drafting {
+        return Follow::AfterDraft;
+    }
+    match input.job {
+        Job::Unasked => Follow::Check,
+        Job::Busy => Follow::AfterJob,
+        Job::Nothing => Follow::Now,
+    }
 }
 
 #[cfg(test)]
@@ -229,40 +386,46 @@ mod tests {
         ]
     }
 
-    fn pane(id: &str, agent: &str, claude_account: Option<&str>, running: bool) -> SwitchPane {
+    fn pane(id: &str, agent: &str, account: Option<&str>, running: bool) -> SwitchPane {
         SwitchPane {
             id: id.into(),
-            agent: agent.into(),
-            claude_account: claude_account.map(str::to_string),
+            kind: AgentKind::from_id(agent),
+            account: account.map(str::to_string),
             running,
+        }
+    }
+
+    fn workspace(id: &str, account: Option<&str>, panes: Vec<SwitchPane>) -> SwitchWorkspace {
+        SwitchWorkspace {
+            id: id.into(),
+            kind: AgentKind::Claude,
+            account: account.map(str::to_string),
+            folder_account: None,
+            panes,
         }
     }
 
     fn workspaces() -> Vec<SwitchWorkspace> {
         vec![
-            SwitchWorkspace {
-                id: "w1".into(),
-                claude_account: None,
-                panes: vec![
+            workspace(
+                "w1",
+                None,
+                vec![
                     pane("a", "claude", None, true),
                     pane("b", "shell", None, true),
                     pane("c", "claude", Some("perso"), true),
                     pane("d", "claude", None, false),
                 ],
-            },
-            SwitchWorkspace {
-                id: "w2".into(),
-                claude_account: Some("perso".into()),
-                panes: vec![pane("e", "claude", None, true)],
-            },
-            SwitchWorkspace {
-                id: "w3".into(),
-                claude_account: Some("  ".into()),
-                panes: vec![
+            ),
+            workspace("w2", Some("perso"), vec![pane("e", "claude", None, true)]),
+            workspace(
+                "w3",
+                Some("  "),
+                vec![
                     pane("f", "shell", None, false),
                     pane("g", "claude", None, false),
                 ],
-            },
+            ),
         ]
     }
 
@@ -280,12 +443,49 @@ mod tests {
         assert_eq!(ids(&panes_to_restart_on_workspace_change(&all[1])), ["e"]);
     }
 
+    /// A switch of one kind's account restarts that kind's panes only: the
+    /// Codex panes of a workspace whose Claude account changes stay, and the
+    /// other way round.
+    #[test]
+    fn a_switch_of_one_kinds_account_restarts_that_kinds_panes_only() {
+        let panes = vec![
+            pane("claude", "claude", None, true),
+            pane("codex", "codex", None, true),
+            pane("own", "codex", Some("team"), true),
+        ];
+        let claude = workspace("w", None, panes.clone());
+        assert_eq!(
+            ids(&panes_to_restart_on_workspace_change(&claude)),
+            ["claude"]
+        );
+        let codex = SwitchWorkspace {
+            kind: AgentKind::Codex,
+            ..workspace("w", None, panes)
+        };
+        assert_eq!(
+            ids(&panes_to_restart_on_workspace_change(&codex)),
+            ["codex"]
+        );
+    }
+
     #[test]
     fn leaves_workspaces_and_panes_with_their_own_account_out_of_a_default_change() {
         assert_eq!(
             ids(&panes_to_restart_on_default_change(&workspaces())),
             ["a", "d", "g"]
         );
+    }
+
+    #[test]
+    fn a_workspace_on_its_folders_account_stays_out_of_a_default_change_unless_it_chose_default() {
+        let mut all = workspaces();
+        // w1 now reads « pro » from its folder; w3 chose « Default » there.
+        all[0].folder_account = Some("pro".into());
+        all[2].account = Some(DEFAULT_CHOICE.into());
+        all[2].folder_account = Some("pro".into());
+        assert!(!follows_default(&all[0]));
+        assert!(follows_default(&all[2]));
+        assert_eq!(ids(&panes_to_restart_on_default_change(&all)), ["g"]);
     }
 
     #[test]
@@ -342,12 +542,10 @@ mod tests {
         assert_eq!(main.five_hour.as_ref().map(|w| w.percent_used), Some(40.0));
         assert_eq!(main.weekly.as_ref().map(|w| w.percent_used), Some(55.4));
         assert!(usage["perso"].five_hour.is_none());
-        assert_eq!(usage_percent(main.weekly.as_ref()), Some(55));
-        assert_eq!(usage_percent(usage["perso"].five_hour.as_ref()), None);
     }
 
     #[test]
-    fn ignores_unknown_panes_gateway_windows_and_non_numbers() {
+    fn ignores_unknown_panes_and_non_numbers() {
         let usage = usage_by_account(
             &[
                 UsageMeasure {
@@ -357,13 +555,12 @@ mod tests {
                 },
                 UsageMeasure {
                     pane_id: "p1".into(),
-                    at: 1,
-                    rate_limits: vec![limit("monthly", 9.0, None)],
-                },
-                UsageMeasure {
-                    pane_id: "p1".into(),
                     at: 2,
-                    rate_limits: vec![limit("five_hour", f64::NAN, None)],
+                    rate_limits: vec![
+                        limit("five_hour", f64::NAN, None),
+                        limit("monthly", f64::INFINITY, None),
+                        limit("", 9.0, None),
+                    ],
                 },
             ],
             owner,
@@ -371,19 +568,49 @@ mod tests {
         assert!(usage.is_empty(), "{usage:?}");
     }
 
+    /// A gateway's own windows are kept apart from the plan's two, the
+    /// latest of each, and survive a merge: the plan block shows them.
     #[test]
-    fn clamps_a_percent() {
-        let window = WindowUsage {
-            percent_used: 140.0,
-            resets_at: None,
-            at: 0,
-        };
-        assert_eq!(usage_percent(Some(&window)), Some(100));
-        let low = WindowUsage {
-            percent_used: -3.0,
-            ..window
-        };
-        assert_eq!(usage_percent(Some(&low)), Some(0));
+    fn keeps_a_gateways_windows_apart() {
+        let usage = usage_by_account(
+            &[
+                UsageMeasure {
+                    pane_id: "p1".into(),
+                    at: 2,
+                    rate_limits: vec![
+                        limit("monthly", 12.0, Some("2026-12-01T00:00:00Z")),
+                        limit("five_hour", 30.0, None),
+                    ],
+                },
+                UsageMeasure {
+                    pane_id: "p2".into(),
+                    at: 1,
+                    rate_limits: vec![limit("monthly", 99.0, None)],
+                },
+            ],
+            owner,
+        );
+        let main = &usage["main"];
+        assert_eq!(main.five_hour.as_ref().map(|w| w.percent_used), Some(30.0));
+        assert!(main.weekly.is_none());
+        let monthly = &main.others["monthly"];
+        assert_eq!((monthly.percent_used, monthly.at), (12.0, 2));
+
+        let later = usage_by_account(
+            &[UsageMeasure {
+                pane_id: "p1".into(),
+                at: 3,
+                rate_limits: vec![limit("monthly", 20.0, None)],
+            }],
+            owner,
+        );
+        let merged = merge_usage(&usage, &later);
+        assert_eq!(merged["main"].others["monthly"].percent_used, 20.0);
+        assert_eq!(merge_usage(&later, &usage), merged, "the newer one wins");
+        assert_eq!(
+            merged["main"].five_hour.as_ref().map(|w| w.percent_used),
+            Some(30.0)
+        );
     }
 
     #[test]
@@ -433,7 +660,11 @@ mod tests {
     }
 
     fn usage_of(five_hour: Option<WindowUsage>, weekly: Option<WindowUsage>) -> AccountUsage {
-        AccountUsage { five_hour, weekly }
+        AccountUsage {
+            five_hour,
+            weekly,
+            ..AccountUsage::default()
+        }
     }
 
     #[test]
@@ -496,5 +727,112 @@ mod tests {
         );
         let back: Usage = serde_json::from_str(&text).expect("reads back");
         assert_eq!(back, usage);
+    }
+
+    /// A pane between two turns as the mod reports them, nothing typed, and
+    /// nothing of its own found running below it.
+    fn input<'a>(launched: Option<&'a str>, wanted: &'a str) -> FollowInput<'a> {
+        FollowInput {
+            movable: true,
+            launched,
+            wanted,
+            wanted_logged_in: Some(true),
+            tried: None,
+            turn: Turn::Between,
+            drafting: false,
+            job: Job::Nothing,
+        }
+    }
+
+    #[test]
+    fn a_pane_known_to_have_nothing_to_lose_moves_at_once() {
+        assert_eq!(follow(&input(Some("main"), "perso")), Follow::Now);
+        assert!(!Follow::Now.pending());
+    }
+
+    #[test]
+    fn a_pane_on_its_account_or_not_running_stays() {
+        assert_eq!(follow(&input(Some("perso"), "perso")), Follow::Stay);
+        assert_eq!(follow(&input(None, "perso")), Follow::Stay);
+        // A shell, a login pane, a pane on a node.
+        let elsewhere = FollowInput {
+            movable: false,
+            ..input(Some("main"), "perso")
+        };
+        assert_eq!(follow(&elsewhere), Follow::Stay);
+    }
+
+    #[test]
+    fn a_pane_inside_a_turn_or_whose_turns_are_not_reported_waits() {
+        for turn in [Turn::Inside, Turn::Unknown] {
+            let busy = FollowInput {
+                turn,
+                drafting: true,
+                job: Job::Unasked,
+                ..input(Some("main"), "perso")
+            };
+            assert_eq!(follow(&busy), Follow::AfterTurn, "{turn:?}");
+            assert!(follow(&busy).pending());
+        }
+    }
+
+    #[test]
+    fn a_draft_is_never_lost() {
+        let typing = FollowInput {
+            drafting: true,
+            job: Job::Unasked,
+            ..input(Some("main"), "perso")
+        };
+        assert_eq!(follow(&typing), Follow::AfterDraft);
+        assert!(follow(&typing).pending());
+    }
+
+    #[test]
+    fn a_command_of_its_own_is_asked_about_and_waited_for() {
+        let unasked = FollowInput {
+            job: Job::Unasked,
+            ..input(Some("main"), "perso")
+        };
+        assert_eq!(follow(&unasked), Follow::Check);
+        assert!(follow(&unasked).pending());
+        // A build, a watch on its CI, or a process table that could not be
+        // read: the pane waits and is asked again.
+        let busy = FollowInput {
+            job: Job::Busy,
+            ..input(Some("main"), "perso")
+        };
+        assert_eq!(follow(&busy), Follow::AfterJob);
+        assert!(follow(&busy).pending());
+    }
+
+    #[test]
+    fn an_account_not_logged_in_or_unknown_moves_nothing() {
+        let out = FollowInput {
+            wanted_logged_in: Some(false),
+            ..input(Some("main"), "perso")
+        };
+        assert_eq!(follow(&out), Follow::NotLoggedIn);
+        assert!(!follow(&out).pending());
+        let unknown = FollowInput {
+            wanted_logged_in: None,
+            ..input(Some("main"), "perso")
+        };
+        assert_eq!(follow(&unknown), Follow::Stay);
+    }
+
+    #[test]
+    fn a_move_already_tried_is_not_tried_again() {
+        // Core started the pane on main although perso was asked: no loop.
+        let tried = FollowInput {
+            tried: Some("perso"),
+            ..input(Some("main"), "perso")
+        };
+        assert_eq!(follow(&tried), Follow::Stay);
+        // Two switches in a row: only the last account counts.
+        let again = FollowInput {
+            tried: Some("perso"),
+            ..input(Some("main"), "pro")
+        };
+        assert_eq!(follow(&again), Follow::Now);
     }
 }

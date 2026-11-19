@@ -11,7 +11,7 @@ resolver = "3"
 members = ["crates/*", "examples/kits/*/tab", "crates/hangar-kit-host/tests/probe"]
 
 [workspace.package]
-version = "2.4.1"
+version = "2.5.1"
 authors = ["simnJS"]
 license = "MIT"
 repository = "https://github.com/hangar-ai/hangar"
@@ -122,6 +122,43 @@ rusqlite = { version = "0.43", features = ["bundled"] }
 # The AV1 decoder behind AVIF previews is unusably slow unoptimised; a debug
 # build of the app optimises it alone (release builds are unaffected).
 [profile.dev.package.re_rav1d]
+opt-level = 2
+
+# The same for what compiles a native kit tab's module (Cranelift, regalloc2,
+# wasmparser, wasmtime's compiler and the code it writes the result with):
+# unoptimised, compiling the test kit took seconds per test, and
+# hangar-kit-host's tests/tabs.rs a minute and a half. Debug builds of the app
+# open kit tabs faster too. Release and dist builds are unaffected (dist has
+# its own `opt-level = "s"` for some of these, below).
+[profile.dev.package.cranelift-codegen]
+opt-level = 2
+[profile.dev.package.cranelift-assembler-x64]
+opt-level = 2
+[profile.dev.package.cranelift-frontend]
+opt-level = 2
+[profile.dev.package.cranelift-entity]
+opt-level = 2
+[profile.dev.package.cranelift-bforest]
+opt-level = 2
+[profile.dev.package.cranelift-bitset]
+opt-level = 2
+[profile.dev.package.cranelift-control]
+opt-level = 2
+[profile.dev.package.regalloc2]
+opt-level = 2
+[profile.dev.package.wasmparser]
+opt-level = 2
+[profile.dev.package.wasmtime-environ]
+opt-level = 2
+[profile.dev.package.wasmtime-internal-cranelift]
+opt-level = 2
+[profile.dev.package.wasmtime-internal-core]
+opt-level = 2
+[profile.dev.package.wasmtime]
+opt-level = 2
+[profile.dev.package.gimli]
+opt-level = 2
+[profile.dev.package.object]
 opt-level = 2
 
 # What the release workflow and the packaging scripts build: `cargo build

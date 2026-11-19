@@ -17,12 +17,13 @@ use super::Store;
 use super::folders::place_before;
 use super::hosted;
 use super::layout::{
-    MAX_PANES, arranged_tree, grid_order, grid_tree, insert_leaf, leaf, move_leaf,
-    preset_terminals, preset_tree, reading_order, remove_leaf, rename_leaf,
+    MAX_PANES, Path, add_beside, arranged_tree, grid_tree, leaf, leaf_ids, move_leaf, pin_resized,
+    pinned_grid, pinned_tree, pinned_with, pins_dragged, pins_without, preset_terminals_in,
+    preset_tree, reading_order, remove_leaf, rename_leaf, unpinned_tree, with_pins, with_ratio,
 };
 use super::pane_names::{all_pane_names, pane_names, pick_pane_name, unique_pane_names};
 use super::types::{
-    AgentId, AppState, DropZone, Pane, PaneId, PaneRole, SavedCommand, Settings, SplitDir,
+    AgentId, AppState, DropZone, Pane, PaneId, PaneRole, PinEdge, SavedCommand, Settings, SplitDir,
     SplitNode, ViewPane, Workspace, WorkspaceFolder, WorkspaceKit, WsId,
 };
 use super::unread::{Kept, Unread};
@@ -135,27 +136,67 @@ pub enum StoreAction {
         before: Option<WsId>,
     },
     /// Keeps panes in reading order; new ones copy the focused pane's agent.
-    /// The count is of terminals: every view pane stays, laid out in the
-    /// even grid with them, and the terminals have the room `MAX_PANES`
-    /// leaves (`layout::preset_terminals`).
+    /// The count is of the terminals that are not pinned: every pinned pane
+    /// stays where it is, every view pane stays, laid out in the even grid
+    /// with them, and the terminals have the room `MAX_PANES` leaves
+    /// (`layout::preset_terminals_in`).
     ApplyPreset {
         ws: WsId,
         count: usize,
         model_pane: Option<PaneId>,
     },
-    /// `presetTree(leafIds(normalizeTree))`: same ids, nothing restarts.
+    /// `presetTree(leafIds(normalizeTree))`: same ids, nothing restarts. The
+    /// pinned panes stay where they are, the others tidied in the room they
+    /// leave.
     TidyLayout(WsId),
     /// The layout after an agent opened or closed a pane
     /// (`layout::arranged_tree`): the orchestrator, else the manager, on the
     /// left and the biggest, the others in an even grid beside it, in the
-    /// order they are read. Same ids, nothing restarts.
+    /// order they are read. Same ids, nothing restarts. The pinned panes
+    /// keep their place and their size: the others are laid out in the room
+    /// they leave, with a lead that is not pinned.
     ArrangePanes(WsId),
-    /// Divider drags.
+    /// Divider drags. The pinned panes stay on their edges whatever the
+    /// tree says, and a pinned pane's divider moved sets the size it keeps,
+    /// its pixels in proportion (`layout::pins_dragged`): `ResizeSplit`
+    /// gives the pixels themselves.
     SetTree(WsId, SplitNode),
+    /// A divider dragged to `ratio` (`layout::with_ratio` at `path`), in a
+    /// grid of `grid` logical pixels when that is known. A pinned pane's
+    /// divider sets the size it keeps (`layout::pin_resized`), in pixels
+    /// when `grid` is known.
+    ResizeSplit {
+        ws: WsId,
+        path: Path,
+        ratio: f64,
+        grid: Option<(f32, f32)>,
+    },
+    /// Pins pane `pane`, a terminal or a view, to `edge` of the grid, or to
+    /// the edge it lies along when none is named (`layout::pin_edge`),
+    /// inside the pins there are: it keeps that edge and its size along it
+    /// while the other panes open, close, move and are laid out again.
+    /// `grid` is the grid's size in logical pixels, when it is known: the
+    /// pane then keeps its size in pixels, as it is drawn now, else its
+    /// share of the room. A pane pinned already is left as it is, unless
+    /// another edge is named: it moves there, inside the other pins.
+    PinPane {
+        ws: WsId,
+        pane: PaneId,
+        edge: Option<PinEdge>,
+        grid: Option<(f32, f32)>,
+    },
+    /// The pane stays where it is, laid out with the others from then on;
+    /// the pins inside it keep their size.
+    UnpinPane {
+        ws: WsId,
+        pane: PaneId,
+    },
     /// Answers the new pane's id, or none at `MAX_PANES`. `init` is applied
     /// to the new pane before anything spawns it (a worker's role, task and
     /// port base, which its shell must start with: inventory A6); it cannot
-    /// change the pane's id.
+    /// change the pane's id. A new pane never takes a pinned pane's room
+    /// (`layout::add_beside`): `near` pinned, it lands beside the pane next
+    /// to it.
     AddPane {
         ws: WsId,
         agent: Option<AgentId>,
@@ -165,7 +206,8 @@ pub enum StoreAction {
         name: Option<String>,
         init: Option<PanePatch>,
     },
-    /// The last pane stays.
+    /// The last pane stays. A pinned pane closes like any other, the pins
+    /// inside it keeping their size.
     ClosePane {
         ws: WsId,
         pane: PaneId,
@@ -186,7 +228,8 @@ pub enum StoreAction {
         ws: WsId,
         id: PaneId,
     },
-    /// `moveLeaf`; `Center` swaps. Terminals and views alike.
+    /// `moveLeaf`; `Center` swaps. Terminals and views alike. A pinned pane
+    /// is neither moved nor dropped on: it is unpinned first.
     MovePane {
         ws: WsId,
         drag: PaneId,
@@ -537,10 +580,30 @@ fn free_name(wanted: &str, taken: &[String]) -> String {
     }
 }
 
+/// The side of the pane it splits a new pane lands on.
+fn zone_of(dir: Option<SplitDir>) -> DropZone {
+    match dir.unwrap_or(SplitDir::Row) {
+        SplitDir::Row => DropZone::Right,
+        SplitDir::Col => DropZone::Bottom,
+    }
+}
+
+/// `current`'s tree with leaf `id` added beside `near` (else the unpinned
+/// pane read last) on the side `zone` says, out of the pinned panes' room
+/// (`layout::add_beside`).
+fn tree_with(current: &Workspace, near: Option<&str>, id: &str, zone: DropZone) -> SplitNode {
+    if current.pane_count() == 0 {
+        return leaf(id);
+    }
+    let (tree, pins) = pinned_grid(current);
+    add_beside(&tree, &pins, near, id, zone)
+}
+
 /// A pane added to workspace `ws`, beside `near` (else the last pane) on
-/// the side `dir` says. `make` is given the pane it lands beside, when that
-/// is a terminal, and the names in use everywhere. Answers the new pane's
-/// id; none at `MAX_PANES`, or when `make` gives no pane.
+/// the side `dir` says, never in a pinned pane's room. `make` is given the
+/// pane it is added beside, when that is a terminal (a pinned one too: its
+/// split asked for it), and the names in use everywhere. Answers the new
+/// pane's id; none at `MAX_PANES`, or when `make` gives no pane.
 fn add_pane(
     model: &mut Store,
     ws: &str,
@@ -549,33 +612,45 @@ fn add_pane(
     make: impl FnOnce(Option<&Pane>, &[String]) -> Option<Pane>,
 ) -> Option<PaneId> {
     let mut taken = names_besides(&model.state, ws);
-    let zone = match dir.unwrap_or(SplitDir::Row) {
-        SplitDir::Row => DropZone::Right,
-        SplitDir::Col => DropZone::Bottom,
-    };
     map_workspace(model, ws, |current| {
         if current.pane_count() >= MAX_PANES {
             return None;
         }
-        let tree = grid_tree(current);
-        let ids = grid_order(current);
-        let near = near
-            .filter(|near| ids.contains(near))
-            .or_else(|| ids.last().cloned())
-            .unwrap_or_default();
+        let ids = leaf_ids(&grid_tree(current));
+        let near = near.filter(|near| ids.contains(near));
         taken.extend(pane_names(&current.panes));
-        let beside = current.panes.iter().find(|pane| pane.id == near);
+        let beside = near
+            .as_ref()
+            .or_else(|| ids.last())
+            .and_then(|near| current.panes.iter().find(|pane| &pane.id == near));
         let pane = make(beside, &taken)?;
         let id = pane.id.clone();
         let mut next = current.clone();
+        next.tree = Some(tree_with(current, near.as_deref(), &id, zone_of(dir)));
         next.panes.push(pane);
-        next.tree = Some(if current.pane_count() == 0 {
-            leaf(id.clone())
-        } else {
-            insert_leaf(&tree, &near, &id, zone)
-        });
         Some((next, id))
     })
+}
+
+/// `current` once pane `id`, a terminal or a view, is gone from its grid:
+/// its sibling takes its room, and if it was pinned, the pins inside it
+/// keep their size (`layout::pins_without`).
+fn without_leaf(current: &Workspace, id: &str) -> Workspace {
+    let (grid, pins) = pinned_grid(current);
+    let mut next = current.clone();
+    next.panes.retain(|pane| pane.id != id);
+    next.view_panes.retain(|view| view.id != id);
+    let rest = remove_leaf(&grid, id);
+    if pins.iter().any(|pin| pin.id == id) {
+        let pins = pins_without(&grid, &pins, id);
+        let inner = rest.as_ref().and_then(|tree| unpinned_tree(tree, &pins));
+        next.tree = Some(with_pins(&pins, inner));
+        next.pins = pins;
+    } else {
+        // Out of a tree that holds its pins, it still does.
+        next.tree = Some(rest.unwrap_or_else(|| preset_tree(&next.leaf_ids())));
+    }
+    next
 }
 
 /// Pane `pane` of `ws` given the id `to`, which kills its shell and starts
@@ -597,8 +672,12 @@ fn respawn(
         patch.apply(&mut next.panes[at]);
         next.panes[at].id = to.clone();
         let keeps_session = !(had_session && next.panes[at].session_id.is_none());
-        // The arrangement is keyed by pane id: follow the rename.
+        // The arrangement is keyed by pane id: follow the rename, its pin
+        // with it.
         next.tree = Some(rename_leaf(&grid_tree(current), &pane, &to));
+        for pin in next.pins.iter_mut().filter(|pin| pin.id == pane) {
+            pin.id = to.clone();
+        }
 
         Some((next, keeps_session))
     })?;
@@ -660,7 +739,18 @@ fn reduce(model: &mut Store, action: StoreAction) -> StoreOutcome {
     let mut outcome = StoreOutcome::default();
     match action {
         StoreAction::AddWorkspace(draft) => {
-            let ws = make_workspace(&draft, all_pane_names(&model.state.workspaces));
+            let mut ws = make_workspace(&draft, all_pane_names(&model.state.workspaces));
+            // Filed in a folder that is gone (removed while the dialog or a
+            // clone was on its way): at the top level, as a move does. Its
+            // account is not copied from the folder: it is read from it
+            // (`folders::account_of`), for as long as it is filed there.
+            if ws
+                .folder_id
+                .as_ref()
+                .is_some_and(|folder| !model.state.folders.iter().any(|entry| &entry.id == folder))
+            {
+                ws.folder_id = None;
+            }
             outcome.workspace = Some(ws.id.clone());
             let state = model.state_mut();
             state.active_workspace_id = Some(ws.id.clone());
@@ -769,7 +859,10 @@ fn reduce(model: &mut Store, action: StoreAction) -> StoreOutcome {
                 && before.as_deref() != Some(id.as_str())
             {
                 // A folder deleted while the workspace was on its way leaves it
-                // at the top level rather than filed under nothing.
+                // at the top level rather than filed under nothing. Only the
+                // filing changes: a workspace without an account of its own
+                // follows its new folder's by reading it, and one its node
+                // runs is told nothing (`folder_id` is the mirror's own).
                 ws.folder_id = folder
                     .filter(|folder| model.state.folders.iter().any(|entry| &entry.id == folder));
                 let mut workspaces = model.state.workspaces.clone();
@@ -787,7 +880,9 @@ fn reduce(model: &mut Store, action: StoreAction) -> StoreOutcome {
         } => {
             let others = names_besides(&model.state, &ws);
             map_workspace(model, &ws, |current| {
-                let size = preset_terminals(count, current.view_panes.len());
+                let size = preset_terminals_in(current, count);
+                let (tree, pins) = pinned_grid(current);
+                let pinned = |id: &str| pins.iter().any(|pin| pin.id == id);
                 // Reading order, not creation order: the panes seen first are
                 // those a smaller preset keeps, and those the toolbar names
                 // before closing the others (`closedByPreset`).
@@ -795,9 +890,20 @@ fn reduce(model: &mut Store, action: StoreAction) -> StoreOutcome {
                     .into_iter()
                     .cloned()
                     .collect();
+                // The pinned panes are neither counted nor closed.
+                let stay: Vec<Pane> = arranged
+                    .iter()
+                    .filter(|pane| pinned(&pane.id))
+                    .cloned()
+                    .collect();
                 // Same panes, same ids: the survivors keep their shell and are
                 // only resized.
-                let mut panes: Vec<Pane> = arranged.iter().take(size).cloned().collect();
+                let mut panes: Vec<Pane> = arranged
+                    .iter()
+                    .filter(|pane| !pinned(&pane.id))
+                    .take(size)
+                    .cloned()
+                    .collect();
                 // The pane the person was in leads; failing that, the last one
                 // kept, so a grid grown from one agent is that agent throughout.
                 let agent = arranged
@@ -806,16 +912,23 @@ fn reduce(model: &mut Store, action: StoreAction) -> StoreOutcome {
                     .or(panes.last())
                     .map_or(AgentId::Shell, |pane| pane.agent);
                 while panes.len() < size {
-                    let names: Vec<String> =
-                        others.iter().cloned().chain(pane_names(&panes)).collect();
+                    let names: Vec<String> = others
+                        .iter()
+                        .cloned()
+                        .chain(pane_names(&stay))
+                        .chain(pane_names(&panes))
+                        .collect();
                     panes.push(make_pane(agent, names));
                 }
                 // The views keep their place in the reading order among the
-                // terminals that stay; the new terminals come last.
+                // terminals that stay; the new terminals come last. The
+                // pinned panes keep theirs, out of the even grid.
                 let kept: HashSet<&str> = panes.iter().map(|pane| pane.id.as_str()).collect();
-                let mut ids: Vec<PaneId> = grid_order(current)
+                let mut ids: Vec<PaneId> = leaf_ids(&tree)
                     .into_iter()
-                    .filter(|id| kept.contains(id.as_str()) || current.has_view(id))
+                    .filter(|id| {
+                        !pinned(id) && (kept.contains(id.as_str()) || current.has_view(id))
+                    })
                     .collect();
                 for pane in &panes {
                     if !ids.contains(&pane.id) {
@@ -823,16 +936,31 @@ fn reduce(model: &mut Store, action: StoreAction) -> StoreOutcome {
                     }
                 }
                 let mut next = current.clone();
-                next.panes = panes;
-                next.tree = Some(preset_tree(&ids));
+                next.panes = arranged
+                    .iter()
+                    .filter(|pane| pinned(&pane.id) || kept.contains(pane.id.as_str()))
+                    .cloned()
+                    .chain(
+                        panes
+                            .iter()
+                            .filter(|pane| !arranged.iter().any(|old| old.id == pane.id))
+                            .cloned(),
+                    )
+                    .collect();
+                next.tree = Some(with_pins(
+                    &pins,
+                    (!ids.is_empty()).then(|| preset_tree(&ids)),
+                ));
                 Some((next, ()))
             });
         }
 
         StoreAction::TidyLayout(ws) => {
             map_workspace(model, &ws, |current| {
+                let (tree, pins) = pinned_grid(current);
                 let mut next = current.clone();
-                next.tree = Some(preset_tree(&grid_order(current)));
+                let inner = unpinned_tree(&tree, &pins).map(|inner| preset_tree(&leaf_ids(&inner)));
+                next.tree = Some(with_pins(&pins, inner));
                 Some((next, ()))
             });
         }
@@ -840,19 +968,24 @@ fn reduce(model: &mut Store, action: StoreAction) -> StoreOutcome {
         StoreAction::ArrangePanes(ws) => {
             map_workspace(model, &ws, |current| {
                 // The views take their place in the grid beside the lead, as
-                // the terminals do.
-                let order = grid_order(current);
+                // the terminals do; the pinned panes keep theirs, and the
+                // others are laid out in the room they leave.
+                let (tree, pins) = pinned_grid(current);
                 let lead = [PaneRole::Orchestrator, PaneRole::Manager]
                     .into_iter()
                     .find_map(|role| {
                         current
                             .panes
                             .iter()
-                            .find(|pane| pane.role == Some(role))
+                            .find(|pane| {
+                                pane.role == Some(role) && !pins.iter().any(|pin| pin.id == pane.id)
+                            })
                             .map(|pane| pane.id.as_str())
                     });
+                let inner =
+                    unpinned_tree(&tree, &pins).map(|inner| arranged_tree(&leaf_ids(&inner), lead));
                 let mut next = current.clone();
-                next.tree = Some(arranged_tree(&order, lead));
+                next.tree = Some(with_pins(&pins, inner));
                 Some((next, ()))
             });
         }
@@ -860,7 +993,73 @@ fn reduce(model: &mut Store, action: StoreAction) -> StoreOutcome {
         StoreAction::SetTree(ws, tree) => {
             map_workspace(model, &ws, |current| {
                 let mut next = current.clone();
-                next.tree = Some(tree);
+                if current.pins.is_empty() {
+                    next.tree = Some(tree);
+                    return Some((next, ()));
+                }
+                let (before, pins) = pinned_grid(current);
+                let dragged = pins_dragged(&before, &tree, &pins);
+                next.tree = Some(pinned_tree(&tree, &dragged));
+                if dragged != pins {
+                    next.pins = dragged;
+                }
+                Some((next, ()))
+            });
+        }
+
+        StoreAction::ResizeSplit {
+            ws,
+            path,
+            ratio,
+            grid,
+        } => {
+            map_workspace(model, &ws, |current| {
+                let (tree, pins) = pinned_grid(current);
+                let mut next = current.clone();
+                match pin_resized(&tree, &pins, &path, ratio, grid) {
+                    Some(pins) => {
+                        next.tree = Some(with_pins(&pins, unpinned_tree(&tree, &pins)));
+                        next.pins = pins;
+                    }
+                    None => next.tree = Some(with_ratio(&tree, &path, ratio)),
+                }
+                Some((next, ()))
+            });
+        }
+
+        StoreAction::PinPane {
+            ws,
+            pane,
+            edge,
+            grid,
+        } => {
+            map_workspace(model, &ws, |current| {
+                if current
+                    .pin_of(&pane)
+                    .is_some_and(|pin| edge.is_none_or(|edge| edge == pin.edge))
+                {
+                    return None;
+                }
+                let pins = pinned_with(current, &pane, edge, grid)?;
+                let tree = grid_tree(current);
+                let mut next = current.clone();
+                next.tree = Some(with_pins(&pins, unpinned_tree(&tree, &pins)));
+                next.pins = pins;
+                Some((next, ()))
+            });
+        }
+
+        StoreAction::UnpinPane { ws, pane } => {
+            map_workspace(model, &ws, |current| {
+                if !current.pins.iter().any(|pin| pin.id == pane) {
+                    return None;
+                }
+                let (tree, pins) = pinned_grid(current);
+                let pins = pins_without(&tree, &pins, &pane);
+                let mut next = current.clone();
+                // It stays where it is, among the panes laid out.
+                next.tree = Some(with_pins(&pins, unpinned_tree(&tree, &pins)));
+                next.pins = pins;
                 Some((next, ()))
             });
         }
@@ -912,27 +1111,14 @@ fn reduce(model: &mut Store, action: StoreAction) -> StoreOutcome {
         }
 
         StoreAction::AddView { ws, id, near, dir } => {
-            let zone = match dir.unwrap_or(SplitDir::Row) {
-                SplitDir::Row => DropZone::Right,
-                SplitDir::Col => DropZone::Bottom,
-            };
             outcome.pane = map_workspace(model, &ws, |current| {
                 if id.is_empty() || current.pane_count() >= MAX_PANES || current.has_leaf(&id) {
                     return None;
                 }
-                let tree = grid_tree(current);
-                let ids = grid_order(current);
-                let near = near
-                    .filter(|near| ids.contains(near))
-                    .or_else(|| ids.last().cloned())
-                    .unwrap_or_default();
+                let near = near.filter(|near| current.has_leaf(near));
                 let mut next = current.clone();
+                next.tree = Some(tree_with(current, near.as_deref(), &id, zone_of(dir)));
                 next.view_panes.push(ViewPane::new(id.clone()));
-                next.tree = Some(if current.pane_count() == 0 {
-                    leaf(id.clone())
-                } else {
-                    insert_leaf(&tree, &near, &id, zone)
-                });
                 Some((next, id.clone()))
             });
         }
@@ -942,11 +1128,7 @@ fn reduce(model: &mut Store, action: StoreAction) -> StoreOutcome {
                 if !current.has_view(&id) {
                     return None;
                 }
-                let mut next = current.clone();
-                next.view_panes.retain(|view| view.id != id);
-                let tree = remove_leaf(&grid_tree(current), &id);
-                next.tree = Some(tree.unwrap_or_else(|| preset_tree(&next.leaf_ids())));
-                Some((next, ()))
+                Some((without_leaf(current, &id), ()))
             });
         }
 
@@ -956,11 +1138,7 @@ fn reduce(model: &mut Store, action: StoreAction) -> StoreOutcome {
                 if current.panes.len() <= 1 || !current.panes.iter().any(|p| p.id == pane) {
                     return None;
                 }
-                let mut next = current.clone();
-                next.panes.retain(|p| p.id != pane);
-                let tree = remove_leaf(&grid_tree(current), &pane);
-                next.tree = Some(tree.unwrap_or_else(|| preset_tree(&next.leaf_ids())));
-                Some((next, ()))
+                Some((without_leaf(current, &pane), ()))
             });
         }
 
@@ -972,8 +1150,17 @@ fn reduce(model: &mut Store, action: StoreAction) -> StoreOutcome {
         } => {
             if drag != target {
                 map_workspace(model, &ws, |current| {
+                    // A pinned pane stays where it is: it is unpinned to move.
+                    let (tree, pins) = pinned_grid(current);
+                    if pins.iter().any(|pin| pin.id == drag || pin.id == target) {
+                        return None;
+                    }
+                    let inner = unpinned_tree(&tree, &pins)?;
                     let mut next = current.clone();
-                    next.tree = Some(move_leaf(&grid_tree(current), &drag, &target, zone));
+                    next.tree = Some(with_pins(
+                        &pins,
+                        Some(move_leaf(&inner, &drag, &target, zone)),
+                    ));
                     Some((next, ()))
                 });
             }
@@ -1040,6 +1227,8 @@ fn reduce(model: &mut Store, action: StoreAction) -> StoreOutcome {
                 // The machines are not a preference: a reset of the
                 // preferences does not forget them.
                 nodes: current.nodes.clone(),
+                // Nor how the accounts are marked: they belong to the accounts.
+                account_styles: current.account_styles.clone(),
                 extra: current.extra.clone(),
                 ..Settings::default()
             };

@@ -12,12 +12,14 @@
 //! package that owns each: `panes_logic` for the pane's, `board::format` for
 //! the task's.
 
+use std::borrow::Cow;
+
 use hangar_core::board::Task;
 
 use crate::commands::CommandId;
 use crate::ctx::Ctx;
 use crate::state::layout;
-use crate::state::live::{EpochMs, PaneActivity, PaneInsight, PlanLimits};
+use crate::state::live::{EpochMs, PaneActivity, PaneInsight, PlanLimits, RateLimit};
 use crate::state::{Model, Pane, PaneId, Workspace};
 
 // ---- The pane ---------------------------------------------------------------------------------
@@ -52,6 +54,50 @@ pub fn activity<'a>(m: &'a Model, pane: &PaneId) -> Option<&'a PaneActivity> {
 /// (`usePlanLimits`).
 pub fn plan_limits(m: &Model) -> Option<&PlanLimits> {
     m.live.panes_logic.plan_limits()
+}
+
+/// The plan's windows as they stand for `pane`'s agent, `None` while not
+/// known (and for a shell). With one agent at work, they are whichever of
+/// its sessions reported last ([`plan_limits`]), as they always were. With
+/// panes of another agent open too, that session may be the other agent's,
+/// whose plan is another one: they are then those of the account the pane
+/// runs on, as its agent's panes last reported them (the accounts' usage,
+/// kept per kind and account).
+pub fn plan_for<'a>(m: &'a Model, pane: &Pane) -> Option<Cow<'a, [RateLimit]>> {
+    let kind = pane.agent.kind()?;
+    let alone = m
+        .state()
+        .workspaces
+        .iter()
+        .flat_map(|ws| ws.panes.iter())
+        .filter(|other| other.agent.kind().is_some())
+        .all(|other| other.agent == pane.agent);
+    if alone {
+        return plan_limits(m).map(|plan| Cow::Borrowed(plan.limits.as_slice()));
+    }
+    let accounts = &m.live.accounts;
+    let account = accounts.launched.account(&pane.id)?;
+    let usage = accounts.usage.get(&crate::accounts::key(kind, account))?;
+    // The plan's two windows, then a gateway's, as a session reports them.
+    let windows: Vec<RateLimit> = [
+        ("five_hour", usage.five_hour.as_ref()),
+        ("seven_day", usage.weekly.as_ref()),
+    ]
+    .into_iter()
+    .filter_map(|(name, window)| Some((name.to_string(), window?)))
+    .chain(
+        usage
+            .others
+            .iter()
+            .map(|(name, window)| (name.clone(), window)),
+    )
+    .map(|(name, window)| RateLimit {
+        kind: name,
+        percent_used: window.percent_used,
+        resets_at: window.resets_at.clone(),
+    })
+    .collect();
+    (!windows.is_empty()).then_some(Cow::Owned(windows))
 }
 
 /// Epoch milliseconds now.

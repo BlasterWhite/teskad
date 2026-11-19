@@ -14,13 +14,15 @@
 use hangar_core::git_clone::{git_clone, git_clone_discard, git_repo_ownership};
 use iced::Task;
 
-use crate::accounts;
+use hangar_engine::accounts::{AccountLevels, MAIN_ACCOUNT};
+
 use crate::message::{Intent, Message};
 use crate::services::Services;
 use crate::services::inbox::Answer;
 use crate::state::roles::orchestrator_of;
-use crate::state::types::PaneRole;
-use crate::state::{AgentId, Model, Pane, Patch, StoreAction, WorkspaceDraft};
+use crate::state::types::{AgentKind, PaneRole, automatic_agent};
+use crate::state::{AgentId, AppState, Model, Pane, Patch, StoreAction, Workspace, WorkspaceDraft};
+use crate::workspace_dialog::folder::Installed;
 
 use super::Msg;
 use super::clone::{
@@ -38,6 +40,9 @@ pub struct AppDeps {
     parent: Option<String>,
     /// The job the dialog follows and cancels.
     job_id: Option<String>,
+    /// The navigator folder the dialog was opened from: the workspace is
+    /// filed there, and runs on its account.
+    folder: Option<String>,
 }
 
 impl AppDeps {
@@ -51,6 +56,7 @@ impl AppDeps {
             services: services.clone(),
             parent: None,
             job_id: None,
+            folder: None,
         }
     }
 
@@ -64,6 +70,13 @@ impl AppDeps {
     /// and the clone cancelled.
     pub fn job(mut self, job_id: impl Into<String>) -> AppDeps {
         self.job_id = Some(job_id.into());
+        self
+    }
+
+    /// The new workspace is filed in this navigator folder, and so runs on
+    /// the folder's account when it names one.
+    pub fn file_in(mut self, folder: Option<String>) -> AppDeps {
+        self.folder = folder;
         self
     }
 
@@ -158,7 +171,8 @@ impl FromGitDeps for AppDeps {
     }
 
     async fn create_workspace(&self, draft: NewWorkspace) -> Result<Created, String> {
-        self.ask(|answer| Msg::Create(draft, answer)).await
+        let folder = self.folder.clone();
+        self.ask(|answer| Msg::Create(draft, folder, answer)).await
     }
 
     async fn remove_workspace(&self, id: &str) -> Result<(), String> {
@@ -172,20 +186,18 @@ impl FromGitDeps for AppDeps {
         !hangar_core::paths::Paths::isolated()
     }
 
-    // The account the new workspace's panes will start on: nothing is chosen
-    // for it yet, so the settings' default, as `launch_account` decides.
+    // The account the new workspace's Claude Code panes will start on: the
+    // trust is that account's (each keeps its own `.claude.json`).
     async fn trust_folder(&self, path: &str) -> Result<(), String> {
-        let default = self
-            .services
-            .snapshot()
-            .state
-            .settings
-            .claude_account
-            .clone();
+        let levels = new_workspace_levels(
+            &self.services.snapshot().state,
+            self.folder.as_deref(),
+            TRUSTED_BY,
+        );
         let path = path.to_string();
         tokio::task::spawn_blocking(move || {
-            let account = accounts::launch_account(default.as_deref(), None, None);
-            let account = (account.id != accounts::MAIN_ACCOUNT).then_some(account.id);
+            let account = levels.launch_of(TRUSTED_BY);
+            let account = (account.id != MAIN_ACCOUNT).then_some(account.id);
             hangar_core::mcp_scope::claude_trust_folder(path, account).map(|_| ())
         })
         .await
@@ -212,18 +224,61 @@ impl FromGitDeps for AppDeps {
     }
 }
 
+/// The agent whose trust of a folder the flow records: Claude Code's, in its
+/// own configuration (`~/.claude.json` of each account,
+/// `mcp_scope::claude_trust_folder`), which it asks about otherwise. Codex
+/// keeps no file of Hangar's to write: its trust travels on its launch line
+/// (`LaunchRequest::trusted`).
+const TRUSTED_BY: AgentKind = AgentKind::Claude;
+
+/// The levels the panes of `kind`'s agent in the workspace the flow makes
+/// resolve their account in: it chooses none of its own, so the account of
+/// `kind` of the folder it is filed in (`folder`, when it still exists), then
+/// the settings' default. The same rule as for any workspace
+/// (`AccountLevels::of_kind`), for one not made yet.
+fn new_workspace_levels(state: &AppState, folder: Option<&str>, kind: AgentKind) -> AccountLevels {
+    let filed = Workspace {
+        folder_id: folder.map(str::to_string),
+        ..Workspace::default()
+    };
+    AccountLevels::of_kind(state, &filed, None, kind)
+}
+
 // ── on the UI thread: what the flow asked of the model ────────────────
 
-/// The workspace with a single Claude Code pane, which is its orchestrator
-/// from the start, so that it launches with Hangar's server.
-pub(super) fn create_workspace(m: &mut Model, draft: NewWorkspace) -> Result<Created, String> {
+/// The agent the clone's orchestrator runs (D20), as the new-workspace
+/// dialog's runs when the person picks none
+/// (`workspace_dialog::folder::orchestrator_of`): the settings' default for
+/// orchestrators when it is installed, else Claude Code when it is and Codex
+/// when it alone is. With no agent installed, the rule's own
+/// (`automatic_agent`): the one the setup offers first.
+fn clone_orchestrator(m: &Model) -> AgentKind {
+    let installed = Installed::of(
+        AgentKind::ALL
+            .into_iter()
+            .filter(|kind| crate::shell::setup::installed(m, *kind)),
+    );
+    crate::workspace_dialog::folder::orchestrator_of(None, m.settings(), &installed)
+        .unwrap_or_else(|| automatic_agent(|kind| installed.has(kind)))
+}
+
+/// The workspace with a single agent pane, the default orchestrator agent's
+/// ([`clone_orchestrator`]), which is its orchestrator from the start, so
+/// that it launches with Hangar's server.
+pub(super) fn create_workspace(
+    m: &mut Model,
+    draft: NewWorkspace,
+    folder: Option<String>,
+) -> Result<Created, String> {
     let before = m.state().active_workspace_id.clone();
+    let agent = AgentId::from(clone_orchestrator(m));
     let made = m.apply(StoreAction::AddWorkspace(WorkspaceDraft {
         name: draft.name,
         cwd: draft.cwd,
         layout: 1,
-        agents: vec![AgentId::Claude],
+        agents: vec![agent],
         shell_id: None,
+        folder_id: folder,
         ..WorkspaceDraft::default()
     }));
     let unmade = || "Hangar could not create the workspace.".to_string();
@@ -301,4 +356,146 @@ pub(super) fn run_request(
         async move { super::flow::run(&request, &deps).await },
         |outcome| Message::GitFlow(Msg::Finished(outcome)),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use hangar_engine::accounts::ClaudeAccount;
+
+    use super::*;
+    use crate::state::Settings;
+    use crate::state::types::WorkspaceFolder;
+
+    /// A model with a folder « games » on `account`, and « pro » for default;
+    /// Codex's are « team » and « lab ».
+    fn model_with_games(account: Option<&str>) -> Model {
+        let mut m = Model::default();
+        m.hydrate(AppState {
+            folders: vec![WorkspaceFolder {
+                id: "games".into(),
+                name: "Games".into(),
+                claude_account: account.map(str::to_string),
+                codex_account: Some("team".into()),
+                ..WorkspaceFolder::default()
+            }],
+            settings: Settings {
+                claude_account: Some("pro".into()),
+                codex_account: Some("lab".into()),
+                ..Settings::default()
+            },
+            ..AppState::default()
+        });
+        m
+    }
+
+    fn accounts() -> Result<Vec<ClaudeAccount>, String> {
+        Ok(["main", "perso", "pro"]
+            .into_iter()
+            .map(|id| ClaudeAccount {
+                id: id.into(),
+                label: id.into(),
+                is_main: id == "main",
+                logged_in: true,
+                email: None,
+                plan: None,
+            })
+            .collect())
+    }
+
+    fn shop() -> NewWorkspace {
+        NewWorkspace {
+            name: "shop".into(),
+            cwd: "/dev/shop".into(),
+            activate: true,
+        }
+    }
+
+    #[test]
+    fn a_clone_filed_in_a_folder_is_trusted_for_the_folders_account() {
+        let m = model_with_games(Some("perso"));
+        let levels = new_workspace_levels(m.state(), Some("games"), TRUSTED_BY);
+        assert_eq!(levels.folder.as_deref(), Some("perso"));
+        assert_eq!(levels.launch_with(accounts).id, "perso");
+        // Filed nowhere, in a folder since removed, or in one that names no
+        // account: the settings' default.
+        for folder in [None, Some("gone")] {
+            let levels = new_workspace_levels(m.state(), folder, TRUSTED_BY);
+            assert_eq!(levels.launch_with(accounts).id, "pro", "{folder:?}");
+        }
+        let plain = model_with_games(None);
+        let levels = new_workspace_levels(plain.state(), Some("games"), TRUSTED_BY);
+        assert_eq!(levels.launch_with(accounts).id, "pro");
+    }
+
+    /// The trust is Claude Code's, on its account: the folder's Codex
+    /// account, or the Codex default, never stands for it.
+    #[test]
+    fn the_trust_is_claude_codes_and_codex_s_levels_are_its_own() {
+        assert_eq!(TRUSTED_BY, AgentKind::Claude);
+        let m = model_with_games(None);
+        let trusted = new_workspace_levels(m.state(), Some("games"), TRUSTED_BY);
+        assert_eq!(trusted.folder, None);
+        assert_eq!(trusted.default.as_deref(), Some("pro"));
+        let codex = new_workspace_levels(m.state(), Some("games"), AgentKind::Codex);
+        assert_eq!(codex.folder.as_deref(), Some("team"));
+        assert_eq!(codex.default.as_deref(), Some("lab"));
+    }
+
+    #[test]
+    fn the_flows_workspace_is_filed_in_its_folder_and_runs_on_the_account_trusted() {
+        let mut m = model_with_games(Some("perso"));
+        let trusted = new_workspace_levels(m.state(), Some("games"), TRUSTED_BY);
+        let created = create_workspace(&mut m, shop(), Some("games".into())).unwrap();
+        let ws = m.workspace(&created.workspace.id).unwrap();
+        assert_eq!(ws.folder_id.as_deref(), Some("games"));
+        assert_eq!(ws.claude_account, None, "read from the folder, not copied");
+        assert_eq!(
+            AccountLevels::of_kind(m.state(), ws, None, TRUSTED_BY),
+            trusted
+        );
+        // A folder removed while the clone ran files it nowhere.
+        let created = create_workspace(&mut m, shop(), Some("gone".into())).unwrap();
+        assert_eq!(m.workspace(&created.workspace.id).unwrap().folder_id, None);
+    }
+
+    /// The agent the clone's orchestrator pane runs.
+    fn orchestrator_agent(m: &mut Model) -> AgentId {
+        let created = create_workspace(m, shop(), None).unwrap();
+        let ws = m.workspace(&created.workspace.id).unwrap();
+        let pane = ws
+            .panes
+            .iter()
+            .find(|pane| pane.id == created.orchestrator.id)
+            .unwrap();
+        assert_eq!(pane.role, Some(PaneRole::Orchestrator));
+        pane.agent
+    }
+
+    /// The clone's orchestrator runs the agent one nobody chose runs (D20):
+    /// Claude Code when it is installed, Codex when it alone is, the
+    /// settings' default for orchestrators when it is installed.
+    #[test]
+    fn the_clones_orchestrator_runs_the_default_orchestrator_agent() {
+        let mut m = model_with_games(None);
+        // Nothing found yet: the agent the setup offers first.
+        assert_eq!(orchestrator_agent(&mut m), AgentId::Claude);
+        m.ui.claude_installed = true;
+        assert_eq!(orchestrator_agent(&mut m), AgentId::Claude);
+
+        // Codex alone on this machine.
+        m.ui.claude_installed = false;
+        m.ui.codex_installed = true;
+        assert_eq!(orchestrator_agent(&mut m), AgentId::Codex);
+
+        // Both, the settings naming Codex for orchestrators.
+        m.ui.claude_installed = true;
+        let mut state = m.state().clone();
+        state.settings.default_orchestrator_agent = Some(AgentKind::Codex);
+        m.hydrate(state);
+        assert_eq!(orchestrator_agent(&mut m), AgentId::Codex);
+
+        // A default that is not installed gives way to the rule.
+        m.ui.codex_installed = false;
+        assert_eq!(orchestrator_agent(&mut m), AgentId::Claude);
+    }
 }

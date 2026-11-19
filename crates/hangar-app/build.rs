@@ -29,8 +29,8 @@ fn windows_resource() {
     resource.set_icon("packaging/icons/icon.ico");
     // The same words the Tauri build wrote from `tauri.conf.json`, which is
     // what the NSIS installer and the old uninstall entry already call the app.
-    resource.set("ProductName", "Hangar.AI");
-    resource.set("FileDescription", "Hangar.AI");
+    resource.set("ProductName", "HangarAI");
+    resource.set("FileDescription", "HangarAI");
     resource.set("CompanyName", "simnjs");
     resource.set("OriginalFilename", "hangar-ai.exe");
     resource.set("ProductVersion", &version);

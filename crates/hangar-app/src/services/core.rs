@@ -121,13 +121,28 @@ pub async fn save_state(
     .await
 }
 
-/// `claude_installed` and `detect_shells`, once at start (inventory §1.6).
-pub async fn detect() -> (bool, Vec<ShellInfo>) {
+/// What is looked for once at start (inventory §1.6): the agents and the
+/// shells. The agents by the quick look that runs nothing (no `--version`):
+/// the panes' shells wait on this answer.
+#[derive(Debug, Clone, Default)]
+pub struct Detected {
+    /// Claude Code is on PATH (`claude_installed`).
+    pub claude: bool,
+    /// Codex is on PATH, or where its official installer puts it
+    /// (`agent::detect::installed`).
+    pub codex: bool,
+    pub shells: Vec<ShellInfo>,
+}
+
+/// `claude_installed`, Codex's `installed` and `detect_shells`, once at
+/// start.
+pub async fn detect() -> Detected {
     blocking(|| {
-        Ok((
-            hangar_core::sessions::claude_installed(),
-            hangar_core::shells::detect_shells(),
-        ))
+        Ok(Detected {
+            claude: hangar_core::sessions::claude_installed(),
+            codex: hangar_core::agent::detect::installed(hangar_core::agent::AgentKind::Codex),
+            shells: hangar_core::shells::detect_shells(),
+        })
     })
     .await
     .unwrap_or_default()

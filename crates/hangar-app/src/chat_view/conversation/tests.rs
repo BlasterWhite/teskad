@@ -17,7 +17,7 @@ use crate::app::Packages;
 use crate::mobile::contract::{ChatPending, ChatReason, RemoteAnswered, RemoteSent};
 use crate::navigator::testing::{ctx, model_of, pane, simulate, workspace};
 use crate::settings::experiments;
-use crate::state::types::{AppState, PaneRole};
+use crate::state::types::{AgentId, AppState, PaneRole};
 use crate::state::{Patch, Settings, StoreAction};
 use hangar_core::git::ChangedFile;
 
@@ -1458,7 +1458,7 @@ fn the_input_says_why_it_is_disabled() {
     };
     assert_eq!(
         blocked(st.chat(WS).unwrap(), &shell),
-        Some(Blocked::NotClaude)
+        Some(Blocked::NoConversation)
     );
 }
 
@@ -1977,4 +1977,283 @@ fn the_permission_and_question_cards_are_drawn() {
         })),
     );
     picture("question", &st, &m, "graphite");
+}
+
+/* ── a Codex orchestrator ─────────────────────────────────────── */
+
+/// The thread Leo's Codex works in, its session.
+const THREAD: &str = "019aa0b1-6c2e-7d41-8f3a-1b2c3d4e5f60";
+
+/// `shop`, its orchestrator Leo a Codex.
+fn codex_shop() -> Model {
+    let mut state = shop(true).state().clone();
+    state.workspaces[0].panes[0].agent = AgentId::Codex;
+    state.workspaces[0].panes[0].session_id = Some(THREAD.into());
+    model_of(state)
+}
+
+/// A page of Leo's Codex thread, as the desk reads it (T9's items).
+fn codex_page(items: Vec<ChatItem>, pending: Option<ChatPending>) -> ChatView {
+    ChatView {
+        agent: "codex".into(),
+        session_id: Some(THREAD.into()),
+        ..page(items, pending)
+    }
+}
+
+/// What Hangar's client of Leo's Codex server reports, after its hello: the
+/// mod's kinds, in the mod's shapes (`agent/codex_attach.rs`).
+fn codex_reports(m: &mut Model, events: &[serde_json::Value]) {
+    let now = crate::control::types::now_ms();
+    crate::panes_logic::mount_for_test(m, LEO, WS, "Leo", now - 600_000);
+    let hello = json!({"kind": "hello", "sessionId": THREAD, "model": "gpt-5.1-codex", "version": "0.170.0"});
+    for event in std::iter::once(&hello).chain(events) {
+        let event = crate::services::CoreEvent::Bridge {
+            pane: LEO.into(),
+            event: event.clone(),
+        };
+        let _ = crate::panes_logic::reduce_for_test(m, &event, now - 10_000);
+    }
+}
+
+fn with_settings(m: &mut Model, edit: impl Fn(&mut Settings) + Send + Sync + 'static) {
+    m.apply(StoreAction::UpdateSettings(Patch::new(edit)));
+}
+
+#[test]
+fn a_codex_orchestrator_is_read_and_written_to_as_a_claude_code_one() {
+    let mut m = codex_shop();
+    let mut st = State::default();
+    read_into(
+        &mut st,
+        &mut m,
+        codex_page(
+            vec![
+                person("u1", "Add a search box"),
+                call("c1", "commandExecution", CallState::Done),
+                call("c2", "commandExecution", CallState::Done),
+                call("c3", "fileChange", CallState::Done),
+                call("c4", "webSearch", CallState::Done),
+            ],
+            None,
+        ),
+    );
+    let leo = m.workspace(WS).unwrap().panes[0].clone();
+    assert!(converses(&leo));
+    assert_eq!(blocked(st.chat(WS).unwrap(), &leo), None);
+    // Its command runs, patches and searches count as Claude Code's do.
+    assert_eq!(
+        shown_texts(
+            &st,
+            &m,
+            &["Add a search box", "2 commands, 1 file edited, 1 search"]
+        ),
+        ["Add a search box", "2 commands, 1 file edited, 1 search"]
+    );
+    // Idle: sent at once, through the desk, which hands it to its inbox.
+    st.chat_mut(WS, LEO).draft = text_editor::Content::with_text("Now the tests\n");
+    apply(&mut st, &mut m, vec![Msg::Send(WS.into())]);
+    assert_eq!(
+        calls(&st).last(),
+        Some(&Call::Send {
+            text: "Now the tests".into()
+        })
+    );
+}
+
+#[test]
+fn what_is_sent_while_a_codex_orchestrator_works_waits_in_its_queue() {
+    let mut m = codex_shop();
+    codex_reports(&mut m, &[json!({"kind": "turn", "phase": "start"})]);
+    // Its side channel is Hangar attached to its server: the mod's switch
+    // is not the one that counts.
+    with_settings(&mut m, |s| s.claude_bridge = false);
+    let mut st = State::default();
+    read_into(
+        &mut st,
+        &mut m,
+        codex_page(vec![person("u0", "Hello")], None),
+    );
+    assert_eq!(
+        shown_texts(
+            &st,
+            &m,
+            &["Leo is working: what you send waits for the end of its turn"]
+        )
+        .len(),
+        1
+    );
+    st.chat_mut(WS, LEO).draft = text_editor::Content::with_text("Also add tests");
+    apply(&mut st, &mut m, vec![Msg::Send(WS.into())]);
+    assert_eq!(
+        calls(&st).last(),
+        Some(&Call::Queue {
+            text: "Also add tests".into()
+        })
+    );
+
+    // « Attach Hangar to Codex » off: nothing would take the queue, so what
+    // is sent goes as before.
+    with_settings(&mut m, |s| {
+        s.claude_bridge = true;
+        s.codex_attach = false;
+    });
+    st.chat_mut(WS, LEO).draft = text_editor::Content::with_text("go");
+    apply(&mut st, &mut m, vec![Msg::Send(WS.into())]);
+    assert_eq!(calls(&st).last(), Some(&Call::Send { text: "go".into() }));
+}
+
+#[test]
+fn a_codex_orchestrator_is_offered_no_model_effort_or_plan_chips() {
+    let mut m = codex_shop();
+    codex_reports(
+        &mut m,
+        &[json!({"kind": "settings", "model": "gpt-5.1-codex", "effort": "high"})],
+    );
+    let mut st = State::default();
+    read_into(&mut st, &mut m, codex_page(vec![], None));
+    let leo = m.workspace(WS).unwrap().panes[0].clone();
+    // Its side channel delivers the queue, but runs no slash command: Codex
+    // runs those in its own window.
+    assert!(!tunable(&m, &leo));
+    assert!(shown_texts(&st, &m, &["Effort: High", "Plan", "Sonnet"]).is_empty());
+    // Asked anyway, nothing is queued.
+    let before = calls(&st).len();
+    apply(
+        &mut st,
+        &mut m,
+        vec![Msg::Tune(WS.into(), "/model gpt-5.1-codex-max".into())],
+    );
+    assert_eq!(calls(&st).len(), before);
+}
+
+#[test]
+fn a_codex_orchestrator_s_asks_are_answered_through_the_desk() {
+    let mut m = codex_shop();
+    let mut st = State::default();
+    // Its question (`requestUserInput`), held by its side channel as an
+    // AskUserQuestion.
+    let questions = vec![question("Which colour?", false)];
+    read_into(
+        &mut st,
+        &mut m,
+        codex_page(
+            vec![],
+            Some(ChatPending::Question {
+                tool_use_id: "call_q".into(),
+                questions: questions.clone(),
+            }),
+        ),
+    );
+    assert_eq!(shown_texts(&st, &m, &["Leo asks"]), ["Leo asks"]);
+    let asked = clicks(&st, &m, &["Blue"]);
+    apply(&mut st, &mut m, asked);
+    let asked = clicks(&st, &m, &["Send the answer"]);
+    apply(&mut st, &mut m, asked);
+    assert_eq!(
+        calls(&st).last(),
+        Some(&Call::Answer {
+            tool_use_id: "call_q".into(),
+            answers: vec![Answer {
+                selected: vec!["Blue".into()],
+                other: None,
+            }],
+        })
+    );
+
+    // Its approval of a command, as its side channel names it.
+    let mut st = State::default();
+    read_into(
+        &mut st,
+        &mut m,
+        codex_page(
+            vec![],
+            Some(ChatPending::Permission {
+                tool: "Bash".into(),
+                title: "Ran cargo test".into(),
+                detail: Some("cargo test".into()),
+                prompt: "p1".into(),
+                plan: None,
+            }),
+        ),
+    );
+    assert_eq!(
+        shown_texts(&st, &m, &["Leo asks to use Bash", "Allow", "Deny"]).len(),
+        3
+    );
+    let asked = clicks(&st, &m, &["Deny"]);
+    apply(&mut st, &mut m, asked);
+    assert_eq!(
+        calls(&st).last(),
+        Some(&Call::Permit {
+            allow: false,
+            prompt: Some("p1".into())
+        })
+    );
+}
+
+#[test]
+fn what_the_region_says_of_a_codex_orchestrator_names_codex() {
+    let mut m = codex_shop();
+    let mut st = State::default();
+    read_into(&mut st, &mut m, codex_page(vec![], None));
+    st.chat_mut(WS, LEO).desk = DeskState {
+        ready: true,
+        answering: false,
+        resuming: true,
+    };
+    let words = "Leo is resuming: wait for Codex to start.";
+    assert_eq!(shown_texts(&st, &m, &[words]), [words]);
+
+    // Sent while it was not up: held for it.
+    st.chat_mut(WS, LEO).desk = DeskState {
+        ready: true,
+        ..DeskState::default()
+    };
+    st.chat_mut(WS, LEO).draft = text_editor::Content::with_text("hello");
+    apply(&mut st, &mut m, vec![Msg::Send(WS.into())]);
+    let at = st.chat(WS).unwrap().thread.outgoing[0].at;
+    apply(
+        &mut st,
+        &mut m,
+        vec![Msg::Sent {
+            ws: WS.into(),
+            at,
+            result: Ok(RemoteSent {
+                sent: true,
+                queued: Some(true),
+            }),
+        }],
+    );
+    let words = "Queued: Leo gets it once Codex is up";
+    assert_eq!(shown_texts(&st, &m, &[words]), [words]);
+}
+
+#[test]
+fn the_empty_region_names_the_agent_a_new_orchestrator_would_run() {
+    let mut m = shop(false);
+    let st = State::default();
+    let claude = "The orchestrator is the Claude Code pane that plans the work on the board, \
+                  starts the workers and lands what they deliver. Your conversation with it \
+                  shows here.";
+    assert_eq!(shown_texts(&st, &m, &[claude]), [claude]);
+    with_settings(&mut m, |s| {
+        s.default_orchestrator_agent = Some(crate::state::types::AgentKind::Codex)
+    });
+    let codex = "The orchestrator is the Codex pane that plans the work on the board, starts \
+                 the workers and lands what they deliver. Your conversation with it shows here.";
+    assert_eq!(shown_texts(&st, &m, &[codex]), [codex]);
+}
+
+#[test]
+fn a_shell_has_no_conversation_and_says_so() {
+    let mut state = shop(true).state().clone();
+    state.workspaces[0].panes[0].agent = AgentId::Shell;
+    let mut m = model_of(state);
+    let mut st = State::default();
+    read_into(&mut st, &mut m, page(vec![], None));
+    let leo = m.workspace(WS).unwrap().panes[0].clone();
+    assert!(!converses(&leo));
+    let words = "Leo runs no agent whose conversation Hangar reads.";
+    assert_eq!(shown_texts(&st, &m, &[words]), [words]);
 }

@@ -12,6 +12,6 @@
 <plist version="1.0">
   <dict>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Hangar.AI uses the microphone to type what you dictate into the focused terminal pane.</string>
+    <string>HangarAI uses the microphone to type what you dictate into the focused terminal pane.</string>
   </dict>
 </plist>

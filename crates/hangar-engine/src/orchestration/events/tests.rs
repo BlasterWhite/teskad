@@ -1,10 +1,11 @@
 //! orchestratorEvents.test.ts, case for case.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use hangar_core::board::Task;
+use hangar_core::board::{Progress, Task};
+use hangar_core::pty::{PaneJob, ProcCommand, job_below};
 
 use super::*;
 use crate::orchestration::testkit::{
@@ -21,12 +22,17 @@ pub struct Sent {
 }
 
 /// The engine's world: the state, the activities, one board for every
-/// folder, and what was queued.
+/// folder, what was queued, the panes' processes (their shell and the
+/// process table, read by core's own walk) and the checkouts' HEADs.
 pub struct World {
     pub state: AppState,
     pub activities: HashMap<String, AgentActivity>,
     pub tasks: Vec<Task>,
     pub sent: RefCell<Vec<Sent>>,
+    pub procs: HashMap<String, (u32, Vec<ProcCommand>)>,
+    pub heads: HashMap<String, u64>,
+    /// How many times a pane was looked into.
+    pub looks: Cell<usize>,
 }
 
 impl EngineIo for World {
@@ -53,6 +59,18 @@ impl EngineIo for World {
             from: from.into(),
         });
         Ok(())
+    }
+
+    fn pane_job(&self, pane: &str) -> PaneJob {
+        self.looks.set(self.looks.get() + 1);
+        match self.procs.get(pane) {
+            Some((shell, table)) => job_below(table, *shell, |_| None),
+            None => PaneJob::Unknown,
+        }
+    }
+
+    fn head_moves(&self, cwd: &str) -> Option<u64> {
+        self.heads.get(cwd).copied()
     }
 }
 
@@ -128,6 +146,9 @@ fn rig_with(panes: Vec<Pane>) -> Rig {
                 task("t2"),
             ],
             sent: RefCell::new(Vec::new()),
+            procs: HashMap::new(),
+            heads: HashMap::new(),
+            looks: Cell::new(0),
         },
         t: START,
     }
@@ -226,16 +247,17 @@ fn sends_the_events_of_a_few_seconds_as_one_message_from_hangar() {
 #[test]
 fn does_not_let_a_steady_stream_postpone_the_first_event_for_good() {
     let mut r = rig();
+    // Questions: what cannot wait for the digest.
     for i in 0..12 {
         r.post(
             "ws",
-            commented("t1", "Task t1", &format!("w{i}"), &format!("note {i}")),
+            commented("t1", "Task t1", &format!("w{i}"), &format!("note {i}?")),
         );
         r.advance(3_000);
     }
     let sent = r.sent();
     assert!(!sent.is_empty());
-    assert!(sent[0].text.contains("note 0"));
+    assert!(sent[0].text.contains("note 0?"));
 }
 
 #[test]
@@ -550,6 +572,7 @@ fn drops_a_wait_or_an_idle_the_moment_has_overtaken() {
         worker: w.into(),
         task_id: Some(t.into()),
         for_ms: 700_000,
+        job: None,
     };
     let batch = [
         entry(waiting("w1", "a"), BASE, false),
@@ -732,9 +755,17 @@ fn tells_a_turn_ended_ten_minutes_ago_without_a_delivery() {
     r.tick();
     r.advance(timing::IDLE_MS + 1_000);
     r.tick();
+    // Not urgent: it waits for the digest.
     r.advance(timing::DEBOUNCE_MS);
+    assert!(r.sent().is_empty());
+    r.advance(timing::DIGEST_MS);
     let sent = r.sent();
     assert_eq!(sent.len(), 1);
+    assert!(
+        sent[0]
+            .text
+            .starts_with("1 update in workspace \"Shop\", a digest of the last minutes")
+    );
     assert!(
         sent[0]
             .text
@@ -817,6 +848,343 @@ fn tells_a_worker_pane_closed_by_hand_not_one_stopped_or_restarted() {
     restarted.tick();
     restarted.advance(timing::DEBOUNCE_MS);
     assert!(restarted.sent().is_empty());
+}
+
+/* ── really idle ───────────────────────────────────────────────── */
+
+/// Worker w1's pane: its shell (10) runs Claude Code (11), with Hangar's MCP
+/// server and another one through npx, which runs a shell of its own; and
+/// `more` below that.
+fn pane_tree(more: &[(u32, u32, &str)]) -> (u32, Vec<ProcCommand>) {
+    let mut rows = vec![
+        (1, 0, "/sbin/init"),
+        (10, 1, "/bin/bash"),
+        (11, 10, "claude --name worker-1 --mcp-config /tmp/ws.json"),
+        (12, 11, "/usr/bin/hangar-ai --mcp"),
+        (13, 11, "npm exec @playwright/mcp"),
+        (14, 13, "sh -c playwright-mcp"),
+        (
+            15,
+            14,
+            "node /home/ada/.npm/_npx/9/node_modules/.bin/playwright-mcp",
+        ),
+    ];
+    rows.extend_from_slice(more);
+    let table = rows
+        .into_iter()
+        .map(|(pid, ppid, command)| ProcCommand {
+            pid,
+            ppid,
+            command: command.to_string(),
+        })
+        .collect();
+    (10, table)
+}
+
+/// A benchmark Claude Code runs in the background for the worker.
+const BENCHMARK: [(u32, u32, &str); 2] = [
+    (
+        20,
+        11,
+        "/bin/bash -c source /home/ada/.claude/shell-snapshots/snapshot-bash-1.sh && eval 'cargo bench -p engine' && pwd -P >| /tmp/claude-1-cwd",
+    ),
+    (21, 20, "cargo bench -p engine"),
+];
+
+/// w1 has a turn, then hands back.
+fn after_a_turn(r: &mut Rig) {
+    r.set_activity("w1", AgentActivity::Working);
+    r.tick();
+    r.set_activity("w1", AgentActivity::Yours);
+    r.tick();
+}
+
+/// The idle alerts sent so far.
+fn idle_alerts(r: &Rig) -> usize {
+    r.sent()
+        .iter()
+        .map(|m| m.text.matches("without delivering").count())
+        .sum()
+}
+
+#[test]
+fn does_not_call_idle_a_worker_that_waits_on_a_job_of_its_own_until_it_ended() {
+    let mut r = rig();
+    r.io.procs.insert("w1".into(), pane_tree(&BENCHMARK));
+    after_a_turn(&mut r);
+    r.advance(timing::IDLE_MS + 1_000);
+    r.tick();
+    r.advance(timing::DIGEST_MS);
+    r.tick();
+    r.advance(timing::DIGEST_MS);
+    r.tick();
+    assert_eq!(idle_alerts(&r), 0);
+    // Looked into once a minute at most.
+    let looks = r.io.looks.get();
+    r.advance(30_000);
+    r.tick();
+    assert_eq!(r.io.looks.get(), looks);
+
+    // The benchmark ends; the worker is quiet from then on.
+    r.io.procs.insert("w1".into(), pane_tree(&[]));
+    r.advance(timing::JOB_POLL_MS);
+    r.tick();
+    r.advance(timing::DIGEST_MS);
+    r.tick();
+    r.advance(timing::DIGEST_MS);
+    assert_eq!(idle_alerts(&r), 0);
+    r.advance(timing::IDLE_MS - timing::DIGEST_MS);
+    r.tick();
+    r.advance(timing::DIGEST_MS);
+    assert_eq!(idle_alerts(&r), 1);
+    let sent = r.sent();
+    let text = &sent[0].text;
+    assert!(text.contains("worker-1 ended its turn"), "{text}");
+    assert!(!text.contains(IDLE_JOB), "{text}");
+}
+
+#[test]
+fn does_not_take_the_agents_mcp_servers_for_a_job() {
+    let mut r = rig();
+    r.io.procs.insert("w1".into(), pane_tree(&[]));
+    after_a_turn(&mut r);
+    r.advance(timing::IDLE_MS + 1_000);
+    r.tick();
+    r.advance(timing::DIGEST_MS);
+    assert_eq!(idle_alerts(&r), 1);
+}
+
+#[test]
+fn names_a_job_that_has_held_the_worker_back_an_hour() {
+    let mut r = rig();
+    r.io.procs.insert("w1".into(), pane_tree(&BENCHMARK));
+    after_a_turn(&mut r);
+    r.advance(timing::IDLE_MS + 1_000);
+    r.tick();
+    r.advance(timing::JOB_HOLD_MS - timing::IDLE_MS);
+    r.tick();
+    r.advance(timing::DIGEST_MS);
+    assert_eq!(idle_alerts(&r), 1);
+    let sent = r.sent();
+    let text = &sent[0].text;
+    assert!(
+        text.contains(&format!(
+            "worker-1 ended its turn 60 min ago without delivering on \"Task t1\" [t1]{IDLE_JOB}cargo bench -p engine"
+        )),
+        "{text}"
+    );
+}
+
+#[test]
+fn tells_an_idle_worker_again_only_half_an_hour_later_when_a_nudge_is_all_it_had() {
+    let mut r = rig();
+    after_a_turn(&mut r);
+    r.advance(timing::IDLE_MS + 1_000);
+    r.tick();
+    let told = r.t;
+    r.advance(timing::DIGEST_MS);
+    assert_eq!(idle_alerts(&r), 1);
+
+    // The orchestrator nudges it: a turn, nothing done, idle again.
+    after_a_turn(&mut r);
+    r.advance(timing::IDLE_MS + 1_000);
+    r.tick();
+    r.advance(timing::DIGEST_MS);
+    assert_eq!(idle_alerts(&r), 1);
+
+    // Half an hour after it was told, it is told again.
+    r.advance(told + timing::IDLE_AGAIN_MS - r.t);
+    r.tick();
+    r.advance(timing::DIGEST_MS);
+    assert_eq!(idle_alerts(&r), 2);
+}
+
+/// Something a worker does, to its rig.
+type Doing = fn(&mut Rig);
+
+#[test]
+fn tells_an_idle_worker_again_once_it_commented_reported_or_committed() {
+    // What it did, done after it was told; then a turn and ten quiet minutes.
+    let cases: [(&str, Doing); 3] = [
+        ("a comment", |r: &mut Rig| {
+            r.io.tasks[0].comments.push(comment(
+                "c9",
+                "worker-1",
+                "Benchmarks in, writing the report",
+                9,
+            ));
+            let t = r.t;
+            r.engine.board_changed(t);
+            r.advance(300);
+        }),
+        ("a progress report", |r: &mut Rig| {
+            r.io.tasks[0].progress = Some(Progress {
+                percent: 60,
+                note: "benchmarks in".into(),
+                at: 9,
+                by: Some("worker-1".into()),
+            });
+            let t = r.t;
+            r.engine.board_changed(t);
+            r.advance(300);
+        }),
+        ("a commit", |r: &mut Rig| {
+            r.io.heads.insert("C:\\dev\\ws".into(), 240);
+        }),
+    ];
+    for (what, did) in cases {
+        let mut r = rig();
+        r.io.heads.insert("C:\\dev\\ws".into(), 180);
+        after_a_turn(&mut r);
+        r.advance(timing::IDLE_MS + 1_000);
+        r.tick();
+        r.advance(timing::DIGEST_MS);
+        assert_eq!(idle_alerts(&r), 1, "{what}");
+        r.set_activity("w1", AgentActivity::Working);
+        r.tick();
+        did(&mut r);
+        r.set_activity("w1", AgentActivity::Yours);
+        r.tick();
+        r.advance(timing::IDLE_MS + 1_000);
+        r.tick();
+        r.advance(timing::DIGEST_MS);
+        assert_eq!(idle_alerts(&r), 2, "{what}");
+    }
+}
+
+/* ── the digest ────────────────────────────────────────────────── */
+
+fn unblocked(task_id: &str) -> OrchestratorEvent {
+    OrchestratorEvent::TaskUnblocked {
+        task_id: task_id.into(),
+        title: format!("Task {task_id}"),
+        how: "recheck passed".into(),
+    }
+}
+
+#[test]
+fn holds_what_is_not_urgent_and_sends_it_as_one_digest() {
+    let mut r = rig();
+    r.post(
+        "ws",
+        commented("t1", "Task t1", "Rev", "Looks fine overall"),
+    );
+    r.advance(60_000);
+    r.post("ws", commented("t2", "Task t2", "Rev", "Nit: rename x"));
+    r.post("ws", unblocked("t2"));
+    r.advance(timing::DIGEST_MS - 60_000 - 1);
+    assert!(r.sent().is_empty());
+    r.advance(1);
+    let sent = r.sent();
+    assert_eq!(sent.len(), 1);
+    let text = &sent[0].text;
+    assert!(
+        text.starts_with(
+            "3 updates in workspace \"Shop\", a digest of the last minutes (nothing urgent):"
+        ),
+        "{text}"
+    );
+    assert!(text.contains("Rev commented on \"Task t1\" [t1]: \"Looks fine overall\""));
+    assert!(text.contains("Rev commented on \"Task t2\" [t2]: \"Nit: rename x\""));
+    assert!(text.contains("\"Task t2\" [t2] unblocked: recheck passed"));
+}
+
+#[test]
+fn an_urgent_event_takes_the_digest_along_at_once() {
+    let mut r = rig();
+    r.post("ws", commented("t1", "Task t1", "Rev", "Looks fine"));
+    r.advance(60_000);
+    assert!(r.sent().is_empty());
+    r.post("ws", delivery(DeliveryOutcome::CheckFailed, "t1"));
+    r.advance(timing::DEBOUNCE_MS);
+    let sent = r.sent();
+    assert_eq!(sent.len(), 1);
+    let text = &sent[0].text;
+    assert!(
+        text.starts_with("2 updates in workspace \"Shop\":\n"),
+        "{text}"
+    );
+    assert!(text.contains("failed the check"));
+    assert!(text.contains("Rev commented on \"Task t1\" [t1]: \"Looks fine\""));
+    // Nothing was left waiting.
+    r.advance(timing::DIGEST_MS);
+    assert_eq!(r.sent().len(), 1);
+}
+
+#[test]
+fn a_question_a_blocker_the_persons_word_or_a_task_done_cannot_wait() {
+    let said = |by: &str, text: &str| is_urgent(&commented("t1", "Task t1", by, text));
+    assert!(said("Rev", "Should I use the v2 API?"));
+    assert!(said("Rev", "Which one? The old or the new"));
+    assert!(said("worker-1", "Blocked: the CI token is missing"));
+    assert!(said("worker-1", "Je suis bloqué sur le build"));
+    assert!(said("user", "ok"));
+    assert!(!said("worker-1", "Added the `?` operator to the reader"));
+    assert!(!said("Rev", "Done: 12 tests pass"));
+    assert!(is_urgent(&moved("t1", "Task t1", "review", "done")));
+    assert!(!is_urgent(&moved("t1", "Task t1", "doing", "review")));
+    assert!(is_urgent(&delivery(DeliveryOutcome::Stale, "t1")));
+    assert!(is_urgent(&exited("worker-1", Some("t1"))));
+    assert!(!is_urgent(&unblocked("t1")));
+    assert!(!is_urgent(&started("worker-1", Some("t1"))));
+}
+
+#[test]
+fn tells_the_plain_comments_on_one_task_as_one_line_and_keeps_a_question_apart() {
+    let events = [
+        commented("t1", "Task t1", "Ana", "Reviewed the parser"),
+        commented("t1", "Task t1", "Bo", "Why a Vec here?"),
+        commented("t1", "Task t1", "Cy", "Style nits only"),
+        commented("t1", "Task t1", "Ana", "LGTM"),
+        commented("t2", "Task t2", "Cy", "Fine"),
+    ];
+    let text = render_delta(&events, &[], "Shop");
+    let lines: Vec<&str> = text.split('\n').collect();
+    assert_eq!(
+        lines,
+        [
+            "5 updates in workspace \"Shop\":",
+            "- 3 comments on \"Task t1\" [t1] by Ana and Cy; the last, Ana's: \"LGTM\" (board_list_tasks has them all)",
+            "- Bo commented on \"Task t1\" [t1]: \"Why a Vec here?\"",
+            "- Cy commented on \"Task t2\" [t2]: \"Fine\"",
+        ]
+    );
+}
+
+#[test]
+fn keeps_everything_in_the_journal_digest_or_not() {
+    let mut r = rig();
+    let events = [
+        commented("t1", "Task t1", "Ana", "one"),
+        commented("t1", "Task t1", "Bo", "two"),
+        commented("t1", "Task t1", "Cy", "three"),
+        unblocked("t2"),
+        started("worker-2", Some("t2")),
+        delivery(DeliveryOutcome::Landed, "t1"),
+    ];
+    for event in events.clone() {
+        r.post("ws", event);
+        r.advance(1_000);
+    }
+    r.advance(timing::DEBOUNCE_MS);
+    let journal: Vec<OrchestratorEvent> = r
+        .engine
+        .journal("ws")
+        .into_iter()
+        .map(|entry| entry.event)
+        .collect();
+    assert_eq!(journal, events);
+    let sent = r.sent();
+    assert_eq!(sent.len(), 1);
+    let text = &sent[0].text;
+    assert!(
+        text.starts_with("6 updates in workspace \"Shop\":"),
+        "{text}"
+    );
+    assert!(text.contains("3 comments on \"Task t1\" [t1] by Ana, Bo and Cy"));
+    assert!(text.contains("unblocked"));
+    assert!(text.contains("worker-2 started"));
+    assert!(text.contains("landed"));
 }
 
 /* ── blocked tasks ─────────────────────────────────────────────── */
@@ -932,4 +1300,13 @@ fn an_event_reads_as_the_ts_wrote_it() {
     );
     let json = serde_json::to_value(delivery(DeliveryOutcome::CheckFailed, "t1")).unwrap();
     assert_eq!(json["outcome"], "checkFailed");
+    // An idle without a job reads as it always did, and back.
+    let idle: OrchestratorEvent = serde_json::from_value(
+        serde_json::json!({"kind": "workerIdle", "worker": "Mia", "taskId": null, "forMs": 3}),
+    )
+    .unwrap();
+    assert_eq!(
+        serde_json::to_value(&idle).unwrap(),
+        serde_json::json!({"kind": "workerIdle", "worker": "Mia", "taskId": null, "forMs": 3})
+    );
 }

@@ -19,6 +19,7 @@
 //! is not here either. `Core` (lib.rs) holds those, and a function that used
 //! one is given it as an argument, as it was given `State<…>`.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use serde_json::Value;
@@ -59,6 +60,17 @@ pub enum Event {
     BridgeEvent { pane_id: String, event: Value },
     /// `bridge:queue`: what is queued for a pane, after it changed.
     BridgeQueue(crate::bridge::QueueChanged),
+    /// `image:generated`: a Codex session generated an image and saved it
+    /// (agent/images.rs, docs/native/agents.md §5.3): the pane — or the
+    /// headless child, whose id stands for one — the session (Codex's
+    /// thread id), where the file is, and what it was made from. The file is
+    /// Codex's: shown and handed back where it is, never moved.
+    ImageGenerated {
+        pane: String,
+        session: String,
+        path: PathBuf,
+        prompt: Option<String>,
+    },
     /// `voice:phase`: the dictation's state.
     #[cfg(feature = "desktop")]
     VoicePhase(crate::voice::Phase),
@@ -105,6 +117,7 @@ impl Event {
             Event::ControlInternal(_) => "control:internal",
             Event::BridgeEvent { .. } => "bridge:event",
             Event::BridgeQueue(_) => "bridge:queue",
+            Event::ImageGenerated { .. } => "image:generated",
             #[cfg(feature = "desktop")]
             Event::VoicePhase(_) => "voice:phase",
             #[cfg(feature = "desktop")]
@@ -231,5 +244,12 @@ mod tests {
         assert_eq!(Event::KitsChanged.name(), "kits:changed");
         assert_eq!(Event::AccountsChanged.name(), "accounts:changed");
         assert_eq!(Event::RemoteChanged.name(), "remote:changed");
+        let image = Event::ImageGenerated {
+            pane: "p1".into(),
+            session: "019aa0b1-6c2e-7d41-8f3a-1b2c3d4e5f60".into(),
+            path: PathBuf::from("/home/dev/.codex/generated_images/t/ig_1.png"),
+            prompt: None,
+        };
+        assert_eq!(image.name(), "image:generated");
     }
 }

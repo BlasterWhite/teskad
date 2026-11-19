@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   Hangar.AI site: the motion
+   HangarAI site: the motion
 
    Scroll-driven, with GSAP and ScrollTrigger (vendor/, 3.15.0) and
    nothing else. The page is written in its final state and reads

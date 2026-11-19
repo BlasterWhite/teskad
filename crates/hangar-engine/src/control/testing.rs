@@ -9,8 +9,11 @@ use serde_json::{Value, json};
 use tokio::sync::oneshot;
 
 use hangar_core::accounts::Account;
+use hangar_core::agent::AgentKind;
 use hangar_core::board::{Board, Comment, Task, TaskPatch};
-use hangar_core::delivery::{Cleanup, Delivery, Kind, Outcome, Plan, Running, Tested};
+use hangar_core::delivery::{
+    Cleanup, Delivery, Kind, Outcome, Plan, ReviewerChoice, Running, Tested,
+};
 use hangar_core::shells::ShellInfo;
 
 use super::delivery::{control, delivery_state};
@@ -30,6 +33,8 @@ pub struct FakeDelivery {
     pub log: Arc<Mutex<Vec<String>>>,
     pub tasks: Mutex<Vec<Task>>,
     pub runs: Mutex<Vec<Delivery>>,
+    /// The reviewer each run was handed, beside `runs`.
+    pub reviewers: Mutex<Vec<ReviewerChoice>>,
     pub next: Mutex<Next>,
     pub held: Mutex<Option<oneshot::Sender<Outcome>>>,
     pub preflight_error: Mutex<Option<String>>,
@@ -39,6 +44,8 @@ pub struct FakeDelivery {
     pub running: Mutex<Vec<Running>>,
     /// How many times the accounts were listed.
     pub listed_accounts: Mutex<usize>,
+    /// The kinds whose accounts were listed, in order.
+    pub listed_kinds: Mutex<Vec<AgentKind>>,
     /// What bringing a branch back from a node says instead of its checkout.
     pub bring_back_error: Mutex<Option<String>>,
 }
@@ -95,8 +102,13 @@ impl DeliveryDeps for FakeDelivery {
         }))
     }
 
-    fn run(&self, delivery: Delivery) -> BoxFuture<Result<Outcome, String>> {
+    fn run(
+        &self,
+        delivery: Delivery,
+        reviewer: ReviewerChoice,
+    ) -> BoxFuture<Result<Outcome, String>> {
         lock(&self.runs).push(delivery);
+        lock(&self.reviewers).push(reviewer);
         match &*lock(&self.next) {
             Next::Now(outcome) => ready((**outcome).clone()),
             Next::Hold => {
@@ -126,11 +138,17 @@ impl DeliveryDeps for FakeDelivery {
         ready(Ok(lock(&self.running).clone()))
     }
 
-    fn accounts(&self) -> BoxFuture<Result<Vec<Account>, String>> {
+    /// Claude Code's « work », and Codex's « team »: each kind's own.
+    fn accounts(&self, kind: AgentKind) -> BoxFuture<Result<Vec<Account>, String>> {
         *lock(&self.listed_accounts) += 1;
+        lock(&self.listed_kinds).push(kind);
+        let (id, label) = match kind {
+            AgentKind::Claude => ("work", "Work"),
+            AgentKind::Codex => ("team", "Team"),
+        };
         ready(Ok(vec![Account {
-            id: "work".into(),
-            label: "Work".into(),
+            id: id.into(),
+            label: label.into(),
             is_main: false,
             logged_in: true,
             email: None,
@@ -343,6 +361,7 @@ pub fn setup() -> Setup {
         log: fake.log.clone(),
         tasks: Mutex::new(vec![task()]),
         runs: Mutex::new(vec![]),
+        reviewers: Mutex::new(vec![]),
         next: Mutex::new(Next::Now(Box::new(Ok(outcome(
             Kind::Landed,
             "worker landed on main (abcdef1).",
@@ -353,6 +372,7 @@ pub fn setup() -> Setup {
         preflight_tasks: Mutex::new(vec![]),
         running: Mutex::new(vec![]),
         listed_accounts: Mutex::new(0),
+        listed_kinds: Mutex::new(vec![]),
         bring_back_error: Mutex::new(None),
     });
     let events = Arc::new(Events::default());
@@ -407,6 +427,11 @@ impl Setup {
 
     pub fn runs(&self) -> Vec<Delivery> {
         lock(&self.delivery.runs).clone()
+    }
+
+    /// The reviewer each run was handed, in order.
+    pub fn reviewers(&self) -> Vec<ReviewerChoice> {
+        lock(&self.delivery.reviewers).clone()
     }
 
     pub fn task(&self) -> Task {

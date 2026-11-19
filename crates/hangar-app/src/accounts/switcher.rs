@@ -1,4 +1,4 @@
-//! The toolbar button of « Comptes Claude » (`AccountSwitcher.tsx`,
+//! The toolbar button of « Comptes » (`AccountSwitcher.tsx`,
 //! `ConnectedAccountSwitcher.tsx`): it shows the account of the workspace on
 //! screen, and its menu switches it in one click.
 //!
@@ -7,6 +7,17 @@
 //! makes it the default of every workspace. With agents running in that scope,
 //! the click first asks whether to restart them now (their conversations are
 //! kept) or on their next launch.
+//!
+//! Each kind of agent has its accounts: Claude Code's are listed as they
+//! always were, another kind's in a block of its own once it has an account
+//! to choose besides its main one, and the button then names the
+//! workspace's account of each. A click switches the accounts of that kind
+//! only, so only its panes restart.
+//!
+//! The button and each row draw the account in the tone and with the icon
+//! chosen for it (`account_style`), the default account included: the
+//! navigator and the pane headers only name an account other than the
+//! default, so this is where the default's own colour shows.
 //!
 //! Switching is always this click: nothing here rotates accounts by itself.
 //! The email of an account is in the tooltip of its row and appears nowhere
@@ -22,11 +33,14 @@ use iced::{Alignment, Element, Length, Padding};
 
 use crate::ctx::Ctx;
 use crate::message::Message;
+use crate::navigator::plan::{shown_pct, window_label};
+use crate::panes_logic::wall_clock_ms;
 use crate::state::WsId;
+use crate::state::types::AgentKind;
 
-use super::model::{AccountId, ClaudeAccount, resolve_account};
-use super::switch::{AccountUsage, account_name, usage_percent};
-use super::{Msg, State, live};
+use super::model::{Account, AccountId, AccountLevels, AccountSource, resolve_account};
+use super::switch::{AccountUsage, FIVE_HOUR, WEEKLY, account_name};
+use super::{Msg, State, account_style, agent_label, key, live};
 
 /// What a click on a row changes: the workspace on screen (the main action),
 /// or the default every workspace without an account of its own follows.
@@ -46,9 +60,30 @@ pub enum Menu {
     /// The question asked before a switch that restarts running agents.
     Ask {
         ws: WsId,
+        kind: AgentKind,
         id: AccountId,
         scope: SwitchScope,
     },
+}
+
+/// The kinds the switcher lists: Claude Code's accounts once known, as
+/// before there were others; another kind's once it has an account to choose
+/// besides its main one.
+fn kinds(ctx: Ctx<'_>) -> Vec<(AgentKind, &[Account])> {
+    live(ctx)
+        .kinds()
+        .filter(|(kind, accounts)| *kind == AgentKind::default() || accounts.len() > 1)
+        .collect()
+}
+
+/// What the workspace runs on for one kind: its account, where it comes
+/// from, and the default's.
+struct Current<'a> {
+    kind: AgentKind,
+    accounts: &'a [Account],
+    id: AccountId,
+    source: AccountSource,
+    default_id: AccountId,
 }
 
 /// The workspace the toolbar belongs to: its own window's, else the one in
@@ -66,46 +101,85 @@ fn press(msg: Msg) -> Message {
 pub fn view<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
     let nothing = || Space::new().width(0).height(0).into();
     let t = ctx.theme;
-    let Some(accounts) = live(ctx).accounts.as_deref() else {
-        return nothing();
-    };
     let Some(ws) = toolbar_workspace(ctx) else {
         return nothing();
     };
     let Some(workspace) = ctx.model.workspace(ws) else {
         return nothing();
     };
-    let default = ctx.model.settings().claude_account.as_deref();
-    let current = resolve_account(accounts, default, workspace.claude_account.as_deref(), None).id;
-    let default_id = resolve_account(accounts, default, None, None).id;
+    // Its own account of each kind, the one it reads from its folder, or
+    // the default.
+    let currents: Vec<Current<'a>> = kinds(ctx)
+        .into_iter()
+        .map(|(kind, accounts)| {
+            let resolved =
+                AccountLevels::of_kind(ctx.model.state(), workspace, None, kind).resolve(accounts);
+            let default = ctx.model.settings().account(kind);
+            Current {
+                kind,
+                accounts,
+                id: resolved.id,
+                source: resolved.source,
+                default_id: resolve_account(accounts, default, None, None).id,
+            }
+        })
+        .collect();
+    let Some(first) = currents.first() else {
+        return nothing();
+    };
 
     let unknown = ctx.t(Key::AccountsPickerUnknown);
-    let current_name = account_name(accounts, Some(&current), &unknown);
-    let title = ctx
-        .i18n
-        .t_with(
-            Key::AccountsSwitcherButton,
-            &args!("name" => current_name.as_str()),
-        )
-        .into_owned();
+    let folder = ctx
+        .model
+        .state()
+        .folders
+        .iter()
+        .find(|folder| workspace.folder_id.as_deref() == Some(folder.id.as_str()));
+    let names: Vec<String> = currents
+        .iter()
+        .map(|current| account_name(current.accounts, Some(&current.id), &unknown))
+        .collect();
+    let title = currents
+        .iter()
+        .zip(&names)
+        .map(|(current, name)| {
+            let agent = current.kind.info().label;
+            match folder.filter(|_| current.source == AccountSource::Folder) {
+                Some(folder) => ctx.i18n.t_with(
+                    Key::AccountsBadgeFolderTitle,
+                    &args!("agent" => agent, "name" => name.as_str(), "folder" => folder.name.as_str()),
+                ),
+                None => ctx.i18n.t_with(
+                    Key::AccountsSwitcherButton,
+                    &args!("agent" => agent, "name" => name.as_str()),
+                ),
+            }
+            .into_owned()
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
 
     let label = container(
-        text(current_name)
+        text(names.join(" · "))
             .size(tokens::font_size::UI)
             .wrapping(Wrapping::None),
     )
-    .max_width(120.0);
+    .max_width(120.0 * currents.len() as f32);
+    // The account's own icon and tone when it has them, the bolt otherwise:
+    // the first kind's.
+    let mark = account_style::of(ctx, first.kind, &first.id);
+    let glyph = icon(mark.icon.unwrap_or(Icon::Bolt), tokens::size::ICON);
+    let glyph = match mark.tone {
+        Some(tone) => glyph.color(account_style::ink(t, tone)),
+        None => glyph,
+    };
     // Centred in the button's height, level with the toolbar's other
     // buttons: a button lays its content out from the top.
     let anchor = button(
         container(
-            row![
-                icon(Icon::Bolt, tokens::size::ICON),
-                label,
-                icon(Icon::ChevronDown, 12.0),
-            ]
-            .spacing(tokens::space::SM)
-            .align_y(Alignment::Center),
+            row![glyph, label, icon(Icon::ChevronDown, 12.0)]
+                .spacing(tokens::space::SM)
+                .align_y(Alignment::Center),
         )
         .center_y(Length::Fill),
     )
@@ -121,15 +195,15 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
     let content = match &st.switcher {
         _ if !ctx.model.is_focused_window(ctx.window) => None,
         Menu::Closed => None,
-        Menu::Open => Some(menu::panel(
-            t,
-            list(ctx, accounts, ws, &current, &default_id),
-        )),
+        Menu::Open => Some(menu::panel(t, list(ctx, ws, &currents))),
         Menu::Ask {
             ws: asked,
+            kind,
             id,
             scope,
-        } => Some(menu::panel(t, ask(ctx, accounts, asked, id, *scope))),
+        } => live(ctx)
+            .of(*kind)
+            .map(|accounts| menu::panel(t, ask(ctx, accounts, asked, *kind, id, *scope))),
     };
     layer::dropdown(anchor, content)
         .on_dismiss(press(Msg::CloseMenu))
@@ -137,35 +211,41 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
         .into()
 }
 
+/// What is known of an account's limits, one window after the other as the
+/// plan block draws them (`plan::limits`: a gateway's windows too, and a
+/// window past its reset empty), or a single word when nothing is: a window
+/// never reported is left out rather than called « unknown ».
 fn usage_line(t: Translator, usage: Option<&AccountUsage>) -> String {
-    let show = |value: Option<u8>| match value {
-        None => t.t(Key::AccountsSwitcherUnknown).into_owned(),
-        Some(n) => t
-            .t_with(Key::AccountsSwitcherPercent, &args!("n" => n))
-            .into_owned(),
-    };
-    let five = t.t(Key::AccountsSwitcherFive);
-    let week = t.t(Key::AccountsSwitcherWeek);
-    t.t_with(
-        Key::AccountsSwitcherUsage,
-        &args!(
-            "five" => five.as_ref(),
-            "fiveValue" => show(usage_percent(usage.and_then(|u| u.five_hour.as_ref()))),
-            "week" => week.as_ref(),
-            "weekValue" => show(usage_percent(usage.and_then(|u| u.weekly.as_ref()))),
-        ),
-    )
-    .into_owned()
+    let now = i64::try_from(wall_clock_ms()).unwrap_or_default();
+    let windows = usage.map(super::plan::limits).unwrap_or_default();
+    if windows.is_empty() {
+        return t.t(Key::AccountsSwitcherNoFigures).into_owned();
+    }
+    windows
+        .iter()
+        .map(|limit| {
+            let name = match limit.kind.as_str() {
+                FIVE_HOUR => t.t(Key::AccountsSwitcherFive).into_owned(),
+                WEEKLY => t.t(Key::AccountsSwitcherWeek).into_owned(),
+                other => window_label(t, other),
+            };
+            let value = t.t_with(
+                Key::AccountsSwitcherPercent,
+                &args!("n" => shown_pct(limit, now)),
+            );
+            t.t_with(
+                Key::AccountsSwitcherWindow,
+                &args!("window" => name.as_str(), "value" => value.as_ref()),
+            )
+            .into_owned()
+        })
+        .collect::<Vec<_>>()
+        .join(" · ")
 }
 
-/// The list: a heading and a row per account.
-fn list<'a>(
-    ctx: Ctx<'a>,
-    accounts: &'a [ClaudeAccount],
-    ws: &'a WsId,
-    current: &str,
-    default_id: &str,
-) -> Element<'a, Message> {
+/// The list: a heading and a row per account, in a block per kind, each
+/// named when there are several.
+fn list<'a>(ctx: Ctx<'a>, ws: &'a WsId, currents: &[Current<'a>]) -> Element<'a, Message> {
     let t = ctx.theme;
     let mut menu = column![
         container(typography::hint(t, ctx.t(Key::AccountsSwitcherHeading)))
@@ -173,47 +253,80 @@ fn list<'a>(
     ]
     .spacing(tokens::space::XXS)
     .width(Length::Fixed(320.0));
-    for account in accounts {
-        menu = menu.push(account_row(
-            ctx,
-            account,
-            ws,
-            account.id == current,
-            account.id == default_id,
-        ));
+    let named = currents.len() > 1;
+    for current in currents {
+        if named {
+            menu = menu.push(
+                container(
+                    text(agent_label(ctx.i18n, current.kind))
+                        .size(tokens::font_size::LABEL)
+                        .font(hangar_theme::fonts::ui_semibold()),
+                )
+                .padding(Padding::from([tokens::space::XS, tokens::space::MD])),
+            );
+        }
+        for account in current.accounts {
+            menu = menu.push(account_row(
+                ctx,
+                current.kind,
+                account,
+                ws,
+                account.id == current.id,
+                account.id == current.default_id,
+            ));
+        }
     }
     menu.into()
 }
 
 fn account_row<'a>(
     ctx: Ctx<'a>,
-    account: &'a ClaudeAccount,
+    kind: AgentKind,
+    account: &'a Account,
     ws: &'a WsId,
     is_current: bool,
     is_default: bool,
 ) -> Element<'a, Message> {
     let t = ctx.theme;
-    let usage = live(ctx).usage.get(&account.id);
+    let usage = live(ctx).usage.get(&key(kind, &account.id));
 
     let mark: Element<'a, Message> = if is_current {
         icon(Icon::Check, tokens::size::ICON).into()
     } else {
         Space::new().width(tokens::size::ICON).into()
     };
-    let mut name = row![text(account.label.as_str()).size(tokens::font_size::BODY)];
-    if !account.logged_in {
-        name = name.push(
-            text(format!(" · {}", ctx.t(Key::AccountsSwitcherNotLoggedIn)))
-                .size(tokens::font_size::BODY)
-                .style(style::text::muted(t)),
-        );
-    }
+    // The name in the tone and with the icon chosen for the account, if
+    // any (`account_style`).
+    let marked = account_style::of(ctx, kind, &account.id);
+    let name: Element<'a, Message> = if marked.is_plain() {
+        text(account.label.as_str())
+            .size(tokens::font_size::BODY)
+            .wrapping(text::Wrapping::None)
+            .into()
+    } else {
+        account_style::label(
+            t,
+            marked,
+            account.label.clone(),
+            tokens::font_size::BODY,
+            None,
+        )
+    };
+    // Not logged in says so on the second line, where the figures would be:
+    // the name keeps its line whatever the language.
+    let detail = if account.logged_in {
+        usage_line(ctx.i18n, usage)
+    } else {
+        ctx.t(Key::AccountsSwitcherNotLoggedIn).into_owned()
+    };
     let lines = column![
-        name,
-        text(usage_line(ctx.i18n, usage))
+        container(name).width(Length::Fill).clip(true),
+        text(detail)
             .size(tokens::font_size::LABEL)
             .style(style::text::muted(t)),
-    ];
+    ]
+    .spacing(tokens::space::XXS)
+    .width(Length::Fill);
     let main = button(
         row![mark, lines]
             .spacing(tokens::space::MD)
@@ -224,6 +337,7 @@ fn account_row<'a>(
     .style(style::button::menu_item(t))
     .on_press(press(Msg::Choose {
         ws: ws.clone(),
+        kind,
         id: account.id.clone(),
         scope: SwitchScope::Workspace,
     }));
@@ -252,6 +366,7 @@ fn account_row<'a>(
         .style(style::button::menu_item(t))
         .on_press(press(Msg::Choose {
             ws: ws.clone(),
+            kind,
             id: account.id.clone(),
             scope: SwitchScope::Default,
         }));
@@ -267,8 +382,9 @@ fn account_row<'a>(
 /// launch, and the conversations are kept either way.
 fn ask<'a>(
     ctx: Ctx<'a>,
-    accounts: &'a [ClaudeAccount],
+    accounts: &'a [Account],
     ws: &'a WsId,
+    kind: AgentKind,
     id: &AccountId,
     scope: SwitchScope,
 ) -> Element<'a, Message> {
@@ -285,7 +401,7 @@ fn ask<'a>(
             Key::AccountsSwitcherRestartEverywhere,
         ),
     };
-    let running = super::running_in(ctx.model, ws, scope);
+    let running = super::running_in(ctx.model, ws, kind, scope);
     let title = ctx
         .i18n
         .t_with(title_key, &args!("name" => name.as_str()))
@@ -397,7 +513,14 @@ mod tests {
                 let ws: WsId = "w1".into();
                 let mut ui = simulate(menu::panel(
                     ctx.theme,
-                    ask(ctx, accounts, &ws, &"perso".to_string(), scope),
+                    ask(
+                        ctx,
+                        accounts,
+                        &ws,
+                        AgentKind::Claude,
+                        &"perso".to_string(),
+                        scope,
+                    ),
                 ));
                 let label = ctx.t(restart).into_owned();
                 let restart = ui.find(label.as_str()).expect("the restart label");

@@ -32,8 +32,8 @@ pub enum Message {
     SaveDue(u64),
     /// A save finished.
     Saved(u64, Result<(), String>),
-    /// `claude_installed` and `detect_shells` answered.
-    Detected(bool, Vec<crate::state::types::ShellInfo>),
+    /// The agents and the shells were looked for, once at start.
+    Detected(crate::services::core::Detected),
     Core(CoreEvent),
     Window(window::Id, window::Event),
     Key(window::Id, keyboard::Event),
@@ -183,6 +183,10 @@ pub enum Intent {
         file: Option<String>,
     },
     OpenWorktrees(WsId),
+    /// The new-workspace form, for a workspace filed in this navigator
+    /// folder (and so running on the folder's account, when it names one):
+    /// the shell opens the form, the dialog's package files it.
+    NewWorkspaceInFolder(String),
     OpenKitsDialog(WsId),
     /// The new-workspace dialog, ready to clone the repository of this
     /// workspace on a machine that has no checkout of it yet.

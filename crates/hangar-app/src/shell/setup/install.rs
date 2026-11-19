@@ -1,33 +1,37 @@
-//! Anthropic's official native installer of Claude Code, run as a child
-//! process whose every line is handed to the setup sheet as it comes.
+//! The agents' official installers, each run as a child process whose every
+//! line is handed to the setup sheet as it comes.
 //!
-//! The commands are the ones of https://code.claude.com/docs/en/setup, word
-//! for word: `curl -fsSL https://claude.ai/install.sh | bash` on macOS and
-//! Linux, `irm https://claude.ai/install.ps1 | iex` in Windows PowerShell.
-//! Both install for the user alone (`~/.local/bin`), so no `sudo` and no
-//! administrator: the child gets no terminal and no stdin, and could not ask
-//! for a password if it wanted to.
+//! The commands are hangar-core's (`install::agent::installer`), each from
+//! its maker's page word for word. Claude Code (code.claude.com/docs/en/setup):
+//! `curl -fsSL https://claude.ai/install.sh | bash` on macOS and Linux, `irm
+//! https://claude.ai/install.ps1 | iex` in Windows PowerShell. Codex
+//! (learn.chatgpt.com/docs/codex/cli): `curl -fsSL
+//! https://chatgpt.com/codex/install.sh | sh` and `irm
+//! https://chatgpt.com/codex/install.ps1 | iex`. All four install for the user
+//! alone (`~/.local/bin`, or `%LOCALAPPDATA%\Programs\OpenAI\Codex\bin`), so no
+//! `sudo` and no administrator: the child gets no terminal and no stdin, and
+//! could not ask for a password if it wanted to. Hangar downloads nothing
+//! itself: the maker's script does.
+//!
+//! Codex's scripts ask questions of their own (« Start Codex now? », « Uninstall
+//! the existing npm-managed Codex now? »), and `install.sh` asks them on
+//! `/dev/tty` even without a stdin: a Hangar started from a terminal would
+//! wait on that terminal. They are told not to ask with the switch the scripts
+//! document, `CODEX_NON_INTERACTIVE=1` (scripts/install/install.sh and
+//! install.ps1 of openai/codex, rust-v0.170.0), which answers no to both.
 //!
 //! A debug build can be handed another command in `HANGAR_DEV_CLAUDE_INSTALLER`
-//! (run by `sh -c`, or PowerShell on Windows), so the setup is tried end to
-//! end without installing anything on the machine of whoever tries it.
+//! or `HANGAR_DEV_CODEX_INSTALLER` (run by `sh -c`, or PowerShell on Windows),
+//! so the setup is tried end to end without installing anything on the
+//! machine of whoever tries it.
 
+use hangar_core::agent::AgentKind;
+use hangar_core::install::agent as ways;
 use iced::futures::{SinkExt, Stream};
 use tokio::io::{AsyncBufReadExt, BufReader};
 
 use super::Msg;
 use crate::message::Message;
-
-/// The docs the setup points to when the install fails.
-pub const DOCS_URL: &str = "https://code.claude.com/docs/en/setup";
-
-/// The official command on Linux and macOS.
-pub const UNIX_COMMAND: &str = "curl -fsSL https://claude.ai/install.sh | bash";
-/// The official command in Windows PowerShell.
-pub const WINDOWS_COMMAND: &str = "irm https://claude.ai/install.ps1 | iex";
-
-/// The debug builds' stand-in for the official command.
-const FAKE_ENV: &str = "HANGAR_DEV_CLAUDE_INSTALLER";
 
 /// The lines of output kept: an installer's whole log is a few dozen, so this
 /// only bounds one gone wrong.
@@ -51,22 +55,33 @@ impl Os {
 pub struct Installer {
     pub program: String,
     pub args: Vec<String>,
+    /// Set in the child's environment, besides the plain-text ones.
+    pub env: Vec<(String, String)>,
     /// As the person would type it.
     pub shown: String,
 }
 
-/// The installer for `os`: the official command, run by the shell the docs
-/// run it in. `pipefail`, so a `curl` that fails (offline, a 403) fails the
-/// install instead of piping nothing into a `bash` that exits 0.
-pub fn official(os: Os) -> Installer {
-    match os {
-        Os::Unix => in_shell(os, UNIX_COMMAND, true),
-        Os::Windows => in_shell(os, WINDOWS_COMMAND, true),
-    }
+/// The page `kind`'s install commands come from, which the sheet points to
+/// when an install fails.
+pub fn docs_url(kind: AgentKind) -> &'static str {
+    ways::installer(kind).docs_url
 }
 
-/// `line` run the way the installer of `os` is run.
-fn in_shell(os: Os, line: &str, pipefail: bool) -> Installer {
+/// The installer of `kind` for `os`: the official command, run by the shell
+/// the docs run it in. `pipefail`, so a `curl` that fails (offline, a 403)
+/// fails the install instead of piping nothing into a shell that exits 0.
+pub fn official(os: Os, kind: AgentKind) -> Installer {
+    let official = ways::installer(kind);
+    let line = match os {
+        Os::Unix => official.unix,
+        Os::Windows => official.windows,
+    };
+    in_shell(os, kind, line, true)
+}
+
+/// `line` run the way the installer of `os` is run, in the environment
+/// `kind`'s installer is given.
+fn in_shell(os: Os, kind: AgentKind, line: &str, pipefail: bool) -> Installer {
     let (program, mut args) = match os {
         Os::Unix if pipefail => ("bash", vec!["-o", "pipefail", "-c"]),
         Os::Unix => ("sh", vec!["-c"]),
@@ -85,17 +100,38 @@ fn in_shell(os: Os, line: &str, pipefail: bool) -> Installer {
     Installer {
         program: program.into(),
         args: args.into_iter().map(str::to_string).collect(),
+        env: env_of(kind)
+            .iter()
+            .map(|(name, value)| (name.to_string(), value.to_string()))
+            .collect(),
         shown: line.into(),
     }
 }
 
-/// The installer to run: the official one, or in a debug build the command
-/// `HANGAR_DEV_CLAUDE_INSTALLER` names.
-pub fn chosen() -> Installer {
+/// What `kind`'s installer is told besides the plain text: Codex's, not to
+/// ask anything.
+fn env_of(kind: AgentKind) -> &'static [(&'static str, &'static str)] {
+    match kind {
+        AgentKind::Claude => &[],
+        AgentKind::Codex => &[("CODEX_NON_INTERACTIVE", "1")],
+    }
+}
+
+/// The variable a debug build reads a stand-in for `kind`'s installer from.
+fn fake_env(kind: AgentKind) -> &'static str {
+    match kind {
+        AgentKind::Claude => "HANGAR_DEV_CLAUDE_INSTALLER",
+        AgentKind::Codex => "HANGAR_DEV_CODEX_INSTALLER",
+    }
+}
+
+/// The installer of `kind` to run: the official one, or in a debug build the
+/// command its `HANGAR_DEV_*_INSTALLER` names.
+pub fn chosen(kind: AgentKind) -> Installer {
     let os = Os::current();
-    match fake(std::env::var(FAKE_ENV).ok()) {
-        Some(line) => in_shell(os, &line, false),
-        None => official(os),
+    match fake(std::env::var(fake_env(kind)).ok()) {
+        Some(line) => in_shell(os, kind, &line, false),
+        None => official(os, kind),
     }
 }
 
@@ -112,9 +148,10 @@ pub(super) fn fake(asked: Option<String>) -> Option<String> {
 /// why it could not be started.
 pub type Exit = Result<Option<i32>, String>;
 
-/// Runs `installer`, sending each line it prints (stdout and stderr, in the
-/// order they come) and then how it ended, all tagged with `run`.
-pub fn run(installer: Installer, run: u64) -> impl Stream<Item = Message> {
+/// Runs `installer` of `kind`, sending each line it prints (stdout and
+/// stderr, in the order they come) and then how it ended, all tagged with
+/// `kind` and `run`.
+pub fn run(installer: Installer, kind: AgentKind, run: u64) -> impl Stream<Item = Message> {
     iced::stream::channel(64, async move |mut output| {
         let wrap = |msg: Msg| Message::Shell(crate::shell::Action::Setup(msg));
         let mut command = tokio::process::Command::new(&installer.program);
@@ -126,6 +163,7 @@ pub fn run(installer: Installer, run: u64) -> impl Stream<Item = Message> {
             // Plain text for the sheet: no colours, no cursor tricks.
             .env("NO_COLOR", "1")
             .env("TERM", "dumb")
+            .envs(installer.env.iter().map(|(name, value)| (name, value)))
             .kill_on_drop(true);
         #[cfg(windows)]
         {
@@ -137,7 +175,7 @@ pub fn run(installer: Installer, run: u64) -> impl Stream<Item = Message> {
             Ok(child) => child,
             Err(error) => {
                 let _ = output
-                    .send(wrap(Msg::Exited(run, Err(error.to_string()))))
+                    .send(wrap(Msg::Exited(kind, run, Err(error.to_string()))))
                     .await;
                 return;
             }
@@ -158,7 +196,7 @@ pub fn run(installer: Installer, run: u64) -> impl Stream<Item = Message> {
                 }
             };
             if let Some(line) = line {
-                let _ = output.send(wrap(Msg::Output(run, line))).await;
+                let _ = output.send(wrap(Msg::Output(kind, run, line))).await;
             }
         }
         let exit = child
@@ -166,7 +204,7 @@ pub fn run(installer: Installer, run: u64) -> impl Stream<Item = Message> {
             .await
             .map(|status| status.code())
             .map_err(|error| error.to_string());
-        let _ = output.send(wrap(Msg::Exited(run, exit))).await;
+        let _ = output.send(wrap(Msg::Exited(kind, run, exit))).await;
     })
 }
 

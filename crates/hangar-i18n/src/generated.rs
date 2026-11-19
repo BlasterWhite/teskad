@@ -14,22 +14,56 @@ use crate::dictionary::{Message, Text};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(u16)]
 pub enum Key {
+    /// `accounts.agentBeta`
+    AccountsAgentBeta,
+    /// `accounts.badge.folderTitle`
+    AccountsBadgeFolderTitle,
     /// `accounts.badge.title`
     AccountsBadgeTitle,
+    /// `accounts.menu.folderTitle`
+    AccountsMenuFolderTitle,
     /// `accounts.menu.title`
     AccountsMenuTitle,
+    /// `accounts.movedNote`
+    AccountsMovedNote,
+    /// `accounts.movedNoteFresh`
+    AccountsMovedNoteFresh,
+    /// `accounts.moving`
+    AccountsMoving,
+    /// `accounts.movingBlocked`
+    AccountsMovingBlocked,
+    /// `accounts.movingBlockedTitle`
+    AccountsMovingBlockedTitle,
+    /// `accounts.movingCommandTitle`
+    AccountsMovingCommandTitle,
+    /// `accounts.movingDraftTitle`
+    AccountsMovingDraftTitle,
+    /// `accounts.movingTitle`
+    AccountsMovingTitle,
+    /// `accounts.movingTurnTitle`
+    AccountsMovingTurnTitle,
+    /// `accounts.movingUnreadableTitle`
+    AccountsMovingUnreadableTitle,
+    /// `accounts.movingUnreportedTitle`
+    AccountsMovingUnreportedTitle,
     /// `accounts.pane.badgeTitle`
     AccountsPaneBadgeTitle,
     /// `accounts.pane.menuHeading`
     AccountsPaneMenuHeading,
     /// `accounts.picker.default`
     AccountsPickerDefault,
+    /// `accounts.picker.folderDefault`
+    AccountsPickerFolderDefault,
     /// `accounts.picker.label`
     AccountsPickerLabel,
     /// `accounts.picker.missing`
     AccountsPickerMissing,
     /// `accounts.picker.unknown`
     AccountsPickerUnknown,
+    /// `accounts.plan.agentAccount`
+    AccountsPlanAgentAccount,
+    /// `accounts.plan.hint`
+    AccountsPlanHint,
     /// `accounts.settings.add`
     AccountsSettingsAdd,
     /// `accounts.settings.addHint`
@@ -40,14 +74,52 @@ pub enum Key {
     AccountsSettingsAddPlaceholder,
     /// `accounts.settings.addTitle`
     AccountsSettingsAddTitle,
+    /// `accounts.settings.apiKey`
+    AccountsSettingsApiKey,
+    /// `accounts.settings.askSwitch`
+    AccountsSettingsAskSwitch,
+    /// `accounts.settings.askSwitchHint`
+    AccountsSettingsAskSwitchHint,
+    /// `accounts.settings.badge`
+    AccountsSettingsBadge,
+    /// `accounts.settings.badges`
+    AccountsSettingsBadges,
+    /// `accounts.settings.badgesHint`
+    AccountsSettingsBadgesHint,
     /// `accounts.settings.cancel`
     AccountsSettingsCancel,
     /// `accounts.settings.default`
     AccountsSettingsDefault,
     /// `accounts.settings.failed`
     AccountsSettingsFailed,
+    /// `accounts.settings.iconBolt`
+    AccountsSettingsIconBolt,
+    /// `accounts.settings.iconBookmark`
+    AccountsSettingsIconBookmark,
+    /// `accounts.settings.iconCube`
+    AccountsSettingsIconCube,
+    /// `accounts.settings.iconFlag`
+    AccountsSettingsIconFlag,
+    /// `accounts.settings.iconFolder`
+    AccountsSettingsIconFolder,
+    /// `accounts.settings.iconGamepad`
+    AccountsSettingsIconGamepad,
+    /// `accounts.settings.iconLock`
+    AccountsSettingsIconLock,
+    /// `accounts.settings.iconMoon`
+    AccountsSettingsIconMoon,
+    /// `accounts.settings.iconNone`
+    AccountsSettingsIconNone,
+    /// `accounts.settings.iconTerminal`
+    AccountsSettingsIconTerminal,
+    /// `accounts.settings.iconWorkspace`
+    AccountsSettingsIconWorkspace,
     /// `accounts.settings.intro`
     AccountsSettingsIntro,
+    /// `accounts.settings.kindIntro`
+    AccountsSettingsKindIntro,
+    /// `accounts.settings.kindTitle`
+    AccountsSettingsKindTitle,
     /// `accounts.settings.listLabel`
     AccountsSettingsListLabel,
     /// `accounts.settings.logIn`
@@ -82,6 +154,16 @@ pub enum Key {
     AccountsSettingsSetDefault,
     /// `accounts.settings.title`
     AccountsSettingsTitle,
+    /// `accounts.settings.toneAccent`
+    AccountsSettingsToneAccent,
+    /// `accounts.settings.toneDanger`
+    AccountsSettingsToneDanger,
+    /// `accounts.settings.toneNone`
+    AccountsSettingsToneNone,
+    /// `accounts.settings.toneSuccess`
+    AccountsSettingsToneSuccess,
+    /// `accounts.settings.toneWarning`
+    AccountsSettingsToneWarning,
     /// `accounts.settings.unsupportedBody`
     AccountsSettingsUnsupportedBody,
     /// `accounts.settings.unsupportedTitle`
@@ -106,6 +188,8 @@ pub enum Key {
     AccountsSwitcherMenu,
     /// `accounts.switcher.nextLaunch`
     AccountsSwitcherNextLaunch,
+    /// `accounts.switcher.noFigures`
+    AccountsSwitcherNoFigures,
     /// `accounts.switcher.notLoggedIn`
     AccountsSwitcherNotLoggedIn,
     /// `accounts.switcher.percent`
@@ -116,10 +200,6 @@ pub enum Key {
     AccountsSwitcherRestartHere,
     /// `accounts.switcher.running`
     AccountsSwitcherRunning,
-    /// `accounts.switcher.unknown`
-    AccountsSwitcherUnknown,
-    /// `accounts.switcher.usage`
-    AccountsSwitcherUsage,
     /// `accounts.switcher.useEverywhere`
     AccountsSwitcherUseEverywhere,
     /// `accounts.switcher.useEverywhereLabel`
@@ -128,6 +208,8 @@ pub enum Key {
     AccountsSwitcherUseHere,
     /// `accounts.switcher.week`
     AccountsSwitcherWeek,
+    /// `accounts.switcher.window`
+    AccountsSwitcherWindow,
     /// `activity.appStarted`
     ActivityAppStarted,
     /// `activity.appStopped`
@@ -628,6 +710,8 @@ pub enum Key {
     CmdPaneFocusUp,
     /// `cmd.pane.next`
     CmdPaneNext,
+    /// `cmd.pane.pin`
+    CmdPanePin,
     /// `cmd.pane.pinOrchestrator`
     CmdPanePinOrchestrator,
     /// `cmd.pane.prev`
@@ -798,6 +882,10 @@ pub enum Key {
     ControlSomeone,
     /// `control.workspaceCreated`
     ControlWorkspaceCreated,
+    /// `create.agent.claude`
+    CreateAgentClaude,
+    /// `create.agent.codex`
+    CreateAgentCodex,
     /// `create.agents`
     CreateAgents,
     /// `create.allAssigned`
@@ -858,6 +946,8 @@ pub enum Key {
     CreateGitStop,
     /// `create.gitSubmit`
     CreateGitSubmit,
+    /// `create.inFolder`
+    CreateInFolder,
     /// `create.layout`
     CreateLayout,
     /// `create.layoutHint`
@@ -890,6 +980,8 @@ pub enum Key {
     CreateRootMissing,
     /// `create.rootsHint`
     CreateRootsHint,
+    /// `create.setUp`
+    CreateSetUp,
     /// `create.shellDefault`
     CreateShellDefault,
     /// `create.shellDetected`
@@ -906,8 +998,8 @@ pub enum Key {
     CreateStart,
     /// `create.startCustom`
     CreateStartCustom,
-    /// `create.startNoClaude`
-    CreateStartNoClaude,
+    /// `create.startNoAgent`
+    CreateStartNoAgent,
     /// `create.startNoGit`
     CreateStartNoGit,
     /// `create.startOrchestrator`
@@ -920,6 +1012,12 @@ pub enum Key {
     CreateTerminals,
     /// `create.title`
     CreateTitle,
+    /// `create.workers`
+    CreateWorkers,
+    /// `create.workersHint`
+    CreateWorkersHint,
+    /// `create.workersSame`
+    CreateWorkersSame,
     /// `diff.against`
     DiffAgainst,
     /// `diff.binary`
@@ -1206,6 +1304,8 @@ pub enum Key {
     HibernateNoticeNoAgent,
     /// `inspector.activityEmpty`
     InspectorActivityEmpty,
+    /// `inspector.activityEmptyAttached`
+    InspectorActivityEmptyAttached,
     /// `inspector.activityOther`
     InspectorActivityOther,
     /// `inspector.activityQuiet`
@@ -1276,6 +1376,10 @@ pub enum Key {
     InspectorNoPaneBody,
     /// `inspector.plan`
     InspectorPlan,
+    /// `inspector.plan.claude`
+    InspectorPlanClaude,
+    /// `inspector.plan.codex`
+    InspectorPlanCodex,
     /// `inspector.planFiveHour`
     InspectorPlanFiveHour,
     /// `inspector.planHint`
@@ -1420,6 +1524,70 @@ pub enum Key {
     KitsWarnForbidden,
     /// `kits.warnMissing`
     KitsWarnMissing,
+    /// `kitsAgent.codexAdd`
+    KitsAgentCodexAdd,
+    /// `kitsAgent.codexAdded`
+    KitsAgentCodexAdded,
+    /// `kitsAgent.codexAdding`
+    KitsAgentCodexAdding,
+    /// `kitsAgent.codexAskAdd`
+    KitsAgentCodexAskAdd,
+    /// `kitsAgent.codexAskRemove`
+    KitsAgentCodexAskRemove,
+    /// `kitsAgent.codexChanged`
+    KitsAgentCodexChanged,
+    /// `kitsAgent.codexHint`
+    KitsAgentCodexHint,
+    /// `kitsAgent.codexHooks`
+    KitsAgentCodexHooks,
+    /// `kitsAgent.codexMissing`
+    KitsAgentCodexMissing,
+    /// `kitsAgent.codexNotAdded`
+    KitsAgentCodexNotAdded,
+    /// `kitsAgent.codexRemove`
+    KitsAgentCodexRemove,
+    /// `kitsAgent.codexRemoving`
+    KitsAgentCodexRemoving,
+    /// `kitsAgent.codexSkills`
+    KitsAgentCodexSkills,
+    /// `kitsAgent.codexTrust`
+    KitsAgentCodexTrust,
+    /// `kitsAgent.codexUpdate`
+    KitsAgentCodexUpdate,
+    /// `kitsAgent.heading`
+    KitsAgentHeading,
+    /// `kitsAgent.hooks`
+    KitsAgentHooks,
+    /// `kitsAgent.howInstalled`
+    KitsAgentHowInstalled,
+    /// `kitsAgent.howLaunch`
+    KitsAgentHowLaunch,
+    /// `kitsAgent.leftLine`
+    KitsAgentLeftLine,
+    /// `kitsAgent.leftOut`
+    KitsAgentLeftOut,
+    /// `kitsAgent.notMeant`
+    KitsAgentNotMeant,
+    /// `kitsAgent.nothing`
+    KitsAgentNothing,
+    /// `kitsAgent.only`
+    KitsAgentOnly,
+    /// `kitsAgent.outputStyles`
+    KitsAgentOutputStyles,
+    /// `kitsAgent.own`
+    KitsAgentOwn,
+    /// `kitsAgent.whyEvent`
+    KitsAgentWhyEvent,
+    /// `kitsAgent.whyHandler`
+    KitsAgentWhyHandler,
+    /// `kitsAgent.whyNoSuchPart`
+    KitsAgentWhyNoSuchPart,
+    /// `kitsAgent.whyTool`
+    KitsAgentWhyTool,
+    /// `kitsAgent.whyTransport`
+    KitsAgentWhyTransport,
+    /// `kitsAgent.whyVariables`
+    KitsAgentWhyVariables,
     /// `kitsManage.actAccept`
     KitsManageActAccept,
     /// `kitsManage.actAcceptChanged`
@@ -1430,8 +1598,6 @@ pub enum Key {
     KitsManageActAgents,
     /// `kitsManage.actBrings`
     KitsManageActBrings,
-    /// `kitsManage.actClaudeOnly`
-    KitsManageActClaudeOnly,
     /// `kitsManage.actClose`
     KitsManageActClose,
     /// `kitsManage.actCommandOs`
@@ -2460,6 +2626,10 @@ pub enum Key {
     NodesAdoptSettled,
     /// `nodes.adopt.unsettled`
     NodesAdoptUnsettled,
+    /// `nodes.agentBeta`
+    NodesAgentBeta,
+    /// `nodes.agentSignedOut`
+    NodesAgentSignedOut,
     /// `nodes.claudeFound`
     NodesClaudeFound,
     /// `nodes.claudeMissing`
@@ -2474,6 +2644,10 @@ pub enum Key {
     NodesCloneParentHint,
     /// `nodes.clone.running`
     NodesCloneRunning,
+    /// `nodes.codexFound`
+    NodesCodexFound,
+    /// `nodes.codexMissing`
+    NodesCodexMissing,
     /// `nodes.create.empty`
     NodesCreateEmpty,
     /// `nodes.create.failed`
@@ -2710,6 +2884,8 @@ pub enum Key {
     NotifyTitle,
     /// `notify.trustFolder`
     NotifyTrustFolder,
+    /// `orch.agentNotInstalled`
+    OrchAgentNotInstalled,
     /// `orch.applies`
     OrchApplies,
     /// `orch.autoMerge`
@@ -2772,12 +2948,24 @@ pub enum Key {
     OrchCheckHint,
     /// `orch.checkPlaceholder`
     OrchCheckPlaceholder,
+    /// `orch.codexModelDefault`
+    OrchCodexModelDefault,
+    /// `orch.codexModelHint`
+    OrchCodexModelHint,
+    /// `orch.codexOrchestratorModel`
+    OrchCodexOrchestratorModel,
+    /// `orch.codexReviewerModel`
+    OrchCodexReviewerModel,
+    /// `orch.codexWorkerModel`
+    OrchCodexWorkerModel,
     /// `orch.default`
     OrchDefault,
     /// `orch.intro`
     OrchIntro,
     /// `orch.modelInvalid`
     OrchModelInvalid,
+    /// `orch.modelsAsking`
+    OrchModelsAsking,
     /// `orch.modelsHint`
     OrchModelsHint,
     /// `orch.navMark`
@@ -2822,6 +3010,8 @@ pub enum Key {
     OrchSectionWorkers,
     /// `orch.settingsMenu`
     OrchSettingsMenu,
+    /// `orch.statusAgents`
+    OrchStatusAgents,
     /// `orch.statusNoWorker`
     OrchStatusNoWorker,
     /// `orch.statusNone`
@@ -2852,6 +3042,18 @@ pub enum Key {
     OrchUnpin,
     /// `orch.unpinned`
     OrchUnpinned,
+    /// `orch.workerAgent`
+    OrchWorkerAgent,
+    /// `orch.workerAgentHint`
+    OrchWorkerAgentHint,
+    /// `orch.workerAgentOff`
+    OrchWorkerAgentOff,
+    /// `orch.workerAgentSame`
+    OrchWorkerAgentSame,
+    /// `orch.workerAgentSettings`
+    OrchWorkerAgentSettings,
+    /// `orch.workerAgentUnable`
+    OrchWorkerAgentUnable,
     /// `orch.workerModel`
     OrchWorkerModel,
     /// `palette.anywhere`
@@ -2886,8 +3088,18 @@ pub enum Key {
     PaneActions,
     /// `pane.agent`
     PaneAgent,
+    /// `pane.agentBeta`
+    PaneAgentBeta,
+    /// `pane.agentBetaHint`
+    PaneAgentBetaHint,
     /// `pane.agentRetired`
     PaneAgentRetired,
+    /// `pane.attached`
+    PaneAttached,
+    /// `pane.attachedHint`
+    PaneAttachedHint,
+    /// `pane.attachedQuietHint`
+    PaneAttachedQuietHint,
     /// `pane.attention`
     PaneAttention,
     /// `pane.close`
@@ -2960,6 +3172,22 @@ pub enum Key {
     PaneEventTurnEnd,
     /// `pane.event.turnStart`
     PaneEventTurnStart,
+    /// `pane.floorDetail`
+    PaneFloorDetail,
+    /// `pane.floorExitCode`
+    PaneFloorExitCode,
+    /// `pane.floorExited`
+    PaneFloorExited,
+    /// `pane.floorFolder`
+    PaneFloorFolder,
+    /// `pane.floorNotStarted`
+    PaneFloorNotStarted,
+    /// `pane.floorTimeout`
+    PaneFloorTimeout,
+    /// `pane.floorUnsupported`
+    PaneFloorUnsupported,
+    /// `pane.floorUntypable`
+    PaneFloorUntypable,
     /// `pane.inherited`
     PaneInherited,
     /// `pane.jump`
@@ -2986,6 +3214,16 @@ pub enum Key {
     PaneNotOnPath,
     /// `pane.noteDismiss`
     PaneNoteDismiss,
+    /// `pane.pin`
+    PanePin,
+    /// `pane.pinned.bottom`
+    PanePinnedBottom,
+    /// `pane.pinned.left`
+    PanePinnedLeft,
+    /// `pane.pinned.right`
+    PanePinnedRight,
+    /// `pane.pinned.top`
+    PanePinnedTop,
     /// `pane.queue`
     PaneQueue,
     /// `pane.restart`
@@ -3024,6 +3262,14 @@ pub enum Key {
     PaneStateYours,
     /// `pane.state.yoursShort`
     PaneStateYoursShort,
+    /// `pane.unattached`
+    PaneUnattached,
+    /// `pane.unattachedHint`
+    PaneUnattachedHint,
+    /// `pane.unattachedOffHint`
+    PaneUnattachedOffHint,
+    /// `pane.unpin`
+    PaneUnpin,
     /// `pane.zoomIn`
     PaneZoomIn,
     /// `paneBranch.branch`
@@ -3034,6 +3280,16 @@ pub enum Key {
     PaneBranchDetached,
     /// `paneBranch.detachedMark`
     PaneBranchDetachedMark,
+    /// `paneMenu.model`
+    PaneMenuModel,
+    /// `paneMenu.modelDefault`
+    PaneMenuModelDefault,
+    /// `paneMenu.newAgentPane`
+    PaneMenuNewAgentPane,
+    /// `paneMenu.notInstalled`
+    PaneMenuNotInstalled,
+    /// `paneMenu.pinUnable`
+    PaneMenuPinUnable,
     /// `placeholder.body`
     PlaceholderBody,
     /// `placeholder.title`
@@ -3230,6 +3486,8 @@ pub enum Key {
     SessionsTitle,
     /// `sessions.untitled`
     SessionsUntitled,
+    /// `settings.agentBeta`
+    SettingsAgentBeta,
     /// `settings.agentCommands`
     SettingsAgentCommands,
     /// `settings.agentCommandsHint`
@@ -3240,6 +3498,28 @@ pub enum Key {
     SettingsAgentPaneControl,
     /// `settings.agentPaneControlHint`
     SettingsAgentPaneControlHint,
+    /// `settings.agentsAutomatic`
+    SettingsAgentsAutomatic,
+    /// `settings.agentsDefaults`
+    SettingsAgentsDefaults,
+    /// `settings.agentsDefaultsHint`
+    SettingsAgentsDefaultsHint,
+    /// `settings.agentsKeywords`
+    SettingsAgentsKeywords,
+    /// `settings.agentsOrchestrator`
+    SettingsAgentsOrchestrator,
+    /// `settings.agentsOrchestratorHint`
+    SettingsAgentsOrchestratorHint,
+    /// `settings.agentsReviewer`
+    SettingsAgentsReviewer,
+    /// `settings.agentsReviewerHint`
+    SettingsAgentsReviewerHint,
+    /// `settings.agentsSameAsOrchestrator`
+    SettingsAgentsSameAsOrchestrator,
+    /// `settings.agentsWorker`
+    SettingsAgentsWorker,
+    /// `settings.agentsWorkerHint`
+    SettingsAgentsWorkerHint,
     /// `settings.autoResume`
     SettingsAutoResume,
     /// `settings.autoResumeHint`
@@ -3278,6 +3558,10 @@ pub enum Key {
     SettingsClaudeBridgeHint,
     /// `settings.close`
     SettingsClose,
+    /// `settings.codexAttach`
+    SettingsCodexAttach,
+    /// `settings.codexAttachHint`
+    SettingsCodexAttachHint,
     /// `settings.cursor`
     SettingsCursor,
     /// `settings.cursorBar`
@@ -3542,6 +3826,12 @@ pub enum Key {
     SettingsVoiceVocabularyHint,
     /// `settings.voiceVocabularyPlaceholder`
     SettingsVoiceVocabularyPlaceholder,
+    /// `settings.windowOpacity`
+    SettingsWindowOpacity,
+    /// `settings.windowOpacityHint`
+    SettingsWindowOpacityHint,
+    /// `setup.beta`
+    SetupBeta,
     /// `setup.docs`
     SetupDocs,
     /// `setup.done`
@@ -3560,6 +3850,8 @@ pub enum Key {
     SetupInstall,
     /// `setup.installed`
     SetupInstalled,
+    /// `setup.installedVersion`
+    SetupInstalledVersion,
     /// `setup.installing`
     SetupInstalling,
     /// `setup.installingHint`
@@ -3590,6 +3882,10 @@ pub enum Key {
     SetupNoOutput,
     /// `setup.notFound`
     SetupNotFound,
+    /// `setup.notInstalled`
+    SetupNotInstalled,
+    /// `setup.notOnPath`
+    SetupNotOnPath,
     /// `setup.retry`
     SetupRetry,
     /// `setup.shellsOnly`
@@ -3598,8 +3894,10 @@ pub enum Key {
     SetupShellsOnlyHint,
     /// `setup.signIn`
     SetupSignIn,
-    /// `setup.signInLead`
-    SetupSignInLead,
+    /// `setup.signInClaude`
+    SetupSignInClaude,
+    /// `setup.signInCodex`
+    SetupSignInCodex,
     /// `setup.signedIn`
     SetupSignedIn,
     /// `setup.title`
@@ -3626,6 +3924,8 @@ pub enum Key {
     SidebarFolderDefault,
     /// `sidebar.folderEmpty`
     SidebarFolderEmpty,
+    /// `sidebar.folderNewWorkspace`
+    SidebarFolderNewWorkspace,
     /// `sidebar.folderSize`
     SidebarFolderSize,
     /// `sidebar.goTo`
@@ -3672,10 +3972,16 @@ pub enum Key {
     SidebarNoneWaiting,
     /// `sidebar.plan`
     SidebarPlan,
+    /// `sidebar.planAccountsHint`
+    SidebarPlanAccountsHint,
     /// `sidebar.planFiveHour`
     SidebarPlanFiveHour,
     /// `sidebar.planHint`
     SidebarPlanHint,
+    /// `sidebar.planHintAny`
+    SidebarPlanHintAny,
+    /// `sidebar.planNoFigures`
+    SidebarPlanNoFigures,
     /// `sidebar.planResetDate`
     SidebarPlanResetDate,
     /// `sidebar.planResetDay`
@@ -4054,6 +4360,8 @@ pub enum Key {
     TitleBarMinimize,
     /// `titleBar.restore`
     TitleBarRestore,
+    /// `titleBar.site`
+    TitleBarSite,
     /// `toolbar.activity.context`
     ToolbarActivityContext,
     /// `toolbar.activity.contextHint`
@@ -4442,29 +4750,67 @@ pub enum Key {
     ZoomTag,
 }
 
-/// How many keys there are.
-pub const KEY_COUNT: usize = 2213;
+/// How many keys there are: the last one's index plus one. Counted rather
+/// than written as a number, so two branches that each add keys do not both
+/// change this line and merge without a conflict.
+pub const KEY_COUNT: usize = Key::ZoomTag as usize + 1;
 
 impl Key {
     /// Every key, in the order of their ids.
     pub const ALL: [Key; KEY_COUNT] = [
+        Key::AccountsAgentBeta,
+        Key::AccountsBadgeFolderTitle,
         Key::AccountsBadgeTitle,
+        Key::AccountsMenuFolderTitle,
         Key::AccountsMenuTitle,
+        Key::AccountsMovedNote,
+        Key::AccountsMovedNoteFresh,
+        Key::AccountsMoving,
+        Key::AccountsMovingBlocked,
+        Key::AccountsMovingBlockedTitle,
+        Key::AccountsMovingCommandTitle,
+        Key::AccountsMovingDraftTitle,
+        Key::AccountsMovingTitle,
+        Key::AccountsMovingTurnTitle,
+        Key::AccountsMovingUnreadableTitle,
+        Key::AccountsMovingUnreportedTitle,
         Key::AccountsPaneBadgeTitle,
         Key::AccountsPaneMenuHeading,
         Key::AccountsPickerDefault,
+        Key::AccountsPickerFolderDefault,
         Key::AccountsPickerLabel,
         Key::AccountsPickerMissing,
         Key::AccountsPickerUnknown,
+        Key::AccountsPlanAgentAccount,
+        Key::AccountsPlanHint,
         Key::AccountsSettingsAdd,
         Key::AccountsSettingsAddHint,
         Key::AccountsSettingsAddName,
         Key::AccountsSettingsAddPlaceholder,
         Key::AccountsSettingsAddTitle,
+        Key::AccountsSettingsApiKey,
+        Key::AccountsSettingsAskSwitch,
+        Key::AccountsSettingsAskSwitchHint,
+        Key::AccountsSettingsBadge,
+        Key::AccountsSettingsBadges,
+        Key::AccountsSettingsBadgesHint,
         Key::AccountsSettingsCancel,
         Key::AccountsSettingsDefault,
         Key::AccountsSettingsFailed,
+        Key::AccountsSettingsIconBolt,
+        Key::AccountsSettingsIconBookmark,
+        Key::AccountsSettingsIconCube,
+        Key::AccountsSettingsIconFlag,
+        Key::AccountsSettingsIconFolder,
+        Key::AccountsSettingsIconGamepad,
+        Key::AccountsSettingsIconLock,
+        Key::AccountsSettingsIconMoon,
+        Key::AccountsSettingsIconNone,
+        Key::AccountsSettingsIconTerminal,
+        Key::AccountsSettingsIconWorkspace,
         Key::AccountsSettingsIntro,
+        Key::AccountsSettingsKindIntro,
+        Key::AccountsSettingsKindTitle,
         Key::AccountsSettingsListLabel,
         Key::AccountsSettingsLogIn,
         Key::AccountsSettingsLoggedIn,
@@ -4482,6 +4828,11 @@ impl Key {
         Key::AccountsSettingsSave,
         Key::AccountsSettingsSetDefault,
         Key::AccountsSettingsTitle,
+        Key::AccountsSettingsToneAccent,
+        Key::AccountsSettingsToneDanger,
+        Key::AccountsSettingsToneNone,
+        Key::AccountsSettingsToneSuccess,
+        Key::AccountsSettingsToneWarning,
         Key::AccountsSettingsUnsupportedBody,
         Key::AccountsSettingsUnsupportedTitle,
         Key::AccountsSettingsUsedBy,
@@ -4494,17 +4845,17 @@ impl Key {
         Key::AccountsSwitcherHeading,
         Key::AccountsSwitcherMenu,
         Key::AccountsSwitcherNextLaunch,
+        Key::AccountsSwitcherNoFigures,
         Key::AccountsSwitcherNotLoggedIn,
         Key::AccountsSwitcherPercent,
         Key::AccountsSwitcherRestartEverywhere,
         Key::AccountsSwitcherRestartHere,
         Key::AccountsSwitcherRunning,
-        Key::AccountsSwitcherUnknown,
-        Key::AccountsSwitcherUsage,
         Key::AccountsSwitcherUseEverywhere,
         Key::AccountsSwitcherUseEverywhereLabel,
         Key::AccountsSwitcherUseHere,
         Key::AccountsSwitcherWeek,
+        Key::AccountsSwitcherWindow,
         Key::ActivityAppStarted,
         Key::ActivityAppStopped,
         Key::ActivityAsleep,
@@ -4755,6 +5106,7 @@ impl Key {
         Key::CmdPaneFocusRight,
         Key::CmdPaneFocusUp,
         Key::CmdPaneNext,
+        Key::CmdPanePin,
         Key::CmdPanePinOrchestrator,
         Key::CmdPanePrev,
         Key::CmdPaneResetAll,
@@ -4840,6 +5192,8 @@ impl Key {
         Key::ControlRestarted,
         Key::ControlSomeone,
         Key::ControlWorkspaceCreated,
+        Key::CreateAgentClaude,
+        Key::CreateAgentCodex,
         Key::CreateAgents,
         Key::CreateAllAssigned,
         Key::CreateBrowse,
@@ -4870,6 +5224,7 @@ impl Key {
         Key::CreateGitStarting,
         Key::CreateGitStop,
         Key::CreateGitSubmit,
+        Key::CreateInFolder,
         Key::CreateLayout,
         Key::CreateLayoutHint,
         Key::CreateLess,
@@ -4886,6 +5241,7 @@ impl Key {
         Key::CreateRootMain,
         Key::CreateRootMissing,
         Key::CreateRootsHint,
+        Key::CreateSetUp,
         Key::CreateShellDefault,
         Key::CreateShellDetected,
         Key::CreateShellNone,
@@ -4894,13 +5250,16 @@ impl Key {
         Key::CreateSourceGit,
         Key::CreateStart,
         Key::CreateStartCustom,
-        Key::CreateStartNoClaude,
+        Key::CreateStartNoAgent,
         Key::CreateStartNoGit,
         Key::CreateStartOrchestrator,
         Key::CreateStartShell,
         Key::CreateSubmit,
         Key::CreateTerminals,
         Key::CreateTitle,
+        Key::CreateWorkers,
+        Key::CreateWorkersHint,
+        Key::CreateWorkersSame,
         Key::DiffAgainst,
         Key::DiffBinary,
         Key::DiffClean,
@@ -5044,6 +5403,7 @@ impl Key {
         Key::HibernateNoticeMany,
         Key::HibernateNoticeNoAgent,
         Key::InspectorActivityEmpty,
+        Key::InspectorActivityEmptyAttached,
         Key::InspectorActivityOther,
         Key::InspectorActivityQuiet,
         Key::InspectorClose,
@@ -5079,6 +5439,8 @@ impl Key {
         Key::InspectorNoPane,
         Key::InspectorNoPaneBody,
         Key::InspectorPlan,
+        Key::InspectorPlanClaude,
+        Key::InspectorPlanCodex,
         Key::InspectorPlanFiveHour,
         Key::InspectorPlanHint,
         Key::InspectorPlanHintResets,
@@ -5151,12 +5513,43 @@ impl Key {
         Key::KitsWarnBroken,
         Key::KitsWarnForbidden,
         Key::KitsWarnMissing,
+        Key::KitsAgentCodexAdd,
+        Key::KitsAgentCodexAdded,
+        Key::KitsAgentCodexAdding,
+        Key::KitsAgentCodexAskAdd,
+        Key::KitsAgentCodexAskRemove,
+        Key::KitsAgentCodexChanged,
+        Key::KitsAgentCodexHint,
+        Key::KitsAgentCodexHooks,
+        Key::KitsAgentCodexMissing,
+        Key::KitsAgentCodexNotAdded,
+        Key::KitsAgentCodexRemove,
+        Key::KitsAgentCodexRemoving,
+        Key::KitsAgentCodexSkills,
+        Key::KitsAgentCodexTrust,
+        Key::KitsAgentCodexUpdate,
+        Key::KitsAgentHeading,
+        Key::KitsAgentHooks,
+        Key::KitsAgentHowInstalled,
+        Key::KitsAgentHowLaunch,
+        Key::KitsAgentLeftLine,
+        Key::KitsAgentLeftOut,
+        Key::KitsAgentNotMeant,
+        Key::KitsAgentNothing,
+        Key::KitsAgentOnly,
+        Key::KitsAgentOutputStyles,
+        Key::KitsAgentOwn,
+        Key::KitsAgentWhyEvent,
+        Key::KitsAgentWhyHandler,
+        Key::KitsAgentWhyNoSuchPart,
+        Key::KitsAgentWhyTool,
+        Key::KitsAgentWhyTransport,
+        Key::KitsAgentWhyVariables,
         Key::KitsManageActAccept,
         Key::KitsManageActAcceptChanged,
         Key::KitsManageActAcceptPerms,
         Key::KitsManageActAgents,
         Key::KitsManageActBrings,
-        Key::KitsManageActClaudeOnly,
         Key::KitsManageActClose,
         Key::KitsManageActCommandOs,
         Key::KitsManageActCommands,
@@ -5671,6 +6064,8 @@ impl Key {
         Key::NodesAdoptRestoreFailed,
         Key::NodesAdoptSettled,
         Key::NodesAdoptUnsettled,
+        Key::NodesAgentBeta,
+        Key::NodesAgentSignedOut,
         Key::NodesClaudeFound,
         Key::NodesClaudeMissing,
         Key::NodesCloneDestination,
@@ -5678,6 +6073,8 @@ impl Key {
         Key::NodesCloneFailedAccess,
         Key::NodesCloneParentHint,
         Key::NodesCloneRunning,
+        Key::NodesCodexFound,
+        Key::NodesCodexMissing,
         Key::NodesCreateEmpty,
         Key::NodesCreateFailed,
         Key::NodesCreateFolder,
@@ -5796,6 +6193,7 @@ impl Key {
         Key::NotifySettled,
         Key::NotifyTitle,
         Key::NotifyTrustFolder,
+        Key::OrchAgentNotInstalled,
         Key::OrchApplies,
         Key::OrchAutoMerge,
         Key::OrchAutoMergeHint,
@@ -5827,9 +6225,15 @@ impl Key {
         Key::OrchCheckCommand,
         Key::OrchCheckHint,
         Key::OrchCheckPlaceholder,
+        Key::OrchCodexModelDefault,
+        Key::OrchCodexModelHint,
+        Key::OrchCodexOrchestratorModel,
+        Key::OrchCodexReviewerModel,
+        Key::OrchCodexWorkerModel,
         Key::OrchDefault,
         Key::OrchIntro,
         Key::OrchModelInvalid,
+        Key::OrchModelsAsking,
         Key::OrchModelsHint,
         Key::OrchNavMark,
         Key::OrchNavMarkWorkers,
@@ -5852,6 +6256,7 @@ impl Key {
         Key::OrchSectionModels,
         Key::OrchSectionWorkers,
         Key::OrchSettingsMenu,
+        Key::OrchStatusAgents,
         Key::OrchStatusNoWorker,
         Key::OrchStatusNone,
         Key::OrchStatusNoneHint,
@@ -5867,6 +6272,12 @@ impl Key {
         Key::OrchTitle,
         Key::OrchUnpin,
         Key::OrchUnpinned,
+        Key::OrchWorkerAgent,
+        Key::OrchWorkerAgentHint,
+        Key::OrchWorkerAgentOff,
+        Key::OrchWorkerAgentSame,
+        Key::OrchWorkerAgentSettings,
+        Key::OrchWorkerAgentUnable,
         Key::OrchWorkerModel,
         Key::PaletteAnywhere,
         Key::PaletteClose,
@@ -5884,7 +6295,12 @@ impl Key {
         Key::PaletteSuggestions,
         Key::PaneActions,
         Key::PaneAgent,
+        Key::PaneAgentBeta,
+        Key::PaneAgentBetaHint,
         Key::PaneAgentRetired,
+        Key::PaneAttached,
+        Key::PaneAttachedHint,
+        Key::PaneAttachedQuietHint,
         Key::PaneAttention,
         Key::PaneClose,
         Key::PaneCloseLast,
@@ -5921,6 +6337,14 @@ impl Key {
         Key::PaneEventResumed,
         Key::PaneEventTurnEnd,
         Key::PaneEventTurnStart,
+        Key::PaneFloorDetail,
+        Key::PaneFloorExitCode,
+        Key::PaneFloorExited,
+        Key::PaneFloorFolder,
+        Key::PaneFloorNotStarted,
+        Key::PaneFloorTimeout,
+        Key::PaneFloorUnsupported,
+        Key::PaneFloorUntypable,
         Key::PaneInherited,
         Key::PaneJump,
         Key::PaneLabel,
@@ -5934,6 +6358,11 @@ impl Key {
         Key::PaneNoSession,
         Key::PaneNotOnPath,
         Key::PaneNoteDismiss,
+        Key::PanePin,
+        Key::PanePinnedBottom,
+        Key::PanePinnedLeft,
+        Key::PanePinnedRight,
+        Key::PanePinnedTop,
         Key::PaneQueue,
         Key::PaneRestart,
         Key::PaneRestartNow,
@@ -5953,11 +6382,20 @@ impl Key {
         Key::PaneStateWorking,
         Key::PaneStateYours,
         Key::PaneStateYoursShort,
+        Key::PaneUnattached,
+        Key::PaneUnattachedHint,
+        Key::PaneUnattachedOffHint,
+        Key::PaneUnpin,
         Key::PaneZoomIn,
         Key::PaneBranchBranch,
         Key::PaneBranchBranchWorktree,
         Key::PaneBranchDetached,
         Key::PaneBranchDetachedMark,
+        Key::PaneMenuModel,
+        Key::PaneMenuModelDefault,
+        Key::PaneMenuNewAgentPane,
+        Key::PaneMenuNotInstalled,
+        Key::PaneMenuPinUnable,
         Key::PlaceholderBody,
         Key::PlaceholderTitle,
         Key::PreviewActualSize,
@@ -6056,11 +6494,23 @@ impl Key {
         Key::SessionsNote,
         Key::SessionsTitle,
         Key::SessionsUntitled,
+        Key::SettingsAgentBeta,
         Key::SettingsAgentCommands,
         Key::SettingsAgentCommandsHint,
         Key::SettingsAgentControlSection,
         Key::SettingsAgentPaneControl,
         Key::SettingsAgentPaneControlHint,
+        Key::SettingsAgentsAutomatic,
+        Key::SettingsAgentsDefaults,
+        Key::SettingsAgentsDefaultsHint,
+        Key::SettingsAgentsKeywords,
+        Key::SettingsAgentsOrchestrator,
+        Key::SettingsAgentsOrchestratorHint,
+        Key::SettingsAgentsReviewer,
+        Key::SettingsAgentsReviewerHint,
+        Key::SettingsAgentsSameAsOrchestrator,
+        Key::SettingsAgentsWorker,
+        Key::SettingsAgentsWorkerHint,
         Key::SettingsAutoResume,
         Key::SettingsAutoResumeHint,
         Key::SettingsBlink,
@@ -6080,6 +6530,8 @@ impl Key {
         Key::SettingsClaudeBridge,
         Key::SettingsClaudeBridgeHint,
         Key::SettingsClose,
+        Key::SettingsCodexAttach,
+        Key::SettingsCodexAttachHint,
         Key::SettingsCursor,
         Key::SettingsCursorBar,
         Key::SettingsCursorBlock,
@@ -6212,6 +6664,9 @@ impl Key {
         Key::SettingsVoiceVocabulary,
         Key::SettingsVoiceVocabularyHint,
         Key::SettingsVoiceVocabularyPlaceholder,
+        Key::SettingsWindowOpacity,
+        Key::SettingsWindowOpacityHint,
+        Key::SetupBeta,
         Key::SetupDocs,
         Key::SetupDone,
         Key::SetupFailedExit,
@@ -6221,6 +6676,7 @@ impl Key {
         Key::SetupHow,
         Key::SetupInstall,
         Key::SetupInstalled,
+        Key::SetupInstalledVersion,
         Key::SetupInstalling,
         Key::SetupInstallingHint,
         Key::SetupLead,
@@ -6236,11 +6692,14 @@ impl Key {
         Key::SetupNixUnfree,
         Key::SetupNoOutput,
         Key::SetupNotFound,
+        Key::SetupNotInstalled,
+        Key::SetupNotOnPath,
         Key::SetupRetry,
         Key::SetupShellsOnly,
         Key::SetupShellsOnlyHint,
         Key::SetupSignIn,
-        Key::SetupSignInLead,
+        Key::SetupSignInClaude,
+        Key::SetupSignInCodex,
         Key::SetupSignedIn,
         Key::SetupTitle,
         Key::SidebarActivityWaiting,
@@ -6254,6 +6713,7 @@ impl Key {
         Key::SidebarFilterLabel,
         Key::SidebarFolderDefault,
         Key::SidebarFolderEmpty,
+        Key::SidebarFolderNewWorkspace,
         Key::SidebarFolderSize,
         Key::SidebarGoTo,
         Key::SidebarHide,
@@ -6277,8 +6737,11 @@ impl Key {
         Key::SidebarNoMatch,
         Key::SidebarNoneWaiting,
         Key::SidebarPlan,
+        Key::SidebarPlanAccountsHint,
         Key::SidebarPlanFiveHour,
         Key::SidebarPlanHint,
+        Key::SidebarPlanHintAny,
+        Key::SidebarPlanNoFigures,
         Key::SidebarPlanResetDate,
         Key::SidebarPlanResetDay,
         Key::SidebarPlanResetToday,
@@ -6468,6 +6931,7 @@ impl Key {
         Key::TitleBarMaximize,
         Key::TitleBarMinimize,
         Key::TitleBarRestore,
+        Key::TitleBarSite,
         Key::ToolbarActivityContext,
         Key::ToolbarActivityContextHint,
         Key::ToolbarActivityGoTo,
@@ -6666,28 +7130,64 @@ impl Key {
 
 /// The messages, sorted by id (byte order), one per `Key`.
 pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
-    Message { id: "accounts.badge.title", en: Text::plain("Claude account: {name}"), fr: Text::plain("Compte Claude\u{202f}: {name}") },
-    Message { id: "accounts.menu.title", en: Text::plain("Claude account"), fr: Text::plain("Compte Claude") },
+    Message { id: "accounts.agentBeta", en: Text::plain("{agent} (beta)"), fr: Text::plain("{agent} (bêta)") },
+    Message { id: "accounts.badge.folderTitle", en: Text::plain("{agent} account: {name}, from the {folder} folder"), fr: Text::plain("Compte {agent}\u{202f}: {name}, celui du dossier {folder}") },
+    Message { id: "accounts.badge.title", en: Text::plain("{agent} account: {name}"), fr: Text::plain("Compte {agent}\u{202f}: {name}") },
+    Message { id: "accounts.menu.folderTitle", en: Text::plain("{agent} account for this folder"), fr: Text::plain("Compte {agent} de ce dossier") },
+    Message { id: "accounts.menu.title", en: Text::plain("{agent} account"), fr: Text::plain("Compte {agent}") },
+    Message { id: "accounts.movedNote", en: Text::plain("Now on {name}, same conversation."), fr: Text::plain("Maintenant sur {name}, même conversation.") },
+    Message { id: "accounts.movedNoteFresh", en: Text::plain("Now on {name}, on a new conversation."), fr: Text::plain("Maintenant sur {name}, sur une nouvelle conversation.") },
+    Message { id: "accounts.moving", en: Text::plain("→ {name}"), fr: Text::plain("→ {name}") },
+    Message { id: "accounts.movingBlocked", en: Text::plain("{name}: not logged in"), fr: Text::plain("{name}\u{202f}: non connecté") },
+    Message { id: "accounts.movingBlockedTitle", en: Text::plain("{name} is not logged in, so this pane stays on its account: log it in from Settings › Accounts"), fr: Text::plain("{name} n’est pas connecté, ce panneau reste donc sur son compte\u{202f}: connecte-le depuis Réglages › Comptes") },
+    Message { id: "accounts.movingCommandTitle", en: Text::plain("Moves to {name} once its command is over: {command}"), fr: Text::plain("Passe sur {name} dès que sa commande est finie\u{202f}: {command}") },
+    Message { id: "accounts.movingDraftTitle", en: Text::plain("Moves to {name} once what is typed in it is sent, or left alone for 90\u{a0}s"), fr: Text::plain("Passe sur {name} dès que ce qui y est tapé est envoyé, ou laissé tel quel 90\u{a0}s") },
+    Message { id: "accounts.movingTitle", en: Text::plain("Moves to {name}, on the same conversation, once Hangar has checked that no command of its own still runs"), fr: Text::plain("Passe sur {name}, sur la même conversation, dès que Hangar a vérifié qu’aucune commande à lui ne tourne encore") },
+    Message { id: "accounts.movingTurnTitle", en: Text::plain("Moves to {name}, on the same conversation, once its turn is over"), fr: Text::plain("Passe sur {name}, sur la même conversation, dès que son tour est fini") },
+    Message { id: "accounts.movingUnreadableTitle", en: Text::plain("Moves to {name} once Hangar can tell that no command of its own runs: its processes could not be read"), fr: Text::plain("Passe sur {name} dès que Hangar peut voir qu’aucune commande à lui ne tourne\u{202f}: ses processus n’ont pas pu être lus") },
+    Message { id: "accounts.movingUnreportedTitle", en: Text::plain("Moves to {name} once its turn is known to be over: its agent has not reported it (no hangar-bridge mod, a Codex Hangar could not attach to, or nothing said yet)"), fr: Text::plain("Passe sur {name} dès que la fin de son tour est connue\u{202f}: son agent ne l’a pas signalée (pas de mod hangar-bridge, un Codex auquel Hangar n’a pas pu s’attacher, ou rien dit encore)") },
     Message { id: "accounts.pane.badgeTitle", en: Text::plain("This agent runs on the “{name}” account, not its workspace’s"), fr: Text::plain("Cet agent tourne sur le compte «\u{202f}{name}\u{202f}», pas celui de son workspace") },
-    Message { id: "accounts.pane.menuHeading", en: Text::plain("Claude account for this pane"), fr: Text::plain("Compte Claude de ce volet") },
+    Message { id: "accounts.pane.menuHeading", en: Text::plain("{agent} account for this pane"), fr: Text::plain("Compte {agent} de ce volet") },
     Message { id: "accounts.picker.default", en: Text::plain("Default ({name})"), fr: Text::plain("Par défaut ({name})") },
+    Message { id: "accounts.picker.folderDefault", en: Text::plain("Folder default ({name})"), fr: Text::plain("Défaut du dossier ({name})") },
     Message { id: "accounts.picker.label", en: Text::plain("Claude account"), fr: Text::plain("Compte Claude") },
     Message { id: "accounts.picker.missing", en: Text::plain("The account “{id}” no longer exists: the default applies."), fr: Text::plain("Le compte «\u{202f}{id}\u{202f}» n’existe plus\u{202f}: le compte par défaut s’applique.") },
     Message { id: "accounts.picker.unknown", en: Text::plain("unknown"), fr: Text::plain("inconnu") },
+    Message { id: "accounts.plan.agentAccount", en: Text::plain("{agent} · {name}"), fr: Text::plain("{agent} · {name}") },
+    Message { id: "accounts.plan.hint", en: Text::plain("Plan usage of each account, Claude Code’s and Codex’s, from the last report of its panes"), fr: Text::plain("Consommation du forfait de chaque compte, Claude Code ou Codex, d’après le dernier relevé de ses volets") },
     Message { id: "accounts.settings.add", en: Text::plain("Add and log in"), fr: Text::plain("Ajouter et se connecter") },
-    Message { id: "accounts.settings.addHint", en: Text::plain("A pane opens so you can log in through your browser."), fr: Text::plain("Un volet s’ouvre pour te connecter depuis ton navigateur.") },
+    Message { id: "accounts.settings.addHint", en: Text::plain("A pane opens and runs {command} on the account: log in through your browser."), fr: Text::plain("Un volet s’ouvre et lance {command} sur le compte\u{202f}: connecte-toi depuis ton navigateur.") },
     Message { id: "accounts.settings.addName", en: Text::plain("Name"), fr: Text::plain("Nom") },
     Message { id: "accounts.settings.addPlaceholder", en: Text::plain("Work, Personal…"), fr: Text::plain("Travail, Perso…") },
     Message { id: "accounts.settings.addTitle", en: Text::plain("Add an account"), fr: Text::plain("Ajouter un compte") },
+    Message { id: "accounts.settings.apiKey", en: Text::plain("API key"), fr: Text::plain("Clé d’API") },
+    Message { id: "accounts.settings.askSwitch", en: Text::plain("Ask before moving running agents"), fr: Text::plain("Demander avant de déplacer les agents en cours") },
+    Message { id: "accounts.settings.askSwitchHint", en: Text::plain("Off, a running agent moves to its new account by itself, restarting on the same conversation, once Hangar knows it has nothing to lose: its turn over as the agent reports it (the hangar-bridge mod, or Hangar attached to Codex), nothing typed in it and not sent, no command of its own still running (a build, a watch). Until then its header reads “→ account”; while its turns are not reported, it waits. On, you are asked, and the agents restart at once."), fr: Text::plain("Désactivé, un agent en cours passe tout seul sur son nouveau compte, en redémarrant sur la même conversation, dès que Hangar sait qu’il n’a rien à perdre\u{202f}: son tour fini d’après l’agent (le mod hangar-bridge, ou Hangar attaché à Codex), rien de tapé dedans sans être envoyé, plus aucune commande à lui en cours (un build, une surveillance). D’ici là, son en-tête affiche «\u{202f}→ compte\u{202f}»\u{202f}; tant que ses tours ne sont pas signalés, il attend. Activé, la question est posée et les agents redémarrent tout de suite.") },
+    Message { id: "accounts.settings.badge", en: Text::plain("Badge, where the account is named"), fr: Text::plain("Badge, là où le compte est nommé") },
+    Message { id: "accounts.settings.badges", en: Text::plain("Colour the account badges"), fr: Text::plain("Colorer les badges des comptes") },
+    Message { id: "accounts.settings.badgesHint", en: Text::plain("Give each account a colour and an icon, to tell them apart at a glance. The toolbar's account button and its menu show them for every account, the default one included; the navigator and pane headers name only an account other than the default. Off, accounts keep their plain labels."), fr: Text::plain("Donne à chaque compte une couleur et une icône, pour les distinguer d'un coup d'œil. Le bouton du compte dans la barre d'outils et son menu les montrent pour chaque compte, celui par défaut compris\u{202f}; le navigateur et les en-têtes de volet ne nomment qu'un compte autre que celui par défaut. Désactivé, les comptes gardent leur libellé simple.") },
     Message { id: "accounts.settings.cancel", en: Text::plain("Cancel"), fr: Text::plain("Annuler") },
     Message { id: "accounts.settings.default", en: Text::plain("Default"), fr: Text::plain("Par défaut") },
     Message { id: "accounts.settings.failed", en: Text::plain("Could not do that: {detail}"), fr: Text::plain("Impossible\u{202f}: {detail}") },
-    Message { id: "accounts.settings.intro", en: Text::plain("Each account is a separate Claude subscription. Choose one per workspace; Hangar never switches on its own when a limit is reached."), fr: Text::plain("Chaque compte est un abonnement Claude distinct. Choisis-en un par workspace\u{202f}; Hangar ne bascule jamais tout seul quand une limite est atteinte.") },
+    Message { id: "accounts.settings.iconBolt", en: Text::plain("Bolt"), fr: Text::plain("Éclair") },
+    Message { id: "accounts.settings.iconBookmark", en: Text::plain("Bookmark"), fr: Text::plain("Signet") },
+    Message { id: "accounts.settings.iconCube", en: Text::plain("Cube"), fr: Text::plain("Cube") },
+    Message { id: "accounts.settings.iconFlag", en: Text::plain("Flag"), fr: Text::plain("Drapeau") },
+    Message { id: "accounts.settings.iconFolder", en: Text::plain("Folder"), fr: Text::plain("Dossier") },
+    Message { id: "accounts.settings.iconGamepad", en: Text::plain("Game controller"), fr: Text::plain("Manette") },
+    Message { id: "accounts.settings.iconLock", en: Text::plain("Lock"), fr: Text::plain("Cadenas") },
+    Message { id: "accounts.settings.iconMoon", en: Text::plain("Moon"), fr: Text::plain("Lune") },
+    Message { id: "accounts.settings.iconNone", en: Text::plain("No icon"), fr: Text::plain("Sans icône") },
+    Message { id: "accounts.settings.iconTerminal", en: Text::plain("Terminal"), fr: Text::plain("Terminal") },
+    Message { id: "accounts.settings.iconWorkspace", en: Text::plain("Workspace"), fr: Text::plain("Workspace") },
+    Message { id: "accounts.settings.intro", en: Text::plain("Each account is a separate subscription of an agent, Claude Code or Codex. Choose one per workspace; Hangar never switches on its own when a limit is reached."), fr: Text::plain("Chaque compte est un abonnement distinct d’un agent, Claude Code ou Codex. Choisis-en un par workspace\u{202f}; Hangar ne bascule jamais tout seul quand une limite est atteinte.") },
+    Message { id: "accounts.settings.kindIntro", en: Text::plain("Each {agent} account is a configuration folder of its own ({var}): its login is its own, everything else (settings, conversations, tools) is the main account’s. Hangar reads who it is logged in as from it, never its tokens."), fr: Text::plain("Chaque compte {agent} est un dossier de configuration à lui ({var})\u{202f}: sa connexion lui est propre, tout le reste (réglages, conversations, outils) est celui du compte principal. Hangar y lit avec qui il est connecté, jamais ses jetons.") },
+    Message { id: "accounts.settings.kindTitle", en: Text::plain("{agent} accounts"), fr: Text::plain("Comptes {agent}") },
     Message { id: "accounts.settings.listLabel", en: Text::plain("Accounts"), fr: Text::plain("Comptes") },
     Message { id: "accounts.settings.logIn", en: Text::plain("Log in"), fr: Text::plain("Se connecter") },
     Message { id: "accounts.settings.loggedIn", en: Text::plain("Logged in"), fr: Text::plain("Connecté") },
     Message { id: "accounts.settings.loggedOut", en: Text::plain("Not logged in"), fr: Text::plain("Non connecté") },
-    Message { id: "accounts.settings.mainFixed", en: Text::plain("The main account is Claude Code’s own configuration: it cannot be removed."), fr: Text::plain("Le compte principal est la configuration propre de Claude Code\u{202f}: il ne peut pas être retiré.") },
+    Message { id: "accounts.settings.mainFixed", en: Text::plain("The main account is {agent}’s own configuration: it cannot be removed."), fr: Text::plain("Le compte principal est la configuration propre de {agent}\u{202f}: il ne peut pas être retiré.") },
     Message { id: "accounts.settings.nameEmpty", en: Text::plain("Give the account a name."), fr: Text::plain("Donne un nom au compte.") },
     Message { id: "accounts.settings.nameTaken", en: Text::plain("Another account already has this name."), fr: Text::plain("Un autre compte porte déjà ce nom.") },
     Message { id: "accounts.settings.noPane", en: Text::plain("No room for the login pane. Close a pane in the open workspace, then choose “Log in” on the account."), fr: Text::plain("Pas de place pour le volet de connexion. Ferme un volet du workspace ouvert, puis choisis «\u{202f}Se connecter\u{202f}» sur le compte.") },
@@ -6699,7 +7199,12 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "accounts.settings.renameLabel", en: Text::plain("New name for {name}"), fr: Text::plain("Nouveau nom de {name}") },
     Message { id: "accounts.settings.save", en: Text::plain("Save"), fr: Text::plain("Enregistrer") },
     Message { id: "accounts.settings.setDefault", en: Text::plain("Make default"), fr: Text::plain("Définir par défaut") },
-    Message { id: "accounts.settings.title", en: Text::plain("Claude accounts"), fr: Text::plain("Comptes Claude") },
+    Message { id: "accounts.settings.title", en: Text::plain("Accounts"), fr: Text::plain("Comptes") },
+    Message { id: "accounts.settings.toneAccent", en: Text::plain("Accent"), fr: Text::plain("Accent") },
+    Message { id: "accounts.settings.toneDanger", en: Text::plain("Red"), fr: Text::plain("Rouge") },
+    Message { id: "accounts.settings.toneNone", en: Text::plain("Plain"), fr: Text::plain("Sans couleur") },
+    Message { id: "accounts.settings.toneSuccess", en: Text::plain("Green"), fr: Text::plain("Vert") },
+    Message { id: "accounts.settings.toneWarning", en: Text::plain("Amber"), fr: Text::plain("Ambre") },
     Message { id: "accounts.settings.unsupportedBody", en: Text::plain("Logging in to one account here may log another one out. You may have to log in again after switching."), fr: Text::plain("Se connecter à un compte ici peut en déconnecter un autre. Tu devras peut-être te reconnecter après un changement.") },
     Message { id: "accounts.settings.unsupportedTitle", en: Text::plain("Logins are not kept apart on this computer"), fr: Text::plain("Les connexions ne sont pas séparées sur cet ordinateur") },
     Message { id: "accounts.settings.usedBy", en: Text::plain("Used by {names}"), fr: Text::plain("Utilisé par {names}") },
@@ -6707,22 +7212,22 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "accounts.switcher.askEverywhere", en: Text::plain("Make {name} the default for every workspace"), fr: Text::plain("Faire de {name} le compte par défaut de tous les workspaces") },
     Message { id: "accounts.switcher.askHere", en: Text::plain("Switch this workspace to {name}"), fr: Text::plain("Passer ce workspace sur {name}") },
     Message { id: "accounts.switcher.back", en: Text::plain("Back"), fr: Text::plain("Retour") },
-    Message { id: "accounts.switcher.button", en: Text::plain("Claude account: {name}"), fr: Text::plain("Compte Claude\u{202f}: {name}") },
+    Message { id: "accounts.switcher.button", en: Text::plain("{agent} account: {name}"), fr: Text::plain("Compte {agent}\u{202f}: {name}") },
     Message { id: "accounts.switcher.five", en: Text::plain("5\u{a0}h"), fr: Text::plain("5\u{a0}h") },
     Message { id: "accounts.switcher.heading", en: Text::plain("This workspace uses"), fr: Text::plain("Ce workspace utilise") },
     Message { id: "accounts.switcher.menu", en: Text::plain("Claude accounts"), fr: Text::plain("Comptes Claude") },
     Message { id: "accounts.switcher.nextLaunch", en: Text::plain("On next launch"), fr: Text::plain("Au prochain lancement") },
+    Message { id: "accounts.switcher.noFigures", en: Text::plain("no figures yet"), fr: Text::plain("pas encore de relevé") },
     Message { id: "accounts.switcher.notLoggedIn", en: Text::plain("not logged in"), fr: Text::plain("non connecté") },
     Message { id: "accounts.switcher.percent", en: Text::plain("{n}%"), fr: Text::plain("{n}\u{202f}%") },
     Message { id: "accounts.switcher.restartEverywhere", en: Text::plain("Restart the agents that follow the default now (conversations kept)"), fr: Text::plain("Redémarrer maintenant les agents qui suivent le défaut (conversations conservées)") },
     Message { id: "accounts.switcher.restartHere", en: Text::plain("Restart this workspace’s agents now (conversations kept)"), fr: Text::plain("Redémarrer maintenant les agents de ce workspace (conversations conservées)") },
     Message { id: "accounts.switcher.running", en: Text::plural("{n} agent running.", "{n} agents running."), fr: Text::plural("{n} agent en cours.", "{n} agents en cours.") },
-    Message { id: "accounts.switcher.unknown", en: Text::plain("unknown"), fr: Text::plain("inconnu") },
-    Message { id: "accounts.switcher.usage", en: Text::plain("{five} {fiveValue} · {week} {weekValue}"), fr: Text::plain("{five} {fiveValue} · {week} {weekValue}") },
     Message { id: "accounts.switcher.useEverywhere", en: Text::plain("For every workspace"), fr: Text::plain("Pour tous les workspaces") },
     Message { id: "accounts.switcher.useEverywhereLabel", en: Text::plain("Make {name} the default for every workspace"), fr: Text::plain("Faire de {name} le compte par défaut de tous les workspaces") },
     Message { id: "accounts.switcher.useHere", en: Text::plain("Use {name} in this workspace"), fr: Text::plain("Utiliser {name} dans ce workspace") },
     Message { id: "accounts.switcher.week", en: Text::plain("week"), fr: Text::plain("semaine") },
+    Message { id: "accounts.switcher.window", en: Text::plain("{window} {value}"), fr: Text::plain("{window} {value}") },
     Message { id: "activity.appStarted", en: Text::plain("Hangar started"), fr: Text::plain("Hangar a démarré") },
     Message { id: "activity.appStopped", en: Text::plain("Hangar stopped"), fr: Text::plain("Hangar s'est arrêté") },
     Message { id: "activity.asleep", en: Text::plain("{name} fell asleep"), fr: Text::plain("{name}\u{a0}s'est endormi") },
@@ -6837,11 +7342,11 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "chatConv.context", en: Text::plain("{pct}% context"), fr: Text::plain("contexte {pct}\u{202f}%") },
     Message { id: "chatConv.disabled.answering", en: Text::plain("An answer is being typed into {name}: wait for it."), fr: Text::plain("Une réponse est en cours de saisie dans {name}\u{202f}: attendez qu’elle finisse.") },
     Message { id: "chatConv.disabled.loading", en: Text::plain("Hangar is starting: wait a moment."), fr: Text::plain("Hangar démarre\u{202f}: patientez un instant.") },
-    Message { id: "chatConv.disabled.notClaude", en: Text::plain("{name} is not a Claude Code pane."), fr: Text::plain("{name} n’est pas un panneau Claude Code.") },
+    Message { id: "chatConv.disabled.notClaude", en: Text::plain("{name} runs no agent whose conversation Hangar reads."), fr: Text::plain("{name} ne fait tourner aucun agent dont Hangar lit la conversation.") },
     Message { id: "chatConv.disabled.permission", en: Text::plain("Allow or deny the request above first."), fr: Text::plain("Autorisez ou refusez d’abord la demande ci-dessus.") },
     Message { id: "chatConv.disabled.question", en: Text::plain("Answer the question above first."), fr: Text::plain("Répondez d’abord à la question ci-dessus.") },
-    Message { id: "chatConv.disabled.resuming", en: Text::plain("{name} is resuming: wait for Claude Code to start."), fr: Text::plain("{name} reprend\u{202f}: attendez que Claude Code démarre.") },
-    Message { id: "chatConv.empty.body", en: Text::plain("The orchestrator is the Claude Code pane that plans the work on the board, starts the workers and lands what they deliver. Your conversation with it shows here."), fr: Text::plain("L’orchestrateur est le panneau Claude Code qui planifie le travail sur le tableau, lance les workers et intègre ce qu’ils livrent. Votre conversation avec lui s’affiche ici.") },
+    Message { id: "chatConv.disabled.resuming", en: Text::plain("{name} is resuming: wait for {agent} to start."), fr: Text::plain("{name} reprend\u{202f}: attendez que {agent} démarre.") },
+    Message { id: "chatConv.empty.body", en: Text::plain("The orchestrator is the {agent} pane that plans the work on the board, starts the workers and lands what they deliver. Your conversation with it shows here."), fr: Text::plain("L’orchestrateur est le panneau {agent} qui planifie le travail sur le tableau, lance les workers et intègre ce qu’ils livrent. Votre conversation avec lui s’affiche ici.") },
     Message { id: "chatConv.empty.cannot", en: Text::plain("This workspace cannot have an orchestrator."), fr: Text::plain("Cet espace ne peut pas avoir d’orchestrateur.") },
     Message { id: "chatConv.empty.start", en: Text::plain("Start the orchestrator"), fr: Text::plain("Lancer l’orchestrateur") },
     Message { id: "chatConv.empty.title", en: Text::plain("No orchestrator in this workspace"), fr: Text::plain("Pas d’orchestrateur dans cet espace") },
@@ -6902,11 +7407,11 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "chatConv.queue.sendNow", en: Text::plain("Send now"), fr: Text::plain("Envoyer maintenant") },
     Message { id: "chatConv.queue.sendNowHint", en: Text::plain("Stops the turn: the first message goes at once"), fr: Text::plain("Arrête le tour en cours\u{202f}: le premier message part tout de suite") },
     Message { id: "chatConv.queue.title", en: Text::plain("Waiting for {name} to finish"), fr: Text::plain("En attente\u{202f}: partira quand {name} aura fini") },
-    Message { id: "chatConv.queued", en: Text::plain("Queued: {name} gets it once Claude Code is up"), fr: Text::plain("En file\u{202f}: {name} le recevra dès que Claude Code sera prêt") },
+    Message { id: "chatConv.queued", en: Text::plain("Queued: {name} gets it once {agent} is up"), fr: Text::plain("En file\u{202f}: {name} le recevra dès que {agent} sera prêt") },
     Message { id: "chatConv.readFailed", en: Text::plain("Could not read the conversation: {error}"), fr: Text::plain("Impossible de lire la conversation\u{202f}: {error}") },
     Message { id: "chatConv.reason.noSession", en: Text::plain("No conversation with {name} yet. Write below to start one."), fr: Text::plain("Pas encore de conversation avec {name}. Écrivez ci-dessous pour en commencer une.") },
     Message { id: "chatConv.reason.noTranscript", en: Text::plain("{name}’s conversation has not been written yet."), fr: Text::plain("La conversation de {name} n’est pas encore écrite.") },
-    Message { id: "chatConv.reason.notClaude", en: Text::plain("{name} is not a Claude Code pane: it has no conversation to show."), fr: Text::plain("{name} n’est pas un panneau Claude Code\u{202f}: il n’a pas de conversation à afficher.") },
+    Message { id: "chatConv.reason.notClaude", en: Text::plain("{name} runs no agent whose conversation Hangar reads: there is nothing to show."), fr: Text::plain("{name} ne fait tourner aucun agent dont Hangar lit la conversation\u{202f}: rien à afficher.") },
     Message { id: "chatConv.refused", en: Text::plain("Not done: {error}"), fr: Text::plain("Non fait\u{202f}: {error}") },
     Message { id: "chatConv.send", en: Text::plain("Send"), fr: Text::plain("Envoyer") },
     Message { id: "chatConv.sending", en: Text::plain("Sending…"), fr: Text::plain("Envoi…") },
@@ -6973,6 +7478,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "cmd.pane.focusRight", en: Text::plain("Focus the pane on the right"), fr: Text::plain("Aller au panneau de droite") },
     Message { id: "cmd.pane.focusUp", en: Text::plain("Focus the pane above"), fr: Text::plain("Aller au panneau du dessus") },
     Message { id: "cmd.pane.next", en: Text::plain("Next pane"), fr: Text::plain("Panneau suivant") },
+    Message { id: "cmd.pane.pin", en: Text::plain("Pin the focused pane in place, or unpin it"), fr: Text::plain("Épingler le panneau actif à sa place, ou le désépingler") },
     Message { id: "cmd.pane.pinOrchestrator", en: Text::plain("Pin the focused pane as orchestrator"), fr: Text::plain("Épingler le panneau actif comme orchestrateur") },
     Message { id: "cmd.pane.prev", en: Text::plain("Previous pane"), fr: Text::plain("Panneau précédent") },
     Message { id: "cmd.pane.resetAll", en: Text::plain("Start every agent on a new session"), fr: Text::plain("Relancer chaque agent sur une nouvelle session") },
@@ -7058,6 +7564,8 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "control.restarted", en: Text::plain("{by} restarted {pane} in {workspace}"), fr: Text::plain("{by} a relancé {pane} dans {workspace}") },
     Message { id: "control.someone", en: Text::plain("An agent"), fr: Text::plain("Un agent") },
     Message { id: "control.workspaceCreated", en: Text::plain("{by} created the workspace {workspace} from a repository; {pane} orchestrates it"), fr: Text::plain("{by} a créé le workspace {workspace} depuis un dépôt\u{202f}; {pane} l'orchestre") },
+    Message { id: "create.agent.claude", en: Text::plain("Claude Code"), fr: Text::plain("Claude Code") },
+    Message { id: "create.agent.codex", en: Text::plain("Codex (beta)"), fr: Text::plain("Codex (bêta)") },
     Message { id: "create.agents", en: Text::plain("Agent split"), fr: Text::plain("Répartition des agents") },
     Message { id: "create.allAssigned", en: Text::plain("every pane is assigned"), fr: Text::plain("tous les panneaux sont attribués") },
     Message { id: "create.browse", en: Text::plain("Browse…"), fr: Text::plain("Parcourir…") },
@@ -7088,6 +7596,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "create.gitStarting", en: Text::plain("Starting the clone…"), fr: Text::plain("Démarrage du clonage…") },
     Message { id: "create.gitStop", en: Text::plain("Cancel the clone"), fr: Text::plain("Annuler le clonage") },
     Message { id: "create.gitSubmit", en: Text::plain("Clone and create workspace"), fr: Text::plain("Cloner et créer le workspace") },
+    Message { id: "create.inFolder", en: Text::plain("In the {folder} folder"), fr: Text::plain("Dans le dossier {folder}") },
     Message { id: "create.layout", en: Text::plain("Arrangement"), fr: Text::plain("Disposition") },
     Message { id: "create.layoutHint", en: Text::plain("click a cell to change its agent"), fr: Text::plain("clique une case pour changer son agent") },
     Message { id: "create.less", en: Text::plain("One {agent} fewer"), fr: Text::plain("Un {agent} de moins") },
@@ -7104,6 +7613,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "create.rootMain", en: Text::plain("main"), fr: Text::plain("principal") },
     Message { id: "create.rootMissing", en: Text::plain("missing"), fr: Text::plain("introuvable") },
     Message { id: "create.rootsHint", en: Text::plain("panes open in the main folder; the other folders go to Claude Code"), fr: Text::plain("les panneaux s'ouvrent dans le dossier principal\u{202f}; les autres dossiers vont à Claude Code") },
+    Message { id: "create.setUp", en: Text::plain("Set up {agent}"), fr: Text::plain("Installer {agent}") },
     Message { id: "create.shellDefault", en: Text::plain("Default ({name})"), fr: Text::plain("Par défaut ({name})") },
     Message { id: "create.shellDetected", en: Text::plain("{n} detected on this machine"), fr: Text::plural("{n} détecté sur cette machine", "{n} détectés sur cette machine") },
     Message { id: "create.shellNone", en: Text::plain("none"), fr: Text::plain("aucun") },
@@ -7112,13 +7622,16 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "create.sourceGit", en: Text::plain("From a Git repository"), fr: Text::plain("Depuis un dépôt Git") },
     Message { id: "create.start", en: Text::plain("Starts with"), fr: Text::plain("Démarre avec") },
     Message { id: "create.startCustom", en: Text::plural("{n} pane, as chosen under More options", "{n} panes, as chosen under More options"), fr: Text::plural("{n} panneau, comme choisi dans Plus d'options", "{n} panneaux, comme choisis dans Plus d'options") },
-    Message { id: "create.startNoClaude", en: Text::plain("Claude Code is not installed on this machine: the workspace starts with a shell instead of an orchestrator."), fr: Text::plain("Claude Code n'est pas installé sur cette machine\u{202f}: le workspace démarre avec un shell au lieu d'un orchestrateur.") },
+    Message { id: "create.startNoAgent", en: Text::plain("No agent is installed on this machine, neither Claude Code nor Codex: the workspace starts with a shell instead of an orchestrator."), fr: Text::plain("Aucun agent n'est installé sur cette machine, ni Claude Code ni Codex\u{202f}: le workspace démarre avec un shell au lieu d'un orchestrateur.") },
     Message { id: "create.startNoGit", en: Text::plain("This folder is not a Git repository: the workers will share it. Run git init in it to give each worker a worktree of its own."), fr: Text::plain("Ce dossier n'est pas un dépôt Git\u{202f}: les workers le partageront. Lance git init dedans pour donner à chaque worker son propre worktree.") },
-    Message { id: "create.startOrchestrator", en: Text::plain("One Claude Code pane, the orchestrator: tell it what you want, it plans the work and hands it to workers"), fr: Text::plain("Un panneau Claude Code, l'orchestrateur\u{202f}: dis-lui ce que tu veux, il planifie le travail et le confie à des workers") },
+    Message { id: "create.startOrchestrator", en: Text::plain("One {agent} pane, the orchestrator: tell it what you want, it plans the work and hands it to workers"), fr: Text::plain("Un panneau {agent}, l'orchestrateur\u{202f}: dis-lui ce que tu veux, il planifie le travail et le confie à des workers") },
     Message { id: "create.startShell", en: Text::plain("One plain shell"), fr: Text::plain("Un shell simple") },
     Message { id: "create.submit", en: Text::plain("Create workspace"), fr: Text::plain("Créer le workspace") },
     Message { id: "create.terminals", en: Text::plain("Number of panes"), fr: Text::plain("Nombre de panneaux") },
     Message { id: "create.title", en: Text::plain("New workspace"), fr: Text::plain("Nouveau workspace") },
+    Message { id: "create.workers", en: Text::plain("Workers"), fr: Text::plain("Workers") },
+    Message { id: "create.workersHint", en: Text::plain("The agent the orchestrator starts its workers with"), fr: Text::plain("L'agent avec lequel l'orchestrateur lance ses workers") },
+    Message { id: "create.workersSame", en: Text::plain("Same as the orchestrator"), fr: Text::plain("Comme l'orchestrateur") },
     Message { id: "diff.against", en: Text::plain("against {base}"), fr: Text::plain("par rapport à {base}") },
     Message { id: "diff.binary", en: Text::plain("Binary file: no line-by-line diff to show."), fr: Text::plain("Fichier binaire\u{202f}: pas de diff ligne à ligne.") },
     Message { id: "diff.clean", en: Text::plain("Nothing changed: the working tree matches {base}."), fr: Text::plain("Aucune modification\u{202f}: l'arbre de travail correspond à {base}.") },
@@ -7152,7 +7665,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "diff.worktree", en: Text::plain("Changes"), fr: Text::plain("Modifications") },
     Message { id: "diff.worktreeHint", en: Text::plain("See what changed in this worktree"), fr: Text::plain("Voir ce qui a changé dans ce worktree") },
     Message { id: "discord.agents", en: Text::plural("{n} agent", "{n} agents"), fr: Text::plural("{n} agent", "{n} agents") },
-    Message { id: "discord.button", en: Text::plain("Get Hangar.AI"), fr: Text::plain("Télécharger Hangar.AI") },
+    Message { id: "discord.button", en: Text::plain("Get HangarAI"), fr: Text::plain("Télécharger HangarAI") },
     Message { id: "discord.cardHead", en: Text::plain("Playing a game"), fr: Text::plain("Joue à") },
     Message { id: "discord.elapsed", en: Text::plain("{time} elapsed"), fr: Text::plain("{time} écoulées") },
     Message { id: "discord.idle", en: Text::plain("Idle"), fr: Text::plain("Au repos") },
@@ -7163,7 +7676,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "discord.statusOff", en: Text::plain("Off"), fr: Text::plain("Désactivé") },
     Message { id: "discord.statusWaiting", en: Text::plain("Waiting for Discord…"), fr: Text::plain("En attente de Discord…") },
     Message { id: "discord.statusWaitingHint", en: Text::plain("Retrying every 15\u{a0}s; the presence appears on its own"), fr: Text::plain("Nouvelle tentative toutes les 15\u{a0}s\u{202f}; la présence apparaîtra d'elle-même") },
-    Message { id: "discord.tagline", en: Text::plain("Hangar.AI — terminal multiplexer for coding agents"), fr: Text::plain("Hangar.AI — multiplexeur de terminaux pour agents de code") },
+    Message { id: "discord.tagline", en: Text::plain("HangarAI — terminal multiplexer for coding agents"), fr: Text::plain("HangarAI — multiplexeur de terminaux pour agents de code") },
     Message { id: "discord.working", en: Text::plain("Orchestrating coding agents"), fr: Text::plain("Pilote ses agents de code") },
     Message { id: "discordBot.connect", en: Text::plain("Connect"), fr: Text::plain("Connecter") },
     Message { id: "discordBot.disconnect", en: Text::plain("Disconnect"), fr: Text::plain("Déconnecter") },
@@ -7262,6 +7775,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "hibernate.noticeMany", en: Text::plain("{count} workspaces put to sleep ({n} agents stopped)"), fr: Text::plain("{count} workspaces mis en veille ({n} agents arrêtés)") },
     Message { id: "hibernate.noticeNoAgent", en: Text::plain("{name} put to sleep (no agent to stop)"), fr: Text::plain("{name} mis en veille (aucun agent à arrêter)") },
     Message { id: "inspector.activityEmpty", en: Text::plain("Nothing yet. Prompts, permissions and edits show up here once Claude Code loads the hangar-bridge mod."), fr: Text::plain("Rien pour l'instant. Prompts, permissions et modifications s'affichent ici dès que Claude Code charge le mod hangar-bridge.") },
+    Message { id: "inspector.activityEmptyAttached", en: Text::plain("Nothing yet. Prompts, permissions and edits show up here once Hangar is attached to {agent}."), fr: Text::plain("Rien pour l'instant. Prompts, permissions et modifications s'affichent ici dès que Hangar est attaché à {agent}.") },
     Message { id: "inspector.activityOther", en: Text::plain("{agent} does not report what it does. Only Claude Code does, through the hangar-bridge mod."), fr: Text::plain("{agent} ne raconte pas ce qu'il fait. Seul Claude Code le fait, via le mod hangar-bridge.") },
     Message { id: "inspector.activityQuiet", en: Text::plain("Nothing yet."), fr: Text::plain("Rien pour l'instant.") },
     Message { id: "inspector.close", en: Text::plain("Hide the inspector"), fr: Text::plain("Masquer l'inspecteur") },
@@ -7290,13 +7804,15 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "inspector.label", en: Text::plain("Inspector"), fr: Text::plain("Inspecteur") },
     Message { id: "inspector.mcp", en: Text::plain("MCP"), fr: Text::plain("MCP") },
     Message { id: "inspector.mcpChange", en: Text::plain("Change…"), fr: Text::plain("Modifier…") },
-    Message { id: "inspector.mcpChangeHint", en: Text::plain("Choose the MCP servers of this workspace's Claude Code panes"), fr: Text::plain("Choisir les serveurs MCP des panneaux Claude Code de ce workspace") },
-    Message { id: "inspector.mcpInherit", en: Text::plain("Claude Code's own"), fr: Text::plain("ceux de Claude Code") },
+    Message { id: "inspector.mcpChangeHint", en: Text::plain("Choose the MCP servers of this workspace's {agent} panes"), fr: Text::plain("Choisir les serveurs MCP des panneaux {agent} de ce workspace") },
+    Message { id: "inspector.mcpInherit", en: Text::plain("{agent}'s own"), fr: Text::plain("ceux de {agent}") },
     Message { id: "inspector.minutesAgo", en: Text::plain("{n}\u{a0}min ago"), fr: Text::plain("il y a {n}\u{a0}min") },
     Message { id: "inspector.model", en: Text::plain("Model"), fr: Text::plain("Modèle") },
     Message { id: "inspector.noPane", en: Text::plain("No pane in focus"), fr: Text::plain("Aucun panneau actif") },
     Message { id: "inspector.noPaneBody", en: Text::plain("Click a pane to see its session, context and changes here."), fr: Text::plain("Clique sur un panneau pour voir ici sa session, son contexte et ses modifications.") },
-    Message { id: "inspector.plan", en: Text::plain("Claude plan"), fr: Text::plain("Forfait Claude") },
+    Message { id: "inspector.plan", en: Text::plain("Plan"), fr: Text::plain("Forfait") },
+    Message { id: "inspector.plan.claude", en: Text::plain("Claude plan"), fr: Text::plain("Forfait Claude") },
+    Message { id: "inspector.plan.codex", en: Text::plain("ChatGPT plan"), fr: Text::plain("Forfait ChatGPT") },
     Message { id: "inspector.planFiveHour", en: Text::plain("5\u{a0}h"), fr: Text::plain("5\u{a0}h") },
     Message { id: "inspector.planHint", en: Text::plain("{window}: {pct}% used"), fr: Text::plain("{window}\u{202f}: {pct}\u{202f}% utilisés") },
     Message { id: "inspector.planHintResets", en: Text::plain("{window}: {pct}% used, {reset}"), fr: Text::plain("{window}\u{202f}: {pct}\u{202f}% utilisés, {reset}") },
@@ -7369,12 +7885,43 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "kits.warnBroken", en: Text::plain("Kit “{id}” cannot be loaded ({detail}): the pane starts without it."), fr: Text::plain("Le kit «\u{202f}{id}\u{202f}» ne peut pas être chargé ({detail})\u{202f}: le panneau démarre sans lui.") },
     Message { id: "kits.warnForbidden", en: Text::plain("Kits: this machine's Claude Code policy forbids plugin folders, so {ids} stay out of this pane."), fr: Text::plain("Kits\u{202f}: la politique de Claude Code sur cette machine interdit les dossiers de plugins, {ids} restent donc hors de ce panneau.") },
     Message { id: "kits.warnMissing", en: Text::plain("Kit “{id}” is not installed on this machine: the pane starts without it."), fr: Text::plain("Le kit «\u{202f}{id}\u{202f}» n'est pas installé sur cette machine\u{202f}: le panneau démarre sans lui.") },
+    Message { id: "kitsAgent.codexAdd", en: Text::plain("Add to Codex"), fr: Text::plain("Ajouter à Codex") },
+    Message { id: "kitsAgent.codexAdded", en: Text::plain("Added to Codex"), fr: Text::plain("Ajouté à Codex") },
+    Message { id: "kitsAgent.codexAdding", en: Text::plain("Adding to Codex…"), fr: Text::plain("Ajout à Codex…") },
+    Message { id: "kitsAgent.codexAskAdd", en: Text::plain("Add {name} to Codex? Hangar builds a Codex plugin from what is listed here, then runs these commands:"), fr: Text::plain("Ajouter {name} à Codex\u{202f}? Hangar construit un plugin Codex avec ce qui est listé ici, puis lance ces commandes\u{202f}:") },
+    Message { id: "kitsAgent.codexAskRemove", en: Text::plain("Remove {name} from Codex? Hangar runs these commands:"), fr: Text::plain("Retirer {name} de Codex\u{202f}? Hangar lance ces commandes\u{202f}:") },
+    Message { id: "kitsAgent.codexChanged", en: Text::plain("Changed since it was added to Codex"), fr: Text::plain("Modifié depuis son ajout à Codex") },
+    Message { id: "kitsAgent.codexHint", en: Text::plain("Codex cannot load a kit's skills and hooks for one session: once added, they reach every Codex session on this machine, whatever the workspace, until you remove them."), fr: Text::plain("Codex ne sait pas charger les skills et les hooks d'un kit pour une seule session\u{202f}: une fois ajoutés, ils atteignent toutes les sessions Codex de cette machine, quel que soit le workspace, jusqu'à ce que vous les retiriez.") },
+    Message { id: "kitsAgent.codexHooks", en: Text::plain("Hooks: {names}"), fr: Text::plain("Hooks\u{202f}: {names}") },
+    Message { id: "kitsAgent.codexMissing", en: Text::plain("Codex is not installed on this machine."), fr: Text::plain("Codex n'est pas installé sur cette machine.") },
+    Message { id: "kitsAgent.codexNotAdded", en: Text::plain("Not added to Codex"), fr: Text::plain("Pas ajouté à Codex") },
+    Message { id: "kitsAgent.codexRemove", en: Text::plain("Remove from Codex"), fr: Text::plain("Retirer de Codex") },
+    Message { id: "kitsAgent.codexRemoving", en: Text::plain("Removing from Codex…"), fr: Text::plain("Retrait de Codex…") },
+    Message { id: "kitsAgent.codexSkills", en: Text::plain("Skills: {names}"), fr: Text::plain("Skills\u{202f}: {names}") },
+    Message { id: "kitsAgent.codexTrust", en: Text::plain("Codex runs these hooks only once you trust them in its /hooks."), fr: Text::plain("Codex ne lance ces hooks qu'une fois que vous leur faites confiance dans son /hooks.") },
+    Message { id: "kitsAgent.codexUpdate", en: Text::plain("Update in Codex"), fr: Text::plain("Mettre à jour dans Codex") },
+    Message { id: "kitsAgent.heading", en: Text::plain("What reaches each agent"), fr: Text::plain("Ce que reçoit chaque agent") },
+    Message { id: "kitsAgent.hooks", en: Text::plain("Hooks"), fr: Text::plain("Hooks") },
+    Message { id: "kitsAgent.howInstalled", en: Text::plain("once added to {agent}"), fr: Text::plain("une fois ajoutés à {agent}") },
+    Message { id: "kitsAgent.howLaunch", en: Text::plain("with each launch"), fr: Text::plain("à chaque lancement") },
+    Message { id: "kitsAgent.leftLine", en: Text::plain("{part} ({why}): {names}"), fr: Text::plain("{part} ({why})\u{202f}: {names}") },
+    Message { id: "kitsAgent.leftOut", en: Text::plain("Not in {agent}"), fr: Text::plain("Absent de {agent}") },
+    Message { id: "kitsAgent.notMeant", en: Text::plain("Not for {agent}: the kit's manifest leaves it out, so {agent} panes get nothing of its plugin."), fr: Text::plain("Pas pour {agent}\u{202f}: le manifeste du kit l'écarte, les panes {agent} ne reçoivent rien de son plugin.") },
+    Message { id: "kitsAgent.nothing", en: Text::plain("Nothing of its plugin reaches {agent}."), fr: Text::plain("Rien de son plugin n'atteint {agent}.") },
+    Message { id: "kitsAgent.only", en: Text::plain("{agent} only"), fr: Text::plain("{agent} seulement") },
+    Message { id: "kitsAgent.outputStyles", en: Text::plain("Output styles"), fr: Text::plain("Styles de sortie") },
+    Message { id: "kitsAgent.own", en: Text::plain("Its tabs and setup commands are Hangar's own: they work whatever the agent."), fr: Text::plain("Ses onglets et ses commandes d'installation sont à Hangar\u{202f}: ils marchent quel que soit l'agent.") },
+    Message { id: "kitsAgent.whyEvent", en: Text::plain("an event {agent} has no hooks for"), fr: Text::plain("un événement sans hooks dans {agent}") },
+    Message { id: "kitsAgent.whyHandler", en: Text::plain("not a command {agent} runs"), fr: Text::plain("pas une commande que {agent} lance") },
+    Message { id: "kitsAgent.whyNoSuchPart", en: Text::plain("{agent} has none"), fr: Text::plain("{agent} n'en a pas") },
+    Message { id: "kitsAgent.whyTool", en: Text::plain("selects none of {agent}'s tools"), fr: Text::plain("ne vise aucun outil de {agent}") },
+    Message { id: "kitsAgent.whyTransport", en: Text::plain("a transport {agent} does not speak"), fr: Text::plain("un transport que {agent} ne parle pas") },
+    Message { id: "kitsAgent.whyVariables", en: Text::plain("names a variable {agent} would not fill in"), fr: Text::plain("nomme une variable que {agent} ne remplirait pas") },
     Message { id: "kitsManage.actAccept", en: Text::plain("Accept and enable"), fr: Text::plain("Accepter et activer") },
     Message { id: "kitsManage.actAcceptChanged", en: Text::plain("Accept what changed"), fr: Text::plain("Accepter ce qui a changé") },
     Message { id: "kitsManage.actAcceptPerms", en: Text::plain("Accept the permissions"), fr: Text::plain("Accepter les autorisations") },
     Message { id: "kitsManage.actAgents", en: Text::plain("Agents"), fr: Text::plain("Agents") },
     Message { id: "kitsManage.actBrings", en: Text::plain("What this kit brings"), fr: Text::plain("Ce que ce kit apporte") },
-    Message { id: "kitsManage.actClaudeOnly", en: Text::plain("Kits reach Claude Code panes only, not the other agents or plain shells."), fr: Text::plain("Les kits n'atteignent que les panes Claude Code, ni les autres agents ni les shells simples.") },
     Message { id: "kitsManage.actClose", en: Text::plain("Close"), fr: Text::plain("Fermer") },
     Message { id: "kitsManage.actCommandOs", en: Text::plain("Command for {os}"), fr: Text::plain("Commande pour {os}") },
     Message { id: "kitsManage.actCommands", en: Text::plain("Commands"), fr: Text::plain("Commandes") },
@@ -7387,7 +7934,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "kitsManage.actNoHooks", en: Text::plain("Nothing runs by itself."), fr: Text::plain("Rien ne se lance tout seul.") },
     Message { id: "kitsManage.actNoPerms", en: Text::plain("It asks for no permission."), fr: Text::plain("Il ne demande aucune autorisation.") },
     Message { id: "kitsManage.actNoSetup", en: Text::plain("No setup command for this system."), fr: Text::plain("Aucune commande d'installation pour ce système.") },
-    Message { id: "kitsManage.actNothing", en: Text::plain("Nothing for Claude Code and no tab."), fr: Text::plain("Rien pour Claude Code et aucun onglet.") },
+    Message { id: "kitsManage.actNothing", en: Text::plain("Nothing for an agent and no tab."), fr: Text::plain("Rien pour un agent et aucun onglet.") },
     Message { id: "kitsManage.actOnWorkspace", en: Text::plain("On the workspace {name}"), fr: Text::plain("Sur le workspace {name}") },
     Message { id: "kitsManage.actPerms", en: Text::plain("What its tabs ask for"), fr: Text::plain("Ce que ses onglets demandent") },
     Message { id: "kitsManage.actPermsFor", en: Text::plain("{tab} may:"), fr: Text::plain("{tab} pourra\u{202f}:") },
@@ -7410,7 +7957,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "kitsManage.broken", en: Text::plain("This kit cannot be used"), fr: Text::plain("Ce kit est inutilisable") },
     Message { id: "kitsManage.brokenName", en: Text::plain("Unreadable kit ({id})"), fr: Text::plain("Kit illisible ({id})") },
     Message { id: "kitsManage.byWorkspace", en: Text::plain("Kits per workspace"), fr: Text::plain("Kits par workspace") },
-    Message { id: "kitsManage.byWorkspaceHint", en: Text::plain("Enable kits on a workspace that exists: run their setup commands in it and restart its Claude Code panes."), fr: Text::plain("Activez des kits sur un workspace existant\u{202f}: lancez-y leurs commandes d'installation et redémarrez ses panes Claude Code.") },
+    Message { id: "kitsManage.byWorkspaceHint", en: Text::plain("Enable kits on a workspace that exists: run their setup commands in it and restart its agent panes."), fr: Text::plain("Activez des kits sur un workspace existant\u{202f}: lancez-y leurs commandes d'installation et redémarrez ses panes d'agent.") },
     Message { id: "kitsManage.cancel", en: Text::plain("Cancel"), fr: Text::plain("Annuler") },
     Message { id: "kitsManage.checkUpdate", en: Text::plain("Check for update"), fr: Text::plain("Chercher une mise à jour") },
     Message { id: "kitsManage.checking", en: Text::plain("Checking…"), fr: Text::plain("Vérification…") },
@@ -7427,7 +7974,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "kitsManage.everywhereNote", en: Text::plain("On all workspaces"), fr: Text::plain("Sur tous les workspaces") },
     Message { id: "kitsManage.everywhereNoteHint", en: Text::plain("Managed in Settings › Kits."), fr: Text::plain("Géré dans Réglages › Kits.") },
     Message { id: "kitsManage.everywhereOffNote", en: Text::plain("Turned off for all workspaces. The workspaces that enabled it themselves keep it."), fr: Text::plain("Désactivé pour tous les workspaces. Ceux qui l'ont activé eux-mêmes le gardent.") },
-    Message { id: "kitsManage.everywhereRestartBody", en: Text::plain("A Claude Code that is already running keeps the kits it started with. It follows the change for {name} when it restarts: restart the Claude Code panes of your workspaces."), fr: Text::plain("Un Claude Code déjà lancé garde les kits avec lesquels il a démarré. Il suivra le changement pour {name} à son prochain redémarrage\u{202f}: redémarrez les panes Claude Code de vos workspaces.") },
+    Message { id: "kitsManage.everywhereRestartBody", en: Text::plain("An agent that is already running keeps the kits it started with. It follows the change for {name} when it restarts: restart the agent panes of your workspaces."), fr: Text::plain("Un agent déjà lancé garde les kits avec lesquels il a démarré. Il suivra le changement pour {name} à son prochain redémarrage\u{202f}: redémarrez les panes d'agent de vos workspaces.") },
     Message { id: "kitsManage.everywhereRestartTitle", en: Text::plain("Running agents do not have the change yet"), fr: Text::plain("Les agents en cours n'ont pas encore le changement") },
     Message { id: "kitsManage.everywhereReview", en: Text::plain("New permissions, or what it runs by itself, to accept: kept out of every pane until then."), fr: Text::plain("Nouvelles autorisations, ou ce qu'il lance tout seul, à accepter\u{202f}: le kit reste hors de tous les panes d'ici là.") },
     Message { id: "kitsManage.everywhereToggle", en: Text::plain("Enable {name} on all workspaces"), fr: Text::plain("Activer {name} sur tous les workspaces") },
@@ -7460,7 +8007,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "kitsManage.gitHint", en: Text::plain("A repository, or a folder of one: {example}. Cloning runs nothing from it."), fr: Text::plain("Un dépôt, ou un dossier de dépôt\u{202f}: {example}. Le clonage n'exécute rien de ce qu'il contient.") },
     Message { id: "kitsManage.gitLabel", en: Text::plain("GitHub link"), fr: Text::plain("Lien GitHub") },
     Message { id: "kitsManage.installed", en: Text::plain("Installed kits"), fr: Text::plain("Kits installés") },
-    Message { id: "kitsManage.intro", en: Text::plain("A kit brings a domain into Hangar: skills, commands, agents and MCP servers for Claude Code, tabs of its own, and setup commands. Kits reach Claude Code panes only."), fr: Text::plain("Un kit apporte un domaine à Hangar\u{202f}: skills, commandes, agents et serveurs MCP pour Claude Code, onglets à lui et commandes d'installation. Les kits n'atteignent que les panes Claude Code.") },
+    Message { id: "kitsManage.intro", en: Text::plain("A kit brings a domain into Hangar: skills, commands, agents and MCP servers for the agents, tabs of its own, and setup commands. Each kit says what reaches Claude Code and what reaches Codex."), fr: Text::plain("Un kit apporte un domaine à Hangar\u{202f}: skills, commandes, agents et serveurs MCP pour les agents, onglets à lui et commandes d'installation. Chaque kit dit ce qui atteint Claude Code et ce qui atteint Codex.") },
     Message { id: "kitsManage.keywords", en: Text::plain("kit plugin skills commands mcp tabs setup github folder install"), fr: Text::plain("kit plugin skills commandes mcp onglets installation github dossier") },
     Message { id: "kitsManage.linked", en: Text::plain("linked, read live"), fr: Text::plain("lié, lu en direct") },
     Message { id: "kitsManage.loading", en: Text::plain("Reading the kits…"), fr: Text::plain("Lecture des kits…") },
@@ -7487,8 +8034,8 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "kitsManage.removeConfirm", en: Text::plain("Remove the kit"), fr: Text::plain("Retirer le kit") },
     Message { id: "kitsManage.removeFolder", en: Text::plain("The linked folder is left untouched; only the link goes. Workspaces that use it lose it."), fr: Text::plain("Le dossier lié n'est pas touché\u{202f}: seul le lien disparaît. Les workspaces qui l'utilisent le perdent.") },
     Message { id: "kitsManage.removeGit", en: Text::plain("The copy Hangar cloned is deleted. Workspaces that use it lose it."), fr: Text::plain("La copie clonée par Hangar est supprimée. Les workspaces qui l'utilisent la perdent.") },
-    Message { id: "kitsManage.restartAction", en: Text::plain("Restart the Claude Code panes ({n})"), fr: Text::plain("Redémarrer les panes Claude Code ({n})") },
-    Message { id: "kitsManage.restartBody", en: Text::plain("A Claude Code that is already running keeps the kits it started with. It gets {name} when it restarts."), fr: Text::plain("Un Claude Code déjà lancé garde les kits avec lesquels il a démarré. Il aura {name} à son prochain redémarrage.") },
+    Message { id: "kitsManage.restartAction", en: Text::plain("Restart the agent panes ({n})"), fr: Text::plain("Redémarrer les panes d'agent ({n})") },
+    Message { id: "kitsManage.restartBody", en: Text::plain("An agent that is already running keeps the kits it started with. It gets {name} when it restarts."), fr: Text::plain("Un agent déjà lancé garde les kits avec lesquels il a démarré. Il aura {name} à son prochain redémarrage.") },
     Message { id: "kitsManage.restartDone", en: Text::plain("Restarted."), fr: Text::plain("Redémarrés.") },
     Message { id: "kitsManage.restartLater", en: Text::plain("Later"), fr: Text::plain("Plus tard") },
     Message { id: "kitsManage.restartResume", en: Text::plain("Each one resumes its conversation."), fr: Text::plain("Chacun reprend sa conversation.") },
@@ -7521,7 +8068,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "kitsManage.runUnknownWhen", en: Text::plain("Hangar does not know what these are. Claude Code may ignore them or, in another version, act on them: read them before you accept."), fr: Text::plain("Hangar ne sait pas ce que c'est. Claude Code peut les ignorer ou, dans une autre version, s'en servir\u{202f}: lisez-les avant d'accepter.") },
     Message { id: "kitsManage.runUnreadable", en: Text::plain("Cannot be read by Hangar: what it runs is not shown here."), fr: Text::plain("Ne peut pas être lu par Hangar\u{202f}: ce que cela lance n'est pas montré ici.") },
     Message { id: "kitsManage.runWhat", en: Text::plain("What {name} starts"), fr: Text::plain("Ce que lance {name}") },
-    Message { id: "kitsManage.sectionHint", en: Text::plain("Enable the kits this workspace uses. Their skills, commands, agents and MCP servers load in its Claude Code panes."), fr: Text::plain("Activez les kits que ce workspace utilise. Leurs skills, commandes, agents et serveurs MCP se chargent dans ses panes Claude Code.") },
+    Message { id: "kitsManage.sectionHint", en: Text::plain("Enable the kits this workspace uses. What each one brings loads in its agent panes, as far as each agent takes it."), fr: Text::plain("Activez les kits que ce workspace utilise. Ce que chacun apporte se charge dans ses panes d'agent, autant que chaque agent le prend.") },
     Message { id: "kitsManage.sectionNone", en: Text::plain("No kit installed. Add one in Settings › Kits."), fr: Text::plain("Aucun kit installé. Ajoutez-en un dans Réglages › Kits.") },
     Message { id: "kitsManage.sectionTitle", en: Text::plain("Kits"), fr: Text::plain("Kits") },
     Message { id: "kitsManage.sourceFolder", en: Text::plain("Folder: {path}"), fr: Text::plain("Dossier\u{202f}: {path}") },
@@ -7614,7 +8161,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "kitsTab.permission.loopback", en: Text::plain("talk to the local server on port {port}"), fr: Text::plain("parler au serveur local sur le port {port}") },
     Message { id: "kitsTab.permission.notify", en: Text::plain("raise notifications"), fr: Text::plain("envoyer des notifications") },
     Message { id: "kitsTab.permission.panes.read", en: Text::plain("see the panes"), fr: Text::plain("voir les panneaux") },
-    Message { id: "kitsTab.permission.panes.send", en: Text::plain("write to the Claude Code agents"), fr: Text::plain("écrire aux agents Claude Code") },
+    Message { id: "kitsTab.permission.panes.send", en: Text::plain("write to the agents"), fr: Text::plain("écrire aux agents") },
     Message { id: "kitsTab.permission.preview.show", en: Text::plain("open files in the preview"), fr: Text::plain("ouvrir des fichiers dans l'aperçu") },
     Message { id: "kitsTab.permission.workspace.read", en: Text::plain("read the workspace"), fr: Text::plain("lire le workspace") },
     Message { id: "kitsTab.reload", en: Text::plain("Reload the tab"), fr: Text::plain("Recharger l'onglet") },
@@ -7635,7 +8182,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "mcp.configured", en: Text::plain("already configured"), fr: Text::plain("déjà configuré") },
     Message { id: "mcp.install", en: Text::plain("Configure ({n})"), fr: Text::plain("Configurer ({n})") },
     Message { id: "mcp.installing", en: Text::plain("Installing…"), fr: Text::plain("Installation…") },
-    Message { id: "mcp.intro", en: Text::plain("Hangar.AI registers itself as an MCP server in this project's Claude Code configuration (.mcp.json). The port and token are never written to that file: they are resolved at launch, so the configuration stays valid across restarts."), fr: Text::plain("Hangar.AI s'enregistre comme serveur MCP dans la configuration Claude Code de ce projet (.mcp.json). Le port et le jeton ne sont jamais écrits dans ce fichier\u{202f}: ils sont résolus au lancement, donc la configuration reste valable après un redémarrage.") },
+    Message { id: "mcp.intro", en: Text::plain("HangarAI registers itself as an MCP server in this project's Claude Code configuration (.mcp.json). The port and token are never written to that file: they are resolved at launch, so the configuration stays valid across restarts."), fr: Text::plain("HangarAI s'enregistre comme serveur MCP dans la configuration Claude Code de ce projet (.mcp.json). Le port et le jeton ne sont jamais écrits dans ce fichier\u{202f}: ils sont résolus au lancement, donc la configuration reste valable après un redémarrage.") },
     Message { id: "mcp.manual", en: Text::plain("Or do it manually"), fr: Text::plain("Ou à la main") },
     Message { id: "mcp.manualHint", en: Text::plain("if you prefer the CLI"), fr: Text::plain("si tu préfères passer par la CLI") },
     Message { id: "mcp.notDetected", en: Text::plain("not detected"), fr: Text::plain("non détecté") },
@@ -7654,7 +8201,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "mcpScope.custom", en: Text::plain("Chosen here"), fr: Text::plain("Choisis ici") },
     Message { id: "mcpScope.customHint", en: Text::plain("Only the servers switched on below, and Hangar's own."), fr: Text::plain("Seulement les serveurs activés ci-dessous, plus celui de Hangar.") },
     Message { id: "mcpScope.empty", en: Text::plain("No other MCP server is configured for this folder."), fr: Text::plain("Aucun autre serveur MCP n'est configuré pour ce dossier.") },
-    Message { id: "mcpScope.hangar", en: Text::plain("Hangar.AI"), fr: Text::plain("Hangar.AI") },
+    Message { id: "mcpScope.hangar", en: Text::plain("HangarAI"), fr: Text::plain("HangarAI") },
     Message { id: "mcpScope.hangarHint", en: Text::plain("Always loaded: agents use it for the board, the other panes and the memory"), fr: Text::plain("Toujours chargé\u{202f}: les agents s'en servent pour le tableau, les autres panneaux et la mémoire") },
     Message { id: "mcpScope.hangarMissing", en: Text::plain("Not registered for this folder: agents only get it with servers chosen here"), fr: Text::plain("Pas enregistré pour ce dossier\u{202f}: les agents ne l'ont qu'avec des serveurs choisis ici") },
     Message { id: "mcpScope.held", en: Text::plural("{n} agent is in the middle of a turn: it keeps its servers until the turn ends.", "{n} agents are in the middle of a turn: they keep their servers until the turns end."), fr: Text::plural("{n} agent est au milieu d'un tour\u{202f}: il garde ses serveurs jusqu'à la fin du tour.", "{n} agents sont au milieu d'un tour\u{202f}: ils gardent leurs serveurs jusqu'à la fin des tours.") },
@@ -7889,6 +8436,8 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "nodes.adopt.restoreFailed", en: Text::plain("{node} could not take {name}: {reason}. It is still not on {node}."), fr: Text::plain("{node} n’a pas pu prendre {name}\u{202f}: {reason}. Il n’est toujours pas sur {node}.") },
     Message { id: "nodes.adopt.settled", en: Text::plain("{node} did take {name}: it runs there now."), fr: Text::plain("{node} a bien pris {name}\u{202f}: il tourne là-bas désormais.") },
     Message { id: "nodes.adopt.unsettled", en: Text::plain("{node} did not say whether it took {name}: {reason}. It is left as it is until {node} answers again."), fr: Text::plain("{node} n’a pas dit s’il a pris {name}\u{202f}: {reason}. Il reste tel quel jusqu’à ce que {node} réponde.") },
+    Message { id: "nodes.agentBeta", en: Text::plain("beta"), fr: Text::plain("bêta") },
+    Message { id: "nodes.agentSignedOut", en: Text::plain("{agent}, not signed in"), fr: Text::plain("{agent}, non connecté") },
     Message { id: "nodes.claudeFound", en: Text::plain("Claude Code"), fr: Text::plain("Claude Code") },
     Message { id: "nodes.claudeMissing", en: Text::plain("No Claude Code"), fr: Text::plain("Pas de Claude Code") },
     Message { id: "nodes.clone.destination", en: Text::plain("It will be cloned to {path} on {node}"), fr: Text::plain("Il sera cloné dans {path} sur {node}") },
@@ -7896,6 +8445,8 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "nodes.clone.failedAccess", en: Text::plain("{node} could not clone it: {reason}. {node} may not have access to this repository: it clones with its own keys, not this computer’s."), fr: Text::plain("{node} n’a pas pu le cloner\u{202f}: {reason}. {node} n’a peut-être pas accès à ce dépôt\u{202f}: le clonage se fait avec ses clés, pas celles de cet ordinateur.") },
     Message { id: "nodes.clone.parentHint", en: Text::plain("empty: the projects folder in the home of {node}"), fr: Text::plain("vide\u{202f}: le dossier projects dans le dossier personnel de {node}") },
     Message { id: "nodes.clone.running", en: Text::plain("Cloning on {node}…"), fr: Text::plain("Clonage sur {node}…") },
+    Message { id: "nodes.codexFound", en: Text::plain("Codex"), fr: Text::plain("Codex") },
+    Message { id: "nodes.codexMissing", en: Text::plain("No Codex"), fr: Text::plain("Pas de Codex") },
     Message { id: "nodes.create.empty", en: Text::plain("No sub-folder here."), fr: Text::plain("Aucun sous-dossier ici.") },
     Message { id: "nodes.create.failed", en: Text::plain("This folder could not be listed: {error}"), fr: Text::plain("Ce dossier n’a pas pu être listé\u{202f}: {error}") },
     Message { id: "nodes.create.folder", en: Text::plain("Folder on that machine"), fr: Text::plain("Dossier sur cette machine") },
@@ -8014,6 +8565,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "notify.settled", en: Text::plain("Finished — waiting for you"), fr: Text::plain("A terminé — il t'attend") },
     Message { id: "notify.title", en: Text::plain("{name} · {agent}"), fr: Text::plain("{name} · {agent}") },
     Message { id: "notify.trustFolder", en: Text::plain("Waiting for you: Claude Code asks whether to trust this folder"), fr: Text::plain("Attend toi\u{202f}: Claude Code demande s'il doit faire confiance à ce dossier") },
+    Message { id: "orch.agentNotInstalled", en: Text::plain("{agent} is not installed on this computer: its workers would not start."), fr: Text::plain("{agent} n'est pas installé sur cet ordinateur\u{202f}: ses workers ne démarreraient pas.") },
     Message { id: "orch.applies", en: Text::plain("Applies to the next worker started and the next delivery"), fr: Text::plain("S'applique au prochain worker lancé et à la prochaine livraison") },
     Message { id: "orch.autoMerge", en: Text::plain("Merge by itself"), fr: Text::plain("Fusion automatique") },
     Message { id: "orch.autoMergeHint", en: Text::plain("A delivery that passes its check and its review lands on the branch. Off, it waits for you in “Needs you”. Nothing is ever pushed."), fr: Text::plain("Une livraison qui passe sa vérification et sa relecture arrive seule sur la branche. Désactivée, elle t'attend dans «\u{202f}Besoin de toi\u{202f}». Rien n'est jamais poussé.") },
@@ -8045,9 +8597,15 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "orch.checkCommand", en: Text::plain("Check command"), fr: Text::plain("Commande de vérification") },
     Message { id: "orch.checkHint", en: Text::plain("Run by your shell in a clean copy of the delivery, before it lands: install what it needs in the same command"), fr: Text::plain("Lancée par ton shell dans une copie propre de la livraison, avant qu'elle arrive\u{202f}: installe ce qu'il lui faut dans la même commande") },
     Message { id: "orch.checkPlaceholder", en: Text::plain("none — pnpm test, cargo test…"), fr: Text::plain("aucune — pnpm test, cargo test…") },
+    Message { id: "orch.codexModelDefault", en: Text::plain("Codex's own default"), fr: Text::plain("Celui que Codex choisit") },
+    Message { id: "orch.codexModelHint", en: Text::plain("A Codex model id. Empty: the model Codex picks itself. Used when this role runs on Codex."), fr: Text::plain("Un identifiant de modèle Codex. Vide\u{202f}: le modèle que Codex choisit lui-même. Vaut quand ce rôle tourne sur Codex.") },
+    Message { id: "orch.codexOrchestratorModel", en: Text::plain("Orchestrator, Codex (beta)"), fr: Text::plain("Orchestrateur, Codex (bêta)") },
+    Message { id: "orch.codexReviewerModel", en: Text::plain("Reviewer, Codex (beta)"), fr: Text::plain("Relecteur, Codex (bêta)") },
+    Message { id: "orch.codexWorkerModel", en: Text::plain("Workers, Codex (beta)"), fr: Text::plain("Workers, Codex (bêta)") },
     Message { id: "orch.default", en: Text::plain("default: {value}"), fr: Text::plain("par défaut\u{202f}: {value}") },
-    Message { id: "orch.intro", en: Text::plain("A Claude Code pane pinned as orchestrator plans the work on the board and hands each task to a worker of its own, in a worktree. It decides how many workers run at once and how many times a task is tried. What is set here, Hangar holds itself, whatever the prompt says."), fr: Text::plain("Un panneau Claude Code épinglé comme orchestrateur planifie le travail au tableau et confie chaque tâche à un worker à lui, dans un worktree. C'est lui qui décide combien de workers tournent en même temps et combien de fois une tâche est retentée. Ce qui est réglé ici, Hangar le tient lui-même, quoi que dise le prompt.") },
+    Message { id: "orch.intro", en: Text::plain("A Claude Code or Codex pane pinned as orchestrator plans the work on the board and hands each task to a worker of its own, in a worktree. It decides how many workers run at once and how many times a task is tried. What is set here, Hangar holds itself, whatever the prompt says."), fr: Text::plain("Un panneau Claude Code ou Codex épinglé comme orchestrateur planifie le travail au tableau et confie chaque tâche à un worker à lui, dans un worktree. C'est lui qui décide combien de workers tournent en même temps et combien de fois une tâche est retentée. Ce qui est réglé ici, Hangar le tient lui-même, quoi que dise le prompt.") },
     Message { id: "orch.modelInvalid", en: Text::plain("No spaces or quotes in a model name"), fr: Text::plain("Pas d'espace ni de guillemet dans un nom de modèle") },
+    Message { id: "orch.modelsAsking", en: Text::plain("Asking {agent} for its models…"), fr: Text::plain("Demande de ses modèles à {agent}…") },
     Message { id: "orch.modelsHint", en: Text::plain("An alias (opus, sonnet, haiku) or a full model id. The orchestrator's applies the next time it starts."), fr: Text::plain("Un alias (opus, sonnet, haiku) ou l'identifiant complet d'un modèle. Celui de l'orchestrateur s'applique à son prochain lancement.") },
     Message { id: "orch.navMark", en: Text::plain("Orchestrator: {name}"), fr: Text::plain("Orchestrateur\u{202f}: {name}") },
     Message { id: "orch.navMarkWorkers", en: Text::plural("Orchestrator: {name}, {n} worker running", "Orchestrator: {name}, {n} workers running"), fr: Text::plural("Orchestrateur\u{202f}: {name}, {n} worker en cours", "Orchestrateur\u{202f}: {name}, {n} workers en cours") },
@@ -8070,9 +8628,10 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "orch.sectionModels", en: Text::plain("Models"), fr: Text::plain("Modèles") },
     Message { id: "orch.sectionWorkers", en: Text::plain("Workers"), fr: Text::plain("Workers") },
     Message { id: "orch.settingsMenu", en: Text::plain("Orchestration…"), fr: Text::plain("Orchestration…") },
+    Message { id: "orch.statusAgents", en: Text::plain("Orchestrator: {orchestrator} · workers: {workers}"), fr: Text::plain("Orchestrateur\u{202f}: {orchestrator} · workers\u{202f}: {workers}") },
     Message { id: "orch.statusNoWorker", en: Text::plain("no worker running"), fr: Text::plain("aucun worker en cours") },
     Message { id: "orch.statusNone", en: Text::plain("No orchestrator yet"), fr: Text::plain("Pas encore d'orchestrateur") },
-    Message { id: "orch.statusNoneHint", en: Text::plain("Pin a Claude Code pane from its “…” menu, or start a new one here."), fr: Text::plain("Épingle un panneau Claude Code depuis son menu «\u{202f}…\u{202f}», ou crée-en un nouveau ici.") },
+    Message { id: "orch.statusNoneHint", en: Text::plain("Pin a Claude Code or Codex pane from its “…” menu, or start a new one here."), fr: Text::plain("Épingle un panneau Claude Code ou Codex depuis son menu «\u{202f}…\u{202f}», ou crée-en un nouveau ici.") },
     Message { id: "orch.statusPinned", en: Text::plain("{name} orchestrates"), fr: Text::plain("{name} orchestre") },
     Message { id: "orch.statusWorkers", en: Text::plural("{n} worker running", "{n} workers running"), fr: Text::plural("{n} worker en cours", "{n} workers en cours") },
     Message { id: "orch.stopBody", en: Text::plain("Their panes close and their tasks go back to To do. A worktree with commits not merged yet is kept."), fr: Text::plain("Leurs panneaux se ferment et leurs tâches reviennent dans À faire. Un worktree qui a des commits pas encore fusionnés est gardé.") },
@@ -8085,6 +8644,12 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "orch.title", en: Text::plain("Orchestration"), fr: Text::plain("Orchestration") },
     Message { id: "orch.unpin", en: Text::plain("Unpin the orchestrator"), fr: Text::plain("Désépingler l'orchestrateur") },
     Message { id: "orch.unpinned", en: Text::plain("{name} no longer orchestrates {workspace}"), fr: Text::plain("{name} n'orchestre plus {workspace}") },
+    Message { id: "orch.workerAgent", en: Text::plain("Workers' agent"), fr: Text::plain("Agent des workers") },
+    Message { id: "orch.workerAgentHint", en: Text::plain("The agent each new worker of this workspace runs. Workers already running keep theirs."), fr: Text::plain("L'agent que lance chaque nouveau worker de cet espace de travail. Les workers déjà lancés gardent le leur.") },
+    Message { id: "orch.workerAgentOff", en: Text::plain("“{switch}” is off in Settings › Sessions: Hangar could not hand its {agent} workers their brief."), fr: Text::plain("«\u{202f}{switch}\u{202f}» est désactivé dans Réglages › Sessions\u{202f}: Hangar ne pourrait pas transmettre leur brief à ses workers {agent}.") },
+    Message { id: "orch.workerAgentSame", en: Text::plain("Same as the orchestrator: {agent}"), fr: Text::plain("Comme l'orchestrateur\u{202f}: {agent}") },
+    Message { id: "orch.workerAgentSettings", en: Text::plain("As in the settings: {agent}"), fr: Text::plain("Comme dans les réglages\u{202f}: {agent}") },
+    Message { id: "orch.workerAgentUnable", en: Text::plain("Hangar cannot hand {agent} a worker's role: it could not brief it, message it or give it Hangar's tools."), fr: Text::plain("Hangar ne peut pas confier un rôle de worker à {agent}\u{202f}: il ne pourrait ni lui transmettre son brief, ni lui écrire, ni lui donner les outils Hangar.") },
     Message { id: "orch.workerModel", en: Text::plain("Workers"), fr: Text::plain("Workers") },
     Message { id: "palette.anywhere", en: Text::plain("{keys} opens it from anywhere"), fr: Text::plain("{keys} l'ouvre de partout") },
     Message { id: "palette.close", en: Text::plain("close"), fr: Text::plain("fermer") },
@@ -8102,7 +8667,12 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "palette.suggestions", en: Text::plain("Suggestions"), fr: Text::plain("Suggestions") },
     Message { id: "pane.actions", en: Text::plain("Actions of pane {name}"), fr: Text::plain("Actions du panneau {name}") },
     Message { id: "pane.agent", en: Text::plain("Agent running in this pane"), fr: Text::plain("Agent lancé dans ce panneau") },
+    Message { id: "pane.agentBeta", en: Text::plain("beta"), fr: Text::plain("bêta") },
+    Message { id: "pane.agentBetaHint", en: Text::plain("Support for {agent} is in beta"), fr: Text::plain("La prise en charge de {agent} est en bêta") },
     Message { id: "pane.agentRetired", en: Text::plain("{agent} is no longer supported: Hangar now runs Claude Code only, so this pane is a plain shell in the same folder."), fr: Text::plain("{agent} n'est plus pris en charge\u{202f}: Hangar ne lance plus que Claude Code, ce panneau est donc un simple shell dans le même dossier.") },
+    Message { id: "pane.attached", en: Text::plain("attached"), fr: Text::plain("attaché") },
+    Message { id: "pane.attachedHint", en: Text::plain("Hangar follows this {agent} through its own server: its states are reported, its approvals held until you answer, its usage exact."), fr: Text::plain("Hangar suit ce {agent} par son propre serveur\u{202f}: ses états sont rapportés, ses autorisations attendent ta réponse, son usage est exact.") },
+    Message { id: "pane.attachedQuietHint", en: Text::plain("Hangar started this {agent}'s own server and has not heard from it yet: until it does, its states are read from the terminal."), fr: Text::plain("Hangar a lancé le serveur de ce {agent} et ne l'a pas encore entendu\u{202f}: d'ici là, ses états sont lus dans le terminal.") },
     Message { id: "pane.attention", en: Text::plain("Finished while you were away"), fr: Text::plain("A terminé pendant ton absence") },
     Message { id: "pane.close", en: Text::plain("Close pane"), fr: Text::plain("Fermer le panneau") },
     Message { id: "pane.closeLast", en: Text::plain("The last pane cannot be closed"), fr: Text::plain("Le dernier panneau ne peut pas être fermé") },
@@ -8139,6 +8709,14 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "pane.event.resumed", en: Text::plain("Session {id} resumed"), fr: Text::plain("Session {id} reprise") },
     Message { id: "pane.event.turnEnd", en: Text::plain("Finished"), fr: Text::plain("Terminé") },
     Message { id: "pane.event.turnStart", en: Text::plain("Prompt received"), fr: Text::plain("Prompt reçu") },
+    Message { id: "pane.floorDetail", en: Text::plain("{reason}: {detail}"), fr: Text::plain("{reason}\u{202f}: {detail}") },
+    Message { id: "pane.floorExitCode", en: Text::plain("{reason} (exit {code})"), fr: Text::plain("{reason} (code {code})") },
+    Message { id: "pane.floorExited", en: Text::plain("its server stopped before it listened"), fr: Text::plain("son serveur s'est arrêté avant d'écouter") },
+    Message { id: "pane.floorFolder", en: Text::plain("its socket's folder is not usable"), fr: Text::plain("le dossier de son socket n'est pas utilisable") },
+    Message { id: "pane.floorNotStarted", en: Text::plain("“{program} app-server” could not start"), fr: Text::plain("«\u{202f}{program} app-server\u{202f}» n'a pas pu démarrer") },
+    Message { id: "pane.floorTimeout", en: Text::plain("its server did not listen within {seconds}\u{a0}s"), fr: Text::plain("son serveur n'a pas écouté dans les {seconds}\u{a0}s") },
+    Message { id: "pane.floorUnsupported", en: Text::plain("Hangar does not attach to it on this system yet"), fr: Text::plain("Hangar ne s'y attache pas encore sur ce système") },
+    Message { id: "pane.floorUntypable", en: Text::plain("this shell cannot type its socket's path"), fr: Text::plain("ce shell ne peut pas taper le chemin de son socket") },
     Message { id: "pane.inherited", en: Text::plain("{name} (inherited)"), fr: Text::plain("{name} (hérité)") },
     Message { id: "pane.jump", en: Text::plain("Focus with {keys}"), fr: Text::plain("Activer avec {keys}") },
     Message { id: "pane.label", en: Text::plain("Pane {name}"), fr: Text::plain("Panneau {name}") },
@@ -8152,6 +8730,11 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "pane.noSession", en: Text::plain("No session stored — click to pick one"), fr: Text::plain("Aucune session mémorisée — cliquer pour en choisir une") },
     Message { id: "pane.notOnPath", en: Text::plain("{agent} not found on PATH"), fr: Text::plain("{agent} introuvable dans le PATH") },
     Message { id: "pane.noteDismiss", en: Text::plain("Dismiss the note"), fr: Text::plain("Masquer la note") },
+    Message { id: "pane.pin", en: Text::plain("Pin in place"), fr: Text::plain("Épingler à sa place") },
+    Message { id: "pane.pinned.bottom", en: Text::plain("Pinned to the bottom: keeps its height while panes open and close. Click to unpin."), fr: Text::plain("Épinglé en bas\u{202f}: garde sa hauteur quand des panneaux s'ouvrent ou se ferment. Cliquer pour désépingler.") },
+    Message { id: "pane.pinned.left", en: Text::plain("Pinned to the left: keeps its width while panes open and close. Click to unpin."), fr: Text::plain("Épinglé à gauche\u{202f}: garde sa largeur quand des panneaux s'ouvrent ou se ferment. Cliquer pour désépingler.") },
+    Message { id: "pane.pinned.right", en: Text::plain("Pinned to the right: keeps its width while panes open and close. Click to unpin."), fr: Text::plain("Épinglé à droite\u{202f}: garde sa largeur quand des panneaux s'ouvrent ou se ferment. Cliquer pour désépingler.") },
+    Message { id: "pane.pinned.top", en: Text::plain("Pinned to the top: keeps its height while panes open and close. Click to unpin."), fr: Text::plain("Épinglé en haut\u{202f}: garde sa hauteur quand des panneaux s'ouvrent ou se ferment. Cliquer pour désépingler.") },
     Message { id: "pane.queue", en: Text::plural("{n} prompt waits for the agent to be free. Click to cancel it.", "{n} prompts wait for the agent to be free. Click to cancel them."), fr: Text::plural("{n} prompt attend que l'agent soit libre. Clique pour l'annuler.", "{n} prompts attendent que l'agent soit libre. Clique pour les annuler.") },
     Message { id: "pane.restart", en: Text::plain("Restart pane"), fr: Text::plain("Relancer le panneau") },
     Message { id: "pane.restartNow", en: Text::plain("Restart"), fr: Text::plain("Relancer") },
@@ -8171,11 +8754,20 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "pane.state.working", en: Text::plain("Working"), fr: Text::plain("Travaille") },
     Message { id: "pane.state.yours", en: Text::plain("Finished — your turn"), fr: Text::plain("Terminé — à toi") },
     Message { id: "pane.state.yoursShort", en: Text::plain("Your turn"), fr: Text::plain("À toi") },
+    Message { id: "pane.unattached", en: Text::plain("not attached"), fr: Text::plain("non attaché") },
+    Message { id: "pane.unattachedHint", en: Text::plain("Hangar could not attach to this {agent}: {reason}. It reads it from its terminal and its files instead."), fr: Text::plain("Hangar n'a pas pu s'attacher à ce {agent}\u{202f}: {reason}. Il le lit à la place dans son terminal et ses fichiers.") },
+    Message { id: "pane.unattachedOffHint", en: Text::plain("“{setting}” is off in the settings: Hangar reads this {agent} from its terminal and its files."), fr: Text::plain("«\u{202f}{setting}\u{202f}» est désactivé dans les réglages\u{202f}: Hangar lit ce {agent} dans son terminal et ses fichiers.") },
+    Message { id: "pane.unpin", en: Text::plain("Unpin this pane"), fr: Text::plain("Désépingler ce panneau") },
     Message { id: "pane.zoomIn", en: Text::plain("Fill the grid with this pane"), fr: Text::plain("Afficher ce panneau sur toute la grille") },
     Message { id: "paneBranch.branch", en: Text::plain("Git branch {branch}"), fr: Text::plain("Branche git {branch}") },
     Message { id: "paneBranch.branchWorktree", en: Text::plain("Git branch {branch}, in a linked worktree"), fr: Text::plain("Branche git {branch}, dans un worktree lié") },
     Message { id: "paneBranch.detached", en: Text::plain("Detached HEAD on {head}"), fr: Text::plain("HEAD détachée sur {head}") },
     Message { id: "paneBranch.detachedMark", en: Text::plain("detached"), fr: Text::plain("détaché") },
+    Message { id: "paneMenu.model", en: Text::plain("Model · {agent}"), fr: Text::plain("Modèle · {agent}") },
+    Message { id: "paneMenu.modelDefault", en: Text::plain("{agent}'s default"), fr: Text::plain("Modèle par défaut de {agent}") },
+    Message { id: "paneMenu.newAgentPane", en: Text::plain("New {agent} pane"), fr: Text::plain("Nouveau panneau {agent}") },
+    Message { id: "paneMenu.notInstalled", en: Text::plain("{agent} is not installed on this computer"), fr: Text::plain("{agent} n'est pas installé sur cet ordinateur") },
+    Message { id: "paneMenu.pinUnable", en: Text::plain("Hangar cannot hand {agent} the orchestrator's role: it could not brief it, message it or give it Hangar's tools"), fr: Text::plain("Hangar ne peut pas confier le rôle d'orchestrateur à {agent}\u{202f}: il ne pourrait ni lui transmettre son brief, ni lui écrire, ni lui donner les outils Hangar") },
     Message { id: "placeholder.body", en: Text::plain("Create a workspace from the navigator: pick a project folder, then run Claude Code and shells in as many panes as you need — split, close and drag them around at any time."), fr: Text::plain("Crée un workspace depuis le navigateur\u{202f}: choisis un dossier de projet, puis lance Claude Code et des shells dans autant de panneaux que nécessaire — divise, ferme et déplace-les à tout moment.") },
     Message { id: "placeholder.title", en: Text::plain("No workspace open"), fr: Text::plain("Aucun workspace ouvert") },
     Message { id: "preview.actualSize", en: Text::plain("Actual size (100%)"), fr: Text::plain("Taille réelle (100\u{202f}%)") },
@@ -8274,11 +8866,23 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "sessions.note", en: Text::plain("The pane restarts to apply the chosen session."), fr: Text::plain("Le panneau redémarre pour appliquer la session choisie.") },
     Message { id: "sessions.title", en: Text::plain("{agent} sessions"), fr: Text::plain("Sessions de {agent}") },
     Message { id: "sessions.untitled", en: Text::plain("untitled"), fr: Text::plain("sans titre") },
+    Message { id: "settings.agentBeta", en: Text::plain("beta"), fr: Text::plain("bêta") },
     Message { id: "settings.agentCommands", en: Text::plain("Launch command"), fr: Text::plain("Commande de lancement") },
-    Message { id: "settings.agentCommandsHint", en: Text::plain("What a pane types to start Claude Code. It goes into an interactive shell, so an alias or a script of your own works too, and resume arguments are added after it. Leave empty for the default."), fr: Text::plain("Ce qu'un panneau tape pour démarrer Claude Code. C'est envoyé à un shell interactif\u{202f}: un alias ou un script à toi fonctionne aussi, et les arguments de reprise sont ajoutés à la suite. Laisse vide pour la valeur par défaut.") },
+    Message { id: "settings.agentCommandsHint", en: Text::plain("What a pane types to start an agent, Claude Code or Codex. It goes into an interactive shell, so an alias or a script of your own works too, and resume arguments are added after it. Leave a field empty for its default."), fr: Text::plain("Ce qu'un panneau tape pour démarrer un agent, Claude Code ou Codex. C'est envoyé à un shell interactif\u{202f}: un alias ou un script à toi fonctionne aussi, et les arguments de reprise sont ajoutés à la suite. Laisse un champ vide pour sa valeur par défaut.") },
     Message { id: "settings.agentControlSection", en: Text::plain("Agents and panes"), fr: Text::plain("Agents et panneaux") },
     Message { id: "settings.agentPaneControl", en: Text::plain("Let agents manage the panes"), fr: Text::plain("Laisser les agents gérer les panneaux") },
     Message { id: "settings.agentPaneControlHint", en: Text::plain("Through Hangar's MCP server, an agent can list, open, close, restart and type into the panes of your workspaces — to run other agents, for instance — and show you files in the preview: 3D models, images, videos, documents, web pages. Each of those calls still goes through the agent's own permission prompts."), fr: Text::plain("Via le serveur MCP de Hangar, un agent peut lister, ouvrir, fermer, relancer les panneaux de tes workspaces et y écrire — pour lancer d'autres agents, par exemple — et t'ouvrir des fichiers dans l'aperçu\u{202f}: modèles 3D, images, vidéos, documents, pages web. Chacun de ces appels passe quand même par les demandes d'autorisation de l'agent.") },
+    Message { id: "settings.agentsAutomatic", en: Text::plain("Automatic"), fr: Text::plain("Automatique") },
+    Message { id: "settings.agentsDefaults", en: Text::plain("Default agents"), fr: Text::plain("Agents par défaut") },
+    Message { id: "settings.agentsDefaultsHint", en: Text::plain("Which agent runs each role where a workspace chose none."), fr: Text::plain("L'agent qui tient chaque rôle là où un workspace n'a rien choisi.") },
+    Message { id: "settings.agentsKeywords", en: Text::plain("agent agents default défaut orchestrator orchestrateur worker workers reviewer relecteur revue review automatic automatique claude code codex openai beta bêta"), fr: Text::plain("agent agents default défaut orchestrator orchestrateur worker workers reviewer relecteur revue review automatic automatique claude code codex openai beta bêta") },
+    Message { id: "settings.agentsOrchestrator", en: Text::plain("Orchestrator"), fr: Text::plain("Orchestrateur") },
+    Message { id: "settings.agentsOrchestratorHint", en: Text::plain("Started by new workspaces. Automatic: Claude Code when both agents are installed, the one that is when only one is."), fr: Text::plain("Lancé par les nouveaux workspaces. Automatique\u{202f}: Claude Code quand les deux agents sont installés, celui qui l'est quand il n'y en a qu'un.") },
+    Message { id: "settings.agentsReviewer", en: Text::plain("Delivery reviewer"), fr: Text::plain("Relecteur des livraisons") },
+    Message { id: "settings.agentsReviewerHint", en: Text::plain("The agent that reads each delivery before it lands."), fr: Text::plain("L'agent qui lit chaque livraison avant qu'elle n'atterrisse.") },
+    Message { id: "settings.agentsSameAsOrchestrator", en: Text::plain("Same as the orchestrator"), fr: Text::plain("Comme l'orchestrateur") },
+    Message { id: "settings.agentsWorker", en: Text::plain("Workers"), fr: Text::plain("Workers") },
+    Message { id: "settings.agentsWorkerHint", en: Text::plain("The agent a worker runs, whatever its orchestrator runs."), fr: Text::plain("L'agent que lance un worker, quel que soit celui de son orchestrateur.") },
     Message { id: "settings.autoResume", en: Text::plain("Auto resume"), fr: Text::plain("Reprise automatique") },
     Message { id: "settings.autoResumeHint", en: Text::plain("Relaunches agents on their last session"), fr: Text::plain("Relance les agents sur leur dernière session") },
     Message { id: "settings.blink", en: Text::plain("Blink"), fr: Text::plain("Clignotement") },
@@ -8298,6 +8902,8 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "settings.claudeBridge", en: Text::plain("Claude Code bridge"), fr: Text::plain("Pont Claude Code") },
     Message { id: "settings.claudeBridgeHint", en: Text::plain("Loads Hangar's mod into Claude Code, for exact states, plan usage and prompts held until free; applies to panes started from now on"), fr: Text::plain("Charge le mod de Hangar dans Claude Code, pour des états exacts, la consommation du forfait et les prompts gardés jusqu'à ce qu'il soit libre\u{202f}; vaut pour les panneaux lancés ensuite") },
     Message { id: "settings.close", en: Text::plain("Close"), fr: Text::plain("Fermer") },
+    Message { id: "settings.codexAttach", en: Text::plain("Attach Hangar to Codex"), fr: Text::plain("Attacher Hangar à Codex") },
+    Message { id: "settings.codexAttachHint", en: Text::plain("Hangar follows each Codex pane through Codex's own server: exact states, approvals held until you answer, plan usage. Off, or if Codex cannot be attached, the pane runs Codex's plain terminal and Hangar reads its output and files instead. Applies to panes started from now on."), fr: Text::plain("Hangar suit chaque panneau Codex par le serveur de Codex lui-même\u{202f}: états exacts, approbations gardées jusqu'à ta réponse, consommation du forfait. Désactivé, ou si Codex ne peut pas être attaché, le panneau lance le terminal de Codex tel quel et Hangar le lit d'après sa sortie et ses fichiers. Vaut pour les panneaux lancés ensuite.") },
     Message { id: "settings.cursor", en: Text::plain("Shape"), fr: Text::plain("Forme") },
     Message { id: "settings.cursorBar", en: Text::plain("Bar"), fr: Text::plain("Barre") },
     Message { id: "settings.cursorBlock", en: Text::plain("Block"), fr: Text::plain("Bloc") },
@@ -8308,7 +8914,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "settings.discordAgentsHint", en: Text::plain("Off only says how many are running"), fr: Text::plain("Désactivé, seul leur nombre est indiqué") },
     Message { id: "settings.discordApp", en: Text::plain("Application"), fr: Text::plain("Application") },
     Message { id: "settings.discordAppId", en: Text::plain("Application ID"), fr: Text::plain("Identifiant d'application") },
-    Message { id: "settings.discordAppIdHint", en: Text::plain("Leave empty to use the one Hangar.AI ships with"), fr: Text::plain("Laisse vide pour utiliser celle fournie avec Hangar.AI") },
+    Message { id: "settings.discordAppIdHint", en: Text::plain("Leave empty to use the one HangarAI ships with"), fr: Text::plain("Laisse vide pour utiliser celle fournie avec HangarAI") },
     Message { id: "settings.discordAppIdPlaceholder", en: Text::plain("Bundled application"), fr: Text::plain("Application fournie") },
     Message { id: "settings.discordEnable", en: Text::plain("Publish to Discord"), fr: Text::plain("Publier sur Discord") },
     Message { id: "settings.discordEnableHint", en: Text::plain("Needs the Discord desktop app open on this machine"), fr: Text::plain("Nécessite l'application Discord ouverte sur cette machine") },
@@ -8414,7 +9020,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "settings.voiceKeyReplace", en: Text::plain("Replace"), fr: Text::plain("Remplacer") },
     Message { id: "settings.voiceKeySave", en: Text::plain("Save"), fr: Text::plain("Enregistrer") },
     Message { id: "settings.voiceKeySaved", en: Text::plain("Key saved"), fr: Text::plain("Clé enregistrée") },
-    Message { id: "settings.voiceKeyUnavailable", en: Text::plain("The system keychain cannot be reached, so no key can be saved. Hangar.AI does not fall back to storing it in plain text. {error}"), fr: Text::plain("Le trousseau du système est injoignable\u{202f}: aucune clé ne peut être enregistrée. Hangar.AI ne se rabat pas sur un stockage en clair. {error}") },
+    Message { id: "settings.voiceKeyUnavailable", en: Text::plain("The system keychain cannot be reached, so no key can be saved. HangarAI does not fall back to storing it in plain text. {error}"), fr: Text::plain("Le trousseau du système est injoignable\u{202f}: aucune clé ne peut être enregistrée. HangarAI ne se rabat pas sur un stockage en clair. {error}") },
     Message { id: "settings.voiceKeyUnavailableShort", en: Text::plain("Keychain unavailable"), fr: Text::plain("Trousseau indisponible") },
     Message { id: "settings.voiceLanguage", en: Text::plain("Language"), fr: Text::plain("Langue") },
     Message { id: "settings.voiceLanguageAuto", en: Text::plain("Detect"), fr: Text::plain("Détecter") },
@@ -8429,19 +9035,23 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "settings.voiceUnloadAction", en: Text::plain("Unload"), fr: Text::plain("Décharger") },
     Message { id: "settings.voiceVocabulary", en: Text::plain("Project vocabulary"), fr: Text::plain("Vocabulaire du projet") },
     Message { id: "settings.voiceVocabularyHint", en: Text::plain("Names and spellings the cleanup should keep — one per line"), fr: Text::plain("Les noms et orthographes que la relecture doit respecter — un par ligne") },
-    Message { id: "settings.voiceVocabularyPlaceholder", en: Text::plain("Hangar.AI, pnpm, Tauri, simnJS"), fr: Text::plain("Hangar.AI, pnpm, Tauri, simnJS") },
+    Message { id: "settings.voiceVocabularyPlaceholder", en: Text::plain("HangarAI, pnpm, Tauri, simnJS"), fr: Text::plain("HangarAI, pnpm, Tauri, simnJS") },
+    Message { id: "settings.windowOpacity", en: Text::plain("Window opacity"), fr: Text::plain("Opacité de la fenêtre") },
+    Message { id: "settings.windowOpacityHint", en: Text::plain("How much of the desktop shows through the window, behind the page, the bars and the terminals. Text, menus and dialogs stay opaque, and the theme's colours stay as they are. Blurring what shows through is up to your desktop: KDE does, GNOME with an extension such as Blur my Shell."), fr: Text::plain("Ce qu'on voit du bureau à travers la fenêtre, derrière la page, les barres et les terminaux. Le texte, les menus et les dialogues restent opaques, et les couleurs du thème restent les siennes. Le flou dépend de ton bureau\u{202f}: KDE le fait, GNOME avec une extension comme Blur my Shell.") },
+    Message { id: "setup.beta", en: Text::plain("beta"), fr: Text::plain("bêta") },
     Message { id: "setup.docs", en: Text::plain("Open the install guide"), fr: Text::plain("Ouvrir le guide d'installation") },
     Message { id: "setup.done", en: Text::plain("Done"), fr: Text::plain("Terminé") },
     Message { id: "setup.failedExit", en: Text::plain("The installation failed (exit code {code})."), fr: Text::plain("L'installation a échoué (code de sortie {code}).") },
     Message { id: "setup.failedHint", en: Text::plain("What the installer printed is below. The install guide matches each error to its fix."), fr: Text::plain("Ce que l'installeur a affiché est ci-dessous. Le guide d'installation donne la solution de chaque erreur.") },
     Message { id: "setup.failedSignal", en: Text::plain("The installation was stopped before it finished."), fr: Text::plain("L'installation a été interrompue avant la fin.") },
     Message { id: "setup.failedStart", en: Text::plain("The installer could not be started: {error}"), fr: Text::plain("L'installeur n'a pas pu être lancé\u{202f}: {error}") },
-    Message { id: "setup.how", en: Text::plain("One click installs it with Anthropic's official installer, for your user only, without an administrator password:"), fr: Text::plain("Un clic l'installe avec l'installeur officiel d'Anthropic, pour ton utilisateur seulement, sans mot de passe administrateur\u{202f}:") },
-    Message { id: "setup.install", en: Text::plain("Install Claude Code"), fr: Text::plain("Installer Claude Code") },
-    Message { id: "setup.installed", en: Text::plain("Claude Code is installed."), fr: Text::plain("Claude Code est installé.") },
-    Message { id: "setup.installing", en: Text::plain("Installing Claude Code…"), fr: Text::plain("Installation de Claude Code…") },
-    Message { id: "setup.installingHint", en: Text::plain("The installer shows no progress while it downloads Claude Code: this can take a minute."), fr: Text::plain("L'installeur n'affiche rien pendant qu'il télécharge Claude Code\u{202f}: ça peut prendre une minute.") },
-    Message { id: "setup.lead", en: Text::plain("Hangar runs Claude Code, Anthropic's coding agent, in its panes, and it is not installed on this machine yet."), fr: Text::plain("Hangar fait tourner Claude Code, l'agent de code d'Anthropic, dans ses panneaux, et il n'est pas encore installé sur cette machine.") },
+    Message { id: "setup.how", en: Text::plain("One click installs an agent with its maker's official installer, for your user only, without an administrator password."), fr: Text::plain("Un clic installe un agent avec l'installeur officiel de son éditeur, pour ton utilisateur seulement, sans mot de passe administrateur.") },
+    Message { id: "setup.install", en: Text::plain("Install {agent}"), fr: Text::plain("Installer {agent}") },
+    Message { id: "setup.installed", en: Text::plain("Installed"), fr: Text::plain("Installé") },
+    Message { id: "setup.installedVersion", en: Text::plain("Installed, version {version}"), fr: Text::plain("Installé, version {version}") },
+    Message { id: "setup.installing", en: Text::plain("Installing {agent}…"), fr: Text::plain("Installation de {agent}…") },
+    Message { id: "setup.installingHint", en: Text::plain("An installer can show nothing while it downloads: this can take a minute."), fr: Text::plain("Un installeur peut ne rien afficher pendant qu'il télécharge\u{202f}: ça peut prendre une minute.") },
+    Message { id: "setup.lead", en: Text::plain("Hangar runs coding agents in its panes: Claude Code, by Anthropic, and Codex, by OpenAI. Either one is enough."), fr: Text::plain("Hangar fait tourner des agents de code dans ses panneaux\u{202f}: Claude Code, d'Anthropic, et Codex, d'OpenAI. L'un ou l'autre suffit.") },
     Message { id: "setup.nixAnyway", en: Text::plain("Use Anthropic's installer anyway"), fr: Text::plain("Utiliser quand même l'installeur d'Anthropic") },
     Message { id: "setup.nixAnywayHint", en: Text::plain("If your system has nix-ld."), fr: Text::plain("Si ton système a nix-ld.") },
     Message { id: "setup.nixBack", en: Text::plain("Install from nixpkgs instead"), fr: Text::plain("Installer plutôt depuis nixpkgs") },
@@ -8453,14 +9063,17 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "setup.nixSystem", en: Text::plain("To keep it, add it to your NixOS configuration (or to home.packages with Home Manager) and rebuild:"), fr: Text::plain("Pour le garder, ajoute-le à ta configuration NixOS (ou à home.packages avec Home Manager) et reconstruis-la\u{202f}:") },
     Message { id: "setup.nixUnfree", en: Text::plain("nixpkgs marks claude-code unfree: a configuration needs nixpkgs.config.allowUnfree = true, and the profile command allows it with NIXPKGS_ALLOW_UNFREE=1 and --impure."), fr: Text::plain("nixpkgs classe claude-code comme non libre\u{202f}: une configuration a besoin de nixpkgs.config.allowUnfree = true, et la commande du profil l'autorise avec NIXPKGS_ALLOW_UNFREE=1 et --impure.") },
     Message { id: "setup.noOutput", en: Text::plain("(the installer printed nothing)"), fr: Text::plain("(l'installeur n'a rien affiché)") },
-    Message { id: "setup.notFound", en: Text::plain("The installer finished, but Hangar still cannot find claude on this machine."), fr: Text::plain("L'installeur a terminé, mais Hangar ne trouve toujours pas claude sur cette machine.") },
+    Message { id: "setup.notFound", en: Text::plain("The installer finished, but Hangar still cannot find {command} on this machine."), fr: Text::plain("L'installeur a terminé, mais Hangar ne trouve toujours pas {command} sur cette machine.") },
+    Message { id: "setup.notInstalled", en: Text::plain("Not installed"), fr: Text::plain("Pas installé") },
+    Message { id: "setup.notOnPath", en: Text::plain("Found in {path}: restart Hangar so that its panes find it."), fr: Text::plain("Trouvé dans {path}\u{202f}: redémarre Hangar pour que ses panneaux le trouvent.") },
     Message { id: "setup.retry", en: Text::plain("Try again"), fr: Text::plain("Réessayer") },
     Message { id: "setup.shellsOnly", en: Text::plain("Use Hangar with shells only"), fr: Text::plain("Utiliser Hangar avec des shells uniquement") },
     Message { id: "setup.shellsOnlyHint", en: Text::plain("You can change this later in Settings."), fr: Text::plain("Tu pourras changer d'avis dans les Réglages.") },
     Message { id: "setup.signIn", en: Text::plain("Sign in"), fr: Text::plain("Se connecter") },
-    Message { id: "setup.signInLead", en: Text::plain("Last step: sign in with your Claude account. Claude Code asks for it in a pane the first time it starts."), fr: Text::plain("Dernière étape\u{202f}: connecte-toi avec ton compte Claude. Claude Code le demande dans un panneau la première fois qu'il démarre.") },
-    Message { id: "setup.signedIn", en: Text::plain("Signed in: Claude Code is ready."), fr: Text::plain("Connecté\u{202f}: Claude Code est prêt.") },
-    Message { id: "setup.title", en: Text::plain("Set up Claude Code"), fr: Text::plain("Installer Claude Code") },
+    Message { id: "setup.signInClaude", en: Text::plain("Sign in with your Claude account: Claude Code asks for it in a pane the first time it starts."), fr: Text::plain("Connecte-toi avec ton compte Claude\u{202f}: Claude Code le demande dans un panneau la première fois qu'il démarre.") },
+    Message { id: "setup.signInCodex", en: Text::plain("Sign in with ChatGPT or an OpenAI API key: Codex asks for it in a pane the first time it starts."), fr: Text::plain("Connecte-toi avec ChatGPT ou une clé d'API OpenAI\u{202f}: Codex te le demande dans un panneau la première fois qu'il démarre.") },
+    Message { id: "setup.signedIn", en: Text::plain("Signed in"), fr: Text::plain("Connecté") },
+    Message { id: "setup.title", en: Text::plain("Set up your coding agents"), fr: Text::plain("Installer tes agents de code") },
     Message { id: "sidebar.activityWaiting", en: Text::plural("{n} agent waits for your answer", "{n} agents wait for your answer"), fr: Text::plural("{n} agent attend ta réponse", "{n} agents attendent ta réponse") },
     Message { id: "sidebar.activityWorking", en: Text::plural("{n} agent working", "{n} agents working"), fr: Text::plural("{n} agent travaille", "{n} agents travaillent") },
     Message { id: "sidebar.activityYours", en: Text::plural("{n} agent finished, your turn", "{n} agents finished, your turn"), fr: Text::plural("{n} agent a terminé, à toi", "{n} agents ont terminé, à toi") },
@@ -8472,6 +9085,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "sidebar.filterLabel", en: Text::plain("Filter workspaces and agents"), fr: Text::plain("Filtrer les workspaces et les agents") },
     Message { id: "sidebar.folderDefault", en: Text::plain("New folder"), fr: Text::plain("Nouveau dossier") },
     Message { id: "sidebar.folderEmpty", en: Text::plain("Drag a workspace here"), fr: Text::plain("Glisse un workspace ici") },
+    Message { id: "sidebar.folderNewWorkspace", en: Text::plain("New workspace in this folder"), fr: Text::plain("Nouveau workspace dans ce dossier") },
     Message { id: "sidebar.folderSize", en: Text::plural("{n} workspace", "{n} workspaces"), fr: Text::plural("{n} workspace", "{n} workspaces") },
     Message { id: "sidebar.goTo", en: Text::plain("Go to"), fr: Text::plain("Aller à") },
     Message { id: "sidebar.hide", en: Text::plain("Hide the navigator"), fr: Text::plain("Masquer le navigateur") },
@@ -8495,8 +9109,11 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "sidebar.noMatch", en: Text::plain("Nothing matches “{query}”."), fr: Text::plain("Rien ne correspond à «\u{202f}{query}\u{202f}».") },
     Message { id: "sidebar.noneWaiting", en: Text::plain("No agent is waiting for you."), fr: Text::plain("Aucun agent ne t'attend.") },
     Message { id: "sidebar.plan", en: Text::plain("Plan"), fr: Text::plain("Forfait") },
+    Message { id: "sidebar.planAccountsHint", en: Text::plain("Plan usage of each Claude account, as its panes last reported it"), fr: Text::plain("Consommation du forfait de chaque compte Claude, d'après le dernier relevé de ses volets") },
     Message { id: "sidebar.planFiveHour", en: Text::plain("5\u{a0}h"), fr: Text::plain("5\u{a0}h") },
-    Message { id: "sidebar.planHint", en: Text::plain("Plan usage, as Claude Code last reported it"), fr: Text::plain("Consommation du forfait, d'après le dernier relevé de Claude Code") },
+    Message { id: "sidebar.planHint", en: Text::plain("Plan usage, as {agent} last reported it"), fr: Text::plain("Consommation du forfait, d'après le dernier relevé de {agent}") },
+    Message { id: "sidebar.planHintAny", en: Text::plain("Plan usage, as the last agent to report it saw it"), fr: Text::plain("Consommation du forfait, d'après le dernier agent à l'avoir relevée") },
+    Message { id: "sidebar.planNoFigures", en: Text::plain("No figures yet"), fr: Text::plain("Pas encore de relevé") },
     Message { id: "sidebar.planResetDate", en: Text::plain("resets {date} at {time}"), fr: Text::plain("remise à zéro le {date} à {time}") },
     Message { id: "sidebar.planResetDay", en: Text::plain("resets {day} at {time}"), fr: Text::plain("remise à zéro {day} à {time}") },
     Message { id: "sidebar.planResetToday", en: Text::plain("resets at {time}"), fr: Text::plain("remise à zéro à {time}") },
@@ -8507,7 +9124,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "sidebar.removeFolder", en: Text::plain("Delete folder — its workspaces are kept"), fr: Text::plain("Supprimer le dossier — ses workspaces sont conservés") },
     Message { id: "sidebar.renameHint", en: Text::plain("Enter to confirm, Escape to cancel"), fr: Text::plain("Entrée pour valider, Échap pour annuler") },
     Message { id: "sidebar.settings", en: Text::plain("Settings"), fr: Text::plain("Réglages") },
-    Message { id: "sidebar.version", en: Text::plain("Hangar.AI {version}"), fr: Text::plain("Hangar.AI {version}") },
+    Message { id: "sidebar.version", en: Text::plain("HangarAI {version}"), fr: Text::plain("HangarAI {version}") },
     Message { id: "sidebar.whoWaiting", en: Text::plural("{names} waits for your answer", "{names} wait for your answer"), fr: Text::plural("{names} attend ta réponse", "{names} attendent ta réponse") },
     Message { id: "sidebar.whoWorking", en: Text::plural("{names} is working", "{names} are working"), fr: Text::plural("{names} travaille", "{names} travaillent") },
     Message { id: "sidebar.whoYours", en: Text::plain("{names} finished, your turn"), fr: Text::plural("{names} a terminé, à toi", "{names} ont terminé, à toi") },
@@ -8533,7 +9150,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "sleep.working", en: Text::plain("{name} is still working"), fr: Text::plain("{name} travaille encore") },
     Message { id: "state.loadFailed", en: Text::plain("Could not read state.json: {error}"), fr: Text::plain("Impossible de lire state.json\u{202f}: {error}") },
     Message { id: "state.loadHeld", en: Text::plain("Could not read state.json ({error}). It stays as it is, and nothing will be saved over it until it can be moved aside."), fr: Text::plain("Impossible de lire state.json ({error}). Il reste tel quel, et rien ne sera enregistré par-dessus tant qu'il ne pourra pas être mis de côté.") },
-    Message { id: "state.loadKept", en: Text::plain("Could not read state.json ({error}). It is kept as {path}, and Hangar.AI starts empty."), fr: Text::plain("Impossible de lire state.json ({error}). Il est conservé sous {path}, et Hangar.AI démarre à vide.") },
+    Message { id: "state.loadKept", en: Text::plain("Could not read state.json ({error}). It is kept as {path}, and HangarAI starts empty."), fr: Text::plain("Impossible de lire state.json ({error}). Il est conservé sous {path}, et HangarAI démarre à vide.") },
     Message { id: "state.saveHeld", en: Text::plain("Not saved, so that the unreadable state.json stays as it is: {error}"), fr: Text::plain("Non enregistré, pour que le state.json illisible reste tel quel\u{202f}: {error}") },
     Message { id: "stats.agentsTitle", en: Text::plain("By agent"), fr: Text::plain("Par agent") },
     Message { id: "stats.allActive", en: Text::plain("Active time"), fr: Text::plain("Temps actif") },
@@ -8686,6 +9303,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "titleBar.maximize", en: Text::plain("Maximize"), fr: Text::plain("Agrandir") },
     Message { id: "titleBar.minimize", en: Text::plain("Minimize"), fr: Text::plain("Réduire") },
     Message { id: "titleBar.restore", en: Text::plain("Restore"), fr: Text::plain("Restaurer") },
+    Message { id: "titleBar.site", en: Text::plain("Open hangarai.dev in your browser"), fr: Text::plain("Ouvrir hangarai.dev dans le navigateur") },
     Message { id: "toolbar.activity.context", en: Text::plain("{pct}%"), fr: Text::plain("{pct}\u{202f}%") },
     Message { id: "toolbar.activity.contextHint", en: Text::plain("{pct}% of the context used; the agent compacts on its own as it nears the limit"), fr: Text::plain("{pct}\u{202f}% du contexte utilisé\u{202f}; l'agent compacte automatiquement à l'approche de la limite") },
     Message { id: "toolbar.activity.goTo", en: Text::plain("{summary} — go to {name}"), fr: Text::plain("{summary} — aller à {name}") },

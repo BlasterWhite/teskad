@@ -1,0 +1,11 @@
+{
+  "_fixture": "Written by hand for Hangar's tests from the source (codex-rs/login/src/auth/storage.rs `AuthDotJson`, login/src/token_data.rs `IdClaims`, login/src/auth/manager.rs `resolved_mode`, Codex 0.170.0): a ChatGPT login kept by an older Codex, with no auth_mode (read as chatgpt) and the e-mail only in the profile claim. The id_token is a made-up, unsigned JWT whose claims are {\"https://api.openai.com/profile\": {\"email\": \"plus@example.com\"}, \"https://api.openai.com/auth\": {\"chatgpt_plan_type\": \"plus\"}}; the other two tokens are placeholders.",
+  "OPENAI_API_KEY": null,
+  "tokens": {
+    "id_token": "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL3Byb2ZpbGUiOnsiZW1haWwiOiJwbHVzQGV4YW1wbGUuY29tIn0sImh0dHBzOi8vYXBpLm9wZW5haS5jb20vYXV0aCI6eyJjaGF0Z3B0X3BsYW5fdHlwZSI6InBsdXMifX0.bm90LXNpZ25lZA",
+    "access_token": "fixture-access-placeholder",
+    "refresh_token": "fixture-refresh-placeholder",
+    "account_id": null
+  },
+  "last_refresh": "2026-11-18T09:00:00Z"
+}

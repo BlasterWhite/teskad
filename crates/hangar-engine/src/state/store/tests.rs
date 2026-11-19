@@ -3,8 +3,11 @@
 //! tests.
 
 use super::*;
-use crate::state::layout::{leaf_ids, normalize_tree};
-use crate::state::types::{PaneRole, WindowBounds};
+use crate::accounts::{AccountLevels, AccountSource, ClaudeAccount, DEFAULT_CHOICE};
+use crate::state::layout::{
+    Rect, Side, closed_by_preset_in, compute_layout, drawn_tree, leaf_ids, normalize_tree, ratio_at,
+};
+use crate::state::types::{AgentKind, PanePin, PaneRole, WindowBounds};
 
 fn draft(layout: u8, agents: &[AgentId]) -> WorkspaceDraft {
     WorkspaceDraft {
@@ -240,6 +243,182 @@ fn a_workspace_moved_into_a_folder_deleted_meanwhile_lands_at_the_top_level() {
     let order: Vec<&str> = m.state().workspaces.iter().map(|w| w.id.as_str()).collect();
     assert_eq!(order, [b.as_str(), a.as_str()]);
     assert_eq!(ws(&m, &b).folder_id, None);
+}
+
+/// A folder « Games » whose account is `account`; answers its id.
+fn folder_on(m: &mut Store, account: Option<&str>) -> String {
+    let id = m
+        .apply(StoreAction::AddFolder("Games".into()))
+        .folder
+        .unwrap();
+    let account = account.map(str::to_string);
+    m.apply(StoreAction::UpdateFolder(
+        id.clone(),
+        Patch::new(move |folder: &mut WorkspaceFolder| folder.claude_account = account.clone()),
+    ));
+    id
+}
+
+/// The account workspace `id`'s Claude Code panes run on, and the level that
+/// decided it, among the accounts « perso » and « pro ».
+fn account_of(m: &Store, id: &str) -> (String, AccountSource) {
+    let accounts: Vec<ClaudeAccount> = ["main", "perso", "pro"]
+        .into_iter()
+        .map(|id| ClaudeAccount {
+            id: id.into(),
+            label: id.into(),
+            is_main: id == "main",
+            logged_in: true,
+            email: None,
+            plan: None,
+        })
+        .collect();
+    let resolved =
+        AccountLevels::of_kind(m.state(), ws(m, id), None, AgentKind::Claude).resolve(&accounts);
+    (resolved.id, resolved.source)
+}
+
+fn made_in(m: &mut Store, folder: Option<&str>, account: Option<&str>) -> WsId {
+    m.apply(StoreAction::AddWorkspace(WorkspaceDraft {
+        folder_id: folder.map(str::to_string),
+        claude_account: account.map(str::to_string),
+        ..draft(1, &[])
+    }))
+    .workspace
+    .unwrap()
+}
+
+fn move_to(m: &mut Store, id: &str, folder: Option<&str>) {
+    m.apply(StoreAction::MoveWorkspace {
+        id: id.to_string(),
+        folder: folder.map(str::to_string),
+        before: None,
+    });
+}
+
+#[test]
+fn a_workspace_made_in_a_folder_runs_on_its_account_without_copying_it() {
+    let mut m = model();
+    let games = folder_on(&mut m, Some("perso"));
+    let plain = made_in(&mut m, Some(&games), None);
+    assert_eq!(ws(&m, &plain).claude_account, None, "nothing copied");
+    assert_eq!(
+        account_of(&m, &plain),
+        ("perso".into(), AccountSource::Folder)
+    );
+    let chosen = made_in(&mut m, Some(&games), Some("pro"));
+    assert_eq!(
+        account_of(&m, &chosen),
+        ("pro".into(), AccountSource::Workspace)
+    );
+    // The folder's account changed: the workspaces that follow it follow.
+    m.apply(StoreAction::UpdateFolder(
+        games.clone(),
+        Patch::new(|folder: &mut WorkspaceFolder| folder.claude_account = Some("pro".into())),
+    ));
+    assert_eq!(
+        account_of(&m, &plain),
+        ("pro".into(), AccountSource::Folder)
+    );
+    // A folder without an account leaves the default.
+    let loose = folder_on(&mut m, None);
+    let w = made_in(&mut m, Some(&loose), None);
+    assert_eq!(account_of(&m, &w), ("main".into(), AccountSource::Default));
+}
+
+#[test]
+fn a_workspace_made_in_a_folder_that_is_gone_lands_at_the_top_level() {
+    let mut m = model();
+    let w = made_in(&mut m, Some("gone"), None);
+    assert_eq!(ws(&m, &w).folder_id, None);
+    let games = folder_on(&mut m, None);
+    let w = made_in(&mut m, Some(&games), None);
+    assert_eq!(ws(&m, &w).folder_id, Some(games));
+}
+
+#[test]
+fn a_workspace_moved_between_folders_follows_each_unless_it_chose_an_account() {
+    let mut m = model();
+    let games = folder_on(&mut m, Some("perso"));
+    let work = folder_on(&mut m, Some("pro"));
+    let free = with_workspace(&mut m, 1, &[]);
+    let own = made_in(&mut m, None, Some("perso"));
+    move_to(&mut m, &free, Some(&games));
+    move_to(&mut m, &own, Some(&work));
+    assert_eq!(
+        account_of(&m, &free),
+        ("perso".into(), AccountSource::Folder)
+    );
+    assert_eq!(
+        account_of(&m, &own),
+        ("perso".into(), AccountSource::Workspace)
+    );
+    move_to(&mut m, &free, Some(&work));
+    assert_eq!(account_of(&m, &free), ("pro".into(), AccountSource::Folder));
+    // Back at the top level: the default again. Nothing was written.
+    move_to(&mut m, &free, None);
+    assert_eq!(
+        account_of(&m, &free),
+        ("main".into(), AccountSource::Default)
+    );
+    assert_eq!(ws(&m, &free).claude_account, None);
+    assert_eq!(ws(&m, &own).claude_account.as_deref(), Some("perso"));
+}
+
+#[test]
+fn a_workspace_that_chose_the_default_keeps_it_inside_a_folder_that_names_another() {
+    let mut m = model();
+    let games = folder_on(&mut m, Some("perso"));
+    let w = made_in(&mut m, Some(&games), Some(DEFAULT_CHOICE));
+    assert_eq!(ws(&m, &w).claude_account.as_deref(), Some(DEFAULT_CHOICE));
+    assert_eq!(account_of(&m, &w), ("main".into(), AccountSource::Default));
+    m.apply(StoreAction::UpdateSettings(Patch::new(
+        |s: &mut Settings| {
+            s.claude_account = Some("pro".into());
+        },
+    )));
+    assert_eq!(account_of(&m, &w), ("pro".into(), AccountSource::Default));
+    // Moved elsewhere, it still says the same.
+    let work = folder_on(&mut m, Some("perso"));
+    move_to(&mut m, &w, Some(&work));
+    assert_eq!(account_of(&m, &w), ("pro".into(), AccountSource::Default));
+}
+
+#[test]
+fn moving_a_hosted_workspace_into_a_folder_tells_its_node_nothing() {
+    let mut m = model();
+    let mut site = theirs("site", &[("p1", "Nia")]);
+    site.claude_account = Some("their-own".into());
+    sync(&mut m, "n1", &[&site]);
+    let games = folder_on(&mut m, Some("perso"));
+    let before = ws(&m, "site").clone();
+    move_to(&mut m, "site", Some(&games));
+    let after = ws(&m, "site");
+    assert_eq!(after.folder_id, Some(games));
+    assert_eq!(after.claude_account.as_deref(), Some("their-own"));
+    assert!(hosted::diff(&before, Some(after), m.respawns()).is_empty());
+    // Nor does it read the folder's account, of any kind: its own is its
+    // machine's.
+    for kind in AgentKind::ALL {
+        assert_eq!(
+            AccountLevels::of_kind(m.state(), after, None, kind).folder,
+            None,
+            "{kind:?}"
+        );
+    }
+}
+
+#[test]
+fn a_folders_account_is_written_only_when_set_and_read_back() {
+    let mut m = model();
+    let plain = folder_on(&mut m, None);
+    let games = folder_on(&mut m, Some("perso"));
+    let written = serde_json::to_value(m.state()).unwrap();
+    let folders = written["folders"].as_array().unwrap();
+    let of = |id: &str| folders.iter().find(|f| f["id"] == id).unwrap().clone();
+    assert!(of(&plain).get("claudeAccount").is_none());
+    assert_eq!(of(&games)["claudeAccount"], "perso");
+    assert_eq!(crate::state::read_state(written), *m.state());
 }
 
 // presets and tidying
@@ -1360,4 +1539,506 @@ fn hydration_leaves_the_names_of_a_node_s_panes_alone() {
         ["Ava", "Max"],
         "its own are told apart as ever"
     );
+}
+
+// Pinned panes (`Workspace::pins`, layout.rs): a pinned pane keeps its edge
+// and its size however many panes open, close or move beside it.
+
+const GRID: (f32, f32) = (1600.0, 900.0);
+
+fn close(a: f64, b: f64) -> bool {
+    (a - b).abs() < 1e-9
+}
+
+/// A workspace of an orchestrator and a shell beside it, laid out as Hangar
+/// lays an agent's workspace out; answers it and the two panes.
+fn orchestrated(m: &mut Store) -> (WsId, PaneId, PaneId) {
+    let w = with_workspace(m, 2, &[AgentId::Claude, AgentId::Shell]);
+    let ids = pane_ids(m, &w);
+    m.apply(StoreAction::UpdatePane {
+        ws: w.clone(),
+        pane: ids[0].clone(),
+        patch: PanePatch::new(|pane: &mut Pane| pane.role = Some(PaneRole::Orchestrator)),
+    });
+    m.apply(StoreAction::ArrangePanes(w.clone()));
+    (w, ids[0].clone(), ids[1].clone())
+}
+
+/// A worker opened as the orchestrator opens one (worker.rs, then
+/// host/writes.rs): beside `near`, then the workspace laid out again.
+fn open_worker(m: &mut Store, w: &str, near: &str) -> PaneId {
+    let id = m
+        .apply(StoreAction::AddPane {
+            ws: w.into(),
+            agent: Some(AgentId::Claude),
+            near: Some(near.into()),
+            dir: None,
+            cwd: None,
+            name: None,
+            init: Some(PanePatch::new(|pane: &mut Pane| {
+                pane.role = Some(PaneRole::Worker)
+            })),
+        })
+        .pane
+        .unwrap();
+    m.apply(StoreAction::ArrangePanes(w.into()));
+    id
+}
+
+fn close_worker(m: &mut Store, w: &str, pane: &str) {
+    m.apply(StoreAction::ClosePane {
+        ws: w.into(),
+        pane: pane.into(),
+    });
+    m.apply(StoreAction::ArrangePanes(w.into()));
+}
+
+fn pin(
+    m: &mut Store,
+    w: &str,
+    pane: &str,
+    edge: Option<PinEdge>,
+    grid: Option<(f32, f32)>,
+) -> bool {
+    m.apply(StoreAction::PinPane {
+        ws: w.into(),
+        pane: pane.into(),
+        edge,
+        grid,
+    })
+    .changed
+}
+
+/// Where pane `id` lies, the grid's size unknown (`grid_tree`).
+fn laid(m: &Store, w: &str, id: &str) -> Rect {
+    compute_layout(&grid_tree(ws(m, w))).rects[id]
+}
+
+/// Where pane `id` is drawn in a grid of `GRID` pixels (`drawn_tree`).
+fn drawn(m: &Store, w: &str, id: &str) -> Rect {
+    compute_layout(&drawn_tree(ws(m, w), Some(GRID))).rects[id]
+}
+
+#[test]
+fn a_pinned_terminal_keeps_its_place_and_size_as_one_to_eight_workers_open_and_close() {
+    let mut m = model();
+    let (w, leo, term) = orchestrated(&mut m);
+    // The terminal on the right of the orchestrator: pinned there, at the
+    // pixels it has.
+    assert!(pin(&mut m, &w, &term, None, Some(GRID)));
+    let pinned = ws(&m, &w).pin_of(&term).cloned().unwrap();
+    assert_eq!(pinned.edge, PinEdge::Right);
+    assert!(close(pinned.px.unwrap(), 640.0), "{pinned:?}");
+    assert!(close(pinned.fraction.unwrap(), 0.4));
+    let (on_screen, laid_out) = (drawn(&m, &w, &term), laid(&m, &w, &term));
+    assert!(close(on_screen.width * 1600.0, 640.0));
+    assert!(close(on_screen.left + on_screen.width, 1.0));
+
+    let mut workers: Vec<PaneId> = Vec::new();
+    for n in 1..=8 {
+        let near = workers.last().cloned().unwrap_or_else(|| leo.clone());
+        workers.push(open_worker(&mut m, &w, &near));
+        assert_eq!(drawn(&m, &w, &term), on_screen, "{n} workers");
+        assert_eq!(laid(&m, &w, &term), laid_out, "{n} workers");
+        // None of them in its room; the orchestrator leads the others.
+        for id in workers.iter().chain([&leo]) {
+            let rect = laid(&m, &w, id);
+            assert!(rect.left + rect.width <= laid_out.left + 1e-9, "{n}: {id}");
+        }
+        assert_eq!(laid(&m, &w, &leo).left, 0.0);
+        assert_eq!(laid(&m, &w, &leo).height, 1.0);
+    }
+    while let Some(worker) = workers.pop() {
+        close_worker(&mut m, &w, &worker);
+        assert_eq!(drawn(&m, &w, &term), on_screen, "{} workers", workers.len());
+        assert_eq!(laid(&m, &w, &term), laid_out);
+    }
+    assert_eq!(pane_ids(&m, &w), [leo, term]);
+}
+
+#[test]
+fn a_pane_split_off_a_pinned_one_lands_beside_it_out_of_its_room() {
+    let mut m = model();
+    let (w, leo, term) = orchestrated(&mut m);
+    pin(&mut m, &w, &term, None, None);
+    let before = laid(&m, &w, &term);
+    let new = m
+        .apply(StoreAction::AddPane {
+            ws: w.clone(),
+            agent: None,
+            near: Some(term.clone()),
+            dir: None,
+            cwd: None,
+            name: None,
+            init: None,
+        })
+        .pane
+        .unwrap();
+    assert_eq!(laid(&m, &w, &term), before);
+    let rect = laid(&m, &w, &new);
+    assert!(close(rect.left + rect.width, before.left), "{rect:?}");
+    // It runs what the pane split runs: a shell.
+    let agent = ws(&m, &w).panes.iter().find(|p| p.id == new).unwrap().agent;
+    assert_eq!(agent, AgentId::Shell);
+    assert_eq!(grid_ids(&m, &w), [leo, new, term]);
+}
+
+#[test]
+fn a_preset_counts_the_unpinned_terminals_and_never_closes_a_pinned_one() {
+    let mut m = model();
+    let (w, leo, term) = orchestrated(&mut m);
+    pin(&mut m, &w, &term, None, Some(GRID));
+    let (on_screen, laid_out) = (drawn(&m, &w, &term), laid(&m, &w, &term));
+    m.apply(StoreAction::ApplyPreset {
+        ws: w.clone(),
+        count: 4,
+        model_pane: None,
+    });
+    let panes = &ws(&m, &w).panes;
+    assert_eq!(panes.len(), 5, "four and the pinned one");
+    assert!(panes.iter().any(|pane| pane.id == term));
+    assert_eq!(drawn(&m, &w, &term), on_screen);
+    assert_eq!(laid(&m, &w, &term), laid_out);
+    // The four in an even grid in the room it leaves.
+    for pane in panes.iter().filter(|pane| pane.id != term) {
+        let rect = laid(&m, &w, &pane.id);
+        assert!(close(rect.width, laid_out.left / 2.0), "{rect:?}");
+        assert!(close(rect.height, 0.5));
+    }
+    // What the toolbar names before shrinking is what goes, never the pin.
+    let named: Vec<PaneId> = closed_by_preset_in(ws(&m, &w), 1)
+        .iter()
+        .map(|pane| pane.id.clone())
+        .collect();
+    assert_eq!(named.len(), 3);
+    assert!(!named.contains(&term) && !named.contains(&leo));
+    m.apply(StoreAction::ApplyPreset {
+        ws: w.clone(),
+        count: 1,
+        model_pane: None,
+    });
+    assert_eq!(pane_ids(&m, &w), [leo.clone(), term.clone()]);
+    assert_eq!(laid(&m, &w, &term), laid_out);
+    // Tidying works on the others alone too.
+    m.apply(StoreAction::TidyLayout(w.clone()));
+    assert_eq!(laid(&m, &w, &term), laid_out);
+    assert_eq!(laid(&m, &w, &leo).width, laid_out.left);
+}
+
+#[test]
+fn dragging_a_pinned_pane_s_divider_sets_the_size_it_keeps() {
+    let mut m = model();
+    let (w, leo, term) = orchestrated(&mut m);
+    pin(&mut m, &w, &term, None, Some(GRID));
+    // The grid's drag as it is sent today: the tree, its ratio moved.
+    let tree = with_ratio(&grid_tree(ws(&m, &w)), &[], 0.5);
+    assert!(m.apply(StoreAction::SetTree(w.clone(), tree)).changed);
+    let pinned = ws(&m, &w).pin_of(&term).cloned().unwrap();
+    assert!(close(pinned.fraction.unwrap(), 0.5));
+    assert!(close(pinned.px.unwrap(), 800.0), "{pinned:?}");
+    assert!(close(laid(&m, &w, &term).width, 0.5));
+    // With the grid's size: the pixels themselves.
+    m.apply(StoreAction::ResizeSplit {
+        ws: w.clone(),
+        path: Vec::new(),
+        ratio: 0.75,
+        grid: Some((1200.0, 900.0)),
+    });
+    let pinned = ws(&m, &w).pin_of(&term).cloned().unwrap();
+    assert!(close(pinned.px.unwrap(), 300.0));
+    assert!(close(drawn(&m, &w, &term).width * 1600.0, 300.0));
+    // And it stays that size as workers come.
+    let worker = open_worker(&mut m, &w, &leo);
+    assert!(close(drawn(&m, &w, &term).width * 1600.0, 300.0));
+    // A divider between the others sets no pin.
+    let before = ws(&m, &w).pins.clone();
+    m.apply(StoreAction::ResizeSplit {
+        ws: w.clone(),
+        path: vec![Side::A],
+        ratio: 0.3,
+        grid: Some(GRID),
+    });
+    assert_eq!(ws(&m, &w).pins, before);
+    assert_eq!(ratio_at(&grid_tree(ws(&m, &w)), &[Side::A]), 0.3);
+    assert!(laid(&m, &w, &worker).width > laid(&m, &w, &leo).width);
+    // Nor a tree that moves only them.
+    let tree = with_ratio(&grid_tree(ws(&m, &w)), &[Side::A], 0.4);
+    m.apply(StoreAction::SetTree(w.clone(), tree));
+    assert_eq!(ws(&m, &w).pins, before);
+}
+
+#[test]
+fn two_pins_on_two_edges_each_keep_theirs_while_workers_come_and_go() {
+    let mut m = model();
+    let (w, leo, term) = orchestrated(&mut m);
+    let first = open_worker(&mut m, &w, &leo);
+    pin(&mut m, &w, &term, None, Some(GRID));
+    // The orchestrator pinned too, on the left: the first pin outermost.
+    assert!(pin(&mut m, &w, &leo, None, Some(GRID)));
+    let pins = &ws(&m, &w).pins;
+    assert_eq!(
+        pins.iter()
+            .map(|pin| (pin.id.as_str(), pin.edge))
+            .collect::<Vec<_>>(),
+        [
+            (term.as_str(), PinEdge::Right),
+            (leo.as_str(), PinEdge::Left)
+        ]
+    );
+    let rects = |m: &Store| {
+        [
+            drawn(m, &w, &term),
+            drawn(m, &w, &leo),
+            laid(m, &w, &term),
+            laid(m, &w, &leo),
+        ]
+    };
+    let before = rects(&m);
+    let mut workers = vec![first];
+    for _ in 0..6 {
+        let near = workers.last().unwrap().clone();
+        workers.push(open_worker(&mut m, &w, &near));
+        assert_eq!(rects(&m), before);
+    }
+    // With the orchestrator pinned, the others are an even grid between.
+    for worker in &workers {
+        let rect = laid(&m, &w, worker);
+        assert!(rect.left >= before[3].width - 1e-9);
+        assert!(rect.left + rect.width <= before[2].left + 1e-9);
+    }
+    while workers.len() > 1 {
+        let worker = workers.pop().unwrap();
+        close_worker(&mut m, &w, &worker);
+        assert_eq!(rects(&m), before);
+    }
+}
+
+#[test]
+fn two_pins_on_one_edge_stand_side_by_side_and_the_inner_one_keeps_its_size() {
+    let mut m = model();
+    let (w, leo, term) = orchestrated(&mut m);
+    let worker = open_worker(&mut m, &w, &leo);
+    pin(&mut m, &w, &term, None, None);
+    let outer = laid(&m, &w, &term);
+    // The worker beside it, on the right of what is left: inside it.
+    assert!(pin(&mut m, &w, &worker, None, None));
+    assert_eq!(
+        ws(&m, &w).pin_of(&worker).map(|pin| pin.edge),
+        Some(PinEdge::Right)
+    );
+    let inner = laid(&m, &w, &worker);
+    assert_eq!(laid(&m, &w, &term), outer);
+    assert!(close(inner.left + inner.width, outer.left));
+    assert_eq!(
+        grid_ids(&m, &w),
+        [leo.clone(), worker.clone(), term.clone()]
+    );
+    // The outer one closed by hand: it goes like any pane, and the other
+    // comes against the edge at the size it had.
+    assert!(
+        m.apply(StoreAction::ClosePane {
+            ws: w.clone(),
+            pane: term.clone(),
+        })
+        .changed
+    );
+    assert_eq!(pane_ids(&m, &w), [leo.clone(), worker.clone()]);
+    let pins: Vec<&str> = ws(&m, &w).pins.iter().map(|pin| pin.id.as_str()).collect();
+    assert_eq!(pins, [worker.as_str()]);
+    let now = laid(&m, &w, &worker);
+    assert!(close(now.width, inner.width), "{now:?} {inner:?}");
+    assert!(close(now.left + now.width, 1.0));
+}
+
+#[test]
+fn unpinning_leaves_the_pane_where_it_is_until_the_next_layout() {
+    let mut m = model();
+    let (w, leo, term) = orchestrated(&mut m);
+    pin(&mut m, &w, &term, None, Some(GRID));
+    let worker = open_worker(&mut m, &w, &leo);
+    let before = laid(&m, &w, &term);
+    assert!(
+        m.apply(StoreAction::UnpinPane {
+            ws: w.clone(),
+            pane: term.clone(),
+        })
+        .changed
+    );
+    assert!(ws(&m, &w).pins.is_empty());
+    assert_eq!(laid(&m, &w, &term), before, "where it was");
+    // Not pinned: nothing to undo.
+    assert!(
+        !m.apply(StoreAction::UnpinPane {
+            ws: w.clone(),
+            pane: term.clone(),
+        })
+        .changed
+    );
+    // Laid out with the others from then on.
+    m.apply(StoreAction::ArrangePanes(w.clone()));
+    assert_eq!(grid_ids(&m, &w), [leo, worker, term.clone()]);
+    assert_ne!(laid(&m, &w, &term), before);
+}
+
+#[test]
+fn pinning_again_changes_nothing_unless_another_edge_is_named() {
+    let mut m = model();
+    let (w, leo, term) = orchestrated(&mut m);
+    assert!(pin(&mut m, &w, &term, None, None));
+    assert!(!pin(&mut m, &w, &term, None, Some(GRID)));
+    assert!(!pin(&mut m, &w, &term, Some(PinEdge::Right), None));
+    assert!(pin(&mut m, &w, &term, Some(PinEdge::Bottom), None));
+    assert_eq!(ws(&m, &w).pins.len(), 1);
+    let rect = laid(&m, &w, &term);
+    assert!(close(rect.top + rect.height, 1.0) && close(rect.width, 1.0));
+    // A pane that is not in the workspace is not pinned.
+    assert!(!pin(&mut m, &w, "gone", None, None));
+    assert_eq!(laid(&m, &w, &leo).top, 0.0);
+}
+
+#[test]
+fn a_restarted_pane_keeps_its_pin_under_its_new_id() {
+    let mut m = model();
+    let (w, _leo, term) = orchestrated(&mut m);
+    pin(&mut m, &w, &term, None, Some(GRID));
+    let pinned = ws(&m, &w).pin_of(&term).cloned().unwrap();
+    let before = laid(&m, &w, &term);
+    let to = m
+        .apply(StoreAction::RespawnPane {
+            ws: w.clone(),
+            pane: term.clone(),
+            patch: PanePatch::none(),
+        })
+        .pane
+        .unwrap();
+    assert_eq!(
+        ws(&m, &w).pin_of(&to),
+        Some(&PanePin {
+            id: to.clone(),
+            ..pinned
+        })
+    );
+    assert_eq!(ws(&m, &w).pin_of(&term), None);
+    assert_eq!(laid(&m, &w, &to), before);
+}
+
+#[test]
+fn a_pinned_pane_is_neither_moved_nor_dropped_on_and_the_others_still_move() {
+    let mut m = model();
+    let (w, leo, term) = orchestrated(&mut m);
+    let worker = open_worker(&mut m, &w, &leo);
+    pin(&mut m, &w, &term, None, None);
+    let tree = ws(&m, &w).tree.clone();
+    let moved = |m: &mut Store, drag: &str, target: &str, zone| {
+        m.apply(StoreAction::MovePane {
+            ws: w.clone(),
+            drag: drag.into(),
+            target: target.into(),
+            zone,
+        })
+        .changed
+    };
+    assert!(!moved(&mut m, &term, &leo, DropZone::Left));
+    assert!(!moved(&mut m, &leo, &term, DropZone::Center));
+    assert!(!moved(&mut m, &worker, &term, DropZone::Bottom));
+    assert_eq!(ws(&m, &w).tree, tree);
+    let before = laid(&m, &w, &term);
+    assert!(moved(&mut m, &leo, &worker, DropZone::Center));
+    assert_eq!(grid_ids(&m, &w), [worker, leo, term.clone()]);
+    assert_eq!(laid(&m, &w, &term), before);
+}
+
+#[test]
+fn a_view_pins_like_a_terminal_and_its_pin_goes_with_it() {
+    let mut m = model();
+    let (w, leo, _term) = orchestrated(&mut m);
+    add_view(&mut m, &w, "k", Some(leo.as_str()));
+    assert!(pin(&mut m, &w, "k", Some(PinEdge::Left), None));
+    let before = laid(&m, &w, "k");
+    assert_eq!((before.left, before.top, before.height), (0.0, 0.0, 1.0));
+    open_worker(&mut m, &w, &leo);
+    assert_eq!(laid(&m, &w, "k"), before);
+    m.apply(StoreAction::CloseView {
+        ws: w.clone(),
+        id: "k".into(),
+    });
+    assert!(ws(&m, &w).pins.is_empty());
+    assert_eq!(laid(&m, &w, &leo).left, 0.0);
+}
+
+#[test]
+fn pins_are_saved_with_the_workspace_and_read_back_as_they_were() {
+    let mut m = model();
+    let (w, leo, term) = orchestrated(&mut m);
+    open_worker(&mut m, &w, &leo);
+    pin(&mut m, &w, &term, None, Some(GRID));
+    let json = m.to_json();
+    let written = &json["workspaces"][0];
+    let pins = written["pins"].as_array().unwrap();
+    assert_eq!(pins.len(), 1);
+    assert_eq!(pins[0]["id"], serde_json::json!(term));
+    assert_eq!(pins[0]["edge"], "right");
+    assert!(pins[0]["px"].as_f64().is_some_and(|px| px > 0.0));
+    assert!(pins[0]["fraction"].as_f64().is_some());
+    // The tree saved has it on its edge: a Hangar that does not know pins
+    // draws it where it is.
+    let tree: SplitNode = serde_json::from_value(written["tree"].clone()).unwrap();
+    assert_eq!(compute_layout(&tree).rects[&term], laid(&m, &w, &term));
+    // Read back from the file: the same pins, the same grid.
+    let (state, kept) = crate::state::read_state_keeping(json);
+    assert!(kept.is_empty(), "{kept:?}");
+    let mut again = Store::default();
+    again.hydrate_read(state, kept);
+    assert_eq!(ws(&again, &w).pins, ws(&m, &w).pins);
+    assert_eq!(grid_tree(ws(&again, &w)), grid_tree(ws(&m, &w)));
+    assert_eq!(drawn(&again, &w, &term), drawn(&m, &w, &term));
+    // A workspace without pins writes no key.
+    let plain = with_workspace(&mut m, 2, &[]);
+    let json = m.to_json();
+    let plain = json["workspaces"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|ws| ws["id"] == serde_json::json!(plain))
+        .unwrap();
+    assert!(plain.get("pins").is_none());
+}
+
+#[test]
+fn a_mirror_s_pins_are_its_own_and_follow_what_its_node_says() {
+    let mut m = model();
+    let mut site = theirs("site", &[("p1", "Nia"), ("p2", "Bo")]);
+    sync(&mut m, "n1", &[&site]);
+    let before = ws(&m, "site").clone();
+    assert!(pin(&mut m, "site", "p2", None, Some(GRID)));
+    let after = ws(&m, "site").clone();
+    assert_eq!(after.pin_of("p2").map(|pin| pin.edge), Some(PinEdge::Right));
+    assert!(
+        hosted::diff(&before, Some(&after), &[]).is_empty(),
+        "the node hears nothing of it"
+    );
+    let pinned = laid(&m, "site", "p2");
+    // The node opens a pane and restarts the pinned one: the pin follows,
+    // and the new pane lands out of its room.
+    site.panes.push(Pane {
+        id: "p3".into(),
+        name: "Cy".into(),
+        agent: AgentId::Claude,
+        ..Pane::default()
+    });
+    site.panes[1].id = "p2b".into();
+    sync(&mut m, "n1", &[&site]);
+    let mirror = ws(&m, "site");
+    assert_eq!(
+        mirror.pin_of("p2b").map(|pin| pin.edge),
+        Some(PinEdge::Right)
+    );
+    assert_eq!(laid(&m, "site", "p2b"), pinned);
+    let new = laid(&m, "site", "p3");
+    assert!(new.left + new.width <= pinned.left + 1e-9, "{new:?}");
+    // The node closes it: its pin goes.
+    site.panes.remove(1);
+    sync(&mut m, "n1", &[&site]);
+    assert!(ws(&m, "site").pins.is_empty());
+    assert_eq!(grid_ids(&m, "site"), ["p1", "p3"]);
 }

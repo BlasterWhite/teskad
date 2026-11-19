@@ -47,7 +47,7 @@ use iced::advanced::widget::{self, Operation, Tree, tree};
 use iced::advanced::{Clipboard, Shell, Widget};
 use iced::keyboard::{self, Key, key::Named};
 use iced::widget::container;
-use iced::{Element, Event, Length, Point, Rectangle, Size, Vector};
+use iced::{Element, Event, Length, Point, Rectangle, Size, Vector, window};
 
 /// Where a layer puts its content.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -918,6 +918,286 @@ impl<M: Clone> overlay::Overlay<M, iced::Theme, iced::Renderer> for LayerOverlay
 
     fn index(&self) -> f32 {
         self.settings.index
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Inert: a layer under another one
+// ---------------------------------------------------------------------------
+
+/// `content`, overlays included, drawn as it is and taking no input while
+/// `on`: no pointer, no key, no touch. For a layer that another one covers.
+///
+/// iced hands every event to every overlay of a window, the lowest first and
+/// with the same pointer: a dialog under another would answer a click meant
+/// for the one in front of it. Its veil, pressed outside its own card, takes
+/// the press away from the button in front and asks for its own dismissal;
+/// a field or a switch of its own under the pointer takes the click instead.
+/// Inert, it does neither. Where it covers the window (a veil) it still keeps
+/// the pointer from what is under it, and its widgets are still told to
+/// redraw, with no pointer, so that they show as they stand rather than as
+/// they were last hovered.
+///
+/// The wrapper is meant to be always there, `on` or not, so that the widget
+/// tree keeps its shape (and its widgets their state) as layers come and go
+/// over it: [`Inert::when`].
+pub fn inert<'a, M: 'a>(content: impl Into<Element<'a, M>>) -> Inert<'a, M> {
+    Inert {
+        content: content.into(),
+        on: true,
+    }
+}
+
+/// See [`inert`].
+#[must_use]
+pub struct Inert<'a, M> {
+    content: Element<'a, M>,
+    on: bool,
+}
+
+impl<M> Inert<'_, M> {
+    /// Inert only while `on`; otherwise `content` is left as it is.
+    pub fn when(mut self, on: bool) -> Self {
+        self.on = on;
+        self
+    }
+}
+
+/// Whether an inert layer passes `event` on: only the frame's redraw, which
+/// takes no input and keeps what its widgets show up to date.
+fn reaches_inert(event: &Event) -> bool {
+    matches!(event, Event::Window(window::Event::RedrawRequested(_)))
+}
+
+/// What the pointer shows over an inert layer: nothing of its own, and where
+/// the layer covers the window, still the window's being covered.
+fn inert_interaction(under: mouse::Interaction) -> mouse::Interaction {
+    if under == mouse::Interaction::None {
+        mouse::Interaction::None
+    } else {
+        mouse::Interaction::Idle
+    }
+}
+
+impl<M> Widget<M, iced::Theme, iced::Renderer> for Inert<'_, M> {
+    fn children(&self) -> Vec<Tree> {
+        vec![Tree::new(&self.content)]
+    }
+
+    fn diff(&self, tree: &mut Tree) {
+        tree.diff_children(std::slice::from_ref(&self.content));
+    }
+
+    fn size(&self) -> Size<Length> {
+        self.content.as_widget().size()
+    }
+
+    fn size_hint(&self) -> Size<Length> {
+        self.content.as_widget().size_hint()
+    }
+
+    fn layout(
+        &mut self,
+        tree: &mut Tree,
+        renderer: &iced::Renderer,
+        limits: &layout::Limits,
+    ) -> layout::Node {
+        self.content
+            .as_widget_mut()
+            .layout(&mut tree.children[0], renderer, limits)
+    }
+
+    fn update(
+        &mut self,
+        tree: &mut Tree,
+        event: &Event,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        renderer: &iced::Renderer,
+        clipboard: &mut dyn Clipboard,
+        shell: &mut Shell<'_, M>,
+        viewport: &Rectangle,
+    ) {
+        if self.on && !reaches_inert(event) {
+            return;
+        }
+        let cursor = if self.on {
+            mouse::Cursor::Unavailable
+        } else {
+            cursor
+        };
+        self.content.as_widget_mut().update(
+            &mut tree.children[0],
+            event,
+            layout,
+            cursor,
+            renderer,
+            clipboard,
+            shell,
+            viewport,
+        );
+    }
+
+    fn mouse_interaction(
+        &self,
+        tree: &Tree,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        viewport: &Rectangle,
+        renderer: &iced::Renderer,
+    ) -> mouse::Interaction {
+        let under = self.content.as_widget().mouse_interaction(
+            &tree.children[0],
+            layout,
+            cursor,
+            viewport,
+            renderer,
+        );
+        if self.on {
+            inert_interaction(under)
+        } else {
+            under
+        }
+    }
+
+    fn draw(
+        &self,
+        tree: &Tree,
+        renderer: &mut iced::Renderer,
+        theme: &iced::Theme,
+        style: &renderer::Style,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        viewport: &Rectangle,
+    ) {
+        let cursor = if self.on {
+            mouse::Cursor::Unavailable
+        } else {
+            cursor
+        };
+        self.content.as_widget().draw(
+            &tree.children[0],
+            renderer,
+            theme,
+            style,
+            layout,
+            cursor,
+            viewport,
+        );
+    }
+
+    fn operate(
+        &mut self,
+        tree: &mut Tree,
+        layout: Layout<'_>,
+        renderer: &iced::Renderer,
+        operation: &mut dyn Operation,
+    ) {
+        self.content
+            .as_widget_mut()
+            .operate(&mut tree.children[0], layout, renderer, operation);
+    }
+
+    fn overlay<'b>(
+        &'b mut self,
+        tree: &'b mut Tree,
+        layout: Layout<'b>,
+        renderer: &iced::Renderer,
+        viewport: &Rectangle,
+        translation: Vector,
+    ) -> Option<overlay::Element<'b, M, iced::Theme, iced::Renderer>> {
+        let inner = self.content.as_widget_mut().overlay(
+            &mut tree.children[0],
+            layout,
+            renderer,
+            viewport,
+            translation,
+        )?;
+        if !self.on {
+            return Some(inner);
+        }
+        Some(overlay::Element::new(Box::new(InertOverlay { inner })))
+    }
+}
+
+impl<'a, M: 'a> From<Inert<'a, M>> for Element<'a, M> {
+    fn from(inert: Inert<'a, M>) -> Self {
+        Element::new(inert)
+    }
+}
+
+/// The overlay of an [`Inert`] layer: drawn, laid out and operated on as it
+/// is, and given no input. What it opens itself (a menu still open in the
+/// covered dialog) is not shown while it is covered.
+struct InertOverlay<'b, M> {
+    inner: overlay::Element<'b, M, iced::Theme, iced::Renderer>,
+}
+
+impl<M> overlay::Overlay<M, iced::Theme, iced::Renderer> for InertOverlay<'_, M> {
+    fn layout(&mut self, renderer: &iced::Renderer, bounds: Size) -> layout::Node {
+        self.inner.as_overlay_mut().layout(renderer, bounds)
+    }
+
+    fn draw(
+        &self,
+        renderer: &mut iced::Renderer,
+        theme: &iced::Theme,
+        style: &renderer::Style,
+        layout: Layout<'_>,
+        _cursor: mouse::Cursor,
+    ) {
+        self.inner
+            .as_overlay()
+            .draw(renderer, theme, style, layout, mouse::Cursor::Unavailable);
+    }
+
+    fn operate(
+        &mut self,
+        layout: Layout<'_>,
+        renderer: &iced::Renderer,
+        operation: &mut dyn Operation,
+    ) {
+        self.inner
+            .as_overlay_mut()
+            .operate(layout, renderer, operation);
+    }
+
+    fn update(
+        &mut self,
+        event: &Event,
+        layout: Layout<'_>,
+        _cursor: mouse::Cursor,
+        renderer: &iced::Renderer,
+        clipboard: &mut dyn Clipboard,
+        shell: &mut Shell<'_, M>,
+    ) {
+        if reaches_inert(event) {
+            self.inner.as_overlay_mut().update(
+                event,
+                layout,
+                mouse::Cursor::Unavailable,
+                renderer,
+                clipboard,
+                shell,
+            );
+        }
+    }
+
+    fn mouse_interaction(
+        &self,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        renderer: &iced::Renderer,
+    ) -> mouse::Interaction {
+        inert_interaction(
+            self.inner
+                .as_overlay()
+                .mouse_interaction(layout, cursor, renderer),
+        )
+    }
+
+    fn index(&self) -> f32 {
+        self.inner.as_overlay().index()
     }
 }
 

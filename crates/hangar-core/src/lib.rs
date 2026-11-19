@@ -24,6 +24,7 @@
 //! off the app's own.
 
 pub mod accounts;
+pub mod agent;
 #[cfg(feature = "desktop")]
 pub mod autostart;
 pub mod board;
@@ -32,8 +33,10 @@ pub mod build_cache;
 pub mod chat;
 #[cfg(feature = "desktop")]
 pub mod cloud;
+pub mod codex_app;
 pub mod context;
 pub mod control;
+pub mod delegate;
 pub mod delivery;
 #[cfg(feature = "desktop")]
 pub mod discord;
@@ -325,6 +328,8 @@ mod tests {
     #[allow(unreachable_code)]
     #[test]
     fn every_async_command_is_a_future_the_app_can_spawn() {
+        sendable(|| crate::agent::detect::detect(todo!()));
+        sendable(crate::agent::detect::detect_all);
         sendable(|| crate::chat::chat_page(todo!(), todo!(), todo!(), todo!()));
         sendable(|| crate::context::context_usage(todo!(), todo!()));
         sendable(|| crate::delivery::delivery_cleanup(todo!(), todo!(), todo!(), todo!()));

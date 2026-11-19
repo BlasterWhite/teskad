@@ -1,0 +1,680 @@
+{"type":"AbsolutePathBuf","case":"value","json":"text"}
+{"type":"AccountRateLimitsUpdatedNotification","case":"every property","json":{"rateLimits":{}}}
+{"type":"ActivePermissionProfile","case":"every property","json":{"extends":"text","id":"text"}}
+{"type":"ActivePermissionProfile","case":"required properties","json":{"id":"text"}}
+{"type":"AdditionalFileSystemPermissions","case":"every property","json":{"entries":[{"access":"read","path":{"path":"text","type":"path"}}],"globScanMaxDepth":7,"read":["text"],"write":["text"]}}
+{"type":"AdditionalFileSystemPermissions","case":"required properties","json":{}}
+{"type":"AdditionalNetworkPermissions","case":"every property","json":{"enabled":true}}
+{"type":"AdditionalNetworkPermissions","case":"required properties","json":{}}
+{"type":"AgentMessageDelivery","case":"value async","json":"async"}
+{"type":"AgentMessageDeltaNotification","case":"every property","json":{"delta":"text","itemId":"text","threadId":"text","turnId":"text"}}
+{"type":"AgentMessageDisplay","case":"alternative 1, every property","json":{"annotation":{"kind":"wellbeingHelpline","subject":"answer"},"mode":"show","trustedContacts":"check","version":1}}
+{"type":"AgentMessageDisplay","case":"alternative 1, required properties","json":{"mode":"show","trustedContacts":"check","version":1}}
+{"type":"AgentMessageDisplay","case":"alternative 2, every property","json":{"mode":"hide","replacement":{"kind":"wellbeingPromptHelpline"},"version":1}}
+{"type":"AgentMessageDisplay","case":"alternative 3, every property","json":{"mode":"block","reason":{"kind":"protection","protectionType":"text"},"version":1}}
+{"type":"AgentMessageModeration","case":"every property","json":{"display":{"mode":"show","trustedContacts":"check","version":1},"moderated":true}}
+{"type":"AgentMessageModeration","case":"required properties","json":{"moderated":true}}
+{"type":"AgentPath","case":"value","json":"text"}
+{"type":"AllowDenyRequirement","case":"value allow","json":"allow"}
+{"type":"AllowDenyRequirement","case":"value deny","json":"deny"}
+{"type":"AnalyticsConfig","case":"every property","json":{"enabled":true}}
+{"type":"AnalyticsConfig","case":"required properties","json":{}}
+{"type":"AnswerAnnotation","case":"alternative 1, every property","json":{"kind":"wellbeingHelpline","subject":"answer"}}
+{"type":"AnswerReplacement","case":"WellbeingPromptHelplineAnswerReplacement, every property","json":{"kind":"wellbeingPromptHelpline"}}
+{"type":"ApprovalsReviewer","case":"value user","json":"user"}
+{"type":"ApprovalsReviewer","case":"value auto_review","json":"auto_review"}
+{"type":"ApprovalsReviewer","case":"value guardian_subagent","json":"guardian_subagent"}
+{"type":"AskForApproval","case":"value untrusted","json":"untrusted"}
+{"type":"AskForApproval","case":"value on-request","json":"on-request"}
+{"type":"AskForApproval","case":"value never","json":"never"}
+{"type":"AskForApproval","case":"GranularAskForApproval, every property","json":{"granular":{"mcp_elicitations":true,"request_permissions":true,"rules":true,"sandbox_approval":true,"skill_approval":true}}}
+{"type":"AskForApproval","case":"GranularAskForApproval, required properties","json":{"granular":{"mcp_elicitations":true,"rules":true,"sandbox_approval":true}}}
+{"type":"AsyncUserInputQuestion","case":"every property","json":{"options":["text"],"title":"text"}}
+{"type":"AsyncUserInputQuestion","case":"required properties","json":{"title":"text"}}
+{"type":"AutoCompactTokenLimitScope","case":"value total","json":"total"}
+{"type":"AutoCompactTokenLimitScope","case":"value body_after_prefix","json":"body_after_prefix"}
+{"type":"BlockReason","case":"alternative 1, every property","json":{"kind":"protection","protectionType":"text"}}
+{"type":"BlockReason","case":"KindBlockReason, every property","json":{"kind":"cyber","trustedAccess":true}}
+{"type":"BlockReason","case":"KindBlockReason, required properties","json":{"kind":"cyber"}}
+{"type":"BrowserUseConfig","case":"every property","json":{"allow_history_access":true,"default_origin_policy":{},"origins":{"key":{}}}}
+{"type":"BrowserUseConfig","case":"required properties","json":{}}
+{"type":"BrowserUseOriginPolicyConfig","case":"every property","json":{"access":"allow","downloads":"allow","full_cdp_access":"allow","uploads":"allow"}}
+{"type":"BrowserUseOriginPolicyConfig","case":"required properties","json":{}}
+{"type":"ByteRange","case":"every property","json":{"end":7,"start":7}}
+{"type":"ClientInfo","case":"every property","json":{"name":"text","title":"text","version":"text"}}
+{"type":"ClientInfo","case":"required properties","json":{"name":"text","version":"text"}}
+{"type":"CodexErrorInfo","case":"value contextWindowExceeded","json":"contextWindowExceeded"}
+{"type":"CodexErrorInfo","case":"value sessionBudgetExceeded","json":"sessionBudgetExceeded"}
+{"type":"CodexErrorInfo","case":"value usageLimitExceeded","json":"usageLimitExceeded"}
+{"type":"CodexErrorInfo","case":"value rateLimitExceeded","json":"rateLimitExceeded"}
+{"type":"CodexErrorInfo","case":"value flexUnavailable","json":"flexUnavailable"}
+{"type":"CodexErrorInfo","case":"value serverOverloaded","json":"serverOverloaded"}
+{"type":"CodexErrorInfo","case":"value modelNotFound","json":"modelNotFound"}
+{"type":"CodexErrorInfo","case":"value policyCapacityUnavailable","json":"policyCapacityUnavailable"}
+{"type":"CodexErrorInfo","case":"value cyberPolicy","json":"cyberPolicy"}
+{"type":"CodexErrorInfo","case":"value misalignmentPolicyViolation","json":"misalignmentPolicyViolation"}
+{"type":"CodexErrorInfo","case":"value tooManyDenials","json":"tooManyDenials"}
+{"type":"CodexErrorInfo","case":"value internalServerError","json":"internalServerError"}
+{"type":"CodexErrorInfo","case":"value unauthorized","json":"unauthorized"}
+{"type":"CodexErrorInfo","case":"value badRequest","json":"badRequest"}
+{"type":"CodexErrorInfo","case":"value threadRollbackFailed","json":"threadRollbackFailed"}
+{"type":"CodexErrorInfo","case":"value sandboxError","json":"sandboxError"}
+{"type":"CodexErrorInfo","case":"value other","json":"other"}
+{"type":"CodexErrorInfo","case":"value inferenceHookDenied","json":"inferenceHookDenied"}
+{"type":"CodexErrorInfo","case":"HttpConnectionFailedCodexErrorInfo, every property","json":{"httpConnectionFailed":{"httpStatusCode":7}}}
+{"type":"CodexErrorInfo","case":"HttpConnectionFailedCodexErrorInfo, required properties","json":{"httpConnectionFailed":{}}}
+{"type":"CodexErrorInfo","case":"ResponseStreamConnectionFailedCodexErrorInfo, every property","json":{"responseStreamConnectionFailed":{"httpStatusCode":7}}}
+{"type":"CodexErrorInfo","case":"ResponseStreamConnectionFailedCodexErrorInfo, required properties","json":{"responseStreamConnectionFailed":{}}}
+{"type":"CodexErrorInfo","case":"ResponseStreamDisconnectedCodexErrorInfo, every property","json":{"responseStreamDisconnected":{"httpStatusCode":7}}}
+{"type":"CodexErrorInfo","case":"ResponseStreamDisconnectedCodexErrorInfo, required properties","json":{"responseStreamDisconnected":{}}}
+{"type":"CodexErrorInfo","case":"ResponseTooManyFailedAttemptsCodexErrorInfo, every property","json":{"responseTooManyFailedAttempts":{"httpStatusCode":7}}}
+{"type":"CodexErrorInfo","case":"ResponseTooManyFailedAttemptsCodexErrorInfo, required properties","json":{"responseTooManyFailedAttempts":{}}}
+{"type":"CodexErrorInfo","case":"ActiveTurnNotSteerableCodexErrorInfo, every property","json":{"activeTurnNotSteerable":{"turnKind":"review"}}}
+{"type":"CollabAgentState","case":"every property","json":{"message":"text","status":"pendingInit"}}
+{"type":"CollabAgentState","case":"required properties","json":{"status":"pendingInit"}}
+{"type":"CollabAgentStatus","case":"value pendingInit","json":"pendingInit"}
+{"type":"CollabAgentStatus","case":"value running","json":"running"}
+{"type":"CollabAgentStatus","case":"value interrupted","json":"interrupted"}
+{"type":"CollabAgentStatus","case":"value completed","json":"completed"}
+{"type":"CollabAgentStatus","case":"value errored","json":"errored"}
+{"type":"CollabAgentStatus","case":"value shutdown","json":"shutdown"}
+{"type":"CollabAgentStatus","case":"value notFound","json":"notFound"}
+{"type":"CollabAgentTool","case":"value spawnAgent","json":"spawnAgent"}
+{"type":"CollabAgentTool","case":"value sendInput","json":"sendInput"}
+{"type":"CollabAgentTool","case":"value resumeAgent","json":"resumeAgent"}
+{"type":"CollabAgentTool","case":"value wait","json":"wait"}
+{"type":"CollabAgentTool","case":"value closeAgent","json":"closeAgent"}
+{"type":"CollabAgentTool","case":"value sendMessage","json":"sendMessage"}
+{"type":"CollabAgentTool","case":"value followupTask","json":"followupTask"}
+{"type":"CollabAgentTool","case":"value interruptAgent","json":"interruptAgent"}
+{"type":"CollabAgentTool","case":"value listAgents","json":"listAgents"}
+{"type":"CollabAgentToolCallStatus","case":"value inProgress","json":"inProgress"}
+{"type":"CollabAgentToolCallStatus","case":"value completed","json":"completed"}
+{"type":"CollabAgentToolCallStatus","case":"value failed","json":"failed"}
+{"type":"CollabAgentToolCallStatus","case":"value interrupted","json":"interrupted"}
+{"type":"CollaborationMode","case":"every property","json":{"mode":"plan","settings":{"model":"text"}}}
+{"type":"CommandAction","case":"ReadCommandAction, every property","json":{"command":"text","name":"text","path":"text","type":"read"}}
+{"type":"CommandAction","case":"ListFilesCommandAction, every property","json":{"command":"text","path":"text","type":"listFiles"}}
+{"type":"CommandAction","case":"ListFilesCommandAction, required properties","json":{"command":"text","type":"listFiles"}}
+{"type":"CommandAction","case":"SearchCommandAction, every property","json":{"command":"text","path":"text","query":"text","type":"search"}}
+{"type":"CommandAction","case":"SearchCommandAction, required properties","json":{"command":"text","type":"search"}}
+{"type":"CommandAction","case":"UnknownCommandAction, every property","json":{"command":"text","type":"unknown"}}
+{"type":"CommandExecutionApprovalDecision","case":"value accept","json":"accept"}
+{"type":"CommandExecutionApprovalDecision","case":"value acceptForSession","json":"acceptForSession"}
+{"type":"CommandExecutionApprovalDecision","case":"AcceptWithExecpolicyAmendmentCommandExecutionApprovalDecision, every property","json":{"acceptWithExecpolicyAmendment":{"execpolicy_amendment":["text"]}}}
+{"type":"CommandExecutionApprovalDecision","case":"AcceptWithExecpolicyAmendmentCommandExecutionApprovalDecision, required properties","json":{"acceptWithExecpolicyAmendment":{"execpolicy_amendment":[]}}}
+{"type":"CommandExecutionApprovalDecision","case":"ApplyNetworkPolicyAmendmentCommandExecutionApprovalDecision, every property","json":{"applyNetworkPolicyAmendment":{"network_policy_amendment":{"action":"allow","host":"text"}}}}
+{"type":"CommandExecutionApprovalDecision","case":"value decline","json":"decline"}
+{"type":"CommandExecutionApprovalDecision","case":"value cancel","json":"cancel"}
+{"type":"CommandExecutionApprovalKind","case":"value command","json":"command"}
+{"type":"CommandExecutionApprovalKind","case":"value writeStdin","json":"writeStdin"}
+{"type":"CommandExecutionApprovalKind","case":"value humanCommand","json":"humanCommand"}
+{"type":"CommandExecutionOutputDeltaNotification","case":"every property","json":{"delta":"text","itemId":"text","threadId":"text","turnId":"text"}}
+{"type":"CommandExecutionRequestApprovalParams","case":"every property","json":{"approvalId":"text","command":"text","commandActions":[{"command":"text","name":"text","path":"text","type":"read"}],"cwd":"text","environmentId":"text","itemId":"text","kind":"command","networkApprovalContext":{"host":"text","protocol":"http"},"proposedExecpolicyAmendment":["text"],"proposedNetworkPolicyAmendments":[{"action":"allow","host":"text"}],"reason":"text","startedAtMs":7,"threadId":"text","turnId":"text"}}
+{"type":"CommandExecutionRequestApprovalParams","case":"required properties","json":{"itemId":"text","startedAtMs":7,"threadId":"text","turnId":"text"}}
+{"type":"CommandExecutionRequestApprovalResponse","case":"every property","json":{"decision":"accept"}}
+{"type":"CommandExecutionSource","case":"value agent","json":"agent"}
+{"type":"CommandExecutionSource","case":"value userShell","json":"userShell"}
+{"type":"CommandExecutionSource","case":"value unifiedExecStartup","json":"unifiedExecStartup"}
+{"type":"CommandExecutionSource","case":"value unifiedExecInteraction","json":"unifiedExecInteraction"}
+{"type":"CommandExecutionStatus","case":"value inProgress","json":"inProgress"}
+{"type":"CommandExecutionStatus","case":"value completed","json":"completed"}
+{"type":"CommandExecutionStatus","case":"value failed","json":"failed"}
+{"type":"CommandExecutionStatus","case":"value declined","json":"declined"}
+{"type":"ComputerUseConfig","case":"every property","json":{"default_app_access":"allow","macos":{},"windows":{}}}
+{"type":"ComputerUseConfig","case":"required properties","json":{}}
+{"type":"ComputerUseMacosConfig","case":"every property","json":{"bundle_ids":{"key":"allow"}}}
+{"type":"ComputerUseMacosConfig","case":"required properties","json":{}}
+{"type":"ComputerUseWindowsConfig","case":"every property","json":{"aumids":{"key":"allow"},"exes":[{"access":"allow","product_name":"text","publisher_name":"text"}]}}
+{"type":"ComputerUseWindowsConfig","case":"required properties","json":{}}
+{"type":"ComputerUseWindowsExeConfig","case":"every property","json":{"access":"allow","binary_name":"text","product_name":"text","publisher_name":"text"}}
+{"type":"ComputerUseWindowsExeConfig","case":"required properties","json":{"access":"allow","product_name":"text","publisher_name":"text"}}
+{"type":"Config","case":"every property","json":{"analytics":{},"approval_policy":"untrusted","approvals_reviewer":"user","browser_use":{},"client_search_provider":"standalone","compact_prompt":"text","computer_use":{},"desktop":{},"developer_instructions":"text","forced_chatgpt_workspace_id":"text","forced_login_method":"chatgpt","instructions":"text","model":"text","model_auto_compact_token_limit":7,"model_auto_compact_token_limit_scope":"total","model_context_window":7,"model_provider":"text","model_reasoning_effort":"text","model_reasoning_summary":"auto","model_verbosity":"low","review_model":"text","sandbox_mode":"read-only","sandbox_workspace_write":{},"service_tier":"text","tools":{},"web_search":"disabled"}}
+{"type":"Config","case":"required properties","json":{}}
+{"type":"ConfigLayer","case":"every property","json":{"config":{"any":1},"disabledReason":"text","name":{"file":"text","type":"packagedDefaults"},"version":"text"}}
+{"type":"ConfigLayer","case":"required properties","json":{"config":{"any":1},"name":{"file":"text","type":"packagedDefaults"},"version":"text"}}
+{"type":"ConfigLayerMetadata","case":"every property","json":{"name":{"file":"text","type":"packagedDefaults"},"version":"text"}}
+{"type":"ConfigLayerSource","case":"PackagedDefaultsConfigLayerSource, every property","json":{"file":"text","type":"packagedDefaults"}}
+{"type":"ConfigLayerSource","case":"MdmConfigLayerSource, every property","json":{"domain":"text","key":"text","type":"mdm"}}
+{"type":"ConfigLayerSource","case":"SystemConfigLayerSource, every property","json":{"file":"text","type":"system"}}
+{"type":"ConfigLayerSource","case":"EnterpriseManagedConfigLayerSource, every property","json":{"id":"text","name":"text","type":"enterpriseManaged"}}
+{"type":"ConfigLayerSource","case":"UserConfigLayerSource, every property","json":{"file":"text","profile":"text","type":"user"}}
+{"type":"ConfigLayerSource","case":"UserConfigLayerSource, required properties","json":{"file":"text","type":"user"}}
+{"type":"ConfigLayerSource","case":"ProjectConfigLayerSource, every property","json":{"dotCodexFolder":"text","type":"project"}}
+{"type":"ConfigLayerSource","case":"SessionFlagsConfigLayerSource, every property","json":{"type":"sessionFlags"}}
+{"type":"ConfigLayerSource","case":"LegacyManagedConfigTomlFromFileConfigLayerSource, every property","json":{"file":"text","type":"legacyManagedConfigTomlFromFile"}}
+{"type":"ConfigLayerSource","case":"LegacyManagedConfigTomlFromMdmConfigLayerSource, every property","json":{"type":"legacyManagedConfigTomlFromMdm"}}
+{"type":"ConfigReadParams","case":"every property","json":{"cwd":"text","includeLayers":true}}
+{"type":"ConfigReadParams","case":"required properties","json":{}}
+{"type":"ConfigReadResponse","case":"every property","json":{"config":{},"layers":[{"config":{"any":1},"name":{"file":"text","type":"packagedDefaults"},"version":"text"}],"origins":{"key":{"name":{"file":"text","type":"packagedDefaults"},"version":"text"}}}}
+{"type":"ConfigReadResponse","case":"required properties","json":{"config":{},"origins":{}}}
+{"type":"ContextCompactedNotification","case":"every property","json":{"threadId":"text","turnId":"text"}}
+{"type":"CreditsSnapshot","case":"every property","json":{"balance":"text","hasCredits":true,"unlimited":true}}
+{"type":"CreditsSnapshot","case":"required properties","json":{"hasCredits":true,"unlimited":true}}
+{"type":"CyberAccessProgram","case":"value standard","json":"standard"}
+{"type":"CyberAccessProgram","case":"value daybreakBlue","json":"daybreakBlue"}
+{"type":"CyberAccessProgram","case":"value daybreakRed","json":"daybreakRed"}
+{"type":"DynamicToolCallOutputContentItem","case":"InputTextDynamicToolCallOutputContentItem, every property","json":{"text":"text","type":"inputText"}}
+{"type":"DynamicToolCallOutputContentItem","case":"InputImageDynamicToolCallOutputContentItem, every property","json":{"imageUrl":"text","type":"inputImage"}}
+{"type":"DynamicToolCallOutputContentItem","case":"InputAudioDynamicToolCallOutputContentItem, every property","json":{"audioUrl":"text","type":"inputAudio"}}
+{"type":"DynamicToolCallStatus","case":"value inProgress","json":"inProgress"}
+{"type":"DynamicToolCallStatus","case":"value completed","json":"completed"}
+{"type":"DynamicToolCallStatus","case":"value failed","json":"failed"}
+{"type":"ErrorNotification","case":"every property","json":{"error":{"message":"text"},"threadId":"text","turnId":"text","willRetry":true}}
+{"type":"FileChangeApprovalDecision","case":"value accept","json":"accept"}
+{"type":"FileChangeApprovalDecision","case":"value acceptForSession","json":"acceptForSession"}
+{"type":"FileChangeApprovalDecision","case":"value decline","json":"decline"}
+{"type":"FileChangeApprovalDecision","case":"value cancel","json":"cancel"}
+{"type":"FileChangePatchUpdatedNotification","case":"every property","json":{"changes":[{"diff":"text","kind":{"type":"add"},"path":"text"}],"itemId":"text","threadId":"text","turnId":"text"}}
+{"type":"FileChangePatchUpdatedNotification","case":"required properties","json":{"changes":[],"itemId":"text","threadId":"text","turnId":"text"}}
+{"type":"FileChangeRequestApprovalParams","case":"every property","json":{"grantRoot":"text","itemId":"text","reason":"text","startedAtMs":7,"threadId":"text","turnId":"text"}}
+{"type":"FileChangeRequestApprovalParams","case":"required properties","json":{"itemId":"text","startedAtMs":7,"threadId":"text","turnId":"text"}}
+{"type":"FileChangeRequestApprovalResponse","case":"every property","json":{"decision":"accept"}}
+{"type":"FileSystemAccessMode","case":"value read","json":"read"}
+{"type":"FileSystemAccessMode","case":"value write","json":"write"}
+{"type":"FileSystemAccessMode","case":"value deny","json":"deny"}
+{"type":"FileSystemPath","case":"PathFileSystemPath, every property","json":{"path":"text","type":"path"}}
+{"type":"FileSystemPath","case":"GlobPatternFileSystemPath, every property","json":{"pattern":"text","type":"glob_pattern"}}
+{"type":"FileSystemPath","case":"SpecialFileSystemPath, every property","json":{"type":"special","value":{"kind":"root"}}}
+{"type":"FileSystemSandboxEntry","case":"every property","json":{"access":"read","path":{"path":"text","type":"path"}}}
+{"type":"FileSystemSpecialPath","case":"RootFileSystemSpecialPath, every property","json":{"kind":"root"}}
+{"type":"FileSystemSpecialPath","case":"MinimalFileSystemSpecialPath, every property","json":{"kind":"minimal"}}
+{"type":"FileSystemSpecialPath","case":"KindFileSystemSpecialPath, every property","json":{"kind":"project_roots","subpath":"text"}}
+{"type":"FileSystemSpecialPath","case":"KindFileSystemSpecialPath, required properties","json":{"kind":"project_roots"}}
+{"type":"FileSystemSpecialPath","case":"TmpdirFileSystemSpecialPath, every property","json":{"kind":"tmpdir"}}
+{"type":"FileSystemSpecialPath","case":"SlashTmpFileSystemSpecialPath, every property","json":{"kind":"slash_tmp"}}
+{"type":"FileSystemSpecialPath","case":"alternative 6, every property","json":{"kind":"unknown","path":"text","subpath":"text"}}
+{"type":"FileSystemSpecialPath","case":"alternative 6, required properties","json":{"kind":"unknown","path":"text"}}
+{"type":"FileUpdateChange","case":"every property","json":{"diff":"text","kind":{"type":"add"},"path":"text"}}
+{"type":"ForcedChatgptWorkspaceIds","case":"alternative 1, every property","json":"text"}
+{"type":"ForcedChatgptWorkspaceIds","case":"alternative 2, every property","json":["text"]}
+{"type":"ForcedChatgptWorkspaceIds","case":"alternative 2, required properties","json":[]}
+{"type":"ForcedLoginMethod","case":"value chatgpt","json":"chatgpt"}
+{"type":"ForcedLoginMethod","case":"value api","json":"api"}
+{"type":"FunctionCallOutputBody","case":"alternative 1, every property","json":"text"}
+{"type":"FunctionCallOutputBody","case":"alternative 2, every property","json":[{"text":"text","type":"input_text"}]}
+{"type":"FunctionCallOutputBody","case":"alternative 2, required properties","json":[]}
+{"type":"FunctionCallOutputContentItem","case":"InputTextFunctionCallOutputContentItem, every property","json":{"text":"text","type":"input_text"}}
+{"type":"FunctionCallOutputContentItem","case":"InputImageFunctionCallOutputContentItem, every property","json":{"detail":"auto","type":"input_image","image_url":"text"}}
+{"type":"FunctionCallOutputContentItem","case":"InputImageFunctionCallOutputContentItem, required properties","json":{"type":"input_image","image_url":"text"}}
+{"type":"FunctionCallOutputContentItem","case":"InputAudioFunctionCallOutputContentItem, every property","json":{"type":"input_audio","audio_url":"text"}}
+{"type":"FunctionCallOutputContentItem","case":"EncryptedContentFunctionCallOutputContentItem, every property","json":{"encrypted_content":"text","type":"encrypted_content"}}
+{"type":"GetAccountRateLimitsParams","case":"every property","json":{"excludeResetCreditDetails":true,"supportsLunaReserve":true}}
+{"type":"GetAccountRateLimitsParams","case":"required properties","json":{}}
+{"type":"GetAccountRateLimitsResponse","case":"every property","json":{"accountId":"text","ordinaryUsageAllowed":true,"rateLimitResetCredits":{"availableCount":7},"rateLimitUpsell":{"any":1},"rateLimits":{},"rateLimitsByLimitId":{"key":{}}}}
+{"type":"GetAccountRateLimitsResponse","case":"required properties","json":{"rateLimits":{}}}
+{"type":"GitInfo","case":"every property","json":{"branch":"text","originUrl":"text","sha":"text"}}
+{"type":"GitInfo","case":"required properties","json":{}}
+{"type":"GrantedPermissionProfile","case":"every property","json":{"fileSystem":{},"network":{}}}
+{"type":"GrantedPermissionProfile","case":"required properties","json":{}}
+{"type":"HelplineSubject","case":"value answer","json":"answer"}
+{"type":"HelplineSubject","case":"value prompt","json":"prompt"}
+{"type":"HookPromptFragment","case":"every property","json":{"hookRunId":"text","text":"text"}}
+{"type":"ImageDetail","case":"value auto","json":"auto"}
+{"type":"ImageDetail","case":"value low","json":"low"}
+{"type":"ImageDetail","case":"value high","json":"high"}
+{"type":"ImageDetail","case":"value original","json":"original"}
+{"type":"ImageGenerationFailure","case":"UsageLimitExceededImageGenerationFailure, every property","json":{"limitId":"text","resetsAt":7,"type":"usageLimitExceeded"}}
+{"type":"ImageGenerationFailure","case":"UsageLimitExceededImageGenerationFailure, required properties","json":{"limitId":"text","type":"usageLimitExceeded"}}
+{"type":"ImageGenerationInputImage","case":"every property","json":{"path":"text","sha256":"text"}}
+{"type":"InitializeCapabilities","case":"every property","json":{"experimentalApi":true,"explicitGatewayOauth":true,"extensions":{},"mcpServerOpenaiFormElicitation":true,"optOutNotificationMethods":["text"],"requestAttestation":true,"requiredHumanApproval":true}}
+{"type":"InitializeCapabilities","case":"required properties","json":{}}
+{"type":"InitializeParams","case":"every property","json":{"capabilities":{},"clientInfo":{"name":"text","version":"text"}}}
+{"type":"InitializeParams","case":"required properties","json":{"clientInfo":{"name":"text","version":"text"}}}
+{"type":"InitializeResponse","case":"every property","json":{"codexHome":"text","platformFamily":"text","platformOs":"text","userAgent":"text"}}
+{"type":"InputModality","case":"value text","json":"text"}
+{"type":"InputModality","case":"value image","json":"image"}
+{"type":"InputModality","case":"value audio","json":"audio"}
+{"type":"ItemCompletedNotification","case":"every property","json":{"completedAtMs":7,"contentTokenCount":7,"item":{"content":[],"id":"text","type":"userMessage"},"threadId":"text","turnId":"text"}}
+{"type":"ItemCompletedNotification","case":"required properties","json":{"completedAtMs":7,"item":{"content":[],"id":"text","type":"userMessage"},"threadId":"text","turnId":"text"}}
+{"type":"ItemStartedNotification","case":"every property","json":{"item":{"content":[],"id":"text","type":"userMessage"},"startedAtMs":7,"threadId":"text","turnId":"text"}}
+{"type":"LegacyAppPathString","case":"value","json":"text"}
+{"type":"ListMcpServerStatusParams","case":"every property","json":{"cursor":"text","detail":"full","limit":7,"serverName":"text","threadId":"text"}}
+{"type":"ListMcpServerStatusParams","case":"required properties","json":{}}
+{"type":"ListMcpServerStatusResponse","case":"every property","json":{"data":[{"authStatus":"unknown","name":"text","resourceTemplates":[],"resources":[],"tools":{}}],"nextCursor":"text"}}
+{"type":"ListMcpServerStatusResponse","case":"required properties","json":{"data":[]}}
+{"type":"McpAppDisplayMode","case":"value inline","json":"inline"}
+{"type":"McpAppDisplayMode","case":"value fullscreen","json":"fullscreen"}
+{"type":"McpAppUi","case":"every property","json":{"preferredModelDisplayMode":"inline","resourceUri":"text"}}
+{"type":"McpAuthStatus","case":"value unknown","json":"unknown"}
+{"type":"McpAuthStatus","case":"value unsupported","json":"unsupported"}
+{"type":"McpAuthStatus","case":"value notLoggedIn","json":"notLoggedIn"}
+{"type":"McpAuthStatus","case":"value bearerToken","json":"bearerToken"}
+{"type":"McpAuthStatus","case":"value oAuth","json":"oAuth"}
+{"type":"McpElicitationArrayType","case":"value array","json":"array"}
+{"type":"McpElicitationBooleanSchema","case":"every property","json":{"default":true,"description":"text","title":"text","type":"boolean"}}
+{"type":"McpElicitationBooleanSchema","case":"required properties","json":{"type":"boolean"}}
+{"type":"McpElicitationBooleanType","case":"value boolean","json":"boolean"}
+{"type":"McpElicitationConstOption","case":"every property","json":{"const":"text","title":"text"}}
+{"type":"McpElicitationEnumSchema","case":"McpElicitationSingleSelectEnumSchema, every property","json":{"enum":[],"type":"string"}}
+{"type":"McpElicitationEnumSchema","case":"McpElicitationMultiSelectEnumSchema, every property","json":{"items":{"enum":[],"type":"string"},"type":"array"}}
+{"type":"McpElicitationLegacyTitledEnumSchema","case":"every property","json":{"default":"text","description":"text","enum":["text"],"enumNames":["text"],"title":"text","type":"string"}}
+{"type":"McpElicitationLegacyTitledEnumSchema","case":"required properties","json":{"enum":[],"type":"string"}}
+{"type":"McpElicitationMultiSelectEnumSchema","case":"McpElicitationUntitledMultiSelectEnumSchema, every property","json":{"items":{"enum":[],"type":"string"},"type":"array"}}
+{"type":"McpElicitationMultiSelectEnumSchema","case":"McpElicitationTitledMultiSelectEnumSchema, every property","json":{"items":{"anyOf":[]},"type":"array"}}
+{"type":"McpElicitationNumberSchema","case":"every property","json":{"default":2.5,"description":"text","maximum":2.5,"minimum":2.5,"title":"text","type":"number"}}
+{"type":"McpElicitationNumberSchema","case":"required properties","json":{"type":"number"}}
+{"type":"McpElicitationNumberType","case":"value number","json":"number"}
+{"type":"McpElicitationNumberType","case":"value integer","json":"integer"}
+{"type":"McpElicitationObjectType","case":"value object","json":"object"}
+{"type":"McpElicitationPrimitiveSchema","case":"McpElicitationEnumSchema, every property","json":{"enum":[],"type":"string"}}
+{"type":"McpElicitationPrimitiveSchema","case":"McpElicitationStringSchema, every property","json":{"type":"string"}}
+{"type":"McpElicitationPrimitiveSchema","case":"McpElicitationNumberSchema, every property","json":{"type":"number"}}
+{"type":"McpElicitationPrimitiveSchema","case":"McpElicitationBooleanSchema, every property","json":{"type":"boolean"}}
+{"type":"McpElicitationSchema","case":"every property","json":{"$schema":"text","properties":{"key":{"enum":[],"type":"string"}},"required":["text"],"type":"object"}}
+{"type":"McpElicitationSchema","case":"required properties","json":{"properties":{},"type":"object"}}
+{"type":"McpElicitationSingleSelectEnumSchema","case":"McpElicitationUntitledSingleSelectEnumSchema, every property","json":{"enum":[],"type":"string"}}
+{"type":"McpElicitationSingleSelectEnumSchema","case":"McpElicitationTitledSingleSelectEnumSchema, every property","json":{"oneOf":[],"type":"string"}}
+{"type":"McpElicitationStringFormat","case":"value email","json":"email"}
+{"type":"McpElicitationStringFormat","case":"value uri","json":"uri"}
+{"type":"McpElicitationStringFormat","case":"value date","json":"date"}
+{"type":"McpElicitationStringFormat","case":"value date-time","json":"date-time"}
+{"type":"McpElicitationStringSchema","case":"every property","json":{"default":"text","description":"text","format":"email","maxLength":7,"minLength":7,"title":"text","type":"string"}}
+{"type":"McpElicitationStringSchema","case":"required properties","json":{"type":"string"}}
+{"type":"McpElicitationStringType","case":"value string","json":"string"}
+{"type":"McpElicitationTitledEnumItems","case":"every property","json":{"anyOf":[{"const":"text","title":"text"}]}}
+{"type":"McpElicitationTitledEnumItems","case":"required properties","json":{"anyOf":[]}}
+{"type":"McpElicitationTitledMultiSelectEnumSchema","case":"every property","json":{"default":["text"],"description":"text","items":{"anyOf":[]},"maxItems":7,"minItems":7,"title":"text","type":"array"}}
+{"type":"McpElicitationTitledMultiSelectEnumSchema","case":"required properties","json":{"items":{"anyOf":[]},"type":"array"}}
+{"type":"McpElicitationTitledSingleSelectEnumSchema","case":"every property","json":{"default":"text","description":"text","oneOf":[{"const":"text","title":"text"}],"title":"text","type":"string"}}
+{"type":"McpElicitationTitledSingleSelectEnumSchema","case":"required properties","json":{"oneOf":[],"type":"string"}}
+{"type":"McpElicitationUntitledEnumItems","case":"every property","json":{"enum":["text"],"type":"string"}}
+{"type":"McpElicitationUntitledEnumItems","case":"required properties","json":{"enum":[],"type":"string"}}
+{"type":"McpElicitationUntitledMultiSelectEnumSchema","case":"every property","json":{"default":["text"],"description":"text","items":{"enum":[],"type":"string"},"maxItems":7,"minItems":7,"title":"text","type":"array"}}
+{"type":"McpElicitationUntitledMultiSelectEnumSchema","case":"required properties","json":{"items":{"enum":[],"type":"string"},"type":"array"}}
+{"type":"McpElicitationUntitledSingleSelectEnumSchema","case":"every property","json":{"default":"text","description":"text","enum":["text"],"title":"text","type":"string"}}
+{"type":"McpElicitationUntitledSingleSelectEnumSchema","case":"required properties","json":{"enum":[],"type":"string"}}
+{"type":"McpServerConnectionStatus","case":"value notStarted","json":"notStarted"}
+{"type":"McpServerConnectionStatus","case":"value starting","json":"starting"}
+{"type":"McpServerConnectionStatus","case":"value connected","json":"connected"}
+{"type":"McpServerConnectionStatus","case":"value authenticationRequired","json":"authenticationRequired"}
+{"type":"McpServerConnectionStatus","case":"value failed","json":"failed"}
+{"type":"McpServerConnectionStatus","case":"value cancelled","json":"cancelled"}
+{"type":"McpServerConnectionStatus","case":"value disabled","json":"disabled"}
+{"type":"McpServerElicitationAction","case":"value accept","json":"accept"}
+{"type":"McpServerElicitationAction","case":"value decline","json":"decline"}
+{"type":"McpServerElicitationAction","case":"value cancel","json":"cancel"}
+{"type":"McpServerElicitationRequestParams","case":"alternative 1, every property","json":{"serverName":"text","threadId":"text","turnId":"text","_meta":{"any":1},"message":"text","mode":"form","requestedSchema":{"properties":{},"type":"object"}}}
+{"type":"McpServerElicitationRequestParams","case":"alternative 1, required properties","json":{"serverName":"text","threadId":"text","message":"text","mode":"form","requestedSchema":{"properties":{},"type":"object"}}}
+{"type":"McpServerElicitationRequestParams","case":"alternative 2, every property","json":{"serverName":"text","threadId":"text","turnId":"text","_meta":{"any":1},"message":"text","mode":"openai/form","requestedSchema":{"any":1}}}
+{"type":"McpServerElicitationRequestParams","case":"alternative 2, required properties","json":{"serverName":"text","threadId":"text","message":"text","mode":"openai/form","requestedSchema":{"any":1}}}
+{"type":"McpServerElicitationRequestParams","case":"alternative 3, every property","json":{"serverName":"text","threadId":"text","turnId":"text","_meta":{"any":1},"message":"text","mode":"openaiForm","requestedSchema":{"any":1}}}
+{"type":"McpServerElicitationRequestParams","case":"alternative 3, required properties","json":{"serverName":"text","threadId":"text","message":"text","mode":"openaiForm","requestedSchema":{"any":1}}}
+{"type":"McpServerElicitationRequestParams","case":"alternative 4, every property","json":{"serverName":"text","threadId":"text","turnId":"text","_meta":{"any":1},"elicitationId":"text","message":"text","mode":"url","url":"text"}}
+{"type":"McpServerElicitationRequestParams","case":"alternative 4, required properties","json":{"serverName":"text","threadId":"text","elicitationId":"text","message":"text","mode":"url","url":"text"}}
+{"type":"McpServerElicitationRequestResponse","case":"every property","json":{"_meta":{"any":1},"action":"accept","content":{"any":1}}}
+{"type":"McpServerElicitationRequestResponse","case":"required properties","json":{"action":"accept"}}
+{"type":"McpServerInfo","case":"every property","json":{"description":"text","icons":[{"any":1}],"name":"text","title":"text","version":"text","websiteUrl":"text"}}
+{"type":"McpServerInfo","case":"required properties","json":{"name":"text","version":"text"}}
+{"type":"McpServerStartupFailureReason","case":"value reauthenticationRequired","json":"reauthenticationRequired"}
+{"type":"McpServerStartupState","case":"value starting","json":"starting"}
+{"type":"McpServerStartupState","case":"value ready","json":"ready"}
+{"type":"McpServerStartupState","case":"value failed","json":"failed"}
+{"type":"McpServerStartupState","case":"value cancelled","json":"cancelled"}
+{"type":"McpServerStatus","case":"every property","json":{"authStatus":"unknown","httpOrigin":"text","name":"text","pluginId":"text","resourceTemplates":[{"name":"text","uriTemplate":"text"}],"resources":[{"name":"text","uri":"text"}],"runtimeStatus":"notStarted","serverCapabilities":{"any":1},"serverInfo":{"name":"text","version":"text"},"toolListMeta":{"any":1},"tools":{"key":{"inputSchema":{"any":1},"name":"text"}},"toolsError":"text"}}
+{"type":"McpServerStatus","case":"required properties","json":{"authStatus":"unknown","name":"text","resourceTemplates":[],"resources":[],"tools":{}}}
+{"type":"McpServerStatusDetail","case":"value full","json":"full"}
+{"type":"McpServerStatusDetail","case":"value toolsAndAuthOnly","json":"toolsAndAuthOnly"}
+{"type":"McpServerStatusUpdatedNotification","case":"every property","json":{"error":"text","failureReason":"reauthenticationRequired","name":"text","status":"starting","threadId":"text"}}
+{"type":"McpServerStatusUpdatedNotification","case":"required properties","json":{"name":"text","status":"starting"}}
+{"type":"McpToolCallAppContext","case":"every property","json":{"actionName":"text","appName":"text","connectorId":"text","linkId":"text","resourceUri":"text"}}
+{"type":"McpToolCallAppContext","case":"required properties","json":{"connectorId":"text"}}
+{"type":"McpToolCallError","case":"every property","json":{"message":"text"}}
+{"type":"McpToolCallProgressNotification","case":"every property","json":{"itemId":"text","message":"text","threadId":"text","turnId":"text"}}
+{"type":"McpToolCallResult","case":"every property","json":{"_meta":{"any":1},"content":[{"any":1}],"structuredContent":{"any":1}}}
+{"type":"McpToolCallResult","case":"required properties","json":{"content":[]}}
+{"type":"McpToolCallStatus","case":"value inProgress","json":"inProgress"}
+{"type":"McpToolCallStatus","case":"value completed","json":"completed"}
+{"type":"McpToolCallStatus","case":"value failed","json":"failed"}
+{"type":"MemoryCitation","case":"every property","json":{"entries":[{"lineEnd":7,"lineStart":7,"note":"text","path":"text"}],"threadIds":["text"]}}
+{"type":"MemoryCitation","case":"required properties","json":{"entries":[],"threadIds":[]}}
+{"type":"MemoryCitationEntry","case":"every property","json":{"lineEnd":7,"lineStart":7,"note":"text","path":"text"}}
+{"type":"MessagePhase","case":"value commentary","json":"commentary"}
+{"type":"MessagePhase","case":"value partial_answer","json":"partial_answer"}
+{"type":"MessagePhase","case":"value final_answer","json":"final_answer"}
+{"type":"MisalignmentErrorDetails","case":"every property","json":{"detailedExplanation":"text","errorType":"text","reviewTarget":"text","steer":{"message":"text"}}}
+{"type":"MisalignmentErrorDetails","case":"required properties","json":{}}
+{"type":"MisalignmentSteer","case":"every property","json":{"message":"text"}}
+{"type":"ModeKind","case":"value plan","json":"plan"}
+{"type":"ModeKind","case":"value default","json":"default"}
+{"type":"Model","case":"every property","json":{"additionalSpeedTiers":["text"],"availabilityNux":{"message":"text"},"availableAccessPrograms":{"cyber":[]},"defaultReasoningEffort":"text","defaultServiceTier":"text","description":"text","displayName":"text","hidden":true,"id":"text","inputModalities":["text"],"isDefault":true,"model":"text","modelSpecialty":"text","multiAgentVersion":"disabled","serviceTiers":[{"description":"text","id":"text","name":"text"}],"supportedReasoningEfforts":[{"description":"text","reasoningEffort":"text"}],"supportsPersonality":true,"upgrade":"text","upgradeInfo":{"model":"text"}}}
+{"type":"Model","case":"required properties","json":{"defaultReasoningEffort":"text","description":"text","displayName":"text","hidden":true,"id":"text","isDefault":true,"model":"text","supportedReasoningEfforts":[]}}
+{"type":"ModelAccessPrograms","case":"every property","json":{"cyber":["standard"]}}
+{"type":"ModelAccessPrograms","case":"required properties","json":{"cyber":[]}}
+{"type":"ModelAvailabilityNux","case":"every property","json":{"message":"text"}}
+{"type":"ModelListParams","case":"every property","json":{"cursor":"text","includeHidden":true,"limit":7,"modelProvider":"text"}}
+{"type":"ModelListParams","case":"required properties","json":{}}
+{"type":"ModelListResponse","case":"every property","json":{"data":[{"defaultReasoningEffort":"text","description":"text","displayName":"text","hidden":true,"id":"text","isDefault":true,"model":"text","supportedReasoningEfforts":[]}],"nextCursor":"text"}}
+{"type":"ModelListResponse","case":"required properties","json":{"data":[]}}
+{"type":"ModelRerouteReason","case":"value highRiskCyberActivity","json":"highRiskCyberActivity"}
+{"type":"ModelReroutedNotification","case":"every property","json":{"fromModel":"text","reason":"highRiskCyberActivity","threadId":"text","toModel":"text","turnId":"text"}}
+{"type":"ModelServiceTier","case":"every property","json":{"description":"text","id":"text","name":"text"}}
+{"type":"ModelUpgradeInfo","case":"every property","json":{"migrationMarkdown":"text","model":"text","modelLink":"text","retirementAt":7,"upgradeCopy":"text"}}
+{"type":"ModelUpgradeInfo","case":"required properties","json":{"model":"text"}}
+{"type":"MultiAgentVersion","case":"value disabled","json":"disabled"}
+{"type":"MultiAgentVersion","case":"value v1","json":"v1"}
+{"type":"MultiAgentVersion","case":"value v2","json":"v2"}
+{"type":"NetworkAccess","case":"value restricted","json":"restricted"}
+{"type":"NetworkAccess","case":"value enabled","json":"enabled"}
+{"type":"NetworkApprovalContext","case":"every property","json":{"host":"text","protocol":"http"}}
+{"type":"NetworkApprovalProtocol","case":"value http","json":"http"}
+{"type":"NetworkApprovalProtocol","case":"value https","json":"https"}
+{"type":"NetworkApprovalProtocol","case":"value socks5Tcp","json":"socks5Tcp"}
+{"type":"NetworkApprovalProtocol","case":"value socks5Udp","json":"socks5Udp"}
+{"type":"NetworkPolicyAmendment","case":"every property","json":{"action":"allow","host":"text"}}
+{"type":"NetworkPolicyRuleAction","case":"value allow","json":"allow"}
+{"type":"NetworkPolicyRuleAction","case":"value deny","json":"deny"}
+{"type":"NonSteerableTurnKind","case":"value review","json":"review"}
+{"type":"NonSteerableTurnKind","case":"value compact","json":"compact"}
+{"type":"PatchApplyStatus","case":"value inProgress","json":"inProgress"}
+{"type":"PatchApplyStatus","case":"value completed","json":"completed"}
+{"type":"PatchApplyStatus","case":"value failed","json":"failed"}
+{"type":"PatchApplyStatus","case":"value declined","json":"declined"}
+{"type":"PatchChangeKind","case":"AddPatchChangeKind, every property","json":{"type":"add"}}
+{"type":"PatchChangeKind","case":"DeletePatchChangeKind, every property","json":{"type":"delete"}}
+{"type":"PatchChangeKind","case":"UpdatePatchChangeKind, every property","json":{"move_path":"text","type":"update"}}
+{"type":"PatchChangeKind","case":"UpdatePatchChangeKind, required properties","json":{"type":"update"}}
+{"type":"PermissionGrantScope","case":"value turn","json":"turn"}
+{"type":"PermissionGrantScope","case":"value session","json":"session"}
+{"type":"PermissionsRequestApprovalParams","case":"every property","json":{"cwd":"text","environmentId":"text","itemId":"text","permissions":{},"reason":"text","startedAtMs":7,"threadId":"text","turnId":"text"}}
+{"type":"PermissionsRequestApprovalParams","case":"required properties","json":{"cwd":"text","itemId":"text","permissions":{},"startedAtMs":7,"threadId":"text","turnId":"text"}}
+{"type":"PermissionsRequestApprovalResponse","case":"every property","json":{"permissions":{},"scope":"turn","strictAutoReview":true}}
+{"type":"PermissionsRequestApprovalResponse","case":"required properties","json":{"permissions":{}}}
+{"type":"Personality","case":"value none","json":"none"}
+{"type":"Personality","case":"value friendly","json":"friendly"}
+{"type":"Personality","case":"value pragmatic","json":"pragmatic"}
+{"type":"PlanDeltaNotification","case":"every property","json":{"delta":"text","itemId":"text","threadId":"text","turnId":"text"}}
+{"type":"PlanType","case":"value free","json":"free"}
+{"type":"PlanType","case":"value go","json":"go"}
+{"type":"PlanType","case":"value plus","json":"plus"}
+{"type":"PlanType","case":"value pro","json":"pro"}
+{"type":"PlanType","case":"value prolite","json":"prolite"}
+{"type":"PlanType","case":"value promax","json":"promax"}
+{"type":"PlanType","case":"value team","json":"team"}
+{"type":"PlanType","case":"value self_serve_business_prolite","json":"self_serve_business_prolite"}
+{"type":"PlanType","case":"value self_serve_business_usage_based","json":"self_serve_business_usage_based"}
+{"type":"PlanType","case":"value business","json":"business"}
+{"type":"PlanType","case":"value ent26","json":"ent26"}
+{"type":"PlanType","case":"value enterprise_cbp_automation","json":"enterprise_cbp_automation"}
+{"type":"PlanType","case":"value enterprise_cbp_usage_based","json":"enterprise_cbp_usage_based"}
+{"type":"PlanType","case":"value enterprise","json":"enterprise"}
+{"type":"PlanType","case":"value edu","json":"edu"}
+{"type":"PlanType","case":"value edu_plus","json":"edu_plus"}
+{"type":"PlanType","case":"value edu_pro","json":"edu_pro"}
+{"type":"PlanType","case":"value sci","json":"sci"}
+{"type":"PlanType","case":"value sci_plus","json":"sci_plus"}
+{"type":"PlanType","case":"value unknown","json":"unknown"}
+{"type":"RateLimitReachedType","case":"value rate_limit_reached","json":"rate_limit_reached"}
+{"type":"RateLimitReachedType","case":"value workspace_owner_credits_depleted","json":"workspace_owner_credits_depleted"}
+{"type":"RateLimitReachedType","case":"value workspace_member_credits_depleted","json":"workspace_member_credits_depleted"}
+{"type":"RateLimitReachedType","case":"value workspace_owner_usage_limit_reached","json":"workspace_owner_usage_limit_reached"}
+{"type":"RateLimitReachedType","case":"value workspace_member_usage_limit_reached","json":"workspace_member_usage_limit_reached"}
+{"type":"RateLimitResetCredit","case":"every property","json":{"description":"text","expiresAt":7,"grantedAt":7,"id":"text","resetType":"codexRateLimits","status":"available","title":"text"}}
+{"type":"RateLimitResetCredit","case":"required properties","json":{"grantedAt":7,"id":"text","resetType":"codexRateLimits","status":"available"}}
+{"type":"RateLimitResetCreditStatus","case":"value available","json":"available"}
+{"type":"RateLimitResetCreditStatus","case":"value redeeming","json":"redeeming"}
+{"type":"RateLimitResetCreditStatus","case":"value redeemed","json":"redeemed"}
+{"type":"RateLimitResetCreditStatus","case":"value unknown","json":"unknown"}
+{"type":"RateLimitResetCreditsSummary","case":"every property","json":{"availableCount":7,"credits":[{"grantedAt":7,"id":"text","resetType":"codexRateLimits","status":"available"}]}}
+{"type":"RateLimitResetCreditsSummary","case":"required properties","json":{"availableCount":7}}
+{"type":"RateLimitResetType","case":"value codexRateLimits","json":"codexRateLimits"}
+{"type":"RateLimitResetType","case":"value unknown","json":"unknown"}
+{"type":"RateLimitSnapshot","case":"every property","json":{"credits":{"hasCredits":true,"unlimited":true},"individualLimit":{"limit":"text","remainingPercent":7,"resetsAt":7,"used":"text"},"limitId":"text","limitName":"text","normalModelSlug":"text","planType":"free","primary":{"usedPercent":7},"rateLimitReachedType":"rate_limit_reached","secondary":{"usedPercent":7},"spendControlReached":true}}
+{"type":"RateLimitSnapshot","case":"required properties","json":{}}
+{"type":"RateLimitWindow","case":"every property","json":{"resetsAt":7,"usedPercent":7,"windowDurationMins":7}}
+{"type":"RateLimitWindow","case":"required properties","json":{"usedPercent":7}}
+{"type":"ReasoningEffort","case":"value","json":"text"}
+{"type":"ReasoningEffortOption","case":"every property","json":{"description":"text","reasoningEffort":"text"}}
+{"type":"ReasoningSummary","case":"value auto","json":"auto"}
+{"type":"ReasoningSummary","case":"value concise","json":"concise"}
+{"type":"ReasoningSummary","case":"value detailed","json":"detailed"}
+{"type":"ReasoningSummary","case":"value none","json":"none"}
+{"type":"RequestId","case":"alternative 1, every property","json":"text"}
+{"type":"RequestId","case":"alternative 2, every property","json":7}
+{"type":"RequestPermissionProfile","case":"every property","json":{"fileSystem":{},"network":{}}}
+{"type":"RequestPermissionProfile","case":"required properties","json":{}}
+{"type":"Resource","case":"every property","json":{"_meta":{"any":1},"annotations":{"any":1},"description":"text","icons":[{"any":1}],"mimeType":"text","name":"text","size":7,"title":"text","uri":"text"}}
+{"type":"Resource","case":"required properties","json":{"name":"text","uri":"text"}}
+{"type":"ResourceTemplate","case":"every property","json":{"annotations":{"any":1},"description":"text","mimeType":"text","name":"text","title":"text","uriTemplate":"text"}}
+{"type":"ResourceTemplate","case":"required properties","json":{"name":"text","uriTemplate":"text"}}
+{"type":"SandboxMode","case":"value read-only","json":"read-only"}
+{"type":"SandboxMode","case":"value workspace-write","json":"workspace-write"}
+{"type":"SandboxMode","case":"value danger-full-access","json":"danger-full-access"}
+{"type":"SandboxPolicy","case":"DangerFullAccessSandboxPolicy, every property","json":{"type":"dangerFullAccess"}}
+{"type":"SandboxPolicy","case":"ReadOnlySandboxPolicy, every property","json":{"networkAccess":true,"type":"readOnly"}}
+{"type":"SandboxPolicy","case":"ReadOnlySandboxPolicy, required properties","json":{"type":"readOnly"}}
+{"type":"SandboxPolicy","case":"ExternalSandboxSandboxPolicy, every property","json":{"networkAccess":"restricted","type":"externalSandbox"}}
+{"type":"SandboxPolicy","case":"ExternalSandboxSandboxPolicy, required properties","json":{"type":"externalSandbox"}}
+{"type":"SandboxPolicy","case":"WorkspaceWriteSandboxPolicy, every property","json":{"excludeSlashTmp":true,"excludeTmpdirEnvVar":true,"networkAccess":true,"type":"workspaceWrite","writableRoots":["text"]}}
+{"type":"SandboxPolicy","case":"WorkspaceWriteSandboxPolicy, required properties","json":{"type":"workspaceWrite"}}
+{"type":"SandboxWorkspaceWrite","case":"every property","json":{"exclude_slash_tmp":true,"exclude_tmpdir_env_var":true,"network_access":true,"writable_roots":["text"]}}
+{"type":"SandboxWorkspaceWrite","case":"required properties","json":{}}
+{"type":"ServerRequestResolvedNotification","case":"every property","json":{"requestId":"text","threadId":"text"}}
+{"type":"SessionSource","case":"value cli","json":"cli"}
+{"type":"SessionSource","case":"value vscode","json":"vscode"}
+{"type":"SessionSource","case":"value exec","json":"exec"}
+{"type":"SessionSource","case":"value appServer","json":"appServer"}
+{"type":"SessionSource","case":"value unknown","json":"unknown"}
+{"type":"SessionSource","case":"CustomSessionSource, every property","json":{"custom":"text"}}
+{"type":"SessionSource","case":"SubAgentSessionSource, every property","json":{"subAgent":"review"}}
+{"type":"Settings","case":"every property","json":{"developer_instructions":"text","model":"text","reasoning_effort":"text"}}
+{"type":"Settings","case":"required properties","json":{"model":"text"}}
+{"type":"SortDirection","case":"value asc","json":"asc"}
+{"type":"SortDirection","case":"value desc","json":"desc"}
+{"type":"SpendControlLimitSnapshot","case":"every property","json":{"limit":"text","remainingPercent":7,"resetsAt":7,"used":"text"}}
+{"type":"SubAgentActivityKind","case":"value started","json":"started"}
+{"type":"SubAgentActivityKind","case":"value interacted","json":"interacted"}
+{"type":"SubAgentActivityKind","case":"value interrupted","json":"interrupted"}
+{"type":"SubAgentActivityKind","case":"value completed","json":"completed"}
+{"type":"SubAgentSource","case":"value review","json":"review"}
+{"type":"SubAgentSource","case":"value compact","json":"compact"}
+{"type":"SubAgentSource","case":"value memory_consolidation","json":"memory_consolidation"}
+{"type":"SubAgentSource","case":"ThreadSpawnSubAgentSource, every property","json":{"thread_spawn":{"agent_nickname":"text","agent_path":"text","agent_role":"text","depth":7,"parent_thread_id":"text"}}}
+{"type":"SubAgentSource","case":"ThreadSpawnSubAgentSource, required properties","json":{"thread_spawn":{"depth":7,"parent_thread_id":"text"}}}
+{"type":"SubAgentSource","case":"OtherSubAgentSource, every property","json":{"other":"text"}}
+{"type":"TextElement","case":"every property","json":{"byteRange":{"end":7,"start":7},"placeholder":"text"}}
+{"type":"TextElement","case":"required properties","json":{"byteRange":{"end":7,"start":7}}}
+{"type":"Thread","case":"every property","json":{"agentNickname":"text","agentRole":"text","cliVersion":"text","createdAt":7,"cwd":"text","ephemeral":true,"forkedFromId":"text","gitInfo":{},"historyMode":"legacy","id":"text","model":"text","modelProvider":"text","name":"text","originator":"text","parentThreadId":"text","path":"text","preview":"text","projectId":"text","reasoningEffort":"text","recencyAt":7,"section":{"id":"text","name":"text"},"sectionEnteredAt":7,"sessionId":"text","source":"cli","status":{"type":"notLoaded"},"threadSource":"text","turns":[{"id":"text","items":[],"status":"completed"}],"updatedAt":7}}
+{"type":"Thread","case":"required properties","json":{"cliVersion":"text","createdAt":7,"cwd":"text","ephemeral":true,"id":"text","modelProvider":"text","preview":"text","projectId":null,"sessionId":"text","source":"cli","status":{"type":"notLoaded"},"turns":[],"updatedAt":7}}
+{"type":"ThreadActiveFlag","case":"value waitingOnApproval","json":"waitingOnApproval"}
+{"type":"ThreadActiveFlag","case":"value waitingOnUserInput","json":"waitingOnUserInput"}
+{"type":"ThreadClosedNotification","case":"every property","json":{"threadId":"text"}}
+{"type":"ThreadHistoryMode","case":"value legacy","json":"legacy"}
+{"type":"ThreadHistoryMode","case":"value paginated","json":"paginated"}
+{"type":"ThreadId","case":"value","json":"text"}
+{"type":"ThreadInjectItemsParams","case":"every property","json":{"items":[{"any":1}],"threadId":"text"}}
+{"type":"ThreadInjectItemsParams","case":"required properties","json":{"items":[],"threadId":"text"}}
+{"type":"ThreadInjectItemsResponse","case":"every property","json":{}}
+{"type":"ThreadItem","case":"UserMessageThreadItem, every property","json":{"completedAtMs":7,"startedAtMs":7,"clientId":"text","content":[{"text":"text","type":"text"}],"id":"text","type":"userMessage"}}
+{"type":"ThreadItem","case":"UserMessageThreadItem, required properties","json":{"content":[],"id":"text","type":"userMessage"}}
+{"type":"ThreadItem","case":"HookPromptThreadItem, every property","json":{"completedAtMs":7,"startedAtMs":7,"fragments":[{"hookRunId":"text","text":"text"}],"id":"text","type":"hookPrompt"}}
+{"type":"ThreadItem","case":"HookPromptThreadItem, required properties","json":{"fragments":[],"id":"text","type":"hookPrompt"}}
+{"type":"ThreadItem","case":"AgentMessageThreadItem, every property","json":{"completedAtMs":7,"startedAtMs":7,"delivery":"async","id":"text","memoryCitation":{"entries":[],"threadIds":[]},"moderation":{"moderated":true},"phase":"commentary","questions":[{"title":"text"}],"text":"text","type":"agentMessage"}}
+{"type":"ThreadItem","case":"AgentMessageThreadItem, required properties","json":{"id":"text","text":"text","type":"agentMessage"}}
+{"type":"ThreadItem","case":"FunctionCallOutputThreadItem, every property","json":{"completedAtMs":7,"startedAtMs":7,"id":"text","name":"text","namespace":"text","output":"text","type":"functionCallOutput"}}
+{"type":"ThreadItem","case":"FunctionCallOutputThreadItem, required properties","json":{"id":"text","name":"text","output":"text","type":"functionCallOutput"}}
+{"type":"ThreadItem","case":"PlanThreadItem, every property","json":{"completedAtMs":7,"startedAtMs":7,"id":"text","text":"text","type":"plan"}}
+{"type":"ThreadItem","case":"PlanThreadItem, required properties","json":{"id":"text","text":"text","type":"plan"}}
+{"type":"ThreadItem","case":"ReasoningThreadItem, every property","json":{"completedAtMs":7,"startedAtMs":7,"content":["text"],"id":"text","summary":["text"],"type":"reasoning"}}
+{"type":"ThreadItem","case":"ReasoningThreadItem, required properties","json":{"id":"text","type":"reasoning"}}
+{"type":"ThreadItem","case":"CommandExecutionThreadItem, every property","json":{"completedAtMs":7,"startedAtMs":7,"aggregatedOutput":"text","command":"text","commandActions":[{"command":"text","name":"text","path":"text","type":"read"}],"cwd":"text","durationMs":7,"exitCode":7,"id":"text","pluginId":"text","processId":"text","scriptPath":"text","source":"agent","status":"inProgress","type":"commandExecution"}}
+{"type":"ThreadItem","case":"CommandExecutionThreadItem, required properties","json":{"command":"text","commandActions":[],"cwd":"text","id":"text","status":"inProgress","type":"commandExecution"}}
+{"type":"ThreadItem","case":"FileChangeThreadItem, every property","json":{"completedAtMs":7,"startedAtMs":7,"changes":[{"diff":"text","kind":{"type":"add"},"path":"text"}],"id":"text","status":"inProgress","type":"fileChange"}}
+{"type":"ThreadItem","case":"FileChangeThreadItem, required properties","json":{"changes":[],"id":"text","status":"inProgress","type":"fileChange"}}
+{"type":"ThreadItem","case":"McpToolCallThreadItem, every property","json":{"completedAtMs":7,"startedAtMs":7,"appContext":{"connectorId":"text"},"arguments":{"any":1},"durationMs":7,"error":{"message":"text"},"id":"text","mcpAppResourceUri":"text","mcpAppUi":{"preferredModelDisplayMode":"inline","resourceUri":"text"},"pluginId":"text","readOnlyHint":true,"result":{"content":[]},"server":"text","status":"inProgress","tool":"text","type":"mcpToolCall"}}
+{"type":"ThreadItem","case":"McpToolCallThreadItem, required properties","json":{"arguments":{"any":1},"id":"text","server":"text","status":"inProgress","tool":"text","type":"mcpToolCall"}}
+{"type":"ThreadItem","case":"DynamicToolCallThreadItem, every property","json":{"completedAtMs":7,"startedAtMs":7,"arguments":{"any":1},"contentItems":[{"text":"text","type":"inputText"}],"durationMs":7,"id":"text","namespace":"text","status":"inProgress","success":true,"tool":"text","type":"dynamicToolCall"}}
+{"type":"ThreadItem","case":"DynamicToolCallThreadItem, required properties","json":{"arguments":{"any":1},"id":"text","status":"inProgress","tool":"text","type":"dynamicToolCall"}}
+{"type":"ThreadItem","case":"CollabAgentToolCallThreadItem, every property","json":{"completedAtMs":7,"startedAtMs":7,"agentsStates":{"key":{"status":"pendingInit"}},"id":"text","model":"text","prompt":"text","reasoningEffort":"text","receiverThreadIds":["text"],"senderThreadId":"text","status":"inProgress","tool":"spawnAgent","type":"collabAgentToolCall"}}
+{"type":"ThreadItem","case":"CollabAgentToolCallThreadItem, required properties","json":{"agentsStates":{},"id":"text","receiverThreadIds":[],"senderThreadId":"text","status":"inProgress","tool":"spawnAgent","type":"collabAgentToolCall"}}
+{"type":"ThreadItem","case":"SubAgentActivityThreadItem, every property","json":{"completedAtMs":7,"startedAtMs":7,"agentPath":"text","agentThreadId":"text","id":"text","kind":"started","model":"text","reasoningEffort":"text","type":"subAgentActivity"}}
+{"type":"ThreadItem","case":"SubAgentActivityThreadItem, required properties","json":{"agentPath":"text","agentThreadId":"text","id":"text","kind":"started","type":"subAgentActivity"}}
+{"type":"ThreadItem","case":"WebSearchThreadItem, every property","json":{"completedAtMs":7,"startedAtMs":7,"action":{"type":"search"},"id":"text","query":"text","results":[{"any":1}],"type":"webSearch"}}
+{"type":"ThreadItem","case":"WebSearchThreadItem, required properties","json":{"id":"text","query":"text","type":"webSearch"}}
+{"type":"ThreadItem","case":"ImageViewThreadItem, every property","json":{"completedAtMs":7,"startedAtMs":7,"id":"text","path":"text","type":"imageView"}}
+{"type":"ThreadItem","case":"ImageViewThreadItem, required properties","json":{"id":"text","path":"text","type":"imageView"}}
+{"type":"ThreadItem","case":"SleepThreadItem, every property","json":{"completedAtMs":7,"startedAtMs":7,"durationMs":7,"id":"text","type":"sleep"}}
+{"type":"ThreadItem","case":"SleepThreadItem, required properties","json":{"durationMs":7,"id":"text","type":"sleep"}}
+{"type":"ThreadItem","case":"ImageGenerationThreadItem, every property","json":{"completedAtMs":7,"startedAtMs":7,"failure":{"limitId":"text","type":"usageLimitExceeded"},"generationId":"text","id":"text","inputImages":[{"path":"text","sha256":"text"}],"revisedPrompt":"text","savedPath":"text","status":"text","transparentBackground":true,"type":"imageGeneration","fileId":"text","result":"text"}}
+{"type":"ThreadItem","case":"ImageGenerationThreadItem, required properties","json":{"id":"text","status":"text","type":"imageGeneration","fileId":"text"}}
+{"type":"ThreadItem","case":"EnteredReviewModeThreadItem, every property","json":{"completedAtMs":7,"startedAtMs":7,"id":"text","review":"text","type":"enteredReviewMode"}}
+{"type":"ThreadItem","case":"EnteredReviewModeThreadItem, required properties","json":{"id":"text","review":"text","type":"enteredReviewMode"}}
+{"type":"ThreadItem","case":"ExitedReviewModeThreadItem, every property","json":{"completedAtMs":7,"startedAtMs":7,"id":"text","review":"text","type":"exitedReviewMode"}}
+{"type":"ThreadItem","case":"ExitedReviewModeThreadItem, required properties","json":{"id":"text","review":"text","type":"exitedReviewMode"}}
+{"type":"ThreadItem","case":"ContextCompactionThreadItem, every property","json":{"completedAtMs":7,"startedAtMs":7,"id":"text","type":"contextCompaction"}}
+{"type":"ThreadItem","case":"ContextCompactionThreadItem, required properties","json":{"id":"text","type":"contextCompaction"}}
+{"type":"ThreadItemEntry","case":"every property","json":{"completedAtMs":7,"item":{"content":[],"id":"text","type":"userMessage"},"startedAtMs":7,"turnId":"text"}}
+{"type":"ThreadItemEntry","case":"required properties","json":{"item":{"content":[],"id":"text","type":"userMessage"},"turnId":"text"}}
+{"type":"ThreadItemOutputDeferral","case":"every property","json":{}}
+{"type":"ThreadItemsListAnchor","case":"ItemThreadItemsListAnchor, every property","json":{"itemId":"text","type":"item"}}
+{"type":"ThreadItemsListCursor","case":"alternative 1, every property","json":"text"}
+{"type":"ThreadItemsListCursor","case":"ThreadItemsListAnchor, every property","json":{"itemId":"text","type":"item"}}
+{"type":"ThreadItemsListParams","case":"every property","json":{"cursor":"text","deferOutput":{},"limit":7,"sortDirection":"asc","threadId":"text","turnId":"text"}}
+{"type":"ThreadItemsListParams","case":"required properties","json":{"threadId":"text"}}
+{"type":"ThreadItemsListResponse","case":"every property","json":{"backwardsCursor":"text","data":[{"item":{"content":[],"id":"text","type":"userMessage"},"turnId":"text"}],"nextCursor":"text"}}
+{"type":"ThreadItemsListResponse","case":"required properties","json":{"data":[]}}
+{"type":"ThreadLoadedListParams","case":"every property","json":{"cursor":"text","limit":7}}
+{"type":"ThreadLoadedListParams","case":"required properties","json":{}}
+{"type":"ThreadLoadedListResponse","case":"every property","json":{"data":["text"],"nextCursor":"text"}}
+{"type":"ThreadLoadedListResponse","case":"required properties","json":{"data":[]}}
+{"type":"ThreadReadParams","case":"every property","json":{"includeTurns":true,"threadId":"text"}}
+{"type":"ThreadReadParams","case":"required properties","json":{"threadId":"text"}}
+{"type":"ThreadReadResponse","case":"every property","json":{"thread":{"cliVersion":"text","createdAt":7,"cwd":"text","ephemeral":true,"id":"text","modelProvider":"text","preview":"text","projectId":null,"sessionId":"text","source":"cli","status":{"type":"notLoaded"},"turns":[],"updatedAt":7}}}
+{"type":"ThreadResumeParams","case":"every property","json":{"approvalPolicy":"untrusted","approvalsReviewer":"user","baseInstructions":"text","config":{},"cwd":"text","developerInstructions":"text","excludeTurns":true,"model":"text","modelProvider":"text","personality":"none","sandbox":"read-only","serviceTier":"text","threadId":"text"}}
+{"type":"ThreadResumeParams","case":"required properties","json":{"threadId":"text"}}
+{"type":"ThreadResumeResponse","case":"every property","json":{"approvalPolicy":"untrusted","approvalsReviewer":"user","collaborationMode":{"mode":"plan","settings":{"model":"text"}},"cwd":"text","disabledPluginIds":["text"],"instructionSources":["text"],"itemsBackwardsCursor":"text","model":"text","modelProvider":"text","reasoningEffort":"text","sandbox":{"type":"dangerFullAccess"},"serviceTier":"text","thread":{"cliVersion":"text","createdAt":7,"cwd":"text","ephemeral":true,"id":"text","modelProvider":"text","preview":"text","projectId":null,"sessionId":"text","source":"cli","status":{"type":"notLoaded"},"turns":[],"updatedAt":7},"turnsBackwardsCursor":"text"}}
+{"type":"ThreadResumeResponse","case":"required properties","json":{"approvalPolicy":"untrusted","approvalsReviewer":"user","cwd":"text","model":"text","modelProvider":"text","sandbox":{"type":"dangerFullAccess"},"thread":{"cliVersion":"text","createdAt":7,"cwd":"text","ephemeral":true,"id":"text","modelProvider":"text","preview":"text","projectId":null,"sessionId":"text","source":"cli","status":{"type":"notLoaded"},"turns":[],"updatedAt":7}}}
+{"type":"ThreadSection","case":"every property","json":{"appearance":{},"id":"text","name":"text"}}
+{"type":"ThreadSection","case":"required properties","json":{"id":"text","name":"text"}}
+{"type":"ThreadSectionAppearance","case":"every property","json":{"color":"text","icon":"text"}}
+{"type":"ThreadSectionAppearance","case":"required properties","json":{}}
+{"type":"ThreadSettings","case":"every property","json":{"activePermissionProfile":{"id":"text"},"approvalPolicy":"untrusted","approvalsReviewer":"user","collaborationMode":{"mode":"plan","settings":{"model":"text"}},"cwd":"text","disabledPluginIds":["text"],"effort":"text","model":"text","modelProvider":"text","personality":"none","sandboxPolicy":{"type":"dangerFullAccess"},"serviceTier":"text","summary":"auto"}}
+{"type":"ThreadSettings","case":"required properties","json":{"approvalPolicy":"untrusted","approvalsReviewer":"user","collaborationMode":{"mode":"plan","settings":{"model":"text"}},"cwd":"text","model":"text","modelProvider":"text","sandboxPolicy":{"type":"dangerFullAccess"}}}
+{"type":"ThreadSettingsUpdatedNotification","case":"every property","json":{"threadId":"text","threadSettings":{"approvalPolicy":"untrusted","approvalsReviewer":"user","collaborationMode":{"mode":"plan","settings":{"model":"text"}},"cwd":"text","model":"text","modelProvider":"text","sandboxPolicy":{"type":"dangerFullAccess"}}}}
+{"type":"ThreadSource","case":"value","json":"text"}
+{"type":"ThreadStartParams","case":"every property","json":{"approvalPolicy":"untrusted","approvalsReviewer":"user","baseInstructions":"text","config":{},"cwd":"text","developerInstructions":"text","ephemeral":true,"model":"text","modelProvider":"text","personality":"none","sandbox":"read-only","serviceName":"text","serviceTier":"text","sessionStartSource":"startup","threadSource":"text"}}
+{"type":"ThreadStartParams","case":"required properties","json":{}}
+{"type":"ThreadStartResponse","case":"every property","json":{"approvalPolicy":"untrusted","approvalsReviewer":"user","cwd":"text","disabledPluginIds":["text"],"instructionSources":["text"],"model":"text","modelProvider":"text","reasoningEffort":"text","sandbox":{"type":"dangerFullAccess"},"serviceTier":"text","thread":{"cliVersion":"text","createdAt":7,"cwd":"text","ephemeral":true,"id":"text","modelProvider":"text","preview":"text","projectId":null,"sessionId":"text","source":"cli","status":{"type":"notLoaded"},"turns":[],"updatedAt":7}}}
+{"type":"ThreadStartResponse","case":"required properties","json":{"approvalPolicy":"untrusted","approvalsReviewer":"user","cwd":"text","model":"text","modelProvider":"text","sandbox":{"type":"dangerFullAccess"},"thread":{"cliVersion":"text","createdAt":7,"cwd":"text","ephemeral":true,"id":"text","modelProvider":"text","preview":"text","projectId":null,"sessionId":"text","source":"cli","status":{"type":"notLoaded"},"turns":[],"updatedAt":7}}}
+{"type":"ThreadStartSource","case":"value startup","json":"startup"}
+{"type":"ThreadStartSource","case":"value clear","json":"clear"}
+{"type":"ThreadStartedNotification","case":"every property","json":{"thread":{"cliVersion":"text","createdAt":7,"cwd":"text","ephemeral":true,"id":"text","modelProvider":"text","preview":"text","projectId":null,"sessionId":"text","source":"cli","status":{"type":"notLoaded"},"turns":[],"updatedAt":7}}}
+{"type":"ThreadStatus","case":"NotLoadedThreadStatus, every property","json":{"type":"notLoaded"}}
+{"type":"ThreadStatus","case":"IdleThreadStatus, every property","json":{"type":"idle"}}
+{"type":"ThreadStatus","case":"SystemErrorThreadStatus, every property","json":{"type":"systemError"}}
+{"type":"ThreadStatus","case":"ActiveThreadStatus, every property","json":{"activeFlags":["waitingOnApproval"],"type":"active"}}
+{"type":"ThreadStatus","case":"ActiveThreadStatus, required properties","json":{"activeFlags":[],"type":"active"}}
+{"type":"ThreadStatusChangedNotification","case":"every property","json":{"status":{"type":"notLoaded"},"threadId":"text"}}
+{"type":"ThreadTokenUsage","case":"every property","json":{"last":{"cachedInputTokens":7,"inputTokens":7,"outputTokens":7,"reasoningOutputTokens":7,"totalTokens":7},"modelContextWindow":7,"total":{"cachedInputTokens":7,"inputTokens":7,"outputTokens":7,"reasoningOutputTokens":7,"totalTokens":7}}}
+{"type":"ThreadTokenUsage","case":"required properties","json":{"last":{"cachedInputTokens":7,"inputTokens":7,"outputTokens":7,"reasoningOutputTokens":7,"totalTokens":7},"total":{"cachedInputTokens":7,"inputTokens":7,"outputTokens":7,"reasoningOutputTokens":7,"totalTokens":7}}}
+{"type":"ThreadTokenUsageUpdatedNotification","case":"every property","json":{"threadId":"text","tokenUsage":{"last":{"cachedInputTokens":7,"inputTokens":7,"outputTokens":7,"reasoningOutputTokens":7,"totalTokens":7},"total":{"cachedInputTokens":7,"inputTokens":7,"outputTokens":7,"reasoningOutputTokens":7,"totalTokens":7}},"turnId":"text"}}
+{"type":"TokenUsageBreakdown","case":"every property","json":{"cacheWriteInputTokens":7,"cachedInputTokens":7,"inputTokens":7,"outputTokens":7,"reasoningOutputTokens":7,"totalTokens":7}}
+{"type":"TokenUsageBreakdown","case":"required properties","json":{"cachedInputTokens":7,"inputTokens":7,"outputTokens":7,"reasoningOutputTokens":7,"totalTokens":7}}
+{"type":"Tool","case":"every property","json":{"_meta":{"any":1},"annotations":{"any":1},"description":"text","icons":[{"any":1}],"inputSchema":{"any":1},"name":"text","outputSchema":{"any":1},"title":"text"}}
+{"type":"Tool","case":"required properties","json":{"inputSchema":{"any":1},"name":"text"}}
+{"type":"ToolRequestUserInputAnswer","case":"every property","json":{"answers":["text"]}}
+{"type":"ToolRequestUserInputAnswer","case":"required properties","json":{"answers":[]}}
+{"type":"ToolRequestUserInputOption","case":"every property","json":{"description":"text","label":"text"}}
+{"type":"ToolRequestUserInputParams","case":"every property","json":{"autoResolutionMs":7,"isBlocking":true,"itemId":"text","questions":[{"header":"text","id":"text","question":"text"}],"threadId":"text","turnId":"text"}}
+{"type":"ToolRequestUserInputParams","case":"required properties","json":{"isBlocking":true,"itemId":"text","questions":[],"threadId":"text","turnId":"text"}}
+{"type":"ToolRequestUserInputQuestion","case":"every property","json":{"header":"text","id":"text","isOther":true,"isSecret":true,"options":[{"description":"text","label":"text"}],"question":"text"}}
+{"type":"ToolRequestUserInputQuestion","case":"required properties","json":{"header":"text","id":"text","question":"text"}}
+{"type":"ToolRequestUserInputResponse","case":"every property","json":{"answers":{"key":{"answers":[]}}}}
+{"type":"ToolRequestUserInputResponse","case":"required properties","json":{"answers":{}}}
+{"type":"ToolsV2","case":"every property","json":{"web_search":{}}}
+{"type":"ToolsV2","case":"required properties","json":{}}
+{"type":"TrustedContacts","case":"value check","json":"check"}
+{"type":"TrustedContacts","case":"value skip","json":"skip"}
+{"type":"Turn","case":"every property","json":{"completedAt":7,"durationMs":7,"error":{"message":"text"},"id":"text","items":[{"content":[],"id":"text","type":"userMessage"}],"itemsView":"notLoaded","rootTurnId":"text","startedAt":7,"status":"completed"}}
+{"type":"Turn","case":"required properties","json":{"id":"text","items":[],"status":"completed"}}
+{"type":"TurnCompletedNotification","case":"every property","json":{"threadId":"text","turn":{"id":"text","items":[],"status":"completed"}}}
+{"type":"TurnDiffUpdatedNotification","case":"every property","json":{"diff":"text","threadId":"text","turnId":"text"}}
+{"type":"TurnError","case":"every property","json":{"additionalDetails":"text","codexErrorInfo":"contextWindowExceeded","message":"text","misalignment":{}}}
+{"type":"TurnError","case":"required properties","json":{"message":"text"}}
+{"type":"TurnInterruptParams","case":"every property","json":{"threadId":"text","turnId":"text"}}
+{"type":"TurnInterruptResponse","case":"every property","json":{}}
+{"type":"TurnItemsView","case":"value notLoaded","json":"notLoaded"}
+{"type":"TurnItemsView","case":"value summary","json":"summary"}
+{"type":"TurnItemsView","case":"value full","json":"full"}
+{"type":"TurnPlanStep","case":"every property","json":{"status":"pending","step":"text"}}
+{"type":"TurnPlanStepStatus","case":"value pending","json":"pending"}
+{"type":"TurnPlanStepStatus","case":"value inProgress","json":"inProgress"}
+{"type":"TurnPlanStepStatus","case":"value completed","json":"completed"}
+{"type":"TurnPlanUpdatedNotification","case":"every property","json":{"explanation":"text","plan":[{"status":"pending","step":"text"}],"threadId":"text","turnId":"text"}}
+{"type":"TurnPlanUpdatedNotification","case":"required properties","json":{"plan":[],"threadId":"text","turnId":"text"}}
+{"type":"TurnStartParams","case":"every property","json":{"approvalPolicy":"untrusted","approvalsReviewer":"user","clientUserMessageId":"text","cwd":"text","disabledPluginIds":["text"],"effort":"text","input":[{"text":"text","type":"text"}],"model":"text","outputSchema":{"any":1},"parentTurnId":"text","personality":"none","rootTurnId":"text","sandboxPolicy":{"type":"dangerFullAccess"},"serviceTier":"text","serviceTierForTurn":"text","summary":"auto","threadId":"text","toolOutput":{"name":"text","output":"text"},"turnTrigger":"text"}}
+{"type":"TurnStartParams","case":"required properties","json":{"input":[],"threadId":"text"}}
+{"type":"TurnStartResponse","case":"every property","json":{"turn":{"id":"text","items":[],"status":"completed"}}}
+{"type":"TurnStartedNotification","case":"every property","json":{"threadId":"text","turn":{"id":"text","items":[],"status":"completed"}}}
+{"type":"TurnStatus","case":"value completed","json":"completed"}
+{"type":"TurnStatus","case":"value interrupted","json":"interrupted"}
+{"type":"TurnStatus","case":"value failed","json":"failed"}
+{"type":"TurnStatus","case":"value inProgress","json":"inProgress"}
+{"type":"TurnSteerParams","case":"every property","json":{"clientUserMessageId":"text","expectedTurnId":"text","input":[{"text":"text","type":"text"}],"threadId":"text"}}
+{"type":"TurnSteerParams","case":"required properties","json":{"expectedTurnId":"text","input":[],"threadId":"text"}}
+{"type":"TurnSteerResponse","case":"every property","json":{"turnId":"text"}}
+{"type":"TurnToolOutput","case":"every property","json":{"name":"text","namespace":"text","output":"text","retain":true}}
+{"type":"TurnToolOutput","case":"required properties","json":{"name":"text","output":"text"}}
+{"type":"UserInput","case":"TextUserInput, every property","json":{"text":"text","text_elements":[{"byteRange":{"end":7,"start":7}}],"type":"text"}}
+{"type":"UserInput","case":"TextUserInput, required properties","json":{"text":"text","type":"text"}}
+{"type":"UserInput","case":"ImageUserInput, every property","json":{"detail":"auto","type":"image","url":"text"}}
+{"type":"UserInput","case":"ImageUserInput, required properties","json":{"type":"image","url":"text"}}
+{"type":"UserInput","case":"LocalImageUserInput, every property","json":{"detail":"auto","path":"text","type":"localImage"}}
+{"type":"UserInput","case":"LocalImageUserInput, required properties","json":{"path":"text","type":"localImage"}}
+{"type":"UserInput","case":"AudioUserInput, every property","json":{"type":"audio","url":"text"}}
+{"type":"UserInput","case":"LocalAudioUserInput, every property","json":{"path":"text","type":"localAudio"}}
+{"type":"UserInput","case":"SkillUserInput, every property","json":{"name":"text","path":"text","type":"skill"}}
+{"type":"UserInput","case":"MentionUserInput, every property","json":{"name":"text","path":"text","type":"mention"}}
+{"type":"Verbosity","case":"value low","json":"low"}
+{"type":"Verbosity","case":"value medium","json":"medium"}
+{"type":"Verbosity","case":"value high","json":"high"}
+{"type":"WarningNotification","case":"every property","json":{"message":"text","threadId":"text"}}
+{"type":"WarningNotification","case":"required properties","json":{"message":"text"}}
+{"type":"WebSearchAction","case":"SearchWebSearchAction, every property","json":{"queries":["text"],"query":"text","type":"search"}}
+{"type":"WebSearchAction","case":"SearchWebSearchAction, required properties","json":{"type":"search"}}
+{"type":"WebSearchAction","case":"OpenPageWebSearchAction, every property","json":{"type":"openPage","url":"text"}}
+{"type":"WebSearchAction","case":"OpenPageWebSearchAction, required properties","json":{"type":"openPage"}}
+{"type":"WebSearchAction","case":"FindInPageWebSearchAction, every property","json":{"pattern":"text","type":"findInPage","url":"text"}}
+{"type":"WebSearchAction","case":"FindInPageWebSearchAction, required properties","json":{"type":"findInPage"}}
+{"type":"WebSearchAction","case":"OtherWebSearchAction, every property","json":{"type":"other"}}
+{"type":"WebSearchContextSize","case":"value low","json":"low"}
+{"type":"WebSearchContextSize","case":"value medium","json":"medium"}
+{"type":"WebSearchContextSize","case":"value high","json":"high"}
+{"type":"WebSearchLocation","case":"every property","json":{"city":"text","country":"text","region":"text","timezone":"text"}}
+{"type":"WebSearchLocation","case":"required properties","json":{}}
+{"type":"WebSearchMode","case":"value disabled","json":"disabled"}
+{"type":"WebSearchMode","case":"value cached","json":"cached"}
+{"type":"WebSearchMode","case":"value indexed","json":"indexed"}
+{"type":"WebSearchMode","case":"value live","json":"live"}
+{"type":"WebSearchProvider","case":"value standalone","json":"standalone"}
+{"type":"WebSearchProvider","case":"value search_mcp","json":"search_mcp"}
+{"type":"WebSearchToolConfig","case":"every property","json":{"allowed_domains":["text"],"context_size":"low","location":{}}}
+{"type":"WebSearchToolConfig","case":"required properties","json":{}}
+{"type":"ServerNotification","case":"error","json":{"method":"error","params":{"error":{"message":"text"},"threadId":"text","turnId":"text","willRetry":true}}}
+{"type":"ServerNotification","case":"warning","json":{"method":"warning","params":{"message":"text","threadId":"text"}}}
+{"type":"ServerNotification","case":"thread/started","json":{"method":"thread/started","params":{"thread":{"cliVersion":"text","createdAt":7,"cwd":"text","ephemeral":true,"id":"text","modelProvider":"text","preview":"text","projectId":null,"sessionId":"text","source":"cli","status":{"type":"notLoaded"},"turns":[],"updatedAt":7}}}}
+{"type":"ServerNotification","case":"thread/status/changed","json":{"method":"thread/status/changed","params":{"status":{"type":"notLoaded"},"threadId":"text"}}}
+{"type":"ServerNotification","case":"thread/closed","json":{"method":"thread/closed","params":{"threadId":"text"}}}
+{"type":"ServerNotification","case":"thread/settings/updated","json":{"method":"thread/settings/updated","params":{"threadId":"text","threadSettings":{"approvalPolicy":"untrusted","approvalsReviewer":"user","collaborationMode":{"mode":"plan","settings":{"model":"text"}},"cwd":"text","model":"text","modelProvider":"text","sandboxPolicy":{"type":"dangerFullAccess"}}}}}
+{"type":"ServerNotification","case":"thread/tokenUsage/updated","json":{"method":"thread/tokenUsage/updated","params":{"threadId":"text","tokenUsage":{"last":{"cachedInputTokens":7,"inputTokens":7,"outputTokens":7,"reasoningOutputTokens":7,"totalTokens":7},"total":{"cachedInputTokens":7,"inputTokens":7,"outputTokens":7,"reasoningOutputTokens":7,"totalTokens":7}},"turnId":"text"}}}
+{"type":"ServerNotification","case":"thread/compacted","json":{"method":"thread/compacted","params":{"threadId":"text","turnId":"text"}}}
+{"type":"ServerNotification","case":"turn/started","json":{"method":"turn/started","params":{"threadId":"text","turn":{"id":"text","items":[],"status":"completed"}}}}
+{"type":"ServerNotification","case":"turn/completed","json":{"method":"turn/completed","params":{"threadId":"text","turn":{"id":"text","items":[],"status":"completed"}}}}
+{"type":"ServerNotification","case":"turn/plan/updated","json":{"method":"turn/plan/updated","params":{"explanation":"text","plan":[{"status":"pending","step":"text"}],"threadId":"text","turnId":"text"}}}
+{"type":"ServerNotification","case":"turn/diff/updated","json":{"method":"turn/diff/updated","params":{"diff":"text","threadId":"text","turnId":"text"}}}
+{"type":"ServerNotification","case":"item/started","json":{"method":"item/started","params":{"item":{"content":[],"id":"text","type":"userMessage"},"startedAtMs":7,"threadId":"text","turnId":"text"}}}
+{"type":"ServerNotification","case":"item/completed","json":{"method":"item/completed","params":{"completedAtMs":7,"contentTokenCount":7,"item":{"content":[],"id":"text","type":"userMessage"},"threadId":"text","turnId":"text"}}}
+{"type":"ServerNotification","case":"item/agentMessage/delta","json":{"method":"item/agentMessage/delta","params":{"delta":"text","itemId":"text","threadId":"text","turnId":"text"}}}
+{"type":"ServerNotification","case":"item/plan/delta","json":{"method":"item/plan/delta","params":{"delta":"text","itemId":"text","threadId":"text","turnId":"text"}}}
+{"type":"ServerNotification","case":"item/commandExecution/outputDelta","json":{"method":"item/commandExecution/outputDelta","params":{"delta":"text","itemId":"text","threadId":"text","turnId":"text"}}}
+{"type":"ServerNotification","case":"item/fileChange/patchUpdated","json":{"method":"item/fileChange/patchUpdated","params":{"changes":[{"diff":"text","kind":{"type":"add"},"path":"text"}],"itemId":"text","threadId":"text","turnId":"text"}}}
+{"type":"ServerNotification","case":"item/mcpToolCall/progress","json":{"method":"item/mcpToolCall/progress","params":{"itemId":"text","message":"text","threadId":"text","turnId":"text"}}}
+{"type":"ServerNotification","case":"serverRequest/resolved","json":{"method":"serverRequest/resolved","params":{"requestId":"text","threadId":"text"}}}
+{"type":"ServerNotification","case":"account/rateLimits/updated","json":{"method":"account/rateLimits/updated","params":{"rateLimits":{}}}}
+{"type":"ServerNotification","case":"mcpServer/startupStatus/updated","json":{"method":"mcpServer/startupStatus/updated","params":{"error":"text","failureReason":"reauthenticationRequired","name":"text","status":"starting","threadId":"text"}}}
+{"type":"ServerNotification","case":"model/rerouted","json":{"method":"model/rerouted","params":{"fromModel":"text","reason":"highRiskCyberActivity","threadId":"text","toModel":"text","turnId":"text"}}}
+{"type":"ServerRequest","case":"item/commandExecution/requestApproval","json":{"method":"item/commandExecution/requestApproval","params":{"approvalId":"text","command":"text","commandActions":[{"command":"text","name":"text","path":"text","type":"read"}],"cwd":"text","environmentId":"text","itemId":"text","kind":"command","networkApprovalContext":{"host":"text","protocol":"http"},"proposedExecpolicyAmendment":["text"],"proposedNetworkPolicyAmendments":[{"action":"allow","host":"text"}],"reason":"text","startedAtMs":7,"threadId":"text","turnId":"text"}}}
+{"type":"ServerRequest","case":"item/fileChange/requestApproval","json":{"method":"item/fileChange/requestApproval","params":{"grantRoot":"text","itemId":"text","reason":"text","startedAtMs":7,"threadId":"text","turnId":"text"}}}
+{"type":"ServerRequest","case":"item/permissions/requestApproval","json":{"method":"item/permissions/requestApproval","params":{"cwd":"text","environmentId":"text","itemId":"text","permissions":{},"reason":"text","startedAtMs":7,"threadId":"text","turnId":"text"}}}
+{"type":"ServerRequest","case":"item/tool/requestUserInput","json":{"method":"item/tool/requestUserInput","params":{"autoResolutionMs":7,"isBlocking":true,"itemId":"text","questions":[{"header":"text","id":"text","question":"text"}],"threadId":"text","turnId":"text"}}}
+{"type":"ServerRequest","case":"mcpServer/elicitation/request","json":{"method":"mcpServer/elicitation/request","params":{"serverName":"text","threadId":"text","turnId":"text","_meta":{"any":1},"message":"text","mode":"form","requestedSchema":{"properties":{},"type":"object"}}}}

@@ -1,0 +1,58 @@
+{
+  "codex": "0.170.0",
+  "experimental": false,
+  "clientRequests": [
+    "initialize",
+    "thread/start",
+    "thread/resume",
+    "thread/read",
+    "thread/inject_items",
+    "thread/loaded/list",
+    "thread/items/list",
+    "turn/start",
+    "turn/steer",
+    "turn/interrupt",
+    "account/rateLimits/read",
+    "model/list",
+    "mcpServerStatus/list",
+    "config/read"
+  ],
+  "clientNotifications": [
+    "initialized"
+  ],
+  "serverRequests": [
+    "item/commandExecution/requestApproval",
+    "item/fileChange/requestApproval",
+    "item/permissions/requestApproval",
+    "item/tool/requestUserInput",
+    "mcpServer/elicitation/request"
+  ],
+  "serverNotifications": [
+    "error",
+    "warning",
+    "thread/started",
+    "thread/status/changed",
+    "thread/closed",
+    "thread/settings/updated",
+    "thread/tokenUsage/updated",
+    "thread/compacted",
+    "turn/started",
+    "turn/completed",
+    "turn/plan/updated",
+    "turn/diff/updated",
+    "item/started",
+    "item/completed",
+    "item/agentMessage/delta",
+    "item/plan/delta",
+    "item/commandExecution/outputDelta",
+    "item/fileChange/patchUpdated",
+    "item/mcpToolCall/progress",
+    "serverRequest/resolved",
+    "account/rateLimits/updated",
+    "mcpServer/startupStatus/updated",
+    "model/rerouted"
+  ],
+  "responseOverrides": {
+    "account/rateLimits/read": "GetAccountRateLimitsResponse"
+  }
+}

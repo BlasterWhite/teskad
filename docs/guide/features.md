@@ -2,13 +2,13 @@
 
 [← Hangar](../../README.md) · [Guide](README.md)
 
-![Hangar.AI 2.0 on the checkout-v2 workspace: Iris, the orchestrator, sums up the round her workers just finished. Leo's partial refunds and Zoe's CSV export passed their check and their review, all 95 tests pass, and two deliveries wait for you to merge them; she lists what is left for you, the EU card provider and the shipping rates among it. Leo and Zoe, each in a git worktree of its own, have handed in their branches. On the right, the inspector shows Iris's session, her context use, her cost and the Claude plan's usage.](../../.github/assets/hero.webp)
+![HangarAI 2.0 on the checkout-v2 workspace: Iris, the orchestrator, sums up the round her workers just finished. Leo's partial refunds and Zoe's CSV export passed their check and their review, all 95 tests pass, and two deliveries wait for you to merge them; she lists what is left for you, the EU card provider and the shipping rates among it. Leo and Zoe, each in a git worktree of its own, have handed in their branches. On the right, the inspector shows Iris's session, her context use, her cost and the Claude plan's usage.](../../.github/assets/hero.webp)
 
 <p align="center"><sub>Hangar 2.0's panes view on checkout-v2, a sample repository.</sub></p>
 
-Hangar.AI is an open-source desktop app for Windows, macOS and Linux. It runs Claude Code,
-as many sessions as you need, each in a real terminal next to plain shells, and gives them
-a shared place to coordinate.
+HangarAI is an open-source desktop app for Windows, macOS and Linux. It runs coding agents,
+Claude Code and Codex (beta), as many sessions as you need, each in a real terminal next to
+plain shells, and gives them a shared place to coordinate.
 
 **Hangar 2.0 is native.** The whole app is written in Rust and drawn with
 [iced](https://iced.rs), with no web view in it: it starts faster, and sixteen busy
@@ -16,8 +16,9 @@ terminals take a few hundred megabytes instead of several gigabytes
 ([Performance](#performance)). It reads the data of Hangar 1.x as it is, and a 1.x install
 updates to it by itself.
 
-Hangar launches the Claude Code installed on your machine, with your accounts and your
-settings. It is not a model provider, and it has no online service of its own.
+Hangar launches the agents installed on your machine, Claude Code, Codex or both, with your
+accounts and your settings. Either one alone is enough. It is not a model provider, and it
+has no online service of its own.
 
 ## An interface built like an IDE
 
@@ -34,19 +35,30 @@ settings. It is not a model provider, and it has no online service of its own.
 
 ## Agents and terminals
 
-- **Claude Code and shells.** Each pane runs Claude Code or a plain shell: PowerShell,
-  cmd, Git Bash, WSL, zsh, bash, fish, Nushell… Since 2.0, Claude Code is the only agent;
-  a pane saved with Codex, Gemini CLI or OpenCode opens as a shell in the same folder.
+- **Claude Code, Codex and shells.** Each pane runs Claude Code, Codex (beta) or a plain
+  shell: PowerShell, cmd, Git Bash, WSL, zsh, bash, fish, Nushell… A pane saved with Gemini
+  CLI or OpenCode, which 2.0 dropped, opens as a shell in the same folder. What differs with
+  Codex: [Codex (beta)](codex.md).
 - **Terminals of its own.** Hangar draws its terminals itself, on alacritty_terminal: true
   colour, mouse modes, links, search, bracketed paste, and dead keys that compose.
-- **Session resume.** Claude Code panes reopen on the conversation they were in.
-- **Claude Code bridge.** A small mod reports turns, permission prompts, context fill and
-  plan usage, so pane states are exact rather than guessed. When an agent edits a file
-  another pane just changed, it is told who changed it and asked to re-read it.
-- **Broadcast.** Send one instruction to every pane at once. Claude Code panes can also
-  hold it until their agent is free.
+- **Session resume.** Agent panes reopen on the conversation they were in.
+- **A side channel per agent.** For Claude Code, a small mod (hangar-bridge); for Codex,
+  Hangar attaches to the server Codex's own terminal runs on. Either reports turns,
+  permission prompts, context fill and plan usage, so pane states are exact rather than
+  guessed. When an agent edits a file another pane just changed, it is told who changed it
+  and asked to re-read it. Without one (the mod off, a Codex Hangar cannot attach to), Hangar
+  reads the terminal as before.
+- **Broadcast.** Send one instruction to every pane at once. Agent panes with a side channel
+  can also hold it until their agent is free.
 - **Pane tools.** Zoom a pane to the full grid, search its scrollback, drop a file on it
   to paste its path, or run a saved command in it.
+- **Pinned panes.** Pin a pane (*Pin in place* in its « … » menu, or the pin of a preview's
+  header) and it keeps its edge of the grid and its size there, in pixels, however many
+  panes and workers open or close: the others share the room it leaves, and a pin shows
+  beside its name. Drag its divider to change the size it keeps, between 150 px and 70% of
+  the grid. Click the pin, or *Unpin this pane*, to let it go; a pinned pane is not moved
+  by drag and drop until then. *Pin the focused pane in place, or unpin it* is in the
+  palette, and can be given a shortcut in the settings.
 
 ## Workspaces
 
@@ -61,8 +73,8 @@ settings. It is not a model provider, and it has no online service of its own.
   folder* in the settings; left empty, it is next to the current workspace's folder.
 - **Sleep.** A workspace idle for 10 minutes is put to sleep to free memory. When you open
   it again, its agents resume their sessions. You can change the delay or turn this off.
-- **MCP servers per workspace.** Choose which MCP servers a workspace's Claude Code panes
-  start, instead of starting every configured server in every pane.
+- **MCP servers per workspace.** Choose which MCP servers a workspace's agent panes start,
+  instead of starting every configured server in every pane.
 - **Git worktrees and diffs.** Create, lock and remove worktrees, open one in a pane or in
   its own workspace, and see what an agent changed in its folder.
 
@@ -74,8 +86,8 @@ settings. It is not a model provider, and it has no online service of its own.
 - **Global memory.** Agents search, write and update facts across projects. You can browse
   and edit them in the Memory view.
 - **Usage statistics.** Tokens, active time and the equivalent cost at API prices, per
-  project and model. They are read from the transcripts Claude Code keeps on disk. On a
-  Claude subscription, the cost figure is an equivalent, not a bill.
+  project, model and agent. They are read from the transcripts Claude Code and Codex keep on
+  disk. On a subscription, the cost figure is an equivalent, not a bill.
 
 ![The board of a workspace: one task to do, blocked until you pick the EU card provider; two in review, each labelled ready-to-land, with the worker that did it; and seven done](../../.github/assets/board.webp)
 
@@ -83,8 +95,8 @@ settings. It is not a model provider, and it has no online service of its own.
 
 ## Kits and previews
 
-- **Kits** bring a domain into Hangar: a Claude Code plugin, setup commands, and tabs of
-  their own. A tab is either an HTML page or, new in 2.0, a native tab written in Rust and
+- **Kits** bring a domain into Hangar: a plugin for the agents (skills, MCP servers,
+  hooks…), setup commands, and tabs of their own. A tab is either an HTML page or, new in 2.0, a native tab written in Rust and
   compiled to WebAssembly, which Hangar draws in your theme. The **Library** in
   **Settings → Kits** lists the public kits of the [hangar-ai](https://github.com/hangar-ai)
   organization. See [Kits](#kits).
@@ -108,16 +120,17 @@ holds a card that brings the window forward, and closing the pane closes the win
 Settings › Experiments turns on features that work but may still change. They are off
 until you enable them, and each can be turned off again without losing anything.
 
-- **Chat view.** Switch a workspace between its panes and a chat with its orchestrator.
-  Claude Code keeps running in the panes behind it; a side panel lists the board's tasks
-  with the progress their agents report (`board_report_progress`), and kits, previews and
-  the 3D view open beside the chat as they do in the grid. Claude's questions and
-  permission prompts become cards you answer in the chat.
+- **Chat view.** Switch a workspace between its panes and a chat with its orchestrator,
+  Claude Code or Codex. The agent keeps running in the panes behind it; a side panel lists
+  the board's tasks with the progress their agents report (`board_report_progress`), and
+  kits, previews and the 3D view open beside the chat as they do in the grid. The agent's
+  questions and permission prompts become cards you answer in the chat, and the images a
+  Codex agent makes show in its messages.
 - **Nodes.** Run a headless Hangar, `hangar-node`, on a Linux machine you reach over SSH
   (x86_64 or arm64: a server, a VPS, a GPU box, a Raspberry Pi). Add it in Settings › Nodes
   with its SSH target: Hangar installs it with your SSH keys, starts it and keeps a tunnel
   to it, with nothing to open on the server. A workspace can then live on the node: its
-  terminals, Claude Code, board and memory run there, the window shows them like a local
+  terminals, agents, board and memory run there, the window shows them like a local
   workspace's, and it catches up on what happened while your computer was off. Design:
   [docs/native/nodes.md](../native/nodes.md).
 - **Pane scopes** (Linux). Each pane runs in a systemd scope of its own, so when memory runs
@@ -134,9 +147,12 @@ until you enable them, and each can be turned off again without losing anything.
 ## Kits
 
 A kit links a domain, a game engine, a studio's tools, a service, to a workspace, without
-Hangar knowing anything about it. It can bring a Claude Code plugin (skills, commands,
-agents, MCP servers), setup commands that you see verbatim and run once, and tabs: pages of
-its own that talk to Hangar through a small, declared API, each permission accepted by you.
+Hangar knowing anything about it. It can bring a plugin for the agents (skills, commands,
+agents, MCP servers, hooks), setup commands that you see verbatim and run once, and tabs:
+pages of its own that talk to Hangar through a small, declared API, each permission accepted
+by you. Claude Code loads the whole plugin; Codex loads its MCP servers at each launch, and
+its skills and hooks once you **Add to Codex** the kit; each kit lists what reaches which
+agent ([details](../kits.md#claude-code-and-codex)).
 
 - **HTML tabs** are the tabs of 1.x, with the same `window.hangar` API, the same
   permissions, and [Hangar UI](../kit-ui.md), the stylesheet that makes them look like

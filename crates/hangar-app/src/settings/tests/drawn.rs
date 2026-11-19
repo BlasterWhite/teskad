@@ -51,6 +51,7 @@ fn model() -> Model {
                 home: "/home/me".into(),
                 claude: true,
                 git: false,
+                ..Default::default()
             },
             local_port: 40000,
             token: "t".into(),
@@ -82,7 +83,17 @@ fn sheet(
     query: &str,
     size: Size,
 ) {
-    let mut model = model();
+    sheet_of(model(), category, locale, theme, query, size);
+}
+
+fn sheet_of(
+    mut model: Model,
+    category: SettingsCategory,
+    locale: hangar_i18n::Locale,
+    theme: &str,
+    query: &str,
+    size: Size,
+) {
     model.ui.overlays = vec![Overlay::Settings(category)];
     let pkg = Packages::default();
     let st = State {
@@ -172,4 +183,54 @@ fn the_small_window_the_shell_allows_can_hold_the_sheet() {
         "",
         Size::new(900.0, 560.0),
     );
+}
+
+#[test]
+fn the_window_opacity_row_can_be_laid_out_and_found() {
+    for (locale, query) in [
+        (hangar_i18n::Locale::En, "opacity"),
+        (hangar_i18n::Locale::Fr, "opacité"),
+    ] {
+        let mut model = model();
+        let mut state = model.state().clone();
+        state.settings.window_opacity = 0.85;
+        model.hydrate(state);
+        sheet_of(
+            model,
+            SettingsCategory::Appearance,
+            locale,
+            "tokyo-night",
+            query,
+            MAIN,
+        );
+    }
+}
+
+#[test]
+fn the_agent_rows_can_be_laid_out_and_found_with_everything_set() {
+    use crate::state::types::AgentKind;
+    for (locale, query) in [
+        (hangar_i18n::Locale::En, "codex"),
+        (hangar_i18n::Locale::Fr, "bêta"),
+        (hangar_i18n::Locale::En, "reviewer"),
+        (hangar_i18n::Locale::Fr, "relecteur"),
+    ] {
+        let mut model = model();
+        let mut state = model.state().clone();
+        state.settings.codex_attach = false;
+        state.settings.agent_commands.claude = Some("claude --verbose".into());
+        state.settings.agent_commands.codex = Some("codex --profile work".into());
+        state.settings.default_orchestrator_agent = Some(AgentKind::Codex);
+        state.settings.default_worker_agent = Some(AgentKind::Claude);
+        state.settings.default_reviewer_agent = Some(AgentKind::Codex);
+        model.hydrate(state);
+        sheet_of(
+            model,
+            SettingsCategory::General,
+            locale,
+            "graphite",
+            query,
+            MAIN,
+        );
+    }
 }

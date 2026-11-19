@@ -10,6 +10,17 @@
 //! them (`/node/own`, below), for a desktop, for `hangar-node workspace …`,
 //! and for the Discord connector.
 //!
+//! Their agents are launched as the engine launches any (core's launch
+//! builder, `Terminals::spawn_agent`), on the node: a Codex pane gets its own
+//! `codex app-server` here, in the node's `~/.codex` or the shadow home of
+//! its account, and its line attaches to it (docs/native/agents.md §6.8, D5).
+//! The engine host keeps that server's state (`EngineHost::agent_server`),
+//! and following the pane through it (`agent::codex_attach`) is the host's:
+//! it runs here, on the node, beside the server's socket. A new
+//! workspace's orchestrator is the default orchestrator agent (D20): the
+//! settings' choice, else Claude Code when the node has both, else the one
+//! it has.
+//!
 //! A desktop mirrors them (hangar-engine's `state::hosted`): it reads them
 //! whole (`/node/own/state`), sends what the person changes on its copy as
 //! ops (`/node/own/workspaces/{id}/ops`), and hands over a workspace it ran
@@ -22,9 +33,9 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use hangar_core::pty::{PtyEvent, PtyManager};
+use hangar_core::pty::{AgentLaunch, PtyEvent, PtyManager, Spawned};
 use hangar_engine::host::screen::{Screen, Screens};
-use hangar_engine::host::terminals::{COLUMNS, ROWS};
+use hangar_engine::host::terminals::{AgentStart, COLUMNS, ROWS};
 use hangar_engine::host::{EngineHost, Spawn, TermEvent, TermSink, Terminals};
 use hangar_engine::state::hosted::HostedOp;
 use hangar_engine::state::{StoreAction, Workspace};
@@ -52,8 +63,16 @@ impl NodeTerminals {
     }
 }
 
-impl Terminals for NodeTerminals {
-    fn spawn(&self, spawn: Spawn, sink: TermSink) -> Result<(), String> {
+impl NodeTerminals {
+    /// The shell of `spawn` among the node's panes, with its agent's
+    /// `launch` when it has one (`pty_spawn_launch`, panes.rs), its screen
+    /// opened first.
+    fn open(
+        &self,
+        spawn: Spawn,
+        sink: TermSink,
+        launch: Option<AgentLaunch>,
+    ) -> Result<Spawned, String> {
         let id = spawn.id.clone();
         let screen = self.screens.open(&id, COLUMNS, ROWS);
         let observer: Observer = {
@@ -89,12 +108,42 @@ impl Terminals for NodeTerminals {
             kits: None,
             claude_account: spawn.claude_account,
             observer: Some(observer),
+            launch,
         });
-        match spawned {
-            Ok(_) => Ok(()),
-            Err(err) => {
-                self.screens.close(&id);
-                Err(err)
+        if spawned.is_err() {
+            self.screens.close(&id);
+        }
+        spawned
+    }
+}
+
+impl Terminals for NodeTerminals {
+    fn spawn(&self, spawn: Spawn, sink: TermSink) -> Result<(), String> {
+        self.open(spawn, sink, None).map(|_| ())
+    }
+
+    /// The agent's shell started on the node with its launch: for a Codex
+    /// pane to run attached, its server on the node first, then the line
+    /// that attaches to it (or the floor's, and why, when the server could
+    /// not start), which the engine types and whose server it keeps.
+    fn spawn_agent(
+        &self,
+        spawn: Spawn,
+        launch: AgentLaunch,
+        sink: TermSink,
+    ) -> Result<AgentStart, String> {
+        let id = spawn.id.clone();
+        let spawned = self.open(spawn, sink, Some(launch))?;
+        match spawned.line {
+            Some(line) => Ok(AgentStart {
+                line,
+                server: spawned.server,
+            }),
+            // Core answers a line for every launch: a shell without one is
+            // not left running with nothing typed into it.
+            None => {
+                let _ = self.kill(&id);
+                Err("the agent's launch gave no line to type".into())
             }
         }
     }
@@ -125,6 +174,12 @@ impl Terminals for NodeTerminals {
 
     fn screen(&self, pane: &str) -> Option<Vec<String>> {
         self.screens.read(pane, Screen::rows)
+    }
+
+    /// The title its program last set: what tells a Codex pane's turns on the
+    /// node when no side channel speaks for it (the floor).
+    fn title(&self, pane: &str) -> Option<String> {
+        self.screens.read(pane, Screen::title).flatten()
     }
 
     fn bracketed_paste(&self, pane: &str) -> bool {
@@ -399,8 +454,10 @@ fn yes() -> bool {
     true
 }
 
-/// A workspace of the node's own, in folder `cwd`, with one Claude Code
-/// pane, its orchestrator unless asked otherwise.
+/// A workspace of the node's own, in folder `cwd`, with one agent pane, its
+/// orchestrator unless asked otherwise. Its agent is the default
+/// orchestrator agent (D20): the settings' choice, else Claude Code when the
+/// node has both, else whichever it has (`EngineHost::add_workspace`).
 pub fn add(own: &EngineHost, name: &str, cwd: &str, orchestrator: bool) -> Result<String, String> {
     own.add_workspace(name, cwd, orchestrator)
 }

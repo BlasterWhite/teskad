@@ -24,11 +24,13 @@ pub(crate) mod testing;
 mod tests;
 mod view;
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
+use hangar_engine::accounts::{DEFAULT_CHOICE, read_account_choice};
 use hangar_i18n::{Key, Translator, args};
 use iced::widget::{Id, operation};
 use iced::{Element, Subscription, Task};
@@ -44,10 +46,10 @@ use crate::git_flow::paths::{projects_folder_of, resolve_parent};
 use crate::message::{GitOrigin, Intent, Message};
 use crate::services::{CoreEvent, Services, dialogs};
 use crate::shell::{Notice, Overlay};
-use crate::state::types::{AgentId, WorkspaceKit};
+use crate::state::types::{AgentId, AgentKind, WorkspaceFolder, WorkspaceKit};
 use crate::state::{Model, Patch, StoreAction, WsId};
 
-use folder::{FolderForm, Root};
+use folder::{FolderForm, Installed, Root, Workers};
 use git_form::{FormKey, FromGitForm, FromGitStatus, from_git_key, from_git_status, one_line};
 use hooks::{HookField, HooksDraft};
 
@@ -88,7 +90,17 @@ struct Folder {
     /// One entry per pane: the source of truth the counters and the preview
     /// share.
     assignments: Vec<AgentId>,
-    claude_account: Option<String>,
+    /// The orchestrator's agent, once picked; until then the default (D20,
+    /// `folder::orchestrator_of`).
+    orchestrator: Option<AgentKind>,
+    /// What the workers run, once picked; until then the settings' default
+    /// (`folder::workers_of`).
+    workers: Option<Workers>,
+    /// The account picked for the workspace, by the agent it is one of. The
+    /// picker lists the accounts of the agent the orchestrator runs, and
+    /// each agent's pick is kept while the person switches between them;
+    /// only that of the orchestrator's agent is saved.
+    accounts: HashMap<AgentKind, String>,
     hooks: HooksDraft,
     /// « More options » is unfolded. Folding it keeps what was chosen there.
     more: bool,
@@ -111,7 +123,9 @@ impl Default for Folder {
             shell_id: None,
             layout: folder::DEFAULT_LAYOUT,
             assignments: folder::initial_assignments(folder::DEFAULT_LAYOUT),
-            claude_account: None,
+            orchestrator: None,
+            workers: None,
+            accounts: HashMap::new(),
             hooks: HooksDraft::default(),
             more: false,
             custom: false,
@@ -223,6 +237,14 @@ pub struct State {
     git: Git,
     /// The workspace whose kits are open (`Overlay::KitsDialog`).
     kits: Option<kits_dialog::KitsDialog>,
+    /// The navigator folder the new workspace is filed in, when the form was
+    /// opened from one (`Intent::NewWorkspaceInFolder`).
+    in_folder: Option<String>,
+    /// The agents found on this machine, asked again each time the dialog
+    /// opens ([`detect_agents`]) and kept from one opening to the next;
+    /// `None` until the first answer. What the window finds meanwhile is
+    /// added to it ([`State::installed`]).
+    installed: Option<Installed>,
 }
 
 /// The package's shared read-model, which other packages may read; lives in
@@ -247,6 +269,9 @@ pub enum Msg {
     Cancel,
     /// The close cross, the veil and Escape: refused while a clone runs.
     Dismiss,
+
+    /// The agents found on this machine, asked when the dialog opens.
+    AgentsFound(Vec<AgentKind>),
 
     // The folder half.
     Cwd(String),
@@ -273,6 +298,10 @@ pub enum Msg {
     More(AgentId),
     Less(AgentId),
     Cycle(usize),
+    /// The orchestrator's agent (« Starts with »).
+    Orchestrator(AgentKind),
+    /// What the workers run (« More options »).
+    Workers(Workers),
     Hook(HookField, String),
     /// Folds or unfolds « More options ».
     MoreOptions,
@@ -376,9 +405,69 @@ impl State {
         })
     }
 
-    /// A clean form, as when the dialog opens.
+    /// A clean form, as when the dialog opens. What the machine said of its
+    /// agents stays: it is asked again, and meanwhile is likelier right
+    /// than nothing.
     fn reset(&mut self) {
+        let installed = self.installed.take();
         *self = State::default();
+        self.installed = installed;
+    }
+
+    /// The agents the pickers offer: those the dialog found as it opened,
+    /// and those the window has found since (`shell::setup::installed`,
+    /// which the setup sheet keeps current): an agent installed from the
+    /// form's « Set up » link is offered as soon as the sheet closes, without
+    /// the form being opened again. Until the dialog's look has answered,
+    /// every one: the form then starts as it did before it asked, with an
+    /// orchestrator.
+    pub(crate) fn installed(&self, m: &Model) -> Installed {
+        let Some(found) = &self.installed else {
+            return Installed::every();
+        };
+        Installed::of(
+            AgentKind::ALL
+                .into_iter()
+                .filter(|kind| found.has(*kind) || crate::shell::setup::installed(m, *kind)),
+        )
+    }
+
+    /// The agent the orchestrator runs (D20); `None` without an agent.
+    pub(crate) fn orchestrator(&self, m: &Model) -> Option<AgentKind> {
+        folder::orchestrator_of(self.folder.orchestrator, m.settings(), &self.installed(m))
+    }
+
+    /// What the workers run, as the form shows it.
+    pub(crate) fn workers(&self, m: &Model) -> Workers {
+        folder::workers_of(self.folder.workers, m.settings(), &self.installed(m))
+    }
+
+    /// The folder the workspace is filed in, while it exists.
+    pub(crate) fn target_folder<'a>(&self, m: &'a Model) -> Option<&'a WorkspaceFolder> {
+        let id = self.in_folder.as_deref()?;
+        m.state().folders.iter().find(|folder| folder.id == id)
+    }
+
+    /// The account of `kind` picked for the workspace, if any: `None`, it
+    /// follows its folder's, else the default; [`DEFAULT_CHOICE`], the
+    /// default over the folder's.
+    pub(crate) fn picked_account(&self, kind: AgentKind) -> Option<&str> {
+        self.folder.accounts.get(&kind).map(String::as_str)
+    }
+
+    /// The account the orchestrator of the workspace made here runs on when
+    /// the person picks none: its folder's, of the agent it runs, read and
+    /// never copied (`AccountLevels::of_kind`). Not for a workspace its node
+    /// runs: it has no folder level. The account picker offers it first
+    /// (« Folder default (Pro) »), and « Default » is then a choice of its
+    /// own (`DEFAULT_CHOICE`).
+    pub(crate) fn inherited_account<'a>(&self, m: &'a Model) -> Option<&'a str> {
+        if self.place.node.is_some() {
+            return None;
+        }
+        let kind = self.orchestrator(m)?;
+        let id = self.target_folder(m)?.account(kind)?.trim();
+        (!id.is_empty()).then_some(id)
     }
 }
 
@@ -645,8 +734,11 @@ fn form(st: &mut State, m: &mut Model, msg: Msg) -> Task<Message> {
             }
             Task::none()
         }
+        // An agent that is not installed is greyed: nothing to add.
         Msg::More(agent) => {
-            folder::add_agent(&mut st.folder.assignments, agent);
+            if st.installed(m).runs(agent) {
+                folder::add_agent(&mut st.folder.assignments, agent);
+            }
             Task::none()
         }
         Msg::Less(agent) => {
@@ -654,7 +746,28 @@ fn form(st: &mut State, m: &mut Model, msg: Msg) -> Task<Message> {
             Task::none()
         }
         Msg::Cycle(index) => {
-            folder::cycle_cell(&mut st.folder.assignments, index);
+            let installed = st.installed(m);
+            folder::cycle_cell(&mut st.folder.assignments, index, &installed);
+            Task::none()
+        }
+        Msg::Orchestrator(kind) => {
+            if st.installed(m).has(kind) {
+                st.folder.orchestrator = Some(kind);
+            }
+            Task::none()
+        }
+        Msg::Workers(workers) => {
+            let offered = match workers {
+                Workers::Same => true,
+                Workers::Agent(kind) => st.installed(m).has(kind),
+            };
+            if offered {
+                st.folder.workers = Some(workers);
+            }
+            Task::none()
+        }
+        Msg::AgentsFound(found) => {
+            st.installed = Some(Installed::of(found));
             Task::none()
         }
         Msg::Hook(field, text) => {
@@ -662,7 +775,17 @@ fn form(st: &mut State, m: &mut Model, msg: Msg) -> Task<Message> {
             Task::none()
         }
         Msg::Account(id) => {
-            st.folder.claude_account = id;
+            // A pick among the accounts of the agent the orchestrator runs.
+            if let Some(kind) = st.orchestrator(m) {
+                match id {
+                    Some(id) => {
+                        st.folder.accounts.insert(kind, id);
+                    }
+                    None => {
+                        st.folder.accounts.remove(&kind);
+                    }
+                }
+            }
             Task::none()
         }
         Msg::MoreOptions => {
@@ -817,7 +940,30 @@ fn check_repo(st: &mut State) -> Task<Message> {
 
 /// What the workspace of the form starts with.
 fn start_of(st: &State, m: &Model) -> folder::Start {
-    folder::start_of(st.folder.custom, m.ui.claude_installed)
+    folder::start_of(st.folder.custom, st.orchestrator(m).is_some())
+}
+
+/// Asks which agents this machine has (`hangar_core::agent::detect`, quick:
+/// nothing is run), off the UI thread; the answer comes back as
+/// `Msg::AgentsFound`.
+fn detect_agents() -> Task<Message> {
+    Task::perform(
+        async {
+            tokio::task::spawn_blocking(|| {
+                AgentKind::ALL
+                    .into_iter()
+                    .filter(|kind| hangar_core::agent::detect::installed(*kind))
+                    .collect::<Vec<_>>()
+            })
+            .await
+            .ok()
+        },
+        |found| {
+            found.map_or(Message::Noop, |found| {
+                Message::WorkspaceDialog(Msg::AgentsFound(found))
+            })
+        },
+    )
 }
 
 /// Splits a `.code-workspace` into the folder to open in and the rest. Only
@@ -922,9 +1068,10 @@ fn start_git_on_node(st: &mut State, m: &mut Model, node: &str) -> Task<Message>
 }
 
 /// The node answered its clone. Cloned: the workspace is made on the
-/// folder, one Claude Code pane that is its orchestrator as a local clone's
-/// is, and handed to the node as its own. Refused: git's words are shown,
-/// and that the node may lack access when git was the one to fail.
+/// folder, one pane of the default orchestrator's agent (D20) that is its
+/// orchestrator as a local clone's is, and handed to the node as its own.
+/// Refused: git's words are shown, and that the node may lack access when
+/// git was the one to fail.
 fn node_cloned(
     st: &mut State,
     m: &mut Model,
@@ -991,20 +1138,28 @@ fn node_cloned(
             Task::done(Message::Intent(Intent::ActivateWorkspace(id))),
         ]);
     }
-    let start = folder::start_of(false, m.ui.claude_installed);
-    let Some(draft) = folder::draft_of(&FolderForm {
+    // The clone form offers no choice of agents: the defaults (D20), read
+    // from the agents of this machine, as the dialog knows no other's yet
+    // (a node's own agents are T29's).
+    let orchestrator = folder::orchestrator_of(None, m.settings(), &st.installed(m));
+    let start = folder::start_of(false, orchestrator.is_some());
+    let workers = folder::workers_of(None, m.settings(), &st.installed(m));
+    let agents = folder::agents_of(start, orchestrator, workers, m.settings());
+    let Some(mut draft) = folder::draft_of(&FolderForm {
         name: &st.name,
         cwd: &cloned.path,
         roots: &[],
         start,
+        orchestrator,
         layout: folder::DEFAULT_LAYOUT,
         assignments: &[],
         shell_id: None,
         kits: &[],
-        claude_account: None,
     }) else {
         return Task::none();
     };
+    // Filed where the dialog says, as a clone on this computer is.
+    draft.folder_id = st.in_folder.clone();
     let mut tasks = vec![close(m)];
     if cloned.reused {
         tasks.push(notice(
@@ -1012,7 +1167,7 @@ fn node_cloned(
                 .into_owned(),
         ));
     }
-    if let Some(id) = make_workspace(m, draft, Some(node.to_owned()), None, start) {
+    if let Some(id) = make_workspace(m, draft, Some(node.to_owned()), None, start, agents, None) {
         tasks.push(Task::done(Message::Intent(Intent::ActivateWorkspace(id))));
     }
     Task::batch(tasks)
@@ -1023,14 +1178,29 @@ fn node_cloned(
 /// the ids it was just given, and runs there whether this computer is on
 /// or not. Nothing of it starts here meanwhile; were the node to refuse
 /// it, it is taken back out and the reason shown.
+///
+/// `account`: the account picked, and the agent it is one of.
 fn make_workspace(
     m: &mut Model,
     draft: crate::state::WorkspaceDraft,
     remote: Option<String>,
     hooks: Option<crate::state::types::WorktreeHooks>,
     start: folder::Start,
+    agents: Option<folder::Agents>,
+    account: Option<(AgentKind, String)>,
 ) -> Option<WsId> {
     let id = m.apply(StoreAction::AddWorkspace(draft)).workspace?;
+    // The account picked goes in its agent's field (T13), which the draft
+    // has no room for: set as the workspace is made, before anything
+    // launches in it and before a node is handed it.
+    if let Some((kind, account)) = account {
+        m.apply(StoreAction::UpdateWorkspace(
+            id.clone(),
+            Patch::new(move |workspace: &mut crate::state::Workspace| {
+                *workspace.account_mut(kind) = read_account_choice(Some(&account));
+            }),
+        ));
+    }
     // Before its terminals start: they start on the node.
     if let Some(node) = remote.clone() {
         m.apply(StoreAction::UpdateWorkspace(
@@ -1045,6 +1215,19 @@ fn make_workspace(
             id.clone(),
             Patch::new(move |workspace: &mut crate::state::Workspace| {
                 workspace.worktree_hooks = Some(hooks.clone());
+            }),
+        ));
+    }
+    // The agents chosen are the workspace's own (T13's fields), so that its
+    // workers and the next orchestrator made for it run them.
+    if let Some(agents) = agents {
+        m.apply(StoreAction::UpdateWorkspace(
+            id.clone(),
+            Patch::new(move |workspace: &mut crate::state::Workspace| {
+                let mut orchestration = workspace.orchestration.clone().unwrap_or_default();
+                orchestration.orchestrator_agent = agents.orchestrator;
+                orchestration.worker_agent = agents.workers;
+                workspace.orchestration = Some(orchestration);
             }),
         ));
     }
@@ -1064,23 +1247,34 @@ fn submit_folder(st: &mut State, m: &mut Model, kits: &[WorkspaceKit]) -> Task<M
     let remote = st.place.node.clone();
     // A workspace on a node takes no kit: kits of remote files come later.
     let kits: &[WorkspaceKit] = if remote.is_some() { &[] } else { kits };
+    let orchestrator = st.orchestrator(m);
     let start = start_of(st, m);
-    let Some(draft) = folder::draft_of(&FolderForm {
+    let agents = folder::agents_of(start, orchestrator, st.workers(m), m.settings());
+    // The account picked among those of the orchestrator's agent, for that
+    // agent. « Default » over a folder's account means nothing to a
+    // workspace its node runs: it has no folder level.
+    let account = orchestrator
+        .and_then(|kind| Some((kind, st.picked_account(kind)?.to_string())))
+        .filter(|(_, id)| remote.is_none() || id != DEFAULT_CHOICE);
+    let Some(mut draft) = folder::draft_of(&FolderForm {
         name: &st.name,
         cwd: &st.folder.cwd,
         roots: &st.folder.roots,
         start,
+        orchestrator,
         layout: st.folder.layout,
         assignments: &st.folder.assignments,
         shell_id: st.folder.shell_id.as_deref(),
         kits,
-        claude_account: st.folder.claude_account.as_deref(),
     }) else {
         return Task::none();
     };
+    // Filed where the form was opened from (a folder removed meanwhile: the
+    // store files it nowhere).
+    draft.folder_id = st.in_folder.clone();
     let mut tasks = vec![close(m)];
     let hooks = folder::hooks_of(&st.folder.hooks);
-    if let Some(id) = make_workspace(m, draft, remote, hooks, start) {
+    if let Some(id) = make_workspace(m, draft, remote, hooks, start, agents, account) {
         // The new workspace is the one in front, and its terminals start.
         tasks.push(Task::done(Message::Intent(Intent::ActivateWorkspace(id))));
     }
@@ -1113,7 +1307,10 @@ fn start_git(st: &mut State, m: &mut Model, sv: &Services) -> Task<Message> {
         origin: GitOrigin::Person,
         asker_cwd: m.active_workspace().map(|ws| ws.cwd.clone()),
     };
-    let deps = AppDeps::new(sv).clone_into(parent).job(job.clone());
+    let deps = AppDeps::new(sv)
+        .clone_into(parent)
+        .job(job.clone())
+        .file_in(st.in_folder.clone());
     Task::perform(
         async move { crate::git_flow::run(&request, &deps).await },
         move |outcome| {
@@ -1268,9 +1465,16 @@ pub fn on_intent(
     match intent {
         Intent::OpenOverlay(Overlay::WorkspaceDialog) => {
             opened(st);
+            Some(detect_agents())
+        }
+        // Opened as any other way does: the machine's agents asked again.
+        Intent::OpenOnAnotherMachine(ws) => {
+            Some(Task::batch([open_elsewhere(st, m, ws), detect_agents()]))
+        }
+        Intent::NewWorkspaceInFolder(folder) => {
+            open_in_folder(st, m, folder);
             Some(Task::none())
         }
-        Intent::OpenOnAnotherMachine(ws) => Some(open_elsewhere(st, m, ws)),
         Intent::OpenOverlay(Overlay::KitsDialog(ws)) | Intent::OpenKitsDialog(ws) => {
             st.kits = kits_dialog::KitsDialog::open(m, ws);
             Some(Task::none())
@@ -1319,6 +1523,21 @@ fn open_elsewhere(st: &mut State, m: &Model, ws: &str) -> Task<Message> {
 fn opened(st: &mut State) {
     if !st.git.running {
         st.reset();
+    }
+}
+
+/// The « + » of a navigator folder: the shell has opened the form as any
+/// other way does (`Intent::OpenOverlay`, so it is clean and the kits section
+/// too), and the workspace is filed in `folder`. A clone still running keeps
+/// the dialog as it was, its folder included: what the dialog says is where
+/// that clone goes. Nothing either when the dialog did not open (the Claude
+/// Code setup came first) or the folder is gone.
+fn open_in_folder(st: &mut State, m: &Model, folder: &str) {
+    if st.git.running || !on_top(m) {
+        return;
+    }
+    if m.state().folders.iter().any(|entry| entry.id == folder) {
+        st.in_folder = Some(folder.to_string());
     }
 }
 

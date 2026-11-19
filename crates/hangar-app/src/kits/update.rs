@@ -98,6 +98,7 @@ fn write_kits(st: &mut State, m: &mut Model, target: &Target, next: Vec<Workspac
 fn read_for_activation(kit: &str) -> Task<Message> {
     let (inspect, status) = (kit.to_owned(), kit.to_owned());
     Task::batch([
+        super::codex::read(kit),
         Task::perform(hangar_core::kits::kit_inspect(inspect.clone()), move |r| {
             kits(Msg::Inspected(inspect.clone(), r.map(Box::new)))
         }),
@@ -299,6 +300,10 @@ pub fn update(st: &mut State, m: &mut Model, env: &Env, msg: Msg) -> Task<Messag
             }
             Task::none()
         }
+        msg @ (Msg::CodexRead(..)
+        | Msg::CodexAsk { .. }
+        | Msg::CodexRun { .. }
+        | Msg::CodexDone { .. }) => super::codex::update(&mut st.codex, t, msg),
         Msg::NotYet => {
             if let Some(act) = st.activation.as_mut() {
                 act.ran = None;
@@ -583,6 +588,7 @@ fn installed(st: &mut State, m: &mut Model, result: Result<Vec<KitInfo>, String>
         }
     };
     m.live.kits.error = None;
+    let codex = super::codex::read_all(&mut st.codex, &list);
     m.live.kits.icons.retain(&list);
     let reads = m.live.kits.icons.missing(&list);
     let mut tasks: Vec<Task<Message>> = reads
@@ -597,6 +603,7 @@ fn installed(st: &mut State, m: &mut Model, result: Result<Vec<KitInfo>, String>
             })
         })
         .collect();
+    tasks.push(codex);
 
     if let Some(act) = st.activation.as_mut() {
         match list.iter().find(|kit| kit.id == act.kit) {
@@ -623,20 +630,44 @@ fn installed(st: &mut State, m: &mut Model, result: Result<Vec<KitInfo>, String>
     Task::batch(tasks)
 }
 
-/// Accept: stores exactly what the person was shown.
+/// Accept: stores exactly what the person was shown, then closes the dialog.
+/// It never ends with nothing stored and the dialog gone without a word: until
+/// the kit is read there is nothing to accept and the dialog stays as it is,
+/// and a kit or a workspace that went away under the dialog takes the dialog
+/// with it, as the list does (`installed`).
 fn accept(st: &mut State, m: &mut Model) -> Task<Message> {
-    let Some(act) = st.activation.take() else {
+    let Some((kit_id, target, inspection)) = st
+        .activation
+        .as_ref()
+        .map(|act| (act.kit.clone(), act.target.clone(), act.inspection.clone()))
+    else {
         return Task::none();
     };
-    let Some(kit) = m.live.kits.find(&act.kit).cloned() else {
+    let Some(kit) = m.live.kits.find(&kit_id).cloned() else {
+        st.activation = None;
+        return intent(Intent::CloseOverlay);
+    };
+    // Accept is offered once `kit_inspect` has answered: before that the
+    // person was shown nothing, and an empty grant would be stored.
+    let Some(inspection) = inspection else {
         return Task::none();
     };
     // The hashes are the inspection's, not the kit's as it is now.
-    let granted = accepted_grants(&kit.source, act.inspection.as_ref());
-    let next = enable_kit(&own_kits(st, m, &act.target), &kit.id, &granted);
-    write_kits(st, m, &act.target, next);
+    let granted = accepted_grants(&kit.source, Some(&inspection));
+    let next = enable_kit(&own_kits(st, m, &target), &kit.id, &granted);
+    write_kits(st, m, &target, next);
+    let stored = own_kits(st, m, &target)
+        .iter()
+        .any(|entry| entry.id == kit.id && entry.granted == granted);
+    st.activation = None;
+    if !stored {
+        // Only a workspace removed under the dialog keeps the write from
+        // landing (a node's mirror keeps its kits itself): there is nothing
+        // left to enable the kit on.
+        return intent(Intent::CloseOverlay);
+    }
     let name = kit_name(&kit).to_owned();
-    match &act.target {
+    match &target {
         Target::Workspace(ws) => {
             // Agents already running keep the kits they started with.
             if m.workspace(ws)

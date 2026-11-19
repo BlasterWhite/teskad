@@ -1,54 +1,51 @@
-//! What a pane runs, and the command typed to start Claude Code
-//! (`lib/agents.ts`). Claude Code is the only agent Hangar runs (owner's
-//! decision, 2026-11-03); a plain shell types nothing. The transcript hunt
-//! that follows a pane's session is in `session_watch`.
+//! What a pane runs, and the line typed to start its agent. The line is
+//! core's (`hangar_core::agent::launch`, docs/native/agents.md §3.4, D4): the
+//! engine's host asks it per kind (`host/launch.rs`), and [`launch_command`]
+//! hands it the desktop's options until the desktop's controller asks it
+//! itself (T24a). A plain shell types nothing. The transcript hunt that
+//! follows a pane's session is in `session_watch`.
 
 use std::collections::HashSet;
 
+use hangar_core::agent::launch::{self, LaunchRequest, McpRequest};
+use hangar_core::agent::{AgentKind, McpInjection, PermissionMode};
+
+use super::session_watch;
 use crate::state::types::AgentId;
 
-/// What Claude Code is started with when nothing was customised.
+/// What Claude Code is started with when nothing was customised: its
+/// program (`AgentInfo::program`).
 pub const DEFAULT_CLAUDE_COMMAND: &str = "claude";
 
-/// JavaScript's `String.prototype.trim`: it also strips the byte order mark.
-fn js_trim(text: &str) -> &str {
-    text.trim_matches(|c: char| c.is_whitespace() || c == '\u{feff}')
+/// The kind of a pane's agent that [`LaunchOptions`] can start: one that
+/// reads its MCP servers from a config file (`--mcp-config`), the only way
+/// the options carry them. A kind that takes them as overrides of its own
+/// configuration (Codex, D8) needs what the options do not hold — Hangar's
+/// executable, the pane's server — and is started by the host's launch
+/// (`host/launch.rs`) or, on the desktop, once its controller builds a
+/// request per kind (T24a). A shell has no kind.
+fn options_kind(agent: AgentId) -> Option<AgentKind> {
+    agent
+        .kind()
+        .filter(|kind| kind.info().caps.mcp.injection == McpInjection::ConfigFile)
 }
 
-/// The command a pane starts its agent with: for Claude Code, the one the
-/// settings hold, or the plain binary name; `None` for a shell.
+/// The command a pane starts its agent with, for an agent [`LaunchOptions`]
+/// can start: the one the settings hold, or the agent's program; `None`
+/// otherwise, a shell included.
 ///
 /// Trimmed, and an empty override reads as "not customised" rather than as a
 /// pane that types nothing: clearing the field in the settings is how you go
 /// back to the default.
 pub fn agent_command(agent: AgentId, custom: Option<&str>) -> Option<String> {
-    if agent != AgentId::Claude {
-        return None;
-    }
-    let custom = custom.map(js_trim).filter(|command| !command.is_empty());
-    Some(custom.unwrap_or(DEFAULT_CLAUDE_COMMAND).to_string())
+    options_kind(agent).map(|kind| launch::program(kind, custom))
 }
 
-/// A path safe to put between double quotes in a command line.
-///
-/// These roots are read out of a `.code-workspace` file, which can arrive
-/// with a cloned repository: nobody types them. A newline would run whatever
-/// follows it as its own command, and a quote, backtick or `$` would end the
-/// quoting and let the rest of the path be read as shell syntax. None of
-/// them belong in a project path, so a root carrying one is dropped rather
-/// than escaped.
-fn is_quotable(root: &str) -> bool {
-    !root.contains(['"', '`', '$', '\r', '\n'])
-}
-
-/// JavaScript's `\w`.
-fn is_word(c: char) -> bool {
-    c.is_ascii_alphanumeric() || c == '_'
-}
-
-/// Whether the whole text is one or more characters of the set (`^[...]+$`).
-fn all_of(text: &str, allowed: impl Fn(char) -> bool) -> bool {
-    !text.is_empty() && text.chars().all(allowed)
+/// The orchestration's permission policy by the id `state.json` holds
+/// (`OrchestrationSettings::permission_mode`); `None` for no policy, or one
+/// no agent enforces — which a shell could misread, too.
+pub(crate) fn permission_mode(id: &str) -> Option<PermissionMode> {
+    PermissionMode::from_id(id.trim_matches(|c: char| c.is_whitespace() || c == '\u{feff}'))
 }
 
 /// What a launch adds to the agent's command (the options object of
@@ -84,8 +81,37 @@ pub struct LaunchOptions<'a> {
     pub model: Option<&'a str>,
 }
 
-/// Builds the command typed into a freshly opened shell. `None` means "leave
-/// the user at a plain prompt".
+/// The options as core's [`LaunchRequest`] for `kind`. The MCP file's path
+/// stays with whoever hands it to the pane's shell (`pty_spawn_with`): the
+/// options only say how the line names it, and the line is all that is
+/// taken from the spec.
+fn launch_request(
+    kind: AgentKind,
+    session_id: Option<&str>,
+    options: &LaunchOptions,
+) -> LaunchRequest {
+    LaunchRequest {
+        kind,
+        command: options.command.map(str::to_string),
+        extra_roots: options.extra_roots.to_vec(),
+        resume: session_id.map(str::to_string),
+        name: options.name.map(str::to_string),
+        model: options.model.map(str::to_string),
+        permission_mode: options.permission_mode.and_then(permission_mode),
+        allowed_tools: options.allowed_tools.to_vec(),
+        mcp: options.mcp_config.map(|arg| McpRequest {
+            file: String::new(),
+            arg: arg.to_string(),
+            strict: options.mcp_strict != Some(false),
+        }),
+        ..LaunchRequest::default()
+    }
+}
+
+/// Builds the command typed into a freshly opened shell, through core's
+/// builder (`agent::launch::build`). `None` means "leave the user at a plain
+/// prompt": a shell, or an agent these options cannot start
+/// ([`agent_command`]).
 ///
 /// The resume arguments are appended to the command rather than replacing
 /// it, so a custom launcher (an alias carrying flags of its own, a wrapper
@@ -95,82 +121,16 @@ pub fn launch_command(
     session_id: Option<&str>,
     options: &LaunchOptions,
 ) -> Option<String> {
-    let command = agent_command(agent, options.command)?;
-    let session_id = session_id.filter(|id| !id.is_empty());
-
-    let resume = session_id.map_or_else(String::new, |id| format!(" --resume {id}"));
-    let name = options
-        .name
-        .filter(|name| !name.is_empty() && is_quotable(name))
-        .map_or_else(String::new, |name| {
-            if all_of(name, |c| is_word(c) || c == '-') {
-                format!(" --name {name}")
-            } else {
-                format!(" --name \"{name}\"")
-            }
-        });
-    // An alias or an id: `sonnet`, `claude-sonnet-4-5`, `opus[1m]`;
-    // the last quoted, since brackets are a glob to bash and zsh.
-    let chosen = options
-        .model
-        .map(js_trim)
-        .filter(|model| !model.is_empty() && is_quotable(model))
-        .map_or_else(String::new, |model| {
-            if all_of(model, |c| is_word(c) || c == '.' || c == '-') {
-                format!(" --model {model}")
-            } else {
-                format!(" --model \"{model}\"")
-            }
-        });
-    let permission = options
-        .permission_mode
-        .map(js_trim)
-        .filter(|mode| all_of(mode, |c| c.is_ascii_alphabetic()))
-        .map_or_else(String::new, |mode| format!(" --permission-mode {mode}"));
-    // Variadic, like the two below: the flag after it closes its list.
-    let rules: Vec<&str> = options
-        .allowed_tools
-        .iter()
-        .map(String::as_str)
-        .filter(|rule| all_of(rule, |c| is_word(c) || c == '*' || c == '.' || c == '-'))
-        .collect();
-    let allowed = if rules.is_empty() {
-        String::new()
-    } else {
-        format!(" --allowedTools {}", rules.join(" "))
-    };
-    // `--mcp-config` is variadic as well; the flag right behind it
-    // closes its list, and `--strict-mcp-config` is what makes it the
-    // only source. Not strict, it may be the last flag, or be closed
-    // by `--add-dir`.
-    let mcp = match options.mcp_config.filter(|arg| !arg.is_empty()) {
-        Some(arg) if options.mcp_strict == Some(false) => format!(" --mcp-config {arg}"),
-        Some(arg) => format!(" --mcp-config {arg} --strict-mcp-config"),
-        None => String::new(),
-    };
-    let roots: Vec<String> = options
-        .extra_roots
-        .iter()
-        .filter(|root| is_quotable(root))
-        .map(|root| format!("\"{root}\""))
-        .collect();
-    // `--add-dir` is variadic, so it comes last: a following flag (one
-    // the custom command carries, or the resume above) would be
-    // swallowed as one more directory.
-    let added = if roots.is_empty() {
-        String::new()
-    } else {
-        format!(" --add-dir {}", roots.join(" "))
-    };
-    Some(format!(
-        "{command}{resume}{name}{chosen}{permission}{allowed}{mcp}{added}"
-    ))
+    let kind = options_kind(agent)?;
+    let spec = launch::build(&launch_request(kind, session_id, options)).ok()?;
+    Some(spec.command_line())
 }
 
 /// Whether a pane's agent can be started again on the session it was in:
-/// Claude Code can, a shell has no session.
+/// its agent resumes a session by id (`sessions.resume`, read by
+/// [`session_watch::resumes`]); a shell has no session.
 pub fn is_resumable(agent: AgentId) -> bool {
-    agent == AgentId::Claude
+    session_watch::resumes(agent)
 }
 
 /// Session ids already handed to a pane during this app run. Without this,
@@ -201,16 +161,18 @@ impl Claims {
 }
 
 /// The session ids an agent already has under this folder, read before a
-/// launch so that a brand new transcript stands out afterwards. Empty for an
-/// agent that keeps none, and when they cannot be listed.
+/// launch so that a brand new conversation stands out afterwards: where its
+/// kind keeps them ([`session_watch::hunt_listing`]: Claude Code's
+/// transcripts, Codex's rollouts). Empty for an agent that resumes none, and
+/// when they cannot be listed.
 pub async fn known_session_ids(agent: AgentId, cwd: String) -> HashSet<String> {
-    if !is_resumable(agent) {
+    let Some(kind) = agent.kind().filter(|_| is_resumable(agent)) else {
         return HashSet::new();
-    }
+    };
     tokio::task::spawn_blocking(move || {
-        hangar_core::sessions::list_session_ids(cwd)
+        session_watch::hunt_listing(kind, cwd)
             .into_iter()
-            .map(|(id, _)| id)
+            .map(|session| session.id)
             .collect()
     })
     .await
@@ -509,9 +471,63 @@ mod tests {
         );
     }
 
+    // Through core's builder.
+
+    /// The settings' placeholder is the program core types for Claude Code.
     #[test]
-    fn only_claude_code_resumes() {
+    fn the_default_command_is_claude_codes_program() {
+        assert_eq!(DEFAULT_CLAUDE_COMMAND, AgentKind::Claude.info().program);
+        assert_eq!(
+            agent_command(AgentId::Claude, None).as_deref(),
+            Some(DEFAULT_CLAUDE_COMMAND)
+        );
+    }
+
+    /// The options name an MCP config file and Claude Code's own command:
+    /// they cannot start Codex, which takes Hangar's server as overrides of
+    /// a launch the host builds (`host/launch.rs`). No line, rather than
+    /// Claude Code's custom command typed for Codex.
+    #[test]
+    fn the_options_start_no_codex() {
+        let options = LaunchOptions {
+            command: Some("ccr code"),
+            model: Some("gpt-5.1-codex"),
+            ..Default::default()
+        };
+        assert_eq!(launch(AgentId::Codex, Some("t1"), options), None);
+        assert_eq!(agent_command(AgentId::Codex, None), None);
+    }
+
+    /// Each policy the orchestration settings hold is typed by its id; what
+    /// no agent enforces is no policy.
+    #[test]
+    fn a_policy_is_read_by_its_id_and_anything_else_is_none() {
+        for mode in PermissionMode::ALL {
+            assert_eq!(permission_mode(mode.id()), Some(mode));
+            assert_eq!(
+                permission_mode(&format!(" \u{feff}{} ", mode.id())),
+                Some(mode)
+            );
+            let tools = Vec::new();
+            assert_eq!(
+                claude(LaunchOptions {
+                    permission_mode: Some(mode.id()),
+                    allowed_tools: &tools,
+                    ..Default::default()
+                }),
+                format!("claude --permission-mode {}", mode.id())
+            );
+        }
+        for id in ["", "plan", "auto; rm -rf ~", "AUTO"] {
+            assert_eq!(permission_mode(id), None, "{id:?}");
+        }
+    }
+
+    /// Either agent resumes its session by id; a shell has none.
+    #[test]
+    fn an_agent_resumes_and_a_shell_does_not() {
         assert!(is_resumable(AgentId::Claude));
+        assert!(is_resumable(AgentId::Codex));
         assert!(!is_resumable(AgentId::Shell));
     }
 

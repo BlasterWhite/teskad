@@ -13,7 +13,7 @@
 # login item, and a wrapper's renamed `.hangar-ai-wrapped` would be the path
 # they kept.
 {
-  description = "Hangar.AI: run a team of Claude Code agents in one native window";
+  description = "HangarAI: run a team of Claude Code agents in one native window";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 

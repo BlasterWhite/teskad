@@ -206,7 +206,10 @@ pub fn sidebar<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
     if let Some(foot) = machines_foot(ctx) {
         body = body.push(foot);
     }
-    if let Some(block) = plan::view(reads::plan(model), ctx) {
+    // A line per account when there are several, else the last session's.
+    if let Some(block) =
+        crate::accounts::plan_block(ctx).or_else(|| plan::view(reads::plan(model), ctx))
+    {
         body = body.push(block);
     }
     body = body.push(filter_bar(&frame, &machine));
@@ -222,14 +225,13 @@ fn message<'a>(t: &'a Theme, words: String) -> Element<'a, Message> {
 
 // ---- The top ----------------------------------------------------------------------------------
 
-/// The mark, the name, the version and the button that hides the navigator,
-/// level with the toolbar beside it so the window reads as one band: the
-/// title bar's left end when Hangar draws it, with the window's buttons the
-/// desktop puts on the left.
+/// The mark, the name with the site and the version, and the button that
+/// hides the navigator, level with the toolbar beside it so the window reads
+/// as one band: the title bar's left end when Hangar draws it, with the
+/// window's buttons the desktop puts on the left.
 fn top<'a>(f: &Frame<'a>) -> Element<'a, Message> {
     let t = f.ctx.theme;
     let tr = f.ctx.i18n;
-    let version = env!("CARGO_PKG_VERSION");
     let controls = crate::shell::title_bar::navigator(f.ctx);
     let has_controls = controls.is_some();
     let mut top = row![].spacing(7).align_y(Alignment::Center);
@@ -239,21 +241,8 @@ fn top<'a>(f: &Frame<'a>) -> Element<'a, Message> {
     let top = top
         .extend([
             logo(t, 15.0),
-            text("Hangar.AI")
-                .size(font_size::UI_LG)
-                .font(fonts::ui_semibold())
-                .wrapping(text::Wrapping::None)
-                .into(),
-            tip::bottom(
-                t,
-                text(version)
-                    .size(font_size::MICRO)
-                    .font(fonts::mono())
-                    .color(t.colors.fg_subtle),
-                tr.t_with(Key::SidebarVersion, &args!("version" => version))
-                    .into_owned(),
-            ),
-            Space::new().width(Length::Fill).into(),
+            // The name, the site and the version, in the room the hide button leaves.
+            crate::shell::title_bar::brand(f.ctx),
             ui_button::icon_button(t, Icon::SidebarLeft)
                 .tip(tr.t(Key::SidebarHide).into_owned())
                 .keys(reads::binding(&f.ctx, CommandId::ViewNavigator))
@@ -535,6 +524,19 @@ fn more_button<'a>(f: &Frame<'a>, kind: RowKind, id: &str) -> Element<'a, Messag
         .into()
 }
 
+/// A new workspace filed in this folder, beside its « … » on hover: the same
+/// line its menu has, a click closer.
+fn new_in_button<'a>(f: &Frame<'a>, folder: &str) -> Element<'a, Message> {
+    ui_button::icon_button(f.ctx.theme, Icon::Plus)
+        .small()
+        .icon_size(14.0)
+        .tip(f.ctx.t(Key::SidebarFolderNewWorkspace).into_owned())
+        .on_press(Message::Intent(Intent::NewWorkspaceInFolder(
+            folder.to_string(),
+        )))
+        .into()
+}
+
 /// A name typed over a row's: Enter saves, Escape cancels.
 fn rename_field<'a>(f: &Frame<'a>, draft: &'a str) -> Element<'a, Message> {
     let t = f.ctx.theme;
@@ -546,12 +548,15 @@ fn rename_field<'a>(f: &Frame<'a>, draft: &'a str) -> Element<'a, Message> {
         .on_input(|draft| msg(Msg::RenameInput(draft)))
         .on_submit(msg(Msg::RenameSubmit))
         .style(style::text_input::field(t));
-    keys::on_field_key(input, |key, _| match key {
+    let input = keys::on_field_key(input, |key, _| match key {
         iced::keyboard::Key::Named(iced::keyboard::key::Named::Escape) => {
             Some(msg(Msg::RenameCancel))
         }
         _ => None,
-    })
+    });
+    // The keymap goes first, and while the name is typed no terminal takes
+    // the keys: the field is watched (`keymap::guard`), as every field is.
+    crate::keymap::guard(f.ctx, input)
 }
 
 fn workspace_row<'a>(f: &Frame<'a>, ws: &'a Workspace) -> Element<'a, Message> {
@@ -649,7 +654,10 @@ fn workspace_row<'a>(f: &Frame<'a>, ws: &'a Workspace) -> Element<'a, Message> {
             } else if let Some(words) = repos::also_on(model, tr, ws) {
                 end = end.push(mark_in(t, Icon::Machines, t.colors.fg_subtle, words));
             }
-            if ws.claude_account.is_some() {
+            // Its own account, or the one it reads from its folder.
+            if ws.claude_account.is_some()
+                || crate::state::folders::account_of(&model.state().folders, ws).is_some()
+            {
                 end = end.push(crate::accounts::badge(f.ctx, &ws.id));
             }
             if let Some(orchestrator) = orchestrator_of(ws) {
@@ -811,6 +819,7 @@ fn folder_block<'a>(f: &Frame<'a>, entry: &NavFolder<'a>) -> Element<'a, Message
                     .as_ref()
                     .is_some_and(|menu| menu.kind == RowKind::Folder && menu.id == folder.id);
             if f.st.hover.as_deref() == Some(key.as_str()) || menu_open {
+                head = head.push(new_in_button(f, &folder.id));
                 head = head.push(more_button(f, RowKind::Folder, &folder.id));
             }
             head.into()

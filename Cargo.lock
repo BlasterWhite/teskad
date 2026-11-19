@@ -3135,7 +3135,7 @@ dependencies = [
 
 [[package]]
 name = "hangar-app"
-version = "2.4.1"
+version = "2.5.1"
 dependencies = [
  "arboard",
  "avif-parse",
@@ -3178,7 +3178,7 @@ dependencies = [
 
 [[package]]
 name = "hangar-cloud"
-version = "2.4.1"
+version = "2.5.1"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -3199,7 +3199,7 @@ dependencies = [
 
 [[package]]
 name = "hangar-cloud-api"
-version = "2.4.1"
+version = "2.5.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -3207,7 +3207,7 @@ dependencies = [
 
 [[package]]
 name = "hangar-core"
-version = "2.4.1"
+version = "2.5.1"
 dependencies = [
  "auto-launch",
  "axum",
@@ -3236,6 +3236,7 @@ dependencies = [
  "rand_core 0.6.4",
  "regex",
  "rust-embed",
+ "ruzstd",
  "semver",
  "serde",
  "serde_json",
@@ -3255,7 +3256,7 @@ dependencies = [
 
 [[package]]
 name = "hangar-discord"
-version = "2.4.1"
+version = "2.5.1"
 dependencies = [
  "axum",
  "futures-util",
@@ -3273,7 +3274,7 @@ dependencies = [
 
 [[package]]
 name = "hangar-engine"
-version = "2.4.1"
+version = "2.5.1"
 dependencies = [
  "alacritty_terminal",
  "chrono",
@@ -3291,7 +3292,7 @@ dependencies = [
 
 [[package]]
 name = "hangar-i18n"
-version = "2.4.1"
+version = "2.5.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -3299,7 +3300,7 @@ dependencies = [
 
 [[package]]
 name = "hangar-kit-host"
-version = "2.4.1"
+version = "2.5.1"
 dependencies = [
  "ab_glyph",
  "base64 0.22.1",
@@ -3329,7 +3330,7 @@ dependencies = [
 
 [[package]]
 name = "hangar-kit-sdk"
-version = "2.4.1"
+version = "2.5.1"
 dependencies = [
  "hangar-kit-ui",
  "serde",
@@ -3338,7 +3339,7 @@ dependencies = [
 
 [[package]]
 name = "hangar-kit-ui"
-version = "2.4.1"
+version = "2.5.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -3346,7 +3347,7 @@ dependencies = [
 
 [[package]]
 name = "hangar-model3d"
-version = "2.4.1"
+version = "2.5.1"
 dependencies = [
  "base64 0.22.1",
  "bytemuck",
@@ -3365,7 +3366,7 @@ dependencies = [
 
 [[package]]
 name = "hangar-node"
-version = "2.4.1"
+version = "2.5.1"
 dependencies = [
  "axum",
  "dirs 6.0.0",
@@ -3387,7 +3388,7 @@ dependencies = [
 
 [[package]]
 name = "hangar-term"
-version = "2.4.1"
+version = "2.5.1"
 dependencies = [
  "alacritty_terminal",
  "hangar-core",
@@ -3400,7 +3401,7 @@ dependencies = [
 
 [[package]]
 name = "hangar-theme"
-version = "2.4.1"
+version = "2.5.1"
 dependencies = [
  "iced",
  "serde",
@@ -3409,7 +3410,7 @@ dependencies = [
 
 [[package]]
 name = "hangar-ui"
-version = "2.4.1"
+version = "2.5.1"
 dependencies = [
  "hangar-theme",
  "iced",
@@ -3422,7 +3423,7 @@ dependencies = [
 
 [[package]]
 name = "hangar-update"
-version = "2.4.1"
+version = "2.5.1"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -3439,7 +3440,7 @@ dependencies = [
 
 [[package]]
 name = "hangar-webview"
-version = "2.4.1"
+version = "2.5.1"
 dependencies = [
  "hangar-core",
  "http",
@@ -6947,6 +6948,12 @@ dependencies = [
  "unicode-properties",
  "unicode-script",
 ]
+
+[[package]]
+name = "ruzstd"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69e4ce4a039f42bf25920b95667e4d789e98749ab11bbb8d2c2936f788421bb5"
 
 [[package]]
 name = "ryu"

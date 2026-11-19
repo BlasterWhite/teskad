@@ -1,4 +1,6 @@
-//! The MCP servers a pane's Claude Code starts, chosen per workspace.
+//! The MCP servers a pane's agent starts, chosen per workspace: Claude Code's
+//! through a file of the app's, Codex's through configuration overrides
+//! (the second half of this file).
 //!
 //! Every Claude Code session starts its own copy of every stdio MCP server it
 //! is configured with. With a dozen panes open, servers only one project needs
@@ -31,14 +33,30 @@
 //! loads, kits' included (checked with Claude Code 2.1.316). The servers of
 //! the workspace's kits are therefore written into the file too, under the
 //! names Claude Code gives them as a plugin's (kits/plugin.rs).
+//!
+//! **Codex** (docs/native/agents.md §4.2.2, D8, D18) takes no such file: every
+//! server reaches it as a `-c mcp_servers…` override on the command line of
+//! its pane's server (agent/codex.rs), a layer above the person's
+//! configuration that is never written anywhere. A workspace in « custom »
+//! mode gets the effect of `--strict-mcp-config` by turning off, one by one,
+//! the servers Codex would start that it did not choose: their names are read
+//! with `codex mcp list --json`, run as the pane's Codex would be, and
+//! `~/.codex/config.toml` is never opened, let alone written. The kits'
+//! servers, which Codex cannot load as a plugin for one launch, are added the
+//! same way, under `<kit>_<server>`. Every key was read in `openai/codex` at
+//! the release `agent::codex::CHECKED_AT` names (paths under `codex-rs/`).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
+use std::io::Read;
 use std::path::{Component, Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use serde_json::{json, Map, Value};
 
+use crate::agent::AgentKind;
 use crate::host::Host;
 use crate::install::{server_entry, LEGACY_SERVER_KEYS, SERVER_KEY};
 use crate::store::{landing, put_in_place, write_atomic, write_temp, Access};
@@ -92,9 +110,10 @@ pub struct ServerInfo {
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Discovery {
     pub servers: Vec<ServerInfo>,
-    /// Files that exist but could not be read as JSON. Their servers are
-    /// missing from the list, which the panel has to say rather than show a
-    /// shorter list as if it were the whole story.
+    /// Files that exist but could not be read as JSON — for Codex, why its
+    /// list could not be had. Their servers are missing from the list, which
+    /// the panel has to say rather than show a shorter list as if it were the
+    /// whole story.
     pub unreadable: Vec<String>,
 }
 
@@ -287,7 +306,8 @@ fn approvals(user: &Map<String, Value>, folder: &[Map<String, Value>], trusted: 
 
 fn transport(definition: &Value) -> Transport {
     match definition.get("type").and_then(Value::as_str) {
-        Some("http" | "streamable-http") => Transport::Http,
+        // `streamable_http`: how `codex mcp list` and Codex's plugins write it.
+        Some("http" | "streamable-http" | "streamable_http") => Transport::Http,
         Some("sse") => Transport::Sse,
         Some("ws") => Transport::Ws,
         Some(_) => Transport::Stdio,
@@ -839,6 +859,512 @@ pub fn mcp_scope_clear(host: &Host, workspace_id: String) -> Result<(), String> 
         }
     }
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Codex: the same choice as configuration overrides
+// ---------------------------------------------------------------------------
+
+/// `codex mcp list --json`: every server Codex's configuration gives a
+/// session started where it runs, with the account's `CODEX_HOME` — its
+/// files, a trusted project's, its plugins' — each with `name`, `enabled`
+/// and `transport` (`cli/src/mcp_cmd.rs`, `run_list`).
+const CODEX_LIST: [&str; 3] = ["mcp", "list", "--json"];
+
+/// The longest the list may take. It starts Codex and checks how each remote
+/// server signs in: a first run can be slow, a hung one says nothing later,
+/// and a pane is waiting for it.
+const CODEX_LIST_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Hides the console window Windows would open for every child of a GUI app.
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+/// One server as `codex mcp list --json` prints it.
+#[derive(Debug, Clone, PartialEq)]
+struct CodexListed {
+    name: String,
+    /// False when the person's configuration, or a policy, turns it off.
+    enabled: bool,
+    /// `{ "type": "stdio", "command", "args", … }` or
+    /// `{ "type": "streamable_http", "url", … }`.
+    transport: Value,
+}
+
+/// The list `codex mcp list --json` printed. An entry without a name is
+/// skipped; output that is not a list is an error, said as such.
+fn parse_codex_list(text: &str) -> Result<Vec<CodexListed>, String> {
+    let value: Value = serde_json::from_str(text.trim_start_matches('\u{feff}').trim())
+        .map_err(|_| "`codex mcp list --json` did not print JSON".to_string())?;
+    let Value::Array(entries) = value else {
+        return Err("`codex mcp list --json` did not print a list".into());
+    };
+    Ok(entries
+        .iter()
+        .filter_map(|entry| {
+            let name = entry.get("name")?.as_str()?.to_string();
+            Some(CodexListed {
+                name,
+                enabled: entry
+                    .get("enabled")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(true),
+                transport: entry.get("transport").cloned().unwrap_or(Value::Null),
+            })
+        })
+        .collect())
+}
+
+/// Runs `<program> mcp list --json` in `cwd` with `env` (the account's
+/// variables: set, or removed for `None`), and reads what it prints.
+fn run_codex_list(
+    program: &Path,
+    cwd: &Path,
+    env: &[(&str, Option<PathBuf>)],
+    timeout: Duration,
+) -> Result<Vec<CodexListed>, String> {
+    let mut command = Command::new(program);
+    command
+        .args(CODEX_LIST)
+        .current_dir(cwd)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .env("NO_COLOR", "1");
+    for (name, value) in env {
+        match value {
+            Some(value) => command.env(name, value),
+            None => command.env_remove(name),
+        };
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    let mut child = command
+        .spawn()
+        .map_err(|err| format!("Codex could not be started to list its MCP servers: {err}"))?;
+    // Read on threads of their own, so a full pipe never stalls the wait.
+    let drain = |pipe: Option<Box<dyn Read + Send>>| {
+        std::thread::spawn(move || {
+            let mut text = String::new();
+            if let Some(mut pipe) = pipe {
+                let _ = pipe.read_to_string(&mut text);
+            }
+            text
+        })
+    };
+    let stdout = drain(
+        child
+            .stdout
+            .take()
+            .map(|pipe| Box::new(pipe) as Box<dyn Read + Send>),
+    );
+    let stderr = drain(
+        child
+            .stderr
+            .take()
+            .map(|pipe| Box::new(pipe) as Box<dyn Read + Send>),
+    );
+    let deadline = Instant::now() + timeout;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if Instant::now() < deadline => {
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            Ok(None) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!(
+                    "`codex mcp list` did not answer within {} seconds",
+                    timeout.as_secs()
+                ));
+            }
+            Err(err) => return Err(err.to_string()),
+        }
+    };
+    let stdout = stdout.join().unwrap_or_default();
+    let stderr = stderr.join().unwrap_or_default();
+    if !status.success() {
+        let said = stderr
+            .lines()
+            .map(str::trim)
+            .find(|line| !line.is_empty())
+            .map_or_else(|| status.to_string(), str::to_string);
+        return Err(format!("`codex mcp list` failed: {said}"));
+    }
+    parse_codex_list(&stdout)
+}
+
+/// The servers Codex would start in `cwd` on `account` (main when absent),
+/// asked of the Codex Hangar finds on this machine with the account's
+/// `CODEX_HOME`, as the pane's would be.
+fn codex_list(cwd: &Path, account: Option<&str>) -> Result<Vec<CodexListed>, String> {
+    let kind = Some(AgentKind::Codex.id());
+    let program = crate::install::agent::find(AgentKind::Codex)
+        .ok_or_else(|| "Codex is not installed on this machine".to_string())?;
+    let dir = crate::accounts::for_launch(kind, account).and_then(|launch| launch.dir);
+    let env = crate::accounts::env_for(kind, dir.as_deref());
+    run_codex_list(&program, cwd, &env, CODEX_LIST_TIMEOUT)
+}
+
+/// One of Codex's servers as the panel lists it. `codex mcp list` does not
+/// say which layer of Codex's configuration a server comes from (the
+/// person's files, a project's, a plugin), so every one is shown as the
+/// person's own, `Scope::User`.
+fn codex_info(listed: &CodexListed) -> ServerInfo {
+    let transport = transport(&listed.transport);
+    ServerInfo {
+        name: listed.name.clone(),
+        scope: Scope::User,
+        transport,
+        summary: summary(&listed.transport, transport),
+        status: if listed.enabled {
+            Status::Active
+        } else {
+            Status::Disabled
+        },
+        hangar: is_hangar(&listed.name),
+        source: "codex mcp list".to_string(),
+    }
+}
+
+/// The servers a Codex session started in `cwd` on `account` (main when
+/// absent) would start by itself, for the panel a workspace chooses from.
+pub fn codex_mcp_servers(cwd: String, account: Option<String>) -> Discovery {
+    match codex_list(Path::new(&cwd), account.as_deref()) {
+        Ok(listed) => Discovery {
+            servers: listed.iter().map(codex_info).collect(),
+            unreadable: Vec::new(),
+        },
+        Err(why) => Discovery {
+            servers: Vec::new(),
+            unreadable: vec![why],
+        },
+    }
+}
+
+/// The entry that turns one of the person's servers off for a launch: its
+/// transport's one required key and `enabled = false`.
+///
+/// `enabled = false` alone is not enough: an entry is read whole, and one
+/// with neither `command` nor `url` is an "invalid transport"
+/// (`config/src/mcp_types.rs`), which would stop the launch — and a server a
+/// plugin brings has no entry of the person's to be merged into. With its
+/// key, the entry merges into the person's own, table by table, and replaces
+/// a plugin's of the same name (`codex-mcp/src/catalog.rs`: configuration
+/// wins over plugins). A remote server's address is given as its scheme and
+/// host only: its path or query may hold a token, and nothing connects to a
+/// server that is off.
+fn codex_off(transport: &Value) -> Option<Value> {
+    let text = |key: &str| {
+        transport
+            .get(key)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|text| !text.is_empty())
+    };
+    match self::transport(transport) {
+        Transport::Stdio => Some(json!({ "command": text("command")?, "enabled": false })),
+        Transport::Http => {
+            let url = text("url")?;
+            let scheme = url.split_once("://").map_or("https", |(scheme, _)| scheme);
+            let host = host_of(url)?;
+            Some(json!({ "url": format!("{scheme}://{host}/"), "enabled": false }))
+        }
+        Transport::Sse | Transport::Ws => None,
+    }
+}
+
+/// Why a server written for Claude Code — a plugin's `.mcp.json` entry — is
+/// not given to Codex.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NotForCodex {
+    /// SSE or WebSocket, or neither a command nor an address: Codex speaks
+    /// stdio and streamable HTTP only (`McpServerTransportConfig`).
+    Transport,
+    /// It names a variable (`${…}`) where Codex reads none: Claude Code fills
+    /// them in, Codex takes every value as written.
+    Variables,
+}
+
+/// `${NAME}` alone, the way Claude Code names a variable to fill in: its
+/// name. With a default (`${NAME:-x}`) or text around it, `None`.
+fn whole_variable(text: &str) -> Option<&str> {
+    let name = text.strip_prefix("${")?.strip_suffix('}')?;
+    (name.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
+        && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'))
+    .then_some(name)
+}
+
+fn has_variable(text: &str) -> bool {
+    text.contains("${")
+}
+
+/// A server written for Claude Code (`command`, `args`, `env`, `cwd`; `url`,
+/// `headers`) in Codex's own keys (`RawMcpServerConfig`,
+/// `config/src/mcp_types.rs`), `${CLAUDE_PLUGIN_ROOT}` already written out:
+///
+/// - a variable passed on as it is, `"KEY": "${KEY}"`, is named in
+///   `env_vars`, which Codex forwards from its own environment (it starts a
+///   stdio server from a cleared one); a header holding one variable is
+///   named in `env_http_headers`, and `Authorization: Bearer ${TOKEN}` is
+///   `bearer_token_env_var`. Any other `${…}` is refused (`Variables`): Codex
+///   would pass it on as written, and filling it in here would put its value
+///   on a command line;
+/// - a relative `cwd` is the plugin's folder's, as Codex reads a plugin's
+///   (`codex-mcp/src/plugin_config.rs`);
+/// - the keys a server may carry for Codex alone are kept: `env_vars`,
+///   `enabled_tools`, `disabled_tools`, `startup_timeout_sec`,
+///   `tool_timeout_sec` (a float, as Codex reads it);
+/// - anything else (Claude Code's `type`, `oauth`, `timeout`…) is left out.
+pub(crate) fn codex_entry(definition: &Value, root: Option<&Path>) -> Result<Value, NotForCodex> {
+    let strings = |key: &str| -> Vec<String> {
+        definition
+            .get(key)
+            .and_then(Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let text_map = |key: &str| -> Vec<(String, String)> {
+        definition
+            .get(key)
+            .and_then(Value::as_object)
+            .map(|map| {
+                map.iter()
+                    .filter_map(|(name, value)| Some((name.clone(), value.as_str()?.to_string())))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let mut entry = Map::new();
+    match transport(definition) {
+        Transport::Stdio => {
+            let command = definition
+                .get("command")
+                .and_then(Value::as_str)
+                .filter(|command| !command.trim().is_empty())
+                .ok_or(NotForCodex::Transport)?;
+            let args = strings("args");
+            let cwd = definition.get("cwd").and_then(Value::as_str);
+            if has_variable(command)
+                || args.iter().any(|arg| has_variable(arg))
+                || cwd.is_some_and(has_variable)
+            {
+                return Err(NotForCodex::Variables);
+            }
+            let mut env = Map::new();
+            let mut env_vars = strings("env_vars");
+            for (name, value) in text_map("env") {
+                match whole_variable(&value) {
+                    Some(variable) if variable == name => {
+                        if !env_vars.contains(&name) {
+                            env_vars.push(name);
+                        }
+                    }
+                    _ if has_variable(&value) => return Err(NotForCodex::Variables),
+                    _ => {
+                        env.insert(name, Value::String(value));
+                    }
+                }
+            }
+            entry.insert("command".into(), json!(command));
+            if !args.is_empty() {
+                entry.insert("args".into(), json!(args));
+            }
+            if !env.is_empty() {
+                entry.insert("env".into(), Value::Object(env));
+            }
+            if !env_vars.is_empty() {
+                entry.insert("env_vars".into(), json!(env_vars));
+            }
+            if let Some(cwd) = cwd.filter(|cwd| !cwd.is_empty()) {
+                let cwd = match root {
+                    Some(root) if Path::new(cwd).is_relative() => {
+                        root.join(cwd).to_string_lossy().into_owned()
+                    }
+                    _ => cwd.to_string(),
+                };
+                entry.insert("cwd".into(), json!(cwd));
+            }
+        }
+        Transport::Http => {
+            let url = definition
+                .get("url")
+                .and_then(Value::as_str)
+                .filter(|url| !url.trim().is_empty())
+                .ok_or(NotForCodex::Transport)?;
+            if has_variable(url) {
+                return Err(NotForCodex::Variables);
+            }
+            entry.insert("url".into(), json!(url));
+            let mut literal = Map::new();
+            let mut from_env = Map::new();
+            let mut bearer = definition
+                .get("bearer_token_env_var")
+                .and_then(Value::as_str)
+                .map(str::to_string);
+            for (name, value) in text_map("headers") {
+                let token = value
+                    .strip_prefix("Bearer ")
+                    .and_then(whole_variable)
+                    .filter(|_| name.eq_ignore_ascii_case("authorization"));
+                if let Some(token) = token {
+                    bearer = Some(token.to_string());
+                } else if let Some(variable) = whole_variable(&value) {
+                    from_env.insert(name, json!(variable));
+                } else if has_variable(&value) {
+                    return Err(NotForCodex::Variables);
+                } else {
+                    literal.insert(name, Value::String(value));
+                }
+            }
+            if !literal.is_empty() {
+                entry.insert("http_headers".into(), Value::Object(literal));
+            }
+            if !from_env.is_empty() {
+                entry.insert("env_http_headers".into(), Value::Object(from_env));
+            }
+            if let Some(bearer) = bearer {
+                entry.insert("bearer_token_env_var".into(), json!(bearer));
+            }
+        }
+        Transport::Sse | Transport::Ws => return Err(NotForCodex::Transport),
+    }
+    for key in ["enabled_tools", "disabled_tools"] {
+        let names = strings(key);
+        if definition.get(key).is_some_and(Value::is_array) {
+            entry.insert(key.into(), json!(names));
+        }
+    }
+    for key in ["startup_timeout_sec", "tool_timeout_sec"] {
+        if let Some(seconds) = definition.get(key).and_then(Value::as_f64) {
+            if seconds.is_finite() && seconds >= 0.0 {
+                entry.insert(key.into(), json!(seconds));
+            }
+        }
+    }
+    Ok(Value::Object(entry))
+}
+
+/// The MCP servers a Codex pane starts with beside Hangar's own, for
+/// `LaunchRequest::mcp_overrides` (agent/launch.rs), and what came of the
+/// workspace's choice.
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodexScope {
+    /// The servers by name, in Codex's own keys: each kit's, then, in
+    /// « custom » mode, each of the person's the workspace did not choose,
+    /// turned off. Never sent to the window: a kit's entry carries its
+    /// environment.
+    #[serde(skip)]
+    pub overrides: Vec<(String, Value)>,
+    /// The chosen servers Codex starts.
+    pub servers: Vec<String>,
+    /// The person's servers turned off for the launch.
+    pub off: Vec<String>,
+    /// Chosen servers Codex's own configuration turns off: they stay off,
+    /// Hangar never turns on what the person or a policy turned off.
+    pub stay_off: Vec<String>,
+    /// Servers not chosen that Hangar cannot turn off: a transport this
+    /// Hangar does not know. They start.
+    pub left_on: Vec<String>,
+    /// Chosen names Codex's configuration does not define (any more).
+    pub missing: Vec<String>,
+    /// The kits' servers, by the name Codex gets them under.
+    pub kit_servers: Vec<String>,
+    /// Why Codex's servers could not be listed, in « custom » mode: none is
+    /// turned off, and the pane starts with them all, as without a choice.
+    pub unlisted: Option<String>,
+}
+
+/// What a Codex pane started in `cwd` on `account` (main when absent) gets
+/// beside Hangar's own server: the servers of the workspace's `kits` meant
+/// for Codex, and, when `enabled` is given (« custom » mode), every server of
+/// Codex's own it does not name turned off.
+///
+/// Codex's configuration is read through `codex mcp list` alone, and only in
+/// « custom » mode: without a choice there is nothing to turn off, and a
+/// pane does not wait for it.
+pub fn codex_mcp_scope(
+    cwd: String,
+    enabled: Option<Vec<String>>,
+    kits: Vec<String>,
+    account: Option<String>,
+) -> CodexScope {
+    let listed = enabled
+        .as_ref()
+        .map(|_| codex_list(Path::new(&cwd), account.as_deref()));
+    codex_scope(
+        listed,
+        enabled.as_deref(),
+        crate::kits::codex_mcp_servers(&kits),
+    )
+}
+
+fn codex_scope(
+    listed: Option<Result<Vec<CodexListed>, String>>,
+    enabled: Option<&[String]>,
+    kit_servers: Vec<(String, Value)>,
+) -> CodexScope {
+    let mut scope = CodexScope::default();
+    // Hangar's own name is the launch's (agent/codex.rs): never turned off,
+    // never a kit's.
+    let mut taken: BTreeSet<String> = BTreeSet::from([SERVER_KEY.to_string()]);
+    let mut turned_off = Vec::new();
+    match (enabled, listed) {
+        (Some(enabled), Some(Ok(listed))) => {
+            for server in &listed {
+                taken.insert(server.name.clone());
+                if server.name == SERVER_KEY {
+                    continue;
+                }
+                // A former name of Hangar's is never chosen, as for Claude
+                // Code (`scoped_config`): the running app's server is.
+                let chosen = enabled.contains(&server.name) && !is_hangar(&server.name);
+                if chosen {
+                    if server.enabled {
+                        scope.servers.push(server.name.clone());
+                    } else {
+                        scope.stay_off.push(server.name.clone());
+                    }
+                } else if server.enabled {
+                    match codex_off(&server.transport) {
+                        Some(entry) => {
+                            turned_off.push((server.name.clone(), entry));
+                            scope.off.push(server.name.clone());
+                        }
+                        None => scope.left_on.push(server.name.clone()),
+                    }
+                }
+            }
+            scope.missing = enabled
+                .iter()
+                .filter(|name| !is_hangar(name))
+                .filter(|name| !listed.iter().any(|server| &server.name == *name))
+                .cloned()
+                .collect();
+        }
+        (Some(_), Some(Err(why))) => scope.unlisted = Some(why),
+        _ => {}
+    }
+    for (name, entry) in kit_servers {
+        if taken.insert(name.clone()) {
+            scope.kit_servers.push(name.clone());
+            scope.overrides.push((name, entry));
+        }
+    }
+    scope.overrides.extend(turned_off);
+    scope
 }
 
 /// What `trust_folder` did.
@@ -1458,5 +1984,424 @@ mod tests {
         m.config(json!({}), &[]);
         assert!(trust_folder(&m.files.config, Path::new("relative/dir")).is_err());
         assert!(trust_folder(&m.files.config, &m.root.join("nope")).is_err());
+    }
+
+    // Codex.
+
+    /// What `codex mcp list --json` prints, written from the source
+    /// (`cli/src/mcp_cmd.rs`, `run_list`, Codex 0.170.0): no Codex was run.
+    const CODEX_LIST_OUTPUT: &str = r#"[
+  {
+    "name": "github",
+    "enabled": true,
+    "disabled_reason": null,
+    "transport": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": { "GITHUB_TOKEN": "ghp_secret" },
+      "env_vars": [],
+      "cwd": null
+    },
+    "startup_timeout_sec": null,
+    "tool_timeout_sec": null,
+    "auth_status": "unsupported"
+  },
+  {
+    "name": "hangar",
+    "enabled": true,
+    "disabled_reason": null,
+    "transport": { "type": "stdio", "command": "/opt/hangar/hangar-ai", "args": ["--mcp"], "env": null, "env_vars": [], "cwd": null },
+    "startup_timeout_sec": null,
+    "tool_timeout_sec": 120.0,
+    "auth_status": "unsupported"
+  },
+  {
+    "name": "iabench",
+    "enabled": true,
+    "disabled_reason": null,
+    "transport": { "type": "stdio", "command": "/opt/old/iabench", "args": ["--mcp"], "env": null, "env_vars": [], "cwd": null },
+    "startup_timeout_sec": null,
+    "tool_timeout_sec": null,
+    "auth_status": "unsupported"
+  },
+  {
+    "name": "linear",
+    "enabled": true,
+    "disabled_reason": null,
+    "transport": {
+      "type": "streamable_http",
+      "url": "https://mcp.linear.app/mcp?key=secret",
+      "bearer_token_env_var": null,
+      "http_headers": null,
+      "env_http_headers": null,
+      "http_headers_helper": null
+    },
+    "startup_timeout_sec": null,
+    "tool_timeout_sec": null,
+    "auth_status": "o_auth"
+  },
+  {
+    "name": "notes",
+    "enabled": false,
+    "disabled_reason": "unknown",
+    "transport": { "type": "stdio", "command": "notes-mcp", "args": [], "env": null, "env_vars": [], "cwd": null },
+    "startup_timeout_sec": null,
+    "tool_timeout_sec": null,
+    "auth_status": "unsupported"
+  },
+  { "enabled": true, "transport": { "type": "stdio", "command": "nameless" } }
+]"#;
+
+    fn listed() -> Vec<CodexListed> {
+        parse_codex_list(CODEX_LIST_OUTPUT).unwrap()
+    }
+
+    #[test]
+    fn codex_s_list_is_read_by_name_state_and_transport() {
+        let servers = listed();
+        let names: Vec<&str> = servers.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(names, ["github", "hangar", "iabench", "linear", "notes"]);
+        assert!(servers[0].enabled && !servers[4].enabled);
+        assert_eq!(servers[3].transport["type"], "streamable_http");
+        assert!(parse_codex_list("\u{feff}[]\n").unwrap().is_empty());
+        assert!(parse_codex_list("No MCP servers configured yet.").is_err());
+        assert!(parse_codex_list(r#"{"name": "x"}"#).is_err());
+    }
+
+    /// The panel's rows say what a server is, never its environment or the
+    /// path and query of its address.
+    #[test]
+    fn codex_s_servers_are_listed_without_their_secrets() {
+        let rows: Vec<ServerInfo> = listed().iter().map(codex_info).collect();
+        assert_eq!(rows[0].summary, "npx @modelcontextprotocol/server-github");
+        assert_eq!(rows[0].transport, Transport::Stdio);
+        assert_eq!(rows[0].status, Status::Active);
+        assert!(rows[1].hangar && rows[2].hangar && !rows[0].hangar);
+        assert_eq!(rows[3].transport, Transport::Http);
+        assert_eq!(rows[3].summary, "mcp.linear.app");
+        assert_eq!(rows[4].status, Status::Disabled);
+        let shown = serde_json::to_string(&rows).unwrap();
+        assert!(!shown.contains("secret"), "{shown}");
+    }
+
+    /// Turned off with its transport's key, so the entry stays one Codex
+    /// reads; a remote one by its scheme and host alone.
+    #[test]
+    fn a_server_is_turned_off_with_its_transports_key() {
+        let servers = listed();
+        assert_eq!(
+            codex_off(&servers[0].transport),
+            Some(json!({ "command": "npx", "enabled": false }))
+        );
+        assert_eq!(
+            codex_off(&servers[3].transport),
+            Some(json!({ "url": "https://mcp.linear.app/", "enabled": false }))
+        );
+        assert_eq!(
+            codex_off(
+                &json!({ "type": "streamable_http", "url": "http://user:pw@127.0.0.1:9000/x" })
+            ),
+            Some(json!({ "url": "http://127.0.0.1:9000/", "enabled": false }))
+        );
+        assert_eq!(codex_off(&json!({ "type": "stdio" })), None);
+        assert_eq!(
+            codex_off(&json!({ "type": "sse", "url": "https://x/" })),
+            None
+        );
+    }
+
+    fn studio() -> (String, Value) {
+        ("studio_studio".into(), json!({ "command": "node" }))
+    }
+
+    /// « custom »: the chosen servers start, the others are turned off, a
+    /// server Codex's own configuration turns off stays off, and Hangar's
+    /// own name is the launch's.
+    #[test]
+    fn custom_mode_turns_off_what_was_not_chosen() {
+        let enabled: Vec<String> = ["linear", "notes", "gone", "hangar", "iabench"]
+            .map(String::from)
+            .to_vec();
+        let kit_github = ("github".to_string(), json!({ "command": "kit-github" }));
+        let scope = codex_scope(
+            Some(Ok(listed())),
+            Some(&enabled),
+            vec![studio(), kit_github],
+        );
+        assert_eq!(scope.servers, ["linear"]);
+        assert_eq!(scope.stay_off, ["notes"]);
+        assert_eq!(scope.off, ["github", "iabench"]);
+        assert_eq!(scope.missing, ["gone"]);
+        assert!(scope.left_on.is_empty() && scope.unlisted.is_none());
+        // The kit's `github` would merge into the person's: left out.
+        assert_eq!(scope.kit_servers, ["studio_studio"]);
+        assert_eq!(
+            scope.overrides,
+            vec![
+                studio(),
+                (
+                    "github".to_string(),
+                    json!({ "command": "npx", "enabled": false })
+                ),
+                (
+                    "iabench".to_string(),
+                    json!({ "command": "/opt/old/iabench", "enabled": false })
+                ),
+            ]
+        );
+        assert!(!scope.overrides.iter().any(|(name, _)| name == "hangar"));
+        let sent = serde_json::to_value(&scope).unwrap();
+        assert!(sent.get("overrides").is_none(), "{sent}");
+        assert_eq!(sent["kitServers"], json!(["studio_studio"]));
+    }
+
+    /// A list that cannot be had turns nothing off: the pane starts with
+    /// every server, and says why.
+    #[test]
+    fn a_list_that_cannot_be_had_turns_nothing_off() {
+        let enabled = vec!["linear".to_string()];
+        let scope = codex_scope(
+            Some(Err("Codex is not installed on this machine".into())),
+            Some(&enabled),
+            vec![studio()],
+        );
+        assert_eq!(
+            scope.unlisted.as_deref(),
+            Some("Codex is not installed on this machine")
+        );
+        assert!(scope.off.is_empty() && scope.servers.is_empty());
+        assert_eq!(scope.overrides, vec![studio()]);
+    }
+
+    /// Without a choice nothing of Codex's own is touched: only the kits'
+    /// servers, and Hangar's name never goes to a kit.
+    #[test]
+    fn without_a_choice_only_the_kits_servers_are_added() {
+        let scope = codex_scope(
+            None,
+            None,
+            vec![studio(), ("hangar".into(), json!({ "command": "x" }))],
+        );
+        assert_eq!(scope.overrides, vec![studio()]);
+        assert_eq!(scope.kit_servers, ["studio_studio"]);
+        assert!(scope.off.is_empty() && scope.missing.is_empty() && scope.unlisted.is_none());
+    }
+
+    /// A transport Codex lists that this Hangar does not know cannot be
+    /// turned off, and is said to start.
+    #[test]
+    fn a_server_that_cannot_be_turned_off_is_said_to_start() {
+        let listed = parse_codex_list(
+            r#"[{ "name": "future", "enabled": true, "transport": { "type": "sse", "url": "https://x/" } }]"#,
+        )
+        .unwrap();
+        let scope = codex_scope(Some(Ok(listed)), Some(&[]), Vec::new());
+        assert_eq!(scope.left_on, ["future"]);
+        assert!(scope.overrides.is_empty());
+    }
+
+    /// A plugin's server written for Claude Code, in Codex's keys.
+    #[test]
+    fn a_stdio_server_is_written_in_codex_s_keys() {
+        let entry = codex_entry(
+            &json!({
+                "type": "stdio",
+                "command": "node",
+                "args": ["/kits/studio/server.js", "--port", "7777"],
+                "env": { "API_KEY": "${API_KEY}", "MODE": "studio" },
+                "cwd": "tools",
+                "timeout": 5000,
+                "env_vars": ["HOME_DIR"],
+                "tool_timeout_sec": 30,
+                "enabled_tools": ["run", 3],
+            }),
+            Some(Path::new("/kits/studio")),
+        )
+        .unwrap();
+        assert_eq!(
+            entry,
+            json!({
+                "command": "node",
+                "args": ["/kits/studio/server.js", "--port", "7777"],
+                "env": { "MODE": "studio" },
+                "env_vars": ["HOME_DIR", "API_KEY"],
+                "cwd": Path::new("/kits/studio").join("tools").to_string_lossy(),
+                "enabled_tools": ["run"],
+                "tool_timeout_sec": 30.0,
+            })
+        );
+        // A float, as Codex reads its timeouts.
+        assert!(entry["tool_timeout_sec"].is_f64());
+        let absolute = codex_entry(
+            &json!({ "command": "x", "cwd": "/srv" }),
+            Some(Path::new("/k")),
+        )
+        .unwrap();
+        assert_eq!(absolute["cwd"], "/srv");
+    }
+
+    #[test]
+    fn a_remote_server_s_headers_name_their_variables() {
+        let entry = codex_entry(
+            &json!({
+                "type": "http",
+                "url": "https://mcp.example.com/mcp",
+                "headers": {
+                    "Authorization": "Bearer ${EXAMPLE_TOKEN}",
+                    "X-Team": "${EXAMPLE_TEAM}",
+                    "X-Client": "hangar"
+                },
+                "oauth": { "clientId": "abc" }
+            }),
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            entry,
+            json!({
+                "url": "https://mcp.example.com/mcp",
+                "http_headers": { "X-Client": "hangar" },
+                "env_http_headers": { "X-Team": "EXAMPLE_TEAM" },
+                "bearer_token_env_var": "EXAMPLE_TOKEN",
+            })
+        );
+        let untyped = codex_entry(&json!({ "url": "http://127.0.0.1:44755/mcp" }), None).unwrap();
+        assert_eq!(untyped, json!({ "url": "http://127.0.0.1:44755/mcp" }));
+    }
+
+    /// What Codex cannot take as Claude Code wrote it is refused, with why.
+    #[test]
+    fn what_codex_cannot_take_is_refused_with_why() {
+        for (definition, why) in [
+            (
+                json!({ "type": "sse", "url": "https://x/sse" }),
+                NotForCodex::Transport,
+            ),
+            (
+                json!({ "type": "ws", "url": "wss://x/" }),
+                NotForCodex::Transport,
+            ),
+            (json!({ "type": "stdio" }), NotForCodex::Transport),
+            (json!({ "args": ["x"] }), NotForCodex::Transport),
+            (json!({ "type": "http" }), NotForCodex::Transport),
+            (json!({ "command": "${BIN}" }), NotForCodex::Variables),
+            (
+                json!({ "command": "x", "args": ["--key=${KEY}"] }),
+                NotForCodex::Variables,
+            ),
+            (
+                json!({ "command": "x", "env": { "A": "${B}" } }),
+                NotForCodex::Variables,
+            ),
+            (
+                json!({ "command": "x", "env": { "A": "${A:-1}" } }),
+                NotForCodex::Variables,
+            ),
+            (
+                json!({ "command": "x", "cwd": "${HOME}/x" }),
+                NotForCodex::Variables,
+            ),
+            (
+                json!({ "url": "https://x/${PATH_PART}" }),
+                NotForCodex::Variables,
+            ),
+            (
+                json!({ "url": "https://x/", "headers": { "X-A": "id ${ID}" } }),
+                NotForCodex::Variables,
+            ),
+        ] {
+            assert_eq!(codex_entry(&definition, None), Err(why), "{definition}");
+        }
+        assert_eq!(whole_variable("${A_1}"), Some("A_1"));
+        assert_eq!(whole_variable("${1A}"), None);
+        assert_eq!(whole_variable("$A"), None);
+    }
+
+    /// A stand-in `codex` that answers `mcp list --json` as the real one
+    /// does, and shows where and how it was run.
+    #[cfg(unix)]
+    fn fake_codex(dir: &Path, body: &str) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let fake = dir.join("codex");
+        fs::write(&fake, format!("#!/bin/sh\n{body}\n")).unwrap();
+        fs::set_permissions(&fake, fs::Permissions::from_mode(0o755)).unwrap();
+        fake
+    }
+
+    /// Runs the list, again when the script just written is still busy:
+    /// another test's child may hold it between fork and exec (ETXTBSY).
+    #[cfg(unix)]
+    fn list_with(
+        program: &Path,
+        cwd: &Path,
+        env: &[(&str, Option<PathBuf>)],
+        timeout: Duration,
+    ) -> Result<Vec<CodexListed>, String> {
+        let mut result = run_codex_list(program, cwd, env, timeout);
+        for _ in 0..5 {
+            match &result {
+                Err(why) if why.contains("os error 26") => {
+                    std::thread::sleep(Duration::from_millis(50));
+                    result = run_codex_list(program, cwd, env, timeout);
+                }
+                _ => break,
+            }
+        }
+        result
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_list_is_asked_of_codex_where_the_pane_runs_with_its_account() {
+        let dir = crate::testdir::scratch("codex-list");
+        let work = dir.join("work");
+        fs::create_dir_all(&work).unwrap();
+        let fake = fake_codex(
+            &dir,
+            r#"[ "$*" = "mcp list --json" ] || { echo "unexpected: $*" >&2; exit 2; }
+printf '[{"name":"%s","enabled":true,"transport":{"type":"stdio","command":"%s"}},' "$CODEX_HOME" "$(pwd -P)"
+printf '{"name":"removed-%s","enabled":true,"transport":{"type":"stdio","command":"x"}}]' "${CODEX_SQLITE_HOME:-none}""#,
+        );
+        let home = dir.join("accounts/codex-work");
+        let listed = list_with(
+            &fake,
+            &work,
+            &[
+                ("CODEX_HOME", Some(home.clone())),
+                ("CODEX_SQLITE_HOME", None),
+            ],
+            Duration::from_secs(10),
+        )
+        .unwrap();
+        assert_eq!(listed[0].name, home.to_string_lossy());
+        assert_eq!(
+            listed[0].transport["command"].as_str().map(PathBuf::from),
+            Some(fs::canonicalize(&work).unwrap())
+        );
+        assert_eq!(listed[1].name, "removed-none");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_list_that_fails_or_hangs_says_so() {
+        let dir = crate::testdir::scratch("codex-list-fails");
+        let failing = fake_codex(
+            &dir,
+            "echo 'Error: config.toml: invalid transport' >&2\nexit 1",
+        );
+        let why = list_with(&failing, &dir, &[], Duration::from_secs(10)).unwrap_err();
+        assert!(why.contains("invalid transport"), "{why}");
+
+        let slow = dir.join("slow");
+        fs::create_dir_all(&slow).unwrap();
+        let hanging = fake_codex(&slow, "exec sleep 30");
+        let started = Instant::now();
+        let why = list_with(&hanging, &dir, &[], Duration::from_millis(300)).unwrap_err();
+        assert!(why.contains("did not answer"), "{why}");
+        assert!(started.elapsed() < Duration::from_secs(10));
+
+        let missing = list_with(&dir.join("nope"), &dir, &[], Duration::from_secs(1)).unwrap_err();
+        assert!(missing.contains("could not be started"), "{missing}");
     }
 }

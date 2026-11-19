@@ -360,3 +360,257 @@ fn quoted_answer(text: &str, question: &str) -> Option<String> {
         .min()?;
     Some(rest[..end].to_string())
 }
+
+// ---------------------------------------------------------------------------
+// Codex: an item says what it did in fields of its own rather than as a
+// tool's input. The same lines, built from those fields (chat/codex.rs).
+// ---------------------------------------------------------------------------
+
+/// A Codex description, its detail cut like any other.
+fn codex(title: String, detail: Option<String>) -> Described {
+    Described {
+        title,
+        detail: detail
+            .filter(|detail| !detail.trim().is_empty())
+            .map(|detail| clip(&detail, CLIP_BYTES)),
+        read: None,
+    }
+}
+
+/// The shells Codex wraps a command in, by file name.
+const SHELLS: &[&str] = &[
+    "bash",
+    "zsh",
+    "sh",
+    "dash",
+    "fish",
+    "pwsh",
+    "powershell",
+    "cmd",
+];
+/// The flag each passes its script after.
+const SCRIPT_FLAGS: &[&str] = &["-lc", "-c", "-Command", "-command", "/c", "/C"];
+
+/// A command's words as one line, quoted the POSIX way where a word needs it.
+fn join_words(words: &[String]) -> String {
+    let quoted: Vec<String> = words
+        .iter()
+        .map(|word| {
+            let plain = !word.is_empty()
+                && word
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || "-_./:=@%+,".contains(c));
+            if plain {
+                word.clone()
+            } else {
+                format!("'{}'", word.replace('\'', r#"'"'"'"#))
+            }
+        })
+        .collect();
+    quoted.join(" ")
+}
+
+/// The script of `<shell> [options] <flag> <script>`, the way Codex runs
+/// what the model wrote: what the person would have typed.
+fn wrapped_script(words: &[String]) -> Option<&str> {
+    let [shell, .., flag, script] = words else {
+        return None;
+    };
+    let name = shell.rsplit(['/', '\\']).next().unwrap_or(shell);
+    let name = name.to_ascii_lowercase();
+    let name = name.strip_suffix(".exe").unwrap_or(&name);
+    (SHELLS.contains(&name) && SCRIPT_FLAGS.contains(&flag.as_str())).then_some(script.as_str())
+}
+
+/// A command Codex keeps as its words (a rollout's `command`), as a line.
+pub fn script_of_words(words: &[String]) -> String {
+    match wrapped_script(words) {
+        Some(script) => script.to_string(),
+        None => join_words(words),
+    }
+}
+
+/// A command the app server joined into one line (its `shlex_join`), the
+/// shell around it taken off; any other line stays as it came.
+pub fn script_of_line(line: &str) -> String {
+    split_words(line)
+        .as_deref()
+        .and_then(wrapped_script)
+        .map_or_else(|| line.to_string(), str::to_string)
+}
+
+/// A line's words, split as a POSIX shell would: quotes, and backslashes
+/// outside single quotes. `None` when a quote is left open.
+fn split_words(line: &str) -> Option<Vec<String>> {
+    let mut words = Vec::new();
+    let mut word: Option<String> = None;
+    let mut chars = line.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            c if c.is_whitespace() => words.extend(word.take()),
+            '\'' => {
+                let word = word.get_or_insert_with(String::new);
+                loop {
+                    match chars.next()? {
+                        '\'' => break,
+                        c => word.push(c),
+                    }
+                }
+            }
+            '"' => {
+                let word = word.get_or_insert_with(String::new);
+                loop {
+                    match chars.next()? {
+                        '"' => break,
+                        '\\' => match chars.next()? {
+                            c @ ('"' | '\\' | '$' | '`') => word.push(c),
+                            c => {
+                                word.push('\\');
+                                word.push(c);
+                            }
+                        },
+                        c => word.push(c),
+                    }
+                }
+            }
+            '\\' => word.get_or_insert_with(String::new).push(chars.next()?),
+            c => word.get_or_insert_with(String::new).push(c),
+        }
+    }
+    words.extend(word);
+    Some(words)
+}
+
+/// A command Codex ran: its script, as Claude Code's Bash reads.
+pub fn command(script: &str) -> Described {
+    codex(
+        format!("Ran {}", headline(script)),
+        Some(script.to_string()),
+    )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChangeKind {
+    Add,
+    Delete,
+    Update,
+}
+
+/// One file of a patch: a new file's content, a deleted one's, or the
+/// unified diff of an update.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Change {
+    pub path: String,
+    pub kind: ChangeKind,
+    pub diff: String,
+}
+
+/// A patch Codex applied: one file reads as Claude Code's Write or Edit,
+/// several as one line with each file's diff under its name.
+pub fn patch(changes: &[Change], cwd: Option<&str>) -> Described {
+    let diff = |change: &Change| match change.kind {
+        // What a deleted file held is no news.
+        ChangeKind::Delete => String::new(),
+        _ => change.diff.clone(),
+    };
+    match changes {
+        [one] => {
+            let path = shorten(&one.path, cwd);
+            let title = match one.kind {
+                ChangeKind::Add => format!("Wrote {path}"),
+                ChangeKind::Delete => format!("Deleted {path}"),
+                ChangeKind::Update => format!("Edited {path}"),
+            };
+            codex(title, Some(diff(one)))
+        }
+        many => codex(
+            format!("Edited {} files", many.len()),
+            Some(
+                many.iter()
+                    .map(|change| {
+                        format!("{}\n{}", shorten(&change.path, cwd), diff(change))
+                            .trim_end()
+                            .to_string()
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n\n"),
+            ),
+        ),
+    }
+}
+
+/// A call to a tool Codex's model was given by name (an MCP server's, a
+/// client's own): what Claude Code's tools nothing here knows read as.
+pub fn used(name: &str, input: &Value) -> Described {
+    codex(format!("Used {name}"), raw_input(input))
+}
+
+/// What a web search did, by its action.
+#[derive(Debug, Clone, PartialEq)]
+pub enum WebAction {
+    Search {
+        queries: Vec<String>,
+    },
+    OpenPage {
+        url: Option<String>,
+    },
+    FindInPage {
+        url: Option<String>,
+        pattern: Option<String>,
+    },
+    Other,
+}
+
+/// A web search: as Claude Code's WebSearch, or its WebFetch for a page
+/// opened.
+pub fn web_search(query: &str, action: &WebAction) -> Described {
+    let searched = |queries: &[String]| {
+        let first = queries.first().map_or(query, String::as_str);
+        let title = match headline(first) {
+            line if line.is_empty() => "Searched the web".to_string(),
+            line => format!("Searched the web for {line}"),
+        };
+        codex(title, (queries.len() > 1).then(|| queries.join("\n")))
+    };
+    match action {
+        WebAction::Search { queries } => searched(queries),
+        WebAction::OpenPage { url } => codex(
+            format!("Fetched {}", headline(url.as_deref().unwrap_or(query))),
+            None,
+        ),
+        WebAction::FindInPage { url, pattern } => codex(
+            format!(
+                "Searched {} for {}",
+                headline(url.as_deref().unwrap_or("the page")),
+                headline(pattern.as_deref().unwrap_or(query))
+            ),
+            None,
+        ),
+        WebAction::Other => searched(&[]),
+    }
+}
+
+/// An image Codex generated, with the prompt it was made from.
+pub fn image_generation(prompt: Option<&str>) -> Described {
+    codex("Generated an image".to_string(), prompt.map(str::to_string))
+}
+
+/// A plan Codex proposed, as Claude Code's ExitPlanMode.
+pub fn plan(text: &str) -> Described {
+    codex("Presented a plan".to_string(), Some(text.to_string()))
+}
+
+/// A sub-agent Codex started, as Claude Code's Agent.
+pub fn agent(prompt: Option<&str>) -> Described {
+    codex(
+        format!(
+            "Ran agent: {}",
+            headline(
+                prompt
+                    .filter(|p| !p.trim().is_empty())
+                    .unwrap_or("subagent")
+            )
+        ),
+        prompt.map(str::to_string),
+    )
+}

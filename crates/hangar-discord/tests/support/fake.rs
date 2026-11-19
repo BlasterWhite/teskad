@@ -13,7 +13,7 @@ use axum::Router;
 use axum::body::Bytes;
 use axum::extract::State;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::http::{Method, StatusCode, Uri};
+use axum::http::{HeaderMap, Method, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{any, get, post};
 use futures_util::{SinkExt, StreamExt};
@@ -34,6 +34,8 @@ pub struct Call {
     pub at: std::time::Instant,
     /// The id the server gave what the call made (a message, a channel).
     pub id: String,
+    /// The files a multipart call carried: each one's name and bytes.
+    pub files: Vec<(String, Vec<u8>)>,
 }
 
 #[derive(Default)]
@@ -68,7 +70,59 @@ fn body_of(bytes: &[u8]) -> Value {
         .unwrap_or(Value::Null)
 }
 
-async fn rest(State(fake): State<Shared>, method: Method, uri: Uri, body: Bytes) -> Response {
+/// Where `needle` is in `haystack`, from `from` on.
+fn find_in(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
+    haystack
+        .get(from..)?
+        .windows(needle.len())
+        .position(|window| window == needle)
+        .map(|at| at + from)
+}
+
+/// The files of a multipart body (`files[n]`, as the connector sends
+/// them): each part's file name and bytes; none for a JSON body.
+fn files_of(headers: &HeaderMap, bytes: &[u8]) -> Vec<(String, Vec<u8>)> {
+    let Some(boundary) = headers
+        .get("content-type")
+        .and_then(|value| value.to_str().ok())
+        .filter(|kind| kind.starts_with("multipart/form-data"))
+        .and_then(|kind| kind.split("boundary=").nth(1))
+        .map(|boundary| format!("--{}", boundary.trim_matches('"')))
+    else {
+        return Vec::new();
+    };
+    let boundary = boundary.as_bytes();
+    let mut files = Vec::new();
+    let mut at = find_in(bytes, boundary, 0);
+    while let Some(start) = at {
+        let part = start + boundary.len();
+        let next = find_in(bytes, boundary, part);
+        let end = next.unwrap_or(bytes.len());
+        let whole = &bytes[part..end];
+        if let Some(split) = find_in(whole, b"\r\n\r\n", 0) {
+            let head = String::from_utf8_lossy(&whole[..split]);
+            let name = head
+                .split("filename=\"")
+                .nth(1)
+                .and_then(|rest| rest.split('"').next());
+            if let Some(name) = name {
+                let body = &whole[split + 4..];
+                let body = body.strip_suffix(b"\r\n").unwrap_or(body);
+                files.push((name.to_string(), body.to_vec()));
+            }
+        }
+        at = next;
+    }
+    files
+}
+
+async fn rest(
+    State(fake): State<Shared>,
+    method: Method,
+    uri: Uri,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
     let path = uri
         .path_and_query()
         .map(|p| p.as_str().trim_start_matches("/api").to_string())
@@ -83,6 +137,7 @@ async fn rest(State(fake): State<Shared>, method: Method, uri: Uri, body: Bytes)
             body: body_of(&body),
             at: std::time::Instant::now(),
             id: id.clone(),
+            files: files_of(&headers, &body),
         });
         (id, fake.latency)
     };
@@ -162,7 +217,10 @@ async fn list_calls(State(fake): State<Shared>) -> Response {
     let calls: Vec<Value> = locked(&fake)
         .calls
         .iter()
-        .map(|c| json!({ "method": c.method, "path": c.path, "body": c.body }))
+        .map(|c| {
+            let files: Vec<&str> = c.files.iter().map(|(name, _)| name.as_str()).collect();
+            json!({ "method": c.method, "path": c.path, "body": c.body, "files": files })
+        })
         .collect();
     axum::Json(Value::Array(calls)).into_response()
 }

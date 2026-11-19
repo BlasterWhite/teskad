@@ -1,5 +1,5 @@
 # The site (site/), served by static-web-server behind Cloudflare at
-# https://hangar.simnjs.fr. See site/README.md. The page has no build step, so
+# https://hangarai.dev. See site/README.md. The page has no build step, so
 # the image is the server and the folder as it is.
 FROM joseluisq/static-web-server:2-alpine
 COPY site /public

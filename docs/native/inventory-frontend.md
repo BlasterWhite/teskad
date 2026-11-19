@@ -327,7 +327,7 @@ None of this is ever saved: App.tsx `useState`, plus module-level stores.
 
 **Today:**
 - Main window label `main`. A workspace window has label `workspace-<id>` and URL `index.html?workspace=<id>[&resume=<paneIds>]`. `hangar-core/src/windows.rs`:
-  - title `"<name> — Hangar.AI"`, min 640×420;
+  - title `"<name> — HangarAI"`, min 640×420;
   - size: the saved `windowBounds` if they are on a screen, else a second screen, else 1200×800 centred.
 - **Detach** (main only, `canDetach`):
   1. `markHandover(paneIds)`, held 15 s, so the unmount does not kill those PTYs;
@@ -638,7 +638,7 @@ Repo facts that shape the port:
 **Other hooks.** `useAccounts`, `useAccountSwitching().setWorkspaceAccount(ws,id,false)`, `useAgentsIn` (only when the attention filter is on), `useAsleep` (lib/hibernateStore), `useWorkspaceActivity` (re-render while a menu is open), `useShortcutTitle` (tooltips with bound keys).
 
 **What it shows, top to bottom:**
-1. **`nav-top`.** Logo(15), "Hangar.AI", version chip (`getVersion()`, hidden on error), hide-navigator button (`sidebarLeft`, tooltip shows the `view.navigator` shortcut).
+1. **`nav-top`.** Logo(15), "HangarAI", version chip (`getVersion()`, hidden on error), hide-navigator button (`sidebarLeft`, tooltip shows the `view.navigator` shortcut).
 2. **HQ button.** "Open project manager" (`manager.open`, title `manager.openHint`). Accent outline with inline styles; `--active` plus a surface-hover background when the HQ is the active workspace. HQ workspaces (`ws.hq`) never appear in the tree.
 3. **`nav-section` heading** "Workspaces" plus a new-folder button (`folderPlus`). It becomes a **drop target** (`root`, heading) while a workspace is dragged and folders exist.
 4. **Tree** (`role=tree`). Loose workspaces first (aria-level 1), then each folder. Workspaces whose folderId is unknown count as loose.
@@ -2047,7 +2047,7 @@ Category order: general, appearance, terminal, shell, notifications, mobile, kit
 
 | key | control | value / buttons | label | notes |
 |---|---|---|---|---|
-| — (item `appName`) | text | `"hangar-ai"` | literal "Hangar.AI" | section title hidden (same as the category) |
+| — (item `appName`) | text | `"hangar-ai"` | literal "HangarAI" | section title hidden (same as the category) |
 | — (item `version`) | text | `getVersion()` | `settings.version` | omitted while empty |
 | — (item `reset`) | action, danger, two-step | `settings.reset`, then `settings.resetConfirm` | `settings.reset` / `settings.resetHint` | section `settings.maintenance`; `updateSettings(DEFAULT_SETTINGS)` |
 
@@ -2174,7 +2174,7 @@ Category order: general, appearance, terminal, shell, notifications, mobile, kit
   - `useVoice` (events `voice:phase` / `voice:level` / `voice:text`; commands `voice_start` / `voice_stop` / `voice_recording`) is the HUD's, mapped elsewhere.
 
 ##### DiscordCard — `DiscordCard.tsx` (128) + `lib/discord.ts` (161)
-- **Card**: the bundled `assets/logo.png`; a badge with the first letter of `smallText`; head `discord.cardHead`; "Hangar.AI"; `details`; `state`; elapsed `discord.elapsed {hh:mm:ss}` ticking every 1 s; a fake button with `buttonLabel`. Class `is-off` when disabled.
+- **Card**: the bundled `assets/logo.png`; a badge with the first letter of `smallText`; head `discord.cardHead`; "HangarAI"; `details`; `state`; elapsed `discord.elapsed {hh:mm:ss}` ticking every 1 s; a fake button with `buttonLabel`. Class `is-off` when disabled.
 - **Status line**: while enabled, polls `discord_presence_status` every 2 s → `{enabled, connected, error}`. States off / on / waiting (`discord.statusOff|Connected|Waiting`, plus `statusWaitingHint` with the error in a tooltip).
 - **`buildPresence({settings, workspace, focusedPaneId, t})`**: returns null when the setting is off.
   - details = workspace name, or `discord.working` when the name is hidden, or `discord.noWorkspace`.
@@ -3386,7 +3386,7 @@ This section has its own numbering: §5/1 control and orchestration engine (1.0 
 | Internal: briefing | `GET /api/bridge/{pane}/briefing` → `orchestrator::briefing` → `ask_internal("orchestrator_briefing", {paneId})` → `emit("control:internal")` | `useOrchestrator` → `answerInternal` (orchestratorBrief.ts:712) | `orchestrator_briefing` | 8 s; Rust then checks the reply and clips system to 24k chars, context to 32k |
 | Internal: phone | `remote::Window.send` closure → `ask_internal_via` → `control:internal` | `useRemoteControl` → `answerRemote` (remoteControl.ts:869) | `remote_*`: 15 `CALLS` + `remote_workspace` (upload) + `remote_apps` (asked by apps.rs:366 before `/m/api/app/open`) | 10 s (`CALL_TIMEOUT`) |
 
-- **Reply contract:** one reply per id. A late reply is dropped (the `pending` map). A refusal is `Err(String)`, which becomes HTTP 400 `{error:"refused", message}`. No answer means `Unavailable`, HTTP 503 (`pc-busy` for the phone). If the store is not loaded yet, the reply is `Err("Hangar.AI is still starting. Try again in a moment.")`.
+- **Reply contract:** one reply per id. A late reply is dropped (the `pending` map). A refusal is `Err(String)`, which becomes HTTP 400 `{error:"refused", message}`. No answer means `Unavailable`, HTTP 503 (`pc-busy` for the phone). If the store is not loaded yet, the reply is `Err("HangarAI is still starting. Try again in a moment.")`.
 - **Gating:** agent ops throw `DISABLED` unless `settings.agentPaneControl !== false`. Remote ops run as the person: `runRemote` rebuilds the deps with `enabled: () => true`. The briefing is never gated.
 - **Two listeners share `control:internal`:** each claims its own ops by name. An unknown internal op is answered by nobody and times out.
 - **Caller:** comes from `args.caller {paneId, paneName, cwd}`, set by mcp.rs:1112 from `HANGAR_PANE_ID`/`HANGAR_PANE_NAME`, with `args.callerCwd` as fallback.
@@ -3533,6 +3533,7 @@ App.tsx:856–915 wires it:
 - **State per workspace:** journal (last 50), pending (≤200), board snapshot, tasks, timer, holding, reading/readAgain. Also `workers: Map<paneId, WorkerWatch>` and `turns`.
 - **Output:** `enqueue(orchestrator, renderDelta, "hangar")`.
 - **Singleton API:** `startOrchestratorEvents`, `postOrchestratorEvent`, `orchestratorJournal(ws)`. The journal feeds the briefing, `worker_spawn` names, project summaries and the activity log.
+- **Since the port** (native engine, `crates/hangar-engine/src/orchestration/events.rs`, not the TS above): `workerIdle` waits while the worker's pane runs a command of its own (`hangar_core::pty::pane_job`; named in the event as `job` once it has held the worker an hour), comes once per idle spell and again only after the worker commented, reported progress, committed or delivered, or 30 min later; non-urgent events (`is_urgent`) wait for a digest sent at most every 5 min, or with the next urgent message. See `docs/guide/orchestration.md`.
 
 #### 1.6 managerEvents.ts: manager feed (non-HQ workspaces; runs only while a manager runs or a phone is subscribed)
 
@@ -4116,7 +4117,7 @@ pub enum Intent {                         // every cross-package request found i
 
 **`CoreEvent`** (`services/events.rs`): one variant per row of §1.9, with typed payloads.
 - If the backend agent's bus is not ready, P0 wraps whatever `hangar-core` exposes, or stubs it.
-- **`ControlRequest { id, op, args: Value, channel: Agent | Internal, reply: Reply }`**, where `Reply` = `Arc<Mutex<Option<oneshot::Sender<Result<Value, String>>>>>`. It arrives through `services/events.rs` as `Message::Control(control::Msg::Request(req))` (§5, "Async shape"). Before hydration, P0 answers `Err("Hangar.AI is still starting…")` itself.
+- **`ControlRequest { id, op, args: Value, channel: Agent | Internal, reply: Reply }`**, where `Reply` = `Arc<Mutex<Option<oneshot::Sender<Result<Value, String>>>>>`. It arrives through `services/events.rs` as `Message::Control(control::Msg::Request(req))` (§5, "Async shape"). Before hydration, P0 answers `Err("HangarAI is still starting…")` itself.
 
 **Service traits** (`services/`). Default no-op implementations; the owner swaps in the real one at startup:
 
@@ -4528,7 +4529,7 @@ Core services are called directly (no invoke): `pty::{write,alive,kill}`, `bridg
 
 **Async shape in the app shell:**
 1. `main`: `let (tx, rx) = mpsc::unbounded_channel(); hangar_core::control::install(tx)`. `rx` is parked in a `OnceLock<Mutex<Option<_>>>` and drained by `Subscription::run(control_stream)`, which yields `Message::Control(ControlRequest)`. `Reply` is `Arc`-wrapped so `Message` stays `Clone + Debug`.
-2. `update(Message::Control(req))`: before hydration, `req.reply.send(Err("Hangar.AI is still starting…"))`. Otherwise `tokio::spawn(engine.handle(req, port.clone()))`. update never blocks; the handler sends the reply itself.
+2. `update(Message::Control(req))`: before hydration, `req.reply.send(Err("HangarAI is still starting…"))`. Otherwise `tokio::spawn(engine.handle(req, port.clone()))`. update never blocks; the handler sends the reply itself.
 3. `handle` dispatch:
    - `Channel::Agent` → `control::run` (gated by `agentPaneControl`).
    - `Channel::Internal` + `orchestrator_briefing` → `orchestration::brief`.

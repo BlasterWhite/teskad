@@ -21,7 +21,7 @@ use hangar_core::git::{
     Changes, CopyResult, DeleteBranchResult, HookReport, RemoveResult, RepoInfo, Worktree,
 };
 use hangar_core::memory::MemoryEntry;
-use hangar_core::pty::PtyManager;
+use hangar_core::pty::{PaneJob, PtyManager};
 
 use super::brief::{BriefingPort, CheckCost};
 use super::events::{EngineIo, JournalEntry, OrchestratorEvent};
@@ -292,6 +292,21 @@ impl EngineIo for LivePort {
     fn enqueue(&self, pane: &str, text: &str, from: &str) -> Result<(), String> {
         self.enqueue_now(pane, text, from);
         Ok(())
+    }
+
+    /// A pane on a node is the node's to look into: unknown here.
+    fn pane_job(&self, pane: &str) -> PaneJob {
+        if self.node_of_pane(pane).is_some() {
+            return PaneJob::Unknown;
+        }
+        hangar_core::pty::pane_job(self.handle.host().services().core().pty(), pane)
+    }
+
+    fn head_moves(&self, cwd: &str) -> Option<u64> {
+        if self.node_for(cwd).is_some() {
+            return None;
+        }
+        hangar_engine::orchestration::head::moves(cwd)
     }
 }
 

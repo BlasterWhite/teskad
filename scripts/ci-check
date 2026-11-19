@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# Checks the current commit on GitHub Actions (the CI workflow, every job), so
+# nothing is compiled on this PC and no build machine is rented.
+#
+#     scripts/ci-check            check HEAD; exit 0 when the CI run passed
+#
+# HEAD is pushed to a throwaway branch "ci/check-<sha>" (CI's push trigger only
+# covers main, so the push alone starts nothing), the workflow is dispatched on
+# it, followed to the end, and the branch is deleted. On a failure the failed
+# steps' log tail is printed. Commits must be committed: what is not in HEAD is
+# not checked. Needs `gh` signed in with the right to run workflows.
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+sha=$(git rev-parse HEAD)
+short=${sha:0:12}
+ref="ci/check-$short"
+workflow=ci.yml
+
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+  echo "ci-check: uncommitted changes are not checked (only HEAD $short is)" >&2
+fi
+
+cleanup() { git push -q origin --delete "$ref" >/dev/null 2>&1 || true; }
+trap cleanup EXIT
+
+echo "ci-check: pushing $short to $ref"
+git push -q -f origin "$sha:refs/heads/$ref"
+
+echo "ci-check: starting $workflow on $ref"
+gh workflow run "$workflow" --ref "$ref" >/dev/null
+
+run=""
+for _ in $(seq 1 40); do
+  run=$(gh run list --workflow "$workflow" --branch "$ref" --event workflow_dispatch --limit 5 \
+        --json databaseId,headSha -q "[.[] | select(.headSha == \"$sha\")][0].databaseId // empty" 2>/dev/null || true)
+  [ -n "$run" ] && break
+  sleep 3
+done
+if [ -z "$run" ]; then
+  echo "ci-check: the run did not appear on GitHub" >&2
+  exit 75
+fi
+url=$(gh run view "$run" --json url -q .url)
+echo "ci-check: run $run — $url"
+
+# Polled rather than `gh run watch`, which can return before the run ends (a
+# dropped connection, an API hiccup) and leave no conclusion to read.
+deadline=$((SECONDS + 120 * 60))
+conclusion=""
+while :; do
+  state=$(gh run view "$run" --json status,conclusion -q '.status + " " + .conclusion' 2>/dev/null || echo "unknown ")
+  if [ "${state%% *}" = "completed" ]; then
+    conclusion=${state#* }
+    break
+  fi
+  if [ "$SECONDS" -ge "$deadline" ]; then
+    echo "ci-check: run $run still ${state%% *} after 2 h ($url)" >&2
+    exit 75
+  fi
+  sleep 30
+done
+gh run view "$run" --json jobs -q '.jobs[] | "  \(.name): \(.conclusion)"'
+
+if [ "$conclusion" = "success" ]; then
+  echo "ci-check: passed ($url)"
+  exit 0
+fi
+echo "ci-check: $conclusion ($url)" >&2
+log=$(gh run view "$run" --log-failed 2>/dev/null | sed -E 's/^[^\t]*\t[^\t]*\t[^ ]* //' || true)
+echo "---- what failed ----" >&2
+printf '%s\n' "$log" | grep -E -A6 "panicked at|^error(\[|:)|test .* FAILED|^---- .* stdout ----|Diff in " | head -n 120 >&2 || true
+echo "---- failed steps (log tail) ----" >&2
+printf '%s\n' "$log" | tail -n 40 >&2
+exit 1
