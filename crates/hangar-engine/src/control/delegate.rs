@@ -33,12 +33,12 @@ use hangar_core::agent::Capabilities;
 use hangar_core::delegate::{self as registry, Delegation, Isolation, Request, Status, WAIT_MAX};
 
 use super::port::Port;
-use super::run::{agent_arg, effective_cwd, number_arg, unknown};
+use super::run::{effective_cwd, number_arg, unknown};
 use super::types::{Caller, text};
 use crate::accounts::{AccountLevels, MAIN_ACCOUNT};
 use crate::panes::agents::permission_mode;
 use crate::state::roles::{orchestration_of, orchestrator_of};
-use crate::state::types::{AgentKind, AppState, Pane, Workspace};
+use crate::state::types::{AgentId, AgentKind, AppState, Pane, Workspace};
 
 /// The operations this module answers.
 pub const OPERATIONS: [&str; 4] = [
@@ -52,15 +52,13 @@ pub const OPERATIONS: [&str; 4] = [
 pub const NO_PANE: &str = "delegate hands the result back to the pane that asked for it, and this call comes from no pane of Hangar's. Call it from an agent Hangar runs in a pane.";
 
 /// A delegation with no brief.
-pub const NO_PROMPT: &str =
-    "Give prompt: the sub-task's whole brief. The agent that takes it sees nothing else of your work.";
+pub const NO_PROMPT: &str = "Give prompt: the sub-task's whole brief. The agent that takes it sees nothing else of your work.";
 
 /// A window that cannot run a child: a node's panes, asking the desktop.
 pub const NO_HOST: &str = "Delegations cannot be started from this Hangar window.";
 
 /// `delegation_status` or `delegation_cancel` without the delegation.
-pub const NO_ID: &str =
-    "Give id: the delegation's, as delegate or delegation_list gave it (d-3).";
+pub const NO_ID: &str = "Give id: the delegation's, as delegate or delegation_list gave it (d-3).";
 
 /// What `delegate` adds to its answer: the child runs, and how it comes back.
 pub const STARTED: &str = "It runs with no terminal. When it ends, a message from Hangar brings you its result: carry on with your work, or call delegation_status with wait to wait for it here.";
@@ -124,13 +122,8 @@ pub fn request(
         .filter(|prompt| !prompt.trim().is_empty())
         .ok_or(NO_PROMPT)?
         .to_string();
-    let kind = match agent_arg(args.get("agent"))? {
-        Some(agent) => agent.kind().ok_or_else(|| {
-            format!(
-                "A delegation is run by an agent, not a plain shell. Pass agent as one of: {}.",
-                agent_ids()
-            )
-        })?,
+    let kind = match kind_arg(args.get("agent"))? {
+        Some(kind) => kind,
         None => pane.agent.kind().ok_or_else(|| {
             format!(
                 "Your pane runs a plain shell, so there is no agent of yours to run it: pass agent as one of {}.",
@@ -160,6 +153,29 @@ pub fn request(
     })
 }
 
+/// The agent a request names, by its id; absent or blank: none named, the
+/// caller's own then. A shell or an unknown name is refused, never read as
+/// the default.
+fn kind_arg(value: Option<&Value>) -> Result<Option<AgentKind>, String> {
+    let Some(wanted) = text(value) else {
+        return Ok(None);
+    };
+    if let Some(kind) = AgentKind::from_id(&wanted) {
+        return Ok(Some(kind));
+    }
+    Err(if wanted == AgentId::Shell.as_str() {
+        format!(
+            "A delegation is run by an agent, not a plain shell. Pass agent as one of: {}.",
+            agent_ids()
+        )
+    } else {
+        format!(
+            "\"{wanted}\" is not an agent Hangar runs. Pass agent as one of: {}, or leave it out for your own.",
+            agent_ids()
+        )
+    })
+}
+
 /// Whether an agent that can do `caps` takes a delegation here: core runs a
 /// child as a thread of a protocol server Hangar is the client of
 /// (`Headless::app_server`). A one-shot child (`Headless::one_shot`) waits
@@ -174,7 +190,7 @@ pub fn child_refusal(label: &str, caps: &Capabilities, images: bool) -> Option<S
     if !takes_a_delegation(caps) {
         return Some(format!(
             "Hangar cannot run a delegation on {label} yet: it runs one with no terminal, as a thread of the agent's own server, and {label} has none. Agents that take one here: {}. Pass agent as one of them, or give the work to a worker.",
-            able(|caps| takes_a_delegation(caps))
+            able(takes_a_delegation)
         ));
     }
     if images && !caps.images.generates {
@@ -300,7 +316,10 @@ async fn cancel(ws: &Workspace, args: &Value, caller: &Caller) -> Result<Value, 
         answer["note"] = json!(ALREADY_OVER);
     } else if !ended.status.is_over() {
         answer["note"] = json!(STILL_STOPPING);
-    } else if let Some(branch) = ended.branch.as_deref().filter(|_| ended.status == Status::Cancelled)
+    } else if let Some(branch) = ended
+        .branch
+        .as_deref()
+        .filter(|_| ended.status == Status::Cancelled)
     {
         answer["note"] = json!(format!(
             "Its worktree holds commits, so it was kept: branch {branch}, in {}.",
@@ -420,7 +439,7 @@ mod tests {
     use super::*;
     use crate::control::fake::{Fake, pane, workspace};
     use crate::control::run::{Gate, run};
-    use crate::state::types::{AgentId, OrchestrationSettings, PaneRole};
+    use crate::state::types::{OrchestrationSettings, PaneRole};
     use hangar_core::agent::PermissionMode;
 
     /// "Lab": Ava (Codex) in a worktree of her own, Ivy (Claude Code) its
@@ -609,7 +628,11 @@ mod tests {
         );
         assert_eq!(
             refused(json!({ "prompt": "x", "agent": "gemini" })),
-            "Unknown agent \"gemini\". One of: claude, codex, shell."
+            "\"gemini\" is not an agent Hangar runs. Pass agent as one of: claude, codex, or leave it out for your own."
+        );
+        assert_eq!(
+            refused(json!({ "prompt": "x", "agent": "Codex" })),
+            "\"Codex\" is not an agent Hangar runs. Pass agent as one of: claude, codex, or leave it out for your own."
         );
         assert_eq!(
             refused(json!({ "prompt": "x", "isolation": "container" })),
@@ -673,7 +696,10 @@ mod tests {
 
     #[test]
     fn a_reason_reads_as_a_sentence() {
-        assert_eq!(sentence(" a delegation needs a task "), "a delegation needs a task.");
+        assert_eq!(
+            sentence(" a delegation needs a task "),
+            "a delegation needs a task."
+        );
         assert_eq!(sentence("It stopped."), "It stopped.");
     }
 
@@ -717,13 +743,21 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(polled["status"], "failed", "{polled}");
-        assert!(polled["error"].as_str().is_some_and(|error| !error.is_empty()));
+        assert!(
+            polled["error"]
+                .as_str()
+                .is_some_and(|error| !error.is_empty())
+        );
         assert!(polled.get("waitedOut").is_none(), "{polled}");
 
         let heard = hangar_core::bridge::bridge_queue("t17-ava".into());
         let event = heard
             .iter()
-            .find(|queued| queued.text.starts_with(&format!("Delegation {id} (codex) failed:")))
+            .find(|queued| {
+                queued
+                    .text
+                    .starts_with(&format!("Delegation {id} (codex) failed:"))
+            })
             .unwrap_or_else(|| panic!("nothing about {id} in {heard:?}"));
         assert_eq!(event.from.as_deref(), Some("hangar"));
 
@@ -763,7 +797,9 @@ mod tests {
             op("delegation_cancel", by("t17-max"), &fake)
                 .await
                 .unwrap_err(),
-            format!("Delegation {id} is Ava's: only Ava, or the workspace's orchestrator, can cancel it.")
+            format!(
+                "Delegation {id} is Ava's: only Ava, or the workspace's orchestrator, can cancel it."
+            )
         );
         for pane in ["t17-ava", "t17-ivy"] {
             let cancelled = op("delegation_cancel", by(pane), &fake).await.unwrap();

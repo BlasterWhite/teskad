@@ -258,6 +258,7 @@ fn tool_definitions() -> Value {
             kit_tool_definitions(),
             manager_tool_definitions(),
             repository_tool_definitions(),
+            delegation_tool_definitions(),
         ] {
             all.extend(more.as_array().into_iter().flatten().cloned());
         }
@@ -288,6 +289,72 @@ fn agent_labels() -> String {
         .map(|kind| format!("{}: {}", kind.id(), kind.info().label))
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+/// A sub-task to an agent that runs with no terminal, and its result back
+/// (delegate.rs; the engine's control/delegate.rs, D14). The parent is the
+/// caller's pane, which the API knows from the pane's own token: no tool
+/// takes one.
+fn delegation_tool_definitions() -> Value {
+    let agent = format!(
+        "The agent that runs it ({}). Defaults to yours. An agent Hangar cannot run with no terminal here is refused with the reason, never replaced by another.",
+        agent_labels()
+    );
+    let wait_max = crate::delegate::WAIT_MAX.as_secs();
+    let wait = format!(
+        "Seconds to wait for it to end or to need the person, {wait_max} at most (a tool call must answer before the agent's own time limit). Default 0: where it stands now."
+    );
+    let id = json!({
+        "type": "string",
+        "description": "The delegation's id, as delegate or delegation_list gave it (d-3)."
+    });
+    json!([
+        {
+            "name": "delegate",
+            "description": "Hand a sub-task to an agent that runs with no terminal, and get its result back: make images, have another agent review a function, answer a question about the repository — work that is not a board task (a board task goes to a worker). The prompt is its whole brief: it sees nothing else of your work. It runs in your folder, or in a worktree and branch of its own (isolation), under the workspace's permission policy; what it asks goes to the person, never to you. The call answers at once with the delegation's id. When it ends, a message from Hangar brings you its result — its final message, the files it changed, the images it made, its branch — so carry on meanwhile, or call delegation_status with wait. Only from an agent in a Hangar pane: the result comes back to that pane.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "prompt": { "type": "string", "description": "The sub-task's whole brief: goal, context, constraints, what to answer with. The agent sees nothing else." },
+                    "agent": { "type": "string", "enum": worker_agents(), "description": agent },
+                    "model": { "type": "string", "description": "Model it runs, as its agent names it. Defaults to its agent's own." },
+                    "isolation": {
+                        "type": "string",
+                        "enum": ["shared", "worktree"],
+                        "description": "shared (default): in your folder, beside you, for work that reads more than it writes. worktree: in a worktree and a branch of its own, made from your last commit — what you have not committed is not copied — whose branch is returned; cancelling it removes them unless they hold commits."
+                    },
+                    "images": { "type": "boolean", "description": "Let it make images, for an agent that does; their files come back in images. Default false: a sub-task that needs none cannot spend image quota." }
+                },
+                "required": ["prompt"]
+            }
+        },
+        {
+            "name": "delegation_status",
+            "description": "Where a delegation of your workspace stands: running, needs_you (its agent waits for the person, who alone answers), done, failed or cancelled; once it ended, its result (its final message), the files it changed, its images, its branch, its tokens and why it failed. With wait, waits for it to end; waitedOut says the wait ran out first. Its end reaches you as a message anyway: wait only when you have nothing else to do.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "id": id,
+                    "wait": { "type": "number", "minimum": 0, "maximum": wait_max, "description": wait }
+                },
+                "required": ["id"]
+            }
+        },
+        {
+            "name": "delegation_cancel",
+            "description": "Stop a delegation: its agent's turn is interrupted, what it asked the person is withdrawn, and its worktree is removed unless it holds commits (the answer then says where they are). Only the pane that asked for it, or the workspace's orchestrator, can cancel it. One that had ended is left as it is.",
+            "inputSchema": {
+                "type": "object",
+                "properties": { "id": id },
+                "required": ["id"]
+            }
+        },
+        {
+            "name": "delegation_list",
+            "description": "List your workspace's delegations, oldest first: id, status, agent, model, the pane that asked for it (parent), title, isolation, branch, when it started and ended, why it failed. delegation_status gives one's result.",
+            "inputSchema": { "type": "object", "properties": {} }
+        }
+    ])
 }
 
 fn base_tool_definitions() -> Value {
@@ -1973,6 +2040,72 @@ mod tests {
                 said.contains("claude: Claude Code") && said.contains("codex: Codex"),
                 "{name}: {said}"
             );
+        }
+    }
+
+    #[test]
+    fn delegate_takes_a_brief_an_agent_an_isolation_and_images() {
+        let schema = &tool("delegate")["inputSchema"];
+        assert_eq!(schema["required"], json!(["prompt"]));
+        let props = schema["properties"].as_object().unwrap();
+        let mut names: Vec<&str> = props.keys().map(String::as_str).collect();
+        names.sort_unstable();
+        assert_eq!(names, ["agent", "images", "isolation", "model", "prompt"]);
+        // Every agent is offered: one that cannot take a delegation here is
+        // refused with the reason by the window, never hidden.
+        assert_eq!(props["agent"]["enum"], json!(["claude", "codex"]));
+        let said = props["agent"]["description"].as_str().unwrap();
+        assert!(said.contains("refused with the reason"), "{said}");
+        assert_eq!(props["isolation"]["enum"], json!(["shared", "worktree"]));
+        assert_eq!(props["images"]["type"], "boolean");
+        let isolation = props["isolation"]["description"].as_str().unwrap();
+        assert!(isolation.contains("not committed"), "{isolation}");
+    }
+
+    /// The parent is the caller's pane, which the API knows from its token:
+    /// no delegation tool lets the model name another, nor a workspace.
+    #[test]
+    fn no_delegation_tool_takes_a_parent() {
+        for name in [
+            "delegate",
+            "delegation_status",
+            "delegation_cancel",
+            "delegation_list",
+        ] {
+            let props = &tool(name)["inputSchema"]["properties"];
+            for key in ["parent", "pane", "workspace", "caller"] {
+                assert!(props.get(key).is_none(), "{name} takes {key}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_delegation_is_followed_by_its_id_and_waited_for_no_longer_than_a_call() {
+        for name in ["delegation_status", "delegation_cancel"] {
+            let schema = &tool(name)["inputSchema"];
+            assert_eq!(schema["required"], json!(["id"]), "{name}");
+            assert_eq!(schema["properties"]["id"]["type"], "string", "{name}");
+        }
+        let wait = &tool("delegation_status")["inputSchema"]["properties"]["wait"];
+        assert_eq!(wait["maximum"], json!(crate::delegate::WAIT_MAX.as_secs()));
+        assert_eq!(wait["maximum"], json!(45));
+        assert_eq!(wait["minimum"], json!(0));
+        assert!(tool("delegation_list")["inputSchema"]
+            .get("required")
+            .is_none());
+    }
+
+    /// They reach the window as control operations, with who asks.
+    #[test]
+    fn the_delegation_tools_are_control_operations() {
+        for name in [
+            "delegate",
+            "delegation_status",
+            "delegation_cancel",
+            "delegation_list",
+        ] {
+            assert!(crate::control::OPERATIONS.contains(&name), "{name}");
+            assert!(!names_a_file(name), "{name}");
         }
     }
 
