@@ -1,11 +1,16 @@
 //! What an orchestrator, its workers and the project manager are told
-//! (`lib/orchestratorBrief.ts`): the role each one is given in its system
-//! prompt (brief_text.rs), and the state it is handed again at session start,
-//! on resume and after every compaction — the board, its plan, the latest
-//! events.
+//! (`lib/orchestratorBrief.ts`): the role each one is given (brief_text.rs),
+//! and the state it is handed again at session start, on resume and after
+//! every compaction — the board, its plan, the latest events.
 //!
-//! A pane's hangar-bridge mod asks for it through
-//! `GET /api/bridge/{pane}/briefing`, which core relays to the app as the
+//! Any agent whose capabilities let it hold a role is briefed
+//! (`roles::takes_a_role`, docs/native/agents.md §5.1), each where its kind
+//! takes it (`Capabilities::briefing`, §4.2.5): Claude Code's hangar-bridge
+//! mod asks through `GET /api/bridge/{pane}/briefing` and puts the role at
+//! the end of the system prompt, the state into the session; Hangar's client
+//! of a Codex pane's server asks the same and hands the state to each thread
+//! (`agent::codex_attach`), the role riding the pane's launch as developer
+//! instructions ([`launch_role`]). Core relays the ask to the engine as the
 //! internal control request `orchestrator_briefing` (hangar-core
 //! orchestrator.rs): roles live in the app's model. Everything here is read by
 //! a model, so it is English, and kept short — the context comes back with
@@ -17,6 +22,7 @@ use std::sync::Arc;
 
 use serde::Serialize;
 
+use hangar_core::agent::{AgentKind, IdleInject, RoleBriefing};
 use hangar_core::board::Task;
 use hangar_core::memory::MemoryEntry;
 
@@ -28,15 +34,18 @@ use super::events::{JournalEntry, by_rank, describe_event};
 use super::manager_feed::{ManagerJournalEntry, ManagerNews, describe_manager_event};
 use super::projects::{ProjectSummary, render_overview};
 use super::text::{ago, clip, clock, flat, same_name, task_ref};
+use crate::live::live_caps;
 use crate::state::PaneActivity;
-use crate::state::roles::{orchestration_of, orchestrator_of, workers_of};
-use crate::state::types::{AgentId, AppState, Pane, PaneRole, Workspace};
+use crate::state::roles::{orchestration_of, orchestrator_of, takes_a_role, workers_of};
+use crate::state::types::{AppState, OrchestrationRole, Pane, PaneRole, Workspace};
 
-/// A pane's part in an orchestration, as its mod builds the session from it.
+/// A pane's part in an orchestration, as its side channel builds the
+/// session from it.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Briefing {
     pub role: PaneRole,
-    /// Appended to the session's system prompt.
+    /// The role: appended to the session's system prompt (Claude Code), or
+    /// given as developer instructions on its launch (Codex).
     pub system: String,
     /// Handed to the session as it starts, resumes and compacts.
     pub context: String,
@@ -135,16 +144,25 @@ fn check_cost_words(cost: CheckCost) -> String {
     format!("last check {took}, {verdict}")
 }
 
-fn settings_line(ws: &Workspace, git: bool, last_check: Option<CheckCost>) -> String {
+/// `worker`: the agent the workspace's workers run when none is named.
+fn settings_line(
+    ws: &Workspace,
+    git: bool,
+    last_check: Option<CheckCost>,
+    worker: AgentKind,
+) -> String {
     let settings = orchestration_of(ws);
+    let workers = match settings.model(OrchestrationRole::Worker, worker) {
+        Some(model) => format!("{} ({model})", worker.info().label),
+        None => format!("{} (its default model)", worker.info().label),
+    };
     if !git {
         let check = match &settings.check_command {
             Some(command) => format!("check `{command}`, run by the workers"),
             None => "no check command".into(),
         };
         return format!(
-            "Settings: {check}; workers run {}. Not a git repository: workers share the workspace's folder, and a task is done when its worker delivers. Nothing is merged or pushed.",
-            settings.worker_model
+            "Settings: {check}; workers run {workers}. Not a git repository: workers share the workspace's folder, and a task is done when its worker delivers. Nothing is merged or pushed."
         );
     }
     let branch = match &settings.branch {
@@ -165,10 +183,7 @@ fn settings_line(ws: &Workspace, git: bool, last_check: Option<CheckCost>) -> St
             "deliveries that pass check and review wait for the person to land them on {branch}"
         )
     };
-    format!(
-        "Settings: {check}, {landing}; workers run {}. Nothing is ever pushed.",
-        settings.worker_model
-    )
+    format!("Settings: {check}, {landing}; workers run {workers}. Nothing is ever pushed.")
 }
 
 fn task_line(task: &Task, by_id: &HashMap<&str, &Task>) -> String {
@@ -397,7 +412,7 @@ fn pane_of<'a>(state: &'a AppState, pane_id: &str) -> Option<(&'a Workspace, &'a
 }
 
 /// The pane's briefing, or `None` for a pane with no part in an
-/// orchestration (`buildBriefing`).
+/// orchestration, or whose agent cannot hold one (`buildBriefing`).
 #[cfg(any(test, feature = "testing"))]
 pub fn build_briefing(inputs: &BriefingInputs<'_>) -> Option<Briefing> {
     build_briefing_with(inputs, None)
@@ -410,17 +425,18 @@ pub fn build_briefing_with(
 ) -> Option<Briefing> {
     let (ws, pane) = pane_of(inputs.state, inputs.pane_id)?;
     let role = pane.role?;
-    if pane.agent != AgentId::Claude {
+    let kind = pane.agent.kind()?;
+    if !takes_a_role(&kind.info().caps) {
         return None;
     }
     Some(match role {
-        PaneRole::Manager => manager_briefing(inputs),
-        PaneRole::Orchestrator => orchestrator_briefing(ws, inputs, last_check),
-        PaneRole::Worker => worker_briefing(ws, pane, inputs),
+        PaneRole::Manager => manager_briefing(inputs, kind),
+        PaneRole::Orchestrator => orchestrator_briefing(ws, inputs, last_check, kind),
+        PaneRole::Worker => worker_briefing(ws, pane, inputs, kind),
     })
 }
 
-fn manager_briefing(inputs: &BriefingInputs<'_>) -> Briefing {
+fn manager_briefing(inputs: &BriefingInputs<'_>, kind: AgentKind) -> Briefing {
     let mut context = vec![render_overview(inputs.projects, inputs.now), String::new()];
     context.extend(manager_events_section(
         inputs.manager_events,
@@ -429,18 +445,29 @@ fn manager_briefing(inputs: &BriefingInputs<'_>) -> Briefing {
     context.extend(tracker_section(find_tracker(inputs.memory), inputs.now));
     Briefing {
         role: PaneRole::Manager,
-        system: manager_role(),
+        system: manager_role(kind.info().label),
         context: context.join("\n"),
     }
 }
 
+/// `kind`: the orchestrator's own agent.
 fn orchestrator_briefing(
     ws: &Workspace,
     inputs: &BriefingInputs<'_>,
     last_check: Option<CheckCost>,
+    kind: AgentKind,
 ) -> Briefing {
     let title = plan_title(ws, &inputs.state.workspaces);
     let workers = workers_of(ws);
+    // The agent a worker runs when worker_spawn names none: the workspace's
+    // choice, else the settings' default, else this orchestrator's own. Read
+    // as chosen: whether it is installed is worker_spawn's to say.
+    let worker_agent = inputs.state.settings.agent_for(
+        OrchestrationRole::Worker,
+        ws.orchestration.as_ref(),
+        Some(kind),
+        |_| true,
+    );
     let mut lines = vec![
         format!(
             "# Hangar state at {}, workspace \"{}\" ({})",
@@ -450,7 +477,7 @@ fn orchestrator_briefing(
         ),
         "This is current: trust it over what you remember.".to_string(),
         String::new(),
-        settings_line(ws, inputs.git, last_check),
+        settings_line(ws, inputs.git, last_check, worker_agent),
         if workers.is_empty() {
             "Workers: none running.".to_string()
         } else {
@@ -458,6 +485,13 @@ fn orchestrator_briefing(
         },
     ];
     for worker in &workers {
+        // Which agent, once the workspace runs more than one.
+        let agent = match worker.agent.kind() {
+            Some(other) if other != kind || worker_agent != kind => {
+                format!(" ({})", other.info().label)
+            }
+            _ => String::new(),
+        };
         let on = match worker.task_id.as_deref().filter(|id| !id.is_empty()) {
             Some(id) => {
                 let title = inputs
@@ -470,7 +504,7 @@ fn orchestrator_briefing(
             None => String::new(),
         };
         let doing = activity_words((inputs.activity)(&worker.id).as_ref());
-        lines.push(format!("- {}{on}: {doing}", worker.name));
+        lines.push(format!("- {}{agent}{on}: {doing}", worker.name));
     }
     lines.push(String::new());
     lines.extend(board_section(inputs.tasks));
@@ -488,12 +522,17 @@ fn orchestrator_briefing(
     }
     Briefing {
         role: PaneRole::Orchestrator,
-        system: orchestrator_role(&ws.name, &title, inputs.git),
+        system: orchestrator_role(&ws.name, &title, inputs.git, kind.info().label),
         context: lines.join("\n"),
     }
 }
 
-fn worker_briefing(ws: &Workspace, pane: &Pane, inputs: &BriefingInputs<'_>) -> Briefing {
+fn worker_briefing(
+    ws: &Workspace,
+    pane: &Pane,
+    inputs: &BriefingInputs<'_>,
+    kind: AgentKind,
+) -> Briefing {
     let settings = orchestration_of(ws);
     let orchestrator = orchestrator_of(ws);
     let task_id = pane.task_id.as_deref().filter(|id| !id.is_empty());
@@ -589,6 +628,7 @@ fn worker_briefing(ws: &Workspace, pane: &Pane, inputs: &BriefingInputs<'_>) -> 
             &reference,
             orchestrator.map(|o| o.name.as_str()),
             pane.shared_folder == Some(true),
+            kind.info().label,
         ),
         context: lines.join("\n"),
     }
@@ -698,15 +738,41 @@ pub async fn answer_briefing(
     serde_json::to_value(briefing).map_err(|err| err.to_string())
 }
 
+/// The role a pane's agent takes on its launch line — developer
+/// instructions on a Codex pane's server (`RoleBriefing::DeveloperInstructions`,
+/// §4.2.5) — for `LaunchRequest::role`: its briefing's role, or `None` for a
+/// pane with no role, or whose agent takes its role elsewhere (Claude Code's
+/// mod, in the system prompt).
+pub async fn launch_role(
+    pane_id: &str,
+    port: &impl BriefingPort,
+) -> Result<Option<String>, String> {
+    let state = port.state();
+    let Some((_, pane)) = pane_of(&state, pane_id) else {
+        return Ok(None);
+    };
+    let at_launch = pane
+        .agent
+        .kind()
+        .is_some_and(|kind| kind.info().caps.briefing.role == RoleBriefing::DeveloperInstructions);
+    if !at_launch {
+        return Ok(None);
+    }
+    Ok(briefing_for(pane_id, port)
+        .await?
+        .map(|briefing| briefing.system))
+}
+
 /// Tells a running session the role its pane was just given — or, with
 /// `previous` and no role left on the pane, that it lost it (`announceRole`).
 /// Called right after pinning or unpinning an existing pane; a pane created
-/// with its role needs nothing, its session starts with the role in its
-/// system prompt.
+/// with its role needs nothing, its session starts with the role where its
+/// agent takes one.
 ///
 /// Answers whether a message was queued. Nothing is queued for a pane whose
-/// Claude Code is not running with Hangar's mod: the next session it starts
-/// reads its role from the briefing.
+/// agent does not read Hangar's queue by itself now — its side channel has
+/// not spoken (`live::live_caps`: nothing types the queue on the floor): the
+/// next session it starts reads its role from the briefing.
 pub async fn announce_role(
     workspace_id: &str,
     pane_id: &str,
@@ -720,12 +786,23 @@ pub async fn announce_role(
     let Some(pane) = ws.panes.iter().find(|pane| pane.id == pane_id) else {
         return Ok(false);
     };
-    if pane.agent != AgentId::Claude || !port.activity(&pane.id).is_some_and(|a| a.bridged) {
+    let Some(kind) = pane.agent.kind() else {
+        return Ok(false);
+    };
+    let bridged = port.activity(&pane.id).is_some_and(|a| a.bridged);
+    let caps = live_caps(&kind.info().caps, bridged);
+    if caps.inject.idle != IdleInject::Submit {
         return Ok(false);
     }
     let text = match (pane.role, previous) {
         (Some(_), _) => briefing_for(&pane.id, port).await?.map(|briefing| {
-            role_message(briefing.role, &briefing.system, &briefing.context, &ws.name)
+            role_message(
+                briefing.role,
+                &briefing.system,
+                &briefing.context,
+                &ws.name,
+                caps.briefing.role,
+            )
         }),
         (None, Some(previous)) => Some(release_message(previous, &ws.name)),
         (None, None) => None,
