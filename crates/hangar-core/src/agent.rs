@@ -4,7 +4,8 @@
 //! An agent is a *kind* ([`AgentKind`]) with a row of [`AgentInfo`]: its
 //! name, its command, the instructions file it reads, and its
 //! [`Capabilities`], each a level (caps.rs). [`info`] is the row; [`detect`]
-//! says which agents are on this machine.
+//! says which agents are on this machine; [`launch`] builds the command each
+//! kind is started with.
 //!
 //! **The rule (D3): features read capabilities, never the agent kind.** Only
 //! the agent modules (this one and the kind's own driver files) and the state
@@ -17,7 +18,9 @@
 //! `AgentId::Shell` stays the pane's "nothing to start").
 
 pub mod caps;
+mod claude;
 pub mod detect;
+pub mod launch;
 
 use serde::{Deserialize, Serialize};
 
