@@ -208,3 +208,99 @@ fn a_setup_step_s_answer_in_the_docked_card_keeps_the_activation_open() {
     // activation before it could be accepted.
     assert_eq!(said, [r#"Kits(Confirm("login"))"#]);
 }
+
+/// What a click on the button that says `label` says, the dialog's body
+/// scrolled down until it is on screen: what reaches Codex sits below what
+/// the kit brings.
+fn click_below(m: &Model, pkg: &Packages, label: &str) -> Vec<String> {
+    let mut ui = simulate(crate::shell::frame::main(ctx(m, pkg)));
+    ui.point_at(iced::Point::new(WINDOW.width / 2.0, WINDOW.height / 2.0));
+    for _ in 0..20 {
+        if ui.click(label).is_ok() {
+            return of_dialogs(ui.into_messages().map(|message| format!("{message:?}")));
+        }
+        ui.simulate([iced::Event::Mouse(mouse::Event::WheelScrolled {
+            delta: mouse::ScrollDelta::Pixels { x: 0.0, y: -60.0 },
+        })]);
+    }
+    panic!("« {label} » never came on screen");
+}
+
+/// What reaches Codex of ci-status: one skill, once added.
+fn codex_read() -> Activation {
+    use hangar_core::agent::{AgentKind, KitPart};
+    use hangar_core::kits::{AgentParts, Inspection, Part, PluginInfo};
+
+    fn part<T>(how: KitPart, loads: Vec<T>) -> Part<T> {
+        Part {
+            how,
+            loads,
+            left_out: Vec::new(),
+        }
+    }
+    Activation {
+        inspection: Some(Inspection {
+            plugin: Some(PluginInfo {
+                name: "ci-status".into(),
+                dir: "C:/k".into(),
+            }),
+            by_agent: vec![AgentParts {
+                agent: AgentKind::Codex,
+                meant_for: true,
+                mcp_servers: part(KitPart::PerLaunch, Vec::new()),
+                skills: part(KitPart::Installed, vec!["ci".into()]),
+                hooks: part(KitPart::Installed, Vec::new()),
+                commands: part(KitPart::None, Vec::new()),
+                agents: part(KitPart::None, Vec::new()),
+                output_styles: part(KitPart::None, Vec::new()),
+            }],
+            ..ci_inspection()
+        }),
+        ..ci_read()
+    }
+}
+
+#[test]
+fn add_to_codex_asks_first_and_the_confirmation_runs_it() {
+    use hangar_core::kits::{CodexPlugin, CodexState};
+
+    use crate::kits::codex::{CodexEntry, CodexOp};
+
+    let m = model(
+        vec![
+            Overlay::KitsDialog("w1".into()),
+            activation_overlay("ci-status"),
+        ],
+        None,
+    );
+    let mut pkg = opened(&ci_status(), Target::Workspace("w1".into()), codex_read());
+    pkg.kits.codex.insert(
+        "ci-status".into(),
+        CodexEntry {
+            status: Some(CodexPlugin {
+                state: CodexState::NotAdded,
+                plugin: "ci-status@hangar-kits".into(),
+                skills: vec!["ci".into()],
+                hooks: Vec::new(),
+                codex: true,
+                add: vec!["codex plugin add ci-status@hangar-kits".into()],
+                remove: vec!["codex plugin remove ci-status@hangar-kits".into()],
+            }),
+            ..CodexEntry::default()
+        },
+    );
+    assert_eq!(
+        click_below(&m, &pkg, "Add to Codex"),
+        [r#"Kits(CodexAsk { kit: "ci-status", op: Some(Add) })"#]
+    );
+
+    pkg.kits.codex.get_mut("ci-status").unwrap().asking = Some(CodexOp::Add);
+    assert_eq!(
+        click_below(&m, &pkg, "Add to Codex"),
+        [r#"Kits(CodexRun { kit: "ci-status", op: Add })"#]
+    );
+    assert_eq!(
+        click_below(&m, &pkg, "Cancel"),
+        [r#"Kits(CodexAsk { kit: "ci-status", op: None })"#]
+    );
+}

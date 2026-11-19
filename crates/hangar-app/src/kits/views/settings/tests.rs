@@ -57,6 +57,7 @@ struct Draw {
     everywhere: Vec<WorkspaceKit>,
     has_active_workspace: bool,
     error: Option<String>,
+    codex: crate::kits::codex::CodexEntries,
 }
 
 impl Draw {
@@ -73,6 +74,7 @@ impl Draw {
             everywhere: Vec::new(),
             has_active_workspace: true,
             error: None,
+            codex: HashMap::new(),
         }
     }
 
@@ -89,6 +91,7 @@ impl Draw {
             workspaces: &self.workspaces,
             everywhere: &self.everywhere,
             has_active_workspace: self.has_active_workspace,
+            codex: &self.codex,
         };
         PageModel::build(Translator::new(locale), &input)
     }
@@ -508,4 +511,155 @@ fn keeps_the_folder_of_a_pinned_kit_and_says_nothing_of_a_kit_on_a_branch() {
     let out = Draw::new().kits(vec![branch]).en().text();
     assert!(out.contains("GitHub: https://github.com/o/r (main)"));
     assert!(!out.contains("pinned to"));
+}
+
+/// A kit says which agents it is for, and one with skills or hooks for Codex
+/// where it stands with Codex (docs/native/agents.md §6.4).
+mod per_agent {
+    use hangar_core::agent::AgentKind;
+    use hangar_core::kits::{CodexPlugin, CodexState};
+
+    use super::*;
+    use crate::kits::codex::{CodexEntry, CodexOp};
+    use crate::kits::views::codex::CodexActions;
+
+    fn for_both() -> KitInfo {
+        let mut kit = git_kit();
+        kit.manifest.as_mut().unwrap().agents = vec![AgentKind::Claude, AgentKind::Codex];
+        kit
+    }
+
+    fn status(state: CodexState, codex: bool) -> CodexPlugin {
+        CodexPlugin {
+            state,
+            plugin: "roblox@hangar-kits".into(),
+            skills: vec!["build".into()],
+            hooks: Vec::new(),
+            codex,
+            add: vec![
+                "codex plugin marketplace add /home/me/.hangar/codex-plugins".into(),
+                "codex plugin add roblox@hangar-kits".into(),
+            ],
+            remove: vec!["codex plugin remove roblox@hangar-kits".into()],
+        }
+    }
+
+    fn with(entry: CodexEntry) -> PageModel {
+        let mut draw = Draw::new().kits(vec![for_both()]);
+        draw.codex.insert("roblox".into(), entry);
+        draw.en()
+    }
+
+    #[test]
+    fn a_kit_for_claude_code_alone_says_so() {
+        let model = Draw::new().en();
+        assert_eq!(
+            rows(&model)[0]
+                .agents
+                .as_ref()
+                .map(|tag| tag.label.as_str()),
+            Some("Claude Code only")
+        );
+        let model = Draw::new().kits(vec![for_both()]).en();
+        assert_eq!(rows(&model)[0].agents, None);
+        assert_eq!(rows(&model)[0].codex, None, "not read yet");
+    }
+
+    #[test]
+    fn says_where_the_kit_stands_with_codex() {
+        let added = with(CodexEntry {
+            status: Some(status(CodexState::Added, true)),
+            ..CodexEntry::default()
+        });
+        let control = rows(&added)[0].codex.as_ref().unwrap();
+        assert_eq!(control.status.label, "Added to Codex");
+        assert_eq!(
+            control.actions,
+            CodexActions::Offer {
+                add: None,
+                remove: Some("Remove from Codex".into()),
+                enabled: true,
+            }
+        );
+
+        let changed = with(CodexEntry {
+            status: Some(status(CodexState::Changed, true)),
+            ..CodexEntry::default()
+        });
+        let control = rows(&changed)[0].codex.as_ref().unwrap();
+        assert_eq!(control.status.label, "Changed since it was added to Codex");
+        assert!(matches!(
+            &control.actions,
+            CodexActions::Offer { add: Some(add), remove: Some(_), .. } if add == "Update in Codex"
+        ));
+
+        // Its manifest no longer brings Codex anything: only the removal.
+        let emptied = with(CodexEntry {
+            status: Some(CodexPlugin {
+                skills: Vec::new(),
+                ..status(CodexState::Changed, true)
+            }),
+            ..CodexEntry::default()
+        });
+        assert!(matches!(
+            &rows(&emptied)[0].codex.as_ref().unwrap().actions,
+            CodexActions::Offer {
+                add: None,
+                remove: Some(_),
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn without_codex_on_the_machine_nothing_can_be_added() {
+        let model = with(CodexEntry {
+            status: Some(status(CodexState::NotAdded, false)),
+            asking: Some(CodexOp::Add),
+            ..CodexEntry::default()
+        });
+        let control = rows(&model)[0].codex.as_ref().unwrap();
+        assert_eq!(
+            control.missing.as_deref(),
+            Some("Codex is not installed on this machine.")
+        );
+        // A confirmation is not shown for commands that cannot run.
+        assert!(matches!(
+            &control.actions,
+            CodexActions::Offer { enabled: false, .. }
+        ));
+    }
+
+    #[test]
+    fn running_and_failing_are_said() {
+        let model = with(CodexEntry {
+            status: Some(status(CodexState::NotAdded, true)),
+            busy: Some(CodexOp::Add),
+            error: Some("Error: `codex plugin add roblox@hangar-kits --json` failed: no".into()),
+            ..CodexEntry::default()
+        });
+        let out = model.text();
+        assert!(out.contains("Adding to Codex…"));
+        assert!(out.contains("Error: `codex plugin add roblox@hangar-kits --json` failed: no"));
+    }
+
+    #[test]
+    fn the_removal_shows_its_commands_in_french() {
+        let model = {
+            let mut draw = Draw::new().kits(vec![for_both()]);
+            draw.codex.insert(
+                "roblox".into(),
+                CodexEntry {
+                    status: Some(status(CodexState::Added, true)),
+                    asking: Some(CodexOp::Remove),
+                    ..CodexEntry::default()
+                },
+            );
+            draw.model(Locale::Fr)
+        };
+        let out = model.text().replace(['\u{a0}', '\u{202f}'], " ");
+        assert!(out.contains("Retirer Roblox de Codex ? Hangar lance ces commandes :"));
+        assert!(out.contains("codex plugin remove roblox@hangar-kits"));
+        assert!(out.contains("Ajouté à Codex"));
+    }
 }

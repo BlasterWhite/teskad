@@ -113,6 +113,14 @@ pub trait Terminals: Send + Sync + 'static {
     fn lines(&self, pane: &str, n: usize) -> Option<Vec<String>>;
     /// The rows of its screen, without the history.
     fn screen(&self, pane: &str) -> Option<Vec<String>>;
+    /// The title its program last set (OSC 0 or 2), empty once it let go of
+    /// it: where no side channel speaks for its agent, the agent's own title
+    /// tells its turns (`panes::pane_agent::title_says`). `None` when it set
+    /// none, or these terminals cannot tell.
+    fn title(&self, pane: &str) -> Option<String> {
+        let _ = pane;
+        None
+    }
     /// Its program asked for pastes to be bracketed.
     fn bracketed_paste(&self, pane: &str) -> bool {
         let _ = pane;
@@ -275,6 +283,10 @@ impl Terminals for CorePtys {
 
     fn screen(&self, pane: &str) -> Option<Vec<String>> {
         self.screens.read(pane, Screen::rows)
+    }
+
+    fn title(&self, pane: &str) -> Option<String> {
+        self.screens.read(pane, Screen::title).flatten()
     }
 
     fn bracketed_paste(&self, pane: &str) -> bool {

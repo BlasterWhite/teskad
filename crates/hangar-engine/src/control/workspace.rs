@@ -1,13 +1,16 @@
 //! `workspace_create` and `workspace_set_check` (control.ts): what the
 //! window decides before and after P8's flow from a repository, and the
 //! orchestrator setting its workspace's check command.
+//!
+//! The flow makes the new orchestrator's pane and picks its agent; what is
+//! said of it here names that agent, whichever it is.
 
 use serde_json::{Value, json};
 
 use crate::control::requests::{GitOrigin, GitRequest};
 use crate::state::roles::{orchestration_of, orchestrator_of};
 use crate::state::types::OrchestrationSettings;
-use crate::state::{AgentActivity, AppState, PaneId, Patch, Workspace};
+use crate::state::{AgentActivity, AppState, Pane, PaneId, Patch, Snapshot, Workspace};
 
 use super::panes::{announce, tell};
 use super::port::{FromGitOutcome, MadeWorkspace, ModelCmd, Port, activity_of};
@@ -26,6 +29,16 @@ const TRUST_WATCH_TICKS: u32 = 300;
 const FIRST_MESSAGE: &str = "queued for the orchestrator: it reads the repository, installs its dependencies, \
 sets the check command, runs the tests once and reports. It then waits for an objective, which the person \
 gives it or you pass on with pane_send.";
+
+/// Pane `id`, in whichever workspace holds it.
+fn pane_of<'a>(snapshot: &'a Snapshot, id: &str) -> Option<&'a Pane> {
+    snapshot
+        .state
+        .workspaces
+        .iter()
+        .flat_map(|ws| &ws.panes)
+        .find(|pane| pane.id == id)
+}
 
 /// A string argument, or absent: anything else is refused with `refusal`.
 fn string_arg(args: &Value, name: &str, null_is_absent: bool, refusal: &str) -> Result<(), String> {
@@ -78,13 +91,20 @@ pub async fn create(
             asker_cwd: asker.map(|ws| ws.cwd.clone()).or(caller.cwd.clone()),
         })
         .await;
+    let snapshot = port.snapshot();
     let shown = |workspace: &MadeWorkspace| {
-        json!({
+        let mut shown = json!({
             "name": workspace.name,
             "folder": workspace.cwd,
             "id": workspace.id,
             "orchestrator": workspace.orchestrator.as_ref().map(|(_, name)| name),
-        })
+        });
+        // Which agent it runs, for what the caller sends it next.
+        let orchestrator = workspace.orchestrator.as_ref();
+        if let Some(pane) = orchestrator.and_then(|(id, _)| pane_of(&snapshot, id)) {
+            shown["orchestratorAgent"] = json!(pane.agent);
+        }
+        shown
     };
     match outcome {
         FromGitOutcome::Refused { reason } => Err(reason),
@@ -113,9 +133,9 @@ pub async fn create(
                 },
             )
             .await;
-            // A folder Claude Code was not told to trust: its question comes
-            // before any event of the mod, so Hangar watches the pane and
-            // tells the asker.
+            // A folder its agent was not told to trust: its question comes
+            // before anything its side channel reports, so Hangar watches the
+            // pane and tells the asker.
             if !trusted
                 && let (Some((orchestrator, _)), Some(asker)) =
                     (&workspace.orchestrator, &caller.pane_id)
@@ -145,7 +165,7 @@ pub async fn create(
 }
 
 /// Tells the agent that asked for a workspace when the new orchestrator's
-/// pane stops waiting for the person, on Claude Code's question about
+/// pane stops waiting for the person, on its agent's question about
 /// trusting the folder, which only they answer. Once, and never an error for
 /// the caller: it runs after the answer was given.
 async fn tell_when_waiting(port: Port, asker: PaneId, orchestrator: PaneId, workspace: String) {
@@ -153,18 +173,21 @@ async fn tell_when_waiting(port: Port, asker: PaneId, orchestrator: PaneId, work
         port.sleep(TRUST_WATCH_MS).await;
         let snapshot = port.snapshot();
         let seen = activity_of(&snapshot, &orchestrator);
-        // The mod reports the session: it is past the question, whatever it
-        // waits on now.
+        // Its side channel reports the session: it is past the question,
+        // whatever it waits on now.
         if seen.is_some_and(|seen| seen.bridged) {
             return;
         }
         if seen.map(|seen| seen.activity) != Some(AgentActivity::Waiting) {
             continue;
         }
+        let agent = pane_of(&snapshot, &orchestrator)
+            .and_then(|pane| pane.agent.kind())
+            .map_or("its agent", |kind| kind.info().label);
         let message = format!(
-            "The orchestrator of the new workspace \"{workspace}\" is waiting for the person: Claude Code asks \
-             them to trust the cloned folder (\"Do you trust the files in this folder?\"). Only they can answer \
-             it, in that pane. Do not answer it for them; the orchestrator reads its first message once they have."
+            "The orchestrator of the new workspace \"{workspace}\" is waiting for the person: {agent} asks \
+             them whether to trust the cloned folder. Only they can answer it, in that pane. Do not answer it \
+             for them; the orchestrator reads its first message once they have."
         );
         // The asker is gone, or the queue is: nobody is left to tell.
         let _ = port.enqueue(&asker, &message, Some("hangar")).await;

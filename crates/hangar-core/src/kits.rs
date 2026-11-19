@@ -5,8 +5,9 @@
 //! may hold a Claude Code plugin — skills, commands, agents, MCP servers —
 //! that every Claude Code pane of a workspace the kit is enabled on loads, by
 //! way of `CLAUDE_CODE_PLUGIN_DIRS`, and whose parts Codex can take reach a
-//! Codex pane when the manifest's `agents` names Codex (plugin.rs); tabs of
-//! its own; and setup commands the person approves and runs once per
+//! Codex pane when the manifest's `agents` names Codex (plugin.rs) — its
+//! skills and hooks once the person adds them to Codex (codex_plugin.rs);
+//! tabs of its own; and setup commands the person approves and runs once per
 //! machine.
 //!
 //! Kits come from a local folder, linked in place, or from a GitHub link,
@@ -18,6 +19,7 @@
 //! The contract the other parts build on is written out in docs/kits.md.
 
 mod code;
+mod codex_plugin;
 pub mod commands;
 pub mod data;
 pub mod files;
@@ -43,6 +45,7 @@ use crate::agent::AgentKind;
 use crate::host::{Event, Host};
 
 // Named here for the app, which reads what the commands answer with.
+pub use codex_plugin::{CodexPlugin, CodexState};
 pub use hooks::Hook;
 pub use manifest::{
     CommandArg, CommandRun, DeclaredCommand, Manifest, SetupRun, SetupStep, Tab, TabKind, TabParam,
@@ -106,6 +109,12 @@ fn kits_root() -> Option<PathBuf> {
         return Some(PathBuf::from(file).parent()?.join("kits"));
     }
     Some(dirs::home_dir()?.join(".hangar").join("kits"))
+}
+
+/// The marketplace Hangar keeps for Codex, the kits' Codex plugins inside
+/// (codex_plugin.rs): beside the kits, never among them.
+fn codex_plugins_root() -> Option<PathBuf> {
+    Some(kits_root()?.parent()?.join("codex-plugins"))
 }
 
 fn open() -> Result<Store, String> {
@@ -404,6 +413,22 @@ pub async fn kit_add_git(host: Host, url: String) -> Result<KitInfo, String> {
 
 pub async fn kit_remove(host: Host, id: String) -> Result<(), String> {
     crate::git::off_thread(move || {
+        // Codex keeps a copy of what was added to it, whose hooks run the
+        // kit's own files: it goes with the kit. Codex refusing does not keep
+        // the kit; the copy then stays listed in Codex for the person.
+        if let Some(root) = codex_plugins_root() {
+            if root.join("plugins").join(&id).is_dir() {
+                if let Some(program) = crate::install::agent::find(AgentKind::Codex) {
+                    let home = crate::accounts::CodexHome::main();
+                    let _ = codex_plugin::remove(
+                        &id,
+                        &root,
+                        home.as_ref().map(|home| home.dir.as_path()),
+                        &program,
+                    );
+                }
+            }
+        }
         let result = open()?.remove(&id);
         // Out of the index even when its clone could not all be deleted.
         changed(&host);
@@ -456,6 +481,62 @@ pub async fn kit_inspect(id: String) -> Result<Inspection, String> {
         Ok(plugin::inspect(&kit, manifest::current_os()))
     })
     .await
+}
+
+/// Where the kit `id` stands with Codex: what « Add to Codex » would add of
+/// it, and whether Codex has it (codex_plugin.rs, docs/native/agents.md §6.4).
+pub async fn kit_codex_status(id: String) -> Result<CodexPlugin, String> {
+    crate::git::off_thread(move || codex_status(&open()?, &id)).await
+}
+
+/// « Add to Codex »: builds the kit's Codex plugin and has Codex install it
+/// (`codex plugin marketplace add`, `codex plugin add`), once the person has
+/// read what it adds and the commands. Answers where the kit then stands.
+pub async fn kit_codex_add(id: String) -> Result<CodexPlugin, String> {
+    crate::git::off_thread(move || {
+        let store = open()?;
+        let kit = store.loaded(&store.entry(&id)?)?;
+        let root = codex_plugins_root().ok_or("no home directory")?;
+        codex_plugin::add(&kit, &root, &codex_program()?)?;
+        codex_status(&store, &id)
+    })
+    .await
+}
+
+/// « Remove from Codex »: has Codex uninstall the kit's plugin
+/// (`codex plugin remove`), and forget Hangar's marketplace once it holds no
+/// other kit.
+pub async fn kit_codex_remove(id: String) -> Result<CodexPlugin, String> {
+    crate::git::off_thread(move || {
+        let store = open()?;
+        let root = codex_plugins_root().ok_or("no home directory")?;
+        let home = crate::accounts::CodexHome::main();
+        codex_plugin::remove(
+            &id,
+            &root,
+            home.as_ref().map(|home| home.dir.as_path()),
+            &codex_program()?,
+        )?;
+        codex_status(&store, &id)
+    })
+    .await
+}
+
+fn codex_program() -> Result<PathBuf, String> {
+    crate::install::agent::find(AgentKind::Codex)
+        .ok_or_else(|| "Codex is not installed on this machine".to_string())
+}
+
+fn codex_status(store: &Store, id: &str) -> Result<CodexPlugin, String> {
+    let kit = store.loaded(&store.entry(id)?)?;
+    let root = codex_plugins_root().ok_or("no home directory")?;
+    let home = crate::accounts::CodexHome::main();
+    Ok(codex_plugin::status(
+        &kit,
+        &root,
+        home.as_ref().map(|home| home.dir.as_path()),
+        crate::install::agent::installed(AgentKind::Codex),
+    ))
 }
 
 pub async fn kit_setup_status(id: String) -> Result<Vec<StepStatus>, String> {

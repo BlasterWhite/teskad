@@ -11,6 +11,7 @@
 //! around each of them is here.
 
 mod delivery;
+mod host;
 mod kit_tabs;
 mod manager;
 mod panes;

@@ -20,6 +20,7 @@ use crate::kit_tabs::tabs::workspace_kit_tabs;
 use crate::kit_tabs::testing::{entry, github, kit, strings, tab};
 use crate::kits::model::{KIT_METHODS, KIT_PERMISSIONS};
 use crate::state::live::AgentActivity;
+use crate::state::types::AgentId;
 use crate::state::types::PaneRole;
 
 const MINUTE: Duration = Duration::from_secs(60);
@@ -1936,7 +1937,7 @@ mod files_list {
     }
 }
 
-mod panes_send_reaches_the_workspaces_claude_code_agents_only {
+mod panes_send_reaches_the_workspaces_agents_only {
     use super::*;
 
     #[test]
@@ -2052,6 +2053,35 @@ mod what_a_tab_sees {
                 { "name": "Ben", "agent": "shell", "role": null, "state": "idle", "canSend": false },
                 { "name": "Cleo", "agent": "claude", "role": null, "state": "idle", "canSend": false },
                 { "name": "Shell", "agent": "shell", "role": null, "state": null, "canSend": false },
+            ])
+        );
+    }
+
+    /// `panes.send` reaches an agent by what it can take, not by its kind:
+    /// a Codex pane Hangar is attached to takes a message as Claude Code's
+    /// with the bridge does; one on the floor (not attached) does not, nor
+    /// does a shell.
+    #[test]
+    fn a_codex_pane_is_reached_once_attached() {
+        let ws = Workspace {
+            panes: vec![
+                pane("p-kai", "Kai", AgentId::Codex, None),
+                pane("p-lou", "Lou", AgentId::Codex, None),
+            ],
+            ..workspace()
+        };
+        let attached = |pane: &str| {
+            Some(PaneActivity {
+                workspace_id: "ws-1".into(),
+                activity: AgentActivity::Idle,
+                bridged: pane == "p-kai",
+            })
+        };
+        assert_eq!(
+            serde_json::to_value(kit_panes(&ws, attached)).unwrap(),
+            json!([
+                { "name": "Kai", "agent": "codex", "role": null, "state": "idle", "canSend": true },
+                { "name": "Lou", "agent": "codex", "role": null, "state": "idle", "canSend": false },
             ])
         );
     }
