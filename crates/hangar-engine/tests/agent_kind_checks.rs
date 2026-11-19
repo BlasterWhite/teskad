@@ -338,47 +338,12 @@ const ALLOWED: &[Allowed] = &[
         "TODO(capability): `of` and `launch` are Claude Code's whatever the pane runs; pass its kind",
     ),
     only(
-        "crates/hangar-app/src/panes_logic/mod.rs",
-        &["let says_itself = info.agent == AgentId::Claude && m.settings().claude_bridge;"],
-        "TODO(capability): whether the side channel tells the session is `caps.sessions.id` (Reported)",
-    ),
-    only(
-        "crates/hangar-app/src/panes_logic/mod.rs",
-        &[".is_some_and(|(_, found)| found.agent == AgentId::Claude);"],
-        "TODO(capability): the context gauge is kept for Claude Code panes only; read `caps.usage.context`",
-    ),
-    only(
-        "crates/hangar-app/src/git_flow/deps.rs",
-        &["agents: vec![AgentId::Claude],"],
-        "TODO(capability): a clone's workspace starts Claude Code; start the default orchestrator agent (D20)",
-    ),
-    only(
-        "crates/hangar-app/src/mcp/servers_panel.rs",
-        &[".filter(|pane| pane.agent == AgentId::Claude)"],
-        "TODO(capability): only Claude Code panes are counted and restarted for an MCP change; read `caps.mcp`",
-    ),
-    only(
-        "crates/hangar-app/src/mobile/live.rs",
-        &["hangar_core::agent::AgentKind::Claude,"],
-        "TODO(capability): Mobile reads a node pane's chat as Claude Code's whatever it runs; pass its kind",
-    ),
-    only(
-        "crates/hangar-app/src/panes_logic/remote_transcripts.rs",
-        &["remote::context(&client, AgentKind::Claude, &session, &cwd).await"],
-        "TODO(capability): a node pane's context is read as Claude Code's whatever it runs; pass its kind",
-    ),
-    only(
         "crates/hangar-app/src/accounts/mod.rs",
         &[
             "picker::view(ctx, AgentKind::Claude, value, folder, |id| {",
             "has_any_of(ctx, AgentKind::Claude)",
         ],
         "TODO(capability): the new-workspace dialog's account picker offers Claude Code's accounts only",
-    ),
-    only(
-        "crates/hangar-app/src/settings/discord.rs",
-        &["let claude = AgentId::Claude;"],
-        "TODO(capability): the Discord presence names Claude Code whatever runs; name the agents running",
     ),
 ];
 
