@@ -882,6 +882,10 @@ pub enum Key {
     ControlSomeone,
     /// `control.workspaceCreated`
     ControlWorkspaceCreated,
+    /// `create.agent.claude`
+    CreateAgentClaude,
+    /// `create.agent.codex`
+    CreateAgentCodex,
     /// `create.agents`
     CreateAgents,
     /// `create.allAssigned`
@@ -976,6 +980,8 @@ pub enum Key {
     CreateRootMissing,
     /// `create.rootsHint`
     CreateRootsHint,
+    /// `create.setUp`
+    CreateSetUp,
     /// `create.shellDefault`
     CreateShellDefault,
     /// `create.shellDetected`
@@ -992,8 +998,8 @@ pub enum Key {
     CreateStart,
     /// `create.startCustom`
     CreateStartCustom,
-    /// `create.startNoClaude`
-    CreateStartNoClaude,
+    /// `create.startNoAgent`
+    CreateStartNoAgent,
     /// `create.startNoGit`
     CreateStartNoGit,
     /// `create.startOrchestrator`
@@ -1006,6 +1012,12 @@ pub enum Key {
     CreateTerminals,
     /// `create.title`
     CreateTitle,
+    /// `create.workers`
+    CreateWorkers,
+    /// `create.workersHint`
+    CreateWorkersHint,
+    /// `create.workersSame`
+    CreateWorkersSame,
     /// `diff.against`
     DiffAgainst,
     /// `diff.binary`
@@ -5172,6 +5184,8 @@ impl Key {
         Key::ControlRestarted,
         Key::ControlSomeone,
         Key::ControlWorkspaceCreated,
+        Key::CreateAgentClaude,
+        Key::CreateAgentCodex,
         Key::CreateAgents,
         Key::CreateAllAssigned,
         Key::CreateBrowse,
@@ -5219,6 +5233,7 @@ impl Key {
         Key::CreateRootMain,
         Key::CreateRootMissing,
         Key::CreateRootsHint,
+        Key::CreateSetUp,
         Key::CreateShellDefault,
         Key::CreateShellDetected,
         Key::CreateShellNone,
@@ -5227,13 +5242,16 @@ impl Key {
         Key::CreateSourceGit,
         Key::CreateStart,
         Key::CreateStartCustom,
-        Key::CreateStartNoClaude,
+        Key::CreateStartNoAgent,
         Key::CreateStartNoGit,
         Key::CreateStartOrchestrator,
         Key::CreateStartShell,
         Key::CreateSubmit,
         Key::CreateTerminals,
         Key::CreateTitle,
+        Key::CreateWorkers,
+        Key::CreateWorkersHint,
+        Key::CreateWorkersSame,
         Key::DiffAgainst,
         Key::DiffBinary,
         Key::DiffClean,
@@ -7534,6 +7552,8 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "control.restarted", en: Text::plain("{by} restarted {pane} in {workspace}"), fr: Text::plain("{by} a relancé {pane} dans {workspace}") },
     Message { id: "control.someone", en: Text::plain("An agent"), fr: Text::plain("Un agent") },
     Message { id: "control.workspaceCreated", en: Text::plain("{by} created the workspace {workspace} from a repository; {pane} orchestrates it"), fr: Text::plain("{by} a créé le workspace {workspace} depuis un dépôt\u{202f}; {pane} l'orchestre") },
+    Message { id: "create.agent.claude", en: Text::plain("Claude Code"), fr: Text::plain("Claude Code") },
+    Message { id: "create.agent.codex", en: Text::plain("Codex (beta)"), fr: Text::plain("Codex (bêta)") },
     Message { id: "create.agents", en: Text::plain("Agent split"), fr: Text::plain("Répartition des agents") },
     Message { id: "create.allAssigned", en: Text::plain("every pane is assigned"), fr: Text::plain("tous les panneaux sont attribués") },
     Message { id: "create.browse", en: Text::plain("Browse…"), fr: Text::plain("Parcourir…") },
@@ -7581,6 +7601,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "create.rootMain", en: Text::plain("main"), fr: Text::plain("principal") },
     Message { id: "create.rootMissing", en: Text::plain("missing"), fr: Text::plain("introuvable") },
     Message { id: "create.rootsHint", en: Text::plain("panes open in the main folder; the other folders go to Claude Code"), fr: Text::plain("les panneaux s'ouvrent dans le dossier principal\u{202f}; les autres dossiers vont à Claude Code") },
+    Message { id: "create.setUp", en: Text::plain("Set up {agent}"), fr: Text::plain("Installer {agent}") },
     Message { id: "create.shellDefault", en: Text::plain("Default ({name})"), fr: Text::plain("Par défaut ({name})") },
     Message { id: "create.shellDetected", en: Text::plain("{n} detected on this machine"), fr: Text::plural("{n} détecté sur cette machine", "{n} détectés sur cette machine") },
     Message { id: "create.shellNone", en: Text::plain("none"), fr: Text::plain("aucun") },
@@ -7589,13 +7610,16 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "create.sourceGit", en: Text::plain("From a Git repository"), fr: Text::plain("Depuis un dépôt Git") },
     Message { id: "create.start", en: Text::plain("Starts with"), fr: Text::plain("Démarre avec") },
     Message { id: "create.startCustom", en: Text::plural("{n} pane, as chosen under More options", "{n} panes, as chosen under More options"), fr: Text::plural("{n} panneau, comme choisi dans Plus d'options", "{n} panneaux, comme choisis dans Plus d'options") },
-    Message { id: "create.startNoClaude", en: Text::plain("Claude Code is not installed on this machine: the workspace starts with a shell instead of an orchestrator."), fr: Text::plain("Claude Code n'est pas installé sur cette machine\u{202f}: le workspace démarre avec un shell au lieu d'un orchestrateur.") },
+    Message { id: "create.startNoAgent", en: Text::plain("No agent is installed on this machine, neither Claude Code nor Codex: the workspace starts with a shell instead of an orchestrator."), fr: Text::plain("Aucun agent n'est installé sur cette machine, ni Claude Code ni Codex\u{202f}: le workspace démarre avec un shell au lieu d'un orchestrateur.") },
     Message { id: "create.startNoGit", en: Text::plain("This folder is not a Git repository: the workers will share it. Run git init in it to give each worker a worktree of its own."), fr: Text::plain("Ce dossier n'est pas un dépôt Git\u{202f}: les workers le partageront. Lance git init dedans pour donner à chaque worker son propre worktree.") },
-    Message { id: "create.startOrchestrator", en: Text::plain("One Claude Code pane, the orchestrator: tell it what you want, it plans the work and hands it to workers"), fr: Text::plain("Un panneau Claude Code, l'orchestrateur\u{202f}: dis-lui ce que tu veux, il planifie le travail et le confie à des workers") },
+    Message { id: "create.startOrchestrator", en: Text::plain("One {agent} pane, the orchestrator: tell it what you want, it plans the work and hands it to workers"), fr: Text::plain("Un panneau {agent}, l'orchestrateur\u{202f}: dis-lui ce que tu veux, il planifie le travail et le confie à des workers") },
     Message { id: "create.startShell", en: Text::plain("One plain shell"), fr: Text::plain("Un shell simple") },
     Message { id: "create.submit", en: Text::plain("Create workspace"), fr: Text::plain("Créer le workspace") },
     Message { id: "create.terminals", en: Text::plain("Number of panes"), fr: Text::plain("Nombre de panneaux") },
     Message { id: "create.title", en: Text::plain("New workspace"), fr: Text::plain("Nouveau workspace") },
+    Message { id: "create.workers", en: Text::plain("Workers"), fr: Text::plain("Workers") },
+    Message { id: "create.workersHint", en: Text::plain("The agent the orchestrator starts its workers with"), fr: Text::plain("L'agent avec lequel l'orchestrateur lance ses workers") },
+    Message { id: "create.workersSame", en: Text::plain("Same as the orchestrator"), fr: Text::plain("Comme l'orchestrateur") },
     Message { id: "diff.against", en: Text::plain("against {base}"), fr: Text::plain("par rapport à {base}") },
     Message { id: "diff.binary", en: Text::plain("Binary file: no line-by-line diff to show."), fr: Text::plain("Fichier binaire\u{202f}: pas de diff ligne à ligne.") },
     Message { id: "diff.clean", en: Text::plain("Nothing changed: the working tree matches {base}."), fr: Text::plain("Aucune modification\u{202f}: l'arbre de travail correspond à {base}.") },
