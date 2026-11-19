@@ -1,6 +1,7 @@
 //! The « … » menu of a pane header: what a pane is to the orchestration (the
-//! orchestration panels' rule decides), and the Claude account block it ends
-//! with, which is set off by one separator and one heading, not two.
+//! orchestration panels' rule decides), the lines its agent's capabilities
+//! give it, and the account block it ends with, which is set off by one
+//! separator and one heading, not two.
 
 use hangar_i18n::Locale;
 
@@ -30,14 +31,16 @@ fn part(ws: &Workspace, id: &str) -> Option<Part> {
 }
 
 #[test]
-fn only_a_free_claude_code_pane_can_become_the_orchestrator() {
+fn only_a_free_agent_pane_of_either_kind_can_become_the_orchestrator() {
     let ws = workspace(vec![
         pane("claude", "Claude", AgentId::Claude),
+        pane("codex", "Codex", AgentId::Codex),
         pane("shell", "Shell", AgentId::Shell),
         with_role("worker", AgentId::Claude, PaneRole::Worker),
         with_role("manager", AgentId::Claude, PaneRole::Manager),
     ]);
     assert_eq!(part(&ws, "claude"), Some(Part::Free));
+    assert_eq!(part(&ws, "codex"), Some(Part::Free));
     for other in ["shell", "worker", "manager"] {
         assert_eq!(part(&ws, other), None, "{other}");
     }
@@ -211,6 +214,173 @@ mod pin {
         let lines = entries(ctx, &"term".to_string(), Folded::default());
         assert!(lines.iter().any(
             |entry| matches!(entry, menu::Entry::Item(item) if item.label() == "Épingler à sa place")
+        ));
+    }
+}
+
+mod by_agent {
+    //! The lines a pane's agent gives its menu: its sessions, a pane of the
+    //! other agent beside it, its models; greyed with why when the agent
+    //! they need is not on this computer.
+
+    use super::*;
+    use crate::app::Packages;
+    use crate::navigator::testing::{ctx, model_of, workspace};
+    use crate::orchestration_ui::models;
+    use crate::state::types::{AgentKind, AppState};
+    use crate::state::{Model, StoreAction};
+
+    const WS: &str = "agents-menu";
+
+    fn two_agents() -> Model {
+        let mut model = model_of(AppState {
+            workspaces: vec![workspace(
+                WS,
+                "Shop",
+                None,
+                vec![
+                    pane("ava", "Ava", AgentId::Claude),
+                    pane("cody", "Cody", AgentId::Codex),
+                ],
+            )],
+            active_workspace_id: Some(WS.into()),
+            ..AppState::default()
+        });
+        model.ui.claude_installed = true;
+        model
+    }
+
+    /// The menu of `pane`, as data: each line's label, and why it is greyed.
+    fn lines(m: &Model, pane: &str) -> Vec<(String, Option<String>)> {
+        let pkg = Packages::default();
+        entries(ctx(m, &pkg), &pane.to_string(), Folded::default())
+            .iter()
+            .filter_map(|entry| match entry {
+                menu::Entry::Item(item) => {
+                    Some((item.label().to_owned(), item.refusal().map(str::to_owned)))
+                }
+                menu::Entry::Heading(heading) => Some((heading.clone(), None)),
+                menu::Entry::Separator => None,
+            })
+            .collect()
+    }
+
+    fn labels(m: &Model, pane: &str) -> Vec<String> {
+        lines(m, pane).into_iter().map(|(label, _)| label).collect()
+    }
+
+    /// What picking the line labelled `label` of `pane`'s menu does, once the
+    /// menu has closed.
+    fn picked(m: &Model, pane: &str, label: &str) -> Message {
+        let pkg = Packages::default();
+        let lines = entries(ctx(m, &pkg), &pane.to_string(), Folded::default());
+        let sent = lines
+            .iter()
+            .find_map(|entry| match entry {
+                menu::Entry::Item(item) if item.label() == label => item.selects().cloned(),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("{pane}'s menu picks « {label} »"));
+        match sent {
+            Message::PaneMenu(Msg::Pick(from, action)) => {
+                assert_eq!(from, pane);
+                *action
+            }
+            other => other,
+        }
+    }
+
+    #[test]
+    fn either_agent_resumes_a_session_and_a_shell_has_none() {
+        let mut m = two_agents();
+        m.apply(StoreAction::AddPane {
+            ws: WS.into(),
+            agent: Some(AgentId::Shell),
+            near: None,
+            dir: None,
+            cwd: None,
+            name: Some("Sam".into()),
+            init: None,
+        });
+        let resume = "Pick the session to resume";
+        assert!(labels(&m, "ava").iter().any(|label| label == resume));
+        assert!(labels(&m, "cody").iter().any(|label| label == resume));
+        let shell = m.workspace(WS).unwrap().panes[2].id.clone();
+        assert!(!labels(&m, &shell).iter().any(|label| label == resume));
+    }
+
+    #[test]
+    fn a_pane_of_the_other_agent_opens_beside_it_greyed_when_not_installed() {
+        let m = two_agents();
+        // Claude Code is on this computer; Codex is not.
+        let codex = lines(&m, "ava")
+            .into_iter()
+            .find(|(label, _)| label == "New Codex pane (beta)")
+            .expect("a Claude Code pane offers a Codex one");
+        assert_eq!(
+            codex.1.as_deref(),
+            Some("Codex is not installed on this computer")
+        );
+        assert!(
+            !labels(&m, "ava")
+                .iter()
+                .any(|l| l == "New Claude Code pane")
+        );
+
+        let new = picked(&m, "cody", "New Claude Code pane");
+        let mut m = m;
+        let Message::PaneMenu(msg @ Msg::NewPane { .. }) = new else {
+            panic!("not a new pane");
+        };
+        drop(step(&mut State::default(), &mut m, msg));
+        let panes = &m.workspace(WS).unwrap().panes;
+        assert_eq!(panes.len(), 3);
+        assert_eq!(panes[2].agent, AgentId::Claude);
+    }
+
+    #[test]
+    fn the_model_lines_offer_each_agent_s_own_with_the_one_it_runs_ticked() {
+        let mut m = two_agents();
+        let ava = labels(&m, "ava");
+        for wanted in [
+            "Model · Claude Code",
+            "Claude Code's default",
+            "opus",
+            "sonnet",
+            "haiku",
+        ] {
+            assert!(ava.iter().any(|label| label == wanted), "{wanted}: {ava:?}");
+        }
+        // Codex lists its own: none here until its server has said.
+        let cody = labels(&m, "cody");
+        assert!(
+            cody.iter().any(|label| label == "Model · Codex"),
+            "{cody:?}"
+        );
+        assert!(cody.iter().any(|label| label == "Codex's default"));
+        assert!(!cody.iter().any(|label| label == "opus"));
+        models::answered(&mut m, AgentKind::Codex, Ok(vec!["gpt-b".into()]));
+        assert!(labels(&m, "cody").iter().any(|label| label == "gpt-b"));
+
+        // Another model restarts the pane with it, on its conversation.
+        let Message::Intent(Intent::ReplacePane { ws, pane, patch }) = picked(&m, "ava", "sonnet")
+        else {
+            panic!("a restart");
+        };
+        assert_eq!((ws.as_str(), pane.as_str()), (WS, "ava"));
+        let mut ava = m.workspace(WS).unwrap().panes[0].clone();
+        patch.apply(&mut ava);
+        assert_eq!(ava.model.as_deref(), Some("sonnet"));
+
+        // The one it runs is ticked, and kept: picking it only closes the menu.
+        m.apply(StoreAction::UpdatePane {
+            ws: WS.into(),
+            pane: "ava".into(),
+            patch: Patch::new(|pane: &mut Pane| pane.model = Some("sonnet".into())),
+        });
+        assert!(matches!(
+            picked(&m, "ava", "sonnet"),
+            Message::PaneMenu(Msg::Close)
         ));
     }
 }
