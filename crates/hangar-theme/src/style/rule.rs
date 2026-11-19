@@ -23,6 +23,13 @@ pub fn sep(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| line(t.colors.sep)
 }
 
+/// A [`sep`] between two of the window's own regions (the navigator and the
+/// rest, the toolbar and the panes), laid straight on the desktop: at the
+/// window's alpha, so a see-through window shows the desktop through it too.
+pub fn sep_see_through(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
+    move |_| line(t.see_through(t.colors.sep))
+}
+
 /// A hairline inside a surface (`--line`): under a dialog's title, above its
 /// buttons.
 pub fn hairline(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {

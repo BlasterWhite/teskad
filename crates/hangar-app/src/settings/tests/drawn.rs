@@ -82,7 +82,17 @@ fn sheet(
     query: &str,
     size: Size,
 ) {
-    let mut model = model();
+    sheet_of(model(), category, locale, theme, query, size);
+}
+
+fn sheet_of(
+    mut model: Model,
+    category: SettingsCategory,
+    locale: hangar_i18n::Locale,
+    theme: &str,
+    query: &str,
+    size: Size,
+) {
     model.ui.overlays = vec![Overlay::Settings(category)];
     let pkg = Packages::default();
     let st = State {
@@ -172,4 +182,25 @@ fn the_small_window_the_shell_allows_can_hold_the_sheet() {
         "",
         Size::new(900.0, 560.0),
     );
+}
+
+#[test]
+fn the_window_opacity_row_can_be_laid_out_and_found() {
+    for (locale, query) in [
+        (hangar_i18n::Locale::En, "opacity"),
+        (hangar_i18n::Locale::Fr, "opacité"),
+    ] {
+        let mut model = model();
+        let mut state = model.state().clone();
+        state.settings.window_opacity = 0.85;
+        model.hydrate(state);
+        sheet_of(
+            model,
+            SettingsCategory::Appearance,
+            locale,
+            "tokyo-night",
+            query,
+            MAIN,
+        );
+    }
 }

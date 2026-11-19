@@ -35,6 +35,46 @@ pub fn window(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| fill(t.colors.bg, t.colors.fg)
 }
 
+/// The page laid straight on the desktop: [`window`] at the window's alpha
+/// ([`Theme::see_through`]). For the regions of the window that show the
+/// page and nothing is drawn under: the work area, a placeholder, the whole
+/// window while it starts.
+pub fn backdrop(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
+    move |_| fill(t.see_through(t.colors.bg), t.colors.fg)
+}
+
+/// The page under a pane that lies on a [`backdrop`]: the page's colour on a
+/// solid window, nothing on a translucent one, where the backdrop under it
+/// already is that colour and a second coat would make it opaque.
+pub fn page(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
+    move |theme| {
+        if t.is_translucent() {
+            plain(t)(theme)
+        } else {
+            window(t)(theme)
+        }
+    }
+}
+
+/// `style` laid straight on the desktop: its fill at the window's alpha
+/// ([`Theme::see_through`]), so that the desktop shows through it on a
+/// see-through window, and as it is on a solid one. Only for the window's own
+/// regions, which nothing else is drawn under: the navigator, the toolbar,
+/// the status bar, a docked side panel. What floats (menus, dialogs, cards)
+/// stays opaque.
+pub fn see_through<'a>(
+    t: &'a Theme,
+    style: impl Fn(&iced::Theme) -> Style + 'a,
+) -> impl Fn(&iced::Theme) -> Style + 'a {
+    move |theme| {
+        let mut look = style(theme);
+        if let Some(Background::Color(color)) = look.background {
+            look.background = Some(Background::Color(t.see_through(color)));
+        }
+        look
+    }
+}
+
 /// The navigator (`.sidebar`). Its right edge is a [`super::rule::sep`].
 pub fn sidebar(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| fill(t.colors.chrome, t.colors.fg)

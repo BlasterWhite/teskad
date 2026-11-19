@@ -73,6 +73,8 @@ pub enum Target {
     NavigatorOpen,
     InspectorOpen,
     SystemTitleBar,
+    /// The windows' opacity, in percent (Linux only).
+    WindowOpacity,
     /// The workspace pins the theme it shows (on), or follows the global one.
     ThemeScope,
     /// A theme card: the workspace's own when it pins one, else the global.
@@ -254,6 +256,10 @@ pub fn apply(settings: &mut Settings, target: &Target, value: &Value) -> bool {
         (T::NavigatorOpen, Bool(on)) => settings.navigator_open = *on,
         (T::InspectorOpen, Bool(on)) => settings.inspector_open = *on,
         (T::SystemTitleBar, Bool(on)) => settings.system_title_bar = *on,
+        (T::WindowOpacity, Number(percent)) if percent.is_finite() => {
+            settings.window_opacity =
+                super::schema::window_opacity_percent(*percent / 100.0) / 100.0;
+        }
         (T::Theme, Text(id)) => settings.theme_id = id.clone(),
         (T::FontFamily, Text(stack)) => settings.font_family = stack.clone(),
         (T::FontSize, Number(px)) => settings.font_size = *px,
@@ -430,6 +436,19 @@ mod tests {
             1500
         );
         assert_eq!(set(Target::UiScale, Value::Number(115.0)).ui_scale, 115.0);
+        // The window opacity is stored as a fraction, from 0.5 to 1.
+        assert_eq!(
+            set(Target::WindowOpacity, Value::Number(85.0)).window_opacity,
+            0.85
+        );
+        assert_eq!(
+            set(Target::WindowOpacity, Value::Number(20.0)).window_opacity,
+            0.5
+        );
+        assert_eq!(
+            set(Target::WindowOpacity, Value::Number(140.0)).window_opacity,
+            1.0
+        );
         assert_eq!(set(Target::FontSize, Value::Number(15.0)).font_size, 15.0);
         assert_eq!(
             set(Target::LineHeight, Value::Number(1.45)).line_height,
