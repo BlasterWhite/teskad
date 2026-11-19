@@ -10,6 +10,21 @@ Every release, with its installers, is on the
 
 ## [Unreleased]
 
+### Added
+- Codex (beta). HangarAI runs OpenAI's Codex CLI beside Claude Code, or on its own: Hangar works with either one installed, or both.
+  - Setup: both agents on the first-run sheet, installed by their official installers and signed in from a pane; either one is enough.
+  - Workspaces: choose the orchestrator's agent and the workers' agent when you create one; mixed teams work (a Claude Code orchestrator with Codex workers, or the reverse). Settings › Agents sets the defaults, Codex's launch command and models.
+  - Panes: a Codex pane shows whether it works, waits or needs you, like a Claude Code pane. Hangar attaches to the pane's Codex server to follow its turns and answer its approvals (Settings › Attach Hangar to Codex, on by default); without it, the pane still runs, with less to show.
+  - Board, memory, kits and Hangar's tools reach Codex too, through `-c` options: your `~/.codex/config.toml` is never edited. The playbook goes to `AGENTS.md` as well as `CLAUDE.md`.
+  - Accounts: Codex accounts beside Claude ones, each in a home of its own, chosen per pane, workspace or folder.
+  - Images: what Codex generates shows in the chat view, on Hangar Mobile and in Discord.
+  - Delegate: an agent hands a sub-task to a Codex or Claude Code child that runs with no terminal, in its folder or a worktree of its own, and gets back its answer, files, images and branch (`delegate`, `delegation_status`, `delegation_cancel`, `delegation_list`).
+  - Also: sessions resume and sleep for either agent, Hangar Mobile answers Codex's questions, Discord follows Codex panes, nodes run Codex, statistics per agent with OpenAI's prices, the reviewer can be Codex.
+  - Codex is in beta: report what goes wrong with the « Codex bug » issue form.
+
+### Changed
+- README, guide and site speak of both agents.
+
 ## [2.4.6] - 2026-11-19
 
 ### Fixed
