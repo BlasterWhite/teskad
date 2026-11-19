@@ -329,9 +329,23 @@ impl Child {
             thread_id: thread,
             ..TurnStartParams::default()
         };
-        let turn = tokio::select! {
-            turn = self.client.request::<requests::TurnStart>(params) => turn,
-            () = stopped(stop) => return Ended::Cancelled,
+        let client = Arc::clone(&self.client);
+        let turn = {
+            let request = client.request::<requests::TurnStart>(params);
+            tokio::pin!(request);
+            tokio::select! {
+                biased;
+                turn = &mut request => turn,
+                () = stopped(stop) => {
+                    // The turn may be starting all the same: its id is waited for a moment, so
+                    // that it can be interrupted rather than left to end with the server.
+                    if let Ok(Ok(turn)) = tokio::time::timeout(INTERRUPT_TIMEOUT, request).await {
+                        self.turn.get_or_insert(turn.turn.id);
+                        self.interrupt().await;
+                    }
+                    return Ended::Cancelled;
+                }
+            }
         };
         match turn {
             Ok(turn) => {
