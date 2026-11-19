@@ -188,6 +188,10 @@ impl AppPort for HostPort {
             .map(|runtime| Arc::new(runtime.clone()) as Arc<dyn OrchestrationHooks>)
     }
 
+    fn core(&self) -> Option<hangar_core::Host> {
+        Some(self.host.core().clone())
+    }
+
     fn mobile(&self) -> Option<Arc<dyn MobileHooks>> {
         self.host
             .0

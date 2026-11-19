@@ -541,8 +541,12 @@ fn every_operation_core_relays_is_answered_here() {
         "project_list",
         "project_status",
         "project_send",
+        "delegate",
+        "delegation_status",
+        "delegation_cancel",
+        "delegation_list",
     ];
-    assert_eq!(handled.len(), 28);
+    assert_eq!(handled.len(), 32);
     assert_eq!(hangar_core::control::OPERATIONS, handled);
 }
 
