@@ -35,7 +35,9 @@
 //! legacy thread's commands show where Codex kept an `exec_command_end`.
 //!
 //! What shows: the person's and Hangar's messages, Codex's messages, command
-//! runs, patches, MCP and client tool calls, web searches, generated images,
+//! runs, patches, MCP and client tool calls, web searches, generated images
+//! (an image item once Codex completed and saved one, by agent/images.rs's
+//! rule; the call while it runs, or when it failed or went unsaved),
 //! a proposed plan (as Claude Code's "Presented a plan"), a sub-agent started
 //! (as Claude Code's Agent), compactions and interruptions as notices. Left
 //! out on purpose: reasoning (as Claude Code's thinking), hook prompts and
@@ -60,6 +62,7 @@ use super::{
     Body, CacheOf, CallResult, CallState, ChatItem, ChatPage, Lines, OpenCall, PendingQuestion,
     Sender, Span,
 };
+use crate::agent::images;
 use crate::codex_app::generated as protocol;
 use crate::sessions::codex::Record;
 
@@ -207,16 +210,30 @@ fn action_done(tool: &str, described: Described) -> Body {
     action(tool, described, None, CallState::Done)
 }
 
-/// A generated image: the prompt as its detail, where it was saved as its
-/// result. The picture itself is T10's.
+/// A generation of an image: the image, when Codex completed and saved it
+/// (the rule is agent/images.rs's); otherwise the call, the prompt as its
+/// detail, where it was saved, if anywhere, as its result.
 fn image(
-    state: CallState,
+    status: &str,
     prompt: Option<&str>,
     saved: Option<&str>,
     failed: bool,
     cwd: Option<&str>,
 ) -> Body {
-    let state = if failed { CallState::Error } else { state };
+    if let Some(path) = images::saved(status, failed, saved) {
+        return Body::Image {
+            path: path.to_string(),
+            prompt: prompt
+                .map(str::trim)
+                .filter(|prompt| !prompt.is_empty())
+                .map(|prompt| clip(prompt, TEXT_BYTES)),
+        };
+    }
+    let state = if failed {
+        CallState::Error
+    } else {
+        state_of(status)
+    };
     let saved = saved
         .map(|path| tools::shorten(path, cwd))
         .unwrap_or_default();
@@ -341,7 +358,7 @@ pub fn item(item: &protocol::ThreadItem, at: i64, cwd: Option<&str>) -> Option<C
         Item::ImageGeneration(item) => (
             &item.id,
             image(
-                state_of(&item.status),
+                &item.status,
                 item.revised_prompt.as_deref(),
                 item.saved_path.as_deref(),
                 item.failure.is_some(),
@@ -681,7 +698,7 @@ fn turn_item(item: TurnItem, cwd: Option<&str>) -> Option<(String, Body)> {
         } => (
             id,
             image(
-                state_of(&status),
+                &status,
                 revised_prompt.as_deref(),
                 saved_path.as_deref(),
                 false,
@@ -697,7 +714,7 @@ fn turn_item(item: TurnItem, cwd: Option<&str>) -> Option<(String, Body)> {
         }) => (
             id,
             image(
-                state_of(&status),
+                &status,
                 revised_prompt.as_deref(),
                 saved_path.as_deref(),
                 failure.is_some_and(|failure| !failure.is_null()),
@@ -856,7 +873,7 @@ fn event(payload: &str, cwd: Option<&str>) -> Option<(Option<String>, Body)> {
         "image_generation_end" => {
             let end: ImageGenerationEnd = read(payload)?;
             let body = image(
-                state_of(&end.status),
+                &end.status,
                 end.revised_prompt.as_deref(),
                 end.saved_path.as_deref(),
                 end.failure.is_some_and(|failure| !failure.is_null()),

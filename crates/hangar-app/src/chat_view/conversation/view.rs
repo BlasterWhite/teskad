@@ -460,6 +460,8 @@ fn item_view<'a>(
             questions, answer, ..
         } => asked(ctx, questions, answer.as_deref()),
         Body::Notice { text: words } => notice(t, words.clone()),
+        // A Codex image: shown by T26 (agents.md §5.3).
+        Body::Image { .. } => Space::new().into(),
     }
 }
 

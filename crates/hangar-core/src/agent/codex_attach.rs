@@ -990,6 +990,7 @@ impl<'a> Follower<'a> {
             }
             ServerNotification::ItemCompleted(completed) => {
                 let thread = completed.thread_id;
+                super::images::on_item(&self.ctx.host, &self.ctx.pane, &thread, &completed.item);
                 match &completed.item {
                     ThreadItem::AgentMessage(message) => self.on_agent_message(&thread, message),
                     ThreadItem::ContextCompaction(_) => {

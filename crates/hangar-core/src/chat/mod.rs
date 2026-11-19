@@ -123,6 +123,15 @@ pub enum Body {
     /// Conversation compacted, turn interrupted, session resumed, an error
     /// Claude Code reported.
     Notice { text: String },
+    /// An image the agent generated and saved (agent/images.rs): where the
+    /// file is, absolute — the agent's own file, shown where it is — and what
+    /// it was made from. A generation still running, failed or left unsaved
+    /// is an `Action`. Codex only: Claude Code generates none.
+    Image {
+        path: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        prompt: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
