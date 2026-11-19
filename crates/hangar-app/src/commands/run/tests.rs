@@ -438,3 +438,45 @@ fn a_command_that_is_not_live_does_nothing() {
     // `run` checks first; `message` alone would find no workspace either.
     assert!(message(&m, w, PaneSplit).is_none());
 }
+
+#[test]
+fn the_pin_command_pins_the_focused_pane_and_lets_it_go_again() {
+    let (mut m, w) = model();
+    let ws = add(&mut m, &[AgentId::Shell]);
+    // A single pane already: the panes that come later open beside it.
+    assert!(has(&m, w, &[PanePin]));
+    let first = m.workspace(&ws).unwrap().panes[0].id.clone();
+    let pin = |m: &Model| match message(m, w, PanePin) {
+        Some(Message::Panes(crate::panes::Msg::Pin(at, pane, on))) => {
+            assert_eq!((at.as_str(), pane.as_str()), (ws.as_str(), first.as_str()));
+            on
+        }
+        other => panic!("{other:?}"),
+    };
+    assert!(pin(&m), "not pinned: the key pins it");
+    m.apply(StoreAction::PinPane {
+        ws: ws.clone(),
+        pane: first.clone(),
+        edge: None,
+        grid: None,
+    });
+    assert!(!pin(&m), "pinned: the same key lets it go");
+
+    // A view pane is pinned as a terminal is.
+    m.apply(StoreAction::AddView {
+        ws: ws.clone(),
+        id: "p1".into(),
+        near: None,
+        dir: None,
+    });
+    m.ui.focus_by_workspace.insert(ws.clone(), "p1".into());
+    assert!(has(&m, w, &[PanePin]));
+    assert!(matches!(
+        message(&m, w, PanePin),
+        Some(Message::Panes(crate::panes::Msg::Pin(_, pane, true))) if pane == "p1"
+    ));
+
+    // Off the terminals, no key is about a pane.
+    m.ui.view = View::Board;
+    assert!(lacks(&m, w, &[PanePin]));
+}

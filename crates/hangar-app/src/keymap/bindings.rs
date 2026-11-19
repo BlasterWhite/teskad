@@ -44,6 +44,9 @@ pub fn defaults(id: CommandId, platform: Platform) -> &'static [&'static str] {
         // One key both ways, like tmux's `prefix z`. Cmd+Shift+Z is Redo on
         // the macOS Edit menu, which takes it before the window sees it.
         C::PaneZoom => pick(&["Mod+Shift+Z"], &["Meta+Alt+Z"]),
+        // Pinning is something a layout is set up with once, from the pane's
+        // menu or the palette: no chord of its own until someone asks.
+        C::PanePin => &[],
         // Orchestration's commands are found in the palette and the menus
         // by those who use them, and cost nobody else a chord.
         C::PanePinOrchestrator | C::PaneUnpinOrchestrator => &[],

@@ -47,6 +47,13 @@ settings. It is not a model provider, and it has no online service of its own.
   hold it until their agent is free.
 - **Pane tools.** Zoom a pane to the full grid, search its scrollback, drop a file on it
   to paste its path, or run a saved command in it.
+- **Pinned panes.** Pin a pane (*Pin in place* in its « … » menu, or the pin of a preview's
+  header) and it keeps its edge of the grid and its size there, in pixels, however many
+  panes and workers open or close: the others share the room it leaves, and a pin shows
+  beside its name. Drag its divider to change the size it keeps, between 150 px and 70% of
+  the grid. Click the pin, or *Unpin this pane*, to let it go; a pinned pane is not moved
+  by drag and drop until then. *Pin the focused pane in place, or unpin it* is in the
+  palette, and can be given a shortcut in the settings.
 
 ## Workspaces
 

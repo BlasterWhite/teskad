@@ -12,7 +12,11 @@
 //!   one store write on release, as `paintLayout` painted the DOM and
 //!   committed once), double-clicked to even out, and resized by the keyboard
 //!   once one is selected (a click that goes nowhere, or `Mod+Alt+R`): see
-//!   [`BoundaryKey`];
+//!   [`BoundaryKey`]. The boundary of a pinned pane keeps it within what the
+//!   engine lets it take ([`pin_bounded`]), and what it is let go at is the
+//!   size in pixels the pane keeps from then on (`StoreAction::ResizeSplit`);
+//!   the tree it is drawn from holds the pinned panes at those pixels
+//!   (`layout::drawn_tree`);
 //! - a pane dragged by its header onto another: a ghost with its name, a hint
 //!   over the half it would take (or the whole pane for a swap), the move on
 //!   release; a cancelled gesture (the window losing the focus) moves
@@ -46,8 +50,8 @@ use iced::{
 use crate::message::Message;
 use crate::panes::Msg;
 use crate::panes::zoom_bar;
-use crate::state::layout::{self as geometry, Handle, Path, Rect};
-use crate::state::types::{DropZone, SplitDir, SplitNode};
+use crate::state::layout::{self as geometry, Handle, Path, Rect, Side};
+use crate::state::types::{DropZone, PinEdge, SplitDir, SplitNode};
 use crate::state::{PaneId, WsId};
 
 /// How far either side of a boundary its grab area reaches.
@@ -90,6 +94,8 @@ pub struct Grid<'a> {
     zoomed: Option<usize>,
     tree: SplitNode,
     handles: Vec<Handle>,
+    /// The boundaries that carve a pinned pane out, by path, with its edge.
+    pins: Vec<(Path, PinEdge)>,
     focused: Option<&'a PaneId>,
     /// The keyboard is somewhere else than the grid (the sidebar's tree, a
     /// field): a press on the focused pane has to bring it back too.
@@ -134,6 +140,7 @@ impl<'a> Grid<'a> {
             zoomed,
             tree,
             handles,
+            pins: Vec::new(),
             focused,
             keyboard_elsewhere: false,
             known,
@@ -163,6 +170,33 @@ impl<'a> Grid<'a> {
     pub fn boundary_keys(mut self, label: impl Fn(&Handle) -> String + 'a) -> Self {
         self.boundary_label = Some(Box::new(label));
         self
+    }
+
+    /// Says which boundaries carve a pinned pane out of the grid, and on
+    /// which edge (`workspace_terminals::pin_splits`): dragged, or moved by
+    /// the keys, those keep the pinned pane within what the engine lets it
+    /// take, where it will stay once let go.
+    pub fn pinned(mut self, pins: Vec<(Path, PinEdge)>) -> Self {
+        self.pins = pins;
+        self
+    }
+
+    /// The edge of the pinned pane the boundary at `path` carves out, if it
+    /// is one.
+    fn pin_at(&self, path: &[Side]) -> Option<PinEdge> {
+        self.pins
+            .iter()
+            .find(|(at, _)| at.as_slice() == path)
+            .map(|(_, edge)| *edge)
+    }
+
+    /// `ratio` for `handle`'s boundary, kept within what the engine lets a
+    /// pinned pane take when it carves one out ([`pin_bounded`]).
+    fn bounded(&self, handle: &Handle, bounds: Rectangle, ratio: f64) -> f64 {
+        match self.pin_at(&handle.path) {
+            Some(edge) => pin_bounded(ratio, span_of(handle, bounds), edge),
+            None => ratio,
+        }
     }
 
     /// Says the keyboard is not the grid's, so a press on the focused pane
@@ -364,6 +398,28 @@ fn ratio_after(current: f64, span: f32, key: BoundaryKey) -> Option<f64> {
     ((next - current).abs() > 1e-9).then_some(next)
 }
 
+/// `ratio` of the boundary that carves a pane pinned to `edge` out of a
+/// room `span` pixels long, kept where the engine keeps the pinned pane
+/// (`layout::sized_tree`): at most `MAX_PIN_SHARE` of the room, at least
+/// `MIN_PANE` (the most, in a room too small for both). A drag shows the
+/// size the pane keeps once let go.
+fn pin_bounded(ratio: f64, span: f32, edge: PinEdge) -> f64 {
+    let span = f64::from(span.max(1.0));
+    let most = geometry::MAX_PIN_SHARE;
+    let least = (f64::from(MIN_PANE) / span).min(most);
+    let turn = |value: f64| if edge.leads() { value } else { 1.0 - value };
+    turn(turn(ratio).clamp(least, most))
+}
+
+/// The pixels along its axis of what `handle`'s boundary divides.
+fn span_of(handle: &Handle, bounds: Rectangle) -> f32 {
+    let area = to_px(handle.bounds, bounds);
+    match handle.dir {
+        SplitDir::Row => area.width,
+        SplitDir::Col => area.height,
+    }
+}
+
 /// A fraction of the grid in pixels, snapped to whole pixels so that panes
 /// meet without seams.
 fn to_px(rect: Rect, bounds: Rectangle) -> Rectangle {
@@ -471,13 +527,12 @@ impl Grid<'_> {
                 state.selected = Some(self.handles[next].path.clone());
             }
             moving => {
-                let area = to_px(handle.bounds, bounds);
-                let span = match handle.dir {
-                    SplitDir::Row => area.width,
-                    SplitDir::Col => area.height,
-                };
+                let span = span_of(handle, bounds);
                 let current = geometry::ratio_at(&self.tree, &handle.path);
-                if let Some(ratio) = ratio_after(current, span, moving) {
+                if let Some(ratio) = ratio_after(current, span, moving)
+                    .map(|ratio| self.bounded(handle, bounds, ratio))
+                    .filter(|ratio| (ratio - current).abs() > 1e-9)
+                {
                     self.publish(
                         shell,
                         Msg::SetRatio(self.ws.clone(), handle.path.clone(), ratio),
@@ -700,7 +755,8 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
                 match event {
                     Event::Mouse(mouse::Event::CursorMoved { position }) => {
                         if let Some(handle) = self.handles.iter().find(|h| h.path == resize.path) {
-                            resize.latest = ratio_for(handle, bounds, *position);
+                            let ratio = ratio_for(handle, bounds, *position);
+                            resize.latest = self.bounded(handle, bounds, ratio);
                         }
                         shell.invalidate_layout();
                         shell.request_redraw();
@@ -874,9 +930,10 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
                 );
                 state.last_click = Some((usize::MAX, click));
                 if click.kind() == mouse::click::Kind::Double {
+                    let even = self.bounded(handle, bounds, 0.5);
                     self.publish(
                         shell,
-                        Msg::SetRatio(self.ws.clone(), handle.path.clone(), 0.5),
+                        Msg::SetRatio(self.ws.clone(), handle.path.clone(), even),
                     );
                 } else {
                     let at = geometry::ratio_at(&self.tree, &handle.path);

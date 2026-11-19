@@ -15,7 +15,7 @@
 use hangar_i18n::{Key, args};
 use hangar_theme::{AgentState, style, tokens};
 use hangar_ui::{Icon, button, glyph, icon, menu, tip};
-use iced::widget::{Space, container, mouse_area, row, text};
+use iced::widget::{Id, Space, container, mouse_area, row, text};
 use iced::{Alignment, Element, Length, Padding};
 
 use crate::ctx::Ctx;
@@ -27,8 +27,8 @@ use crate::panes::status::{shell_short_name, state_key, ui_glyph};
 use crate::panes::{Msg, Picker};
 use crate::panes_logic::{PaneBranch, short_session_id};
 use crate::state::live::PaneStatus;
-use crate::state::types::{AGENTS, AgentId, Pane, ShellInfo, Workspace};
-use crate::state::{AgentActivity, GlyphState};
+use crate::state::types::{AGENTS, AgentId, Pane, PinEdge, ShellInfo, Workspace};
+use crate::state::{AgentActivity, GlyphState, WsId};
 
 /// The header's font size, which its breakpoints are counted in.
 const EM: f32 = 12.0;
@@ -37,6 +37,10 @@ pub const PADDING_X: f32 = 16.0;
 /// The branch label's widest (`max-width: 18ch` at the header's 10.8 px
 /// mono).
 const BRANCH_MAX: f32 = 18.0 * 6.5;
+/// The pin of a pinned pane: a button as small as the header's chips, its
+/// glyph the size of the queue's tray.
+const PIN_SIDE: f32 = 18.0;
+const PIN_ICON: f32 = 11.0;
 
 /// What a header of a given width shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -218,6 +222,11 @@ pub fn view<'a>(ctx: Ctx<'a>, head: Head<'a>) -> Element<'a, Message> {
             }),
         name_tip,
     ));
+
+    // Pinned to an edge of the grid: the pin says which, and lets it go.
+    if let Some(pin) = head.ws.pin_of(&pane.id) {
+        bar = bar.push(pin_glyph(ctx, &head.ws.id, &pane.id, pin.edge));
+    }
 
     // A worker sent to a node from this workspace: where it runs.
     if let Some(node) = crate::nodes::away::pane_node(pane) {
@@ -401,6 +410,32 @@ pub fn view<'a>(ctx: Ctx<'a>, head: Head<'a>) -> Element<'a, Message> {
         .on_enter(wrap(Msg::Hover(Some(id))))
         .on_exit(wrap(Msg::Hover(None)))
         .into()
+}
+
+/// The id of the pin a pinned pane's header shows (`pin_glyph`).
+pub fn pin_glyph_id(pane: &str) -> Id {
+    Id::from(format!("pane-pin-{pane}"))
+}
+
+/// The pin beside a pinned pane's name, a terminal's or a view's: always
+/// there, pressed in, its tip saying which edge it keeps to and that a
+/// click lets it go, which is what the click does.
+pub fn pin_glyph<'a>(ctx: Ctx<'a>, ws: &WsId, pane: &str, edge: PinEdge) -> Element<'a, Message> {
+    let words = ctx.t(match edge {
+        PinEdge::Left => Key::PanePinnedLeft,
+        PinEdge::Right => Key::PanePinnedRight,
+        PinEdge::Top => Key::PanePinnedTop,
+        PinEdge::Bottom => Key::PanePinnedBottom,
+    });
+    container(
+        button::toggle_button(ctx.theme, Icon::Pin, true)
+            .side(PIN_SIDE)
+            .icon_size(PIN_ICON)
+            .tip(words.into_owned())
+            .on_press(wrap(Msg::Pin(ws.clone(), pane.to_owned(), false))),
+    )
+    .id(pin_glyph_id(pane))
+    .into()
 }
 
 /// The git branch of the pane's folder, beside its name; a detached head

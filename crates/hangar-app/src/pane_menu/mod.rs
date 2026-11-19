@@ -2,7 +2,8 @@
 //! `TerminalPane.tsx` gave it; inventory §2.1/0).
 //!
 //! What a pane can do that is not worth a button of its own in a header that
-//! eight panes share: restart it, resume another session, split it; zoom,
+//! eight panes share: restart it, resume another session, split it, pin it
+//! to its edge of the grid or let it go (`panes::Msg::Pin`); zoom,
 //! its saved commands and its changes when the header folded those buttons
 //! away; its part in the orchestration; then the Claude account it runs on
 //! (`accounts::menu_items`).
@@ -27,7 +28,7 @@ use crate::palette::sources::workspace_of;
 use crate::services::{CoreEvent, Services};
 use crate::shell::MenuEntry;
 use crate::state::types::{Pane, PaneRole, Workspace};
-use crate::state::{Model, PaneId, Patch, SplitDir};
+use crate::state::{Model, PaneId, Patch, SplitDir, WsId};
 
 /// The menu's width bounds (`.pane-menu`).
 const MIN_WIDTH: f32 = 232.0;
@@ -170,6 +171,21 @@ fn line(
     item.into()
 }
 
+/// The line that pins `pane` of `ws` to the edge of the grid it lies along,
+/// or lets it go when it is `pinned` (`panes::Msg::Pin`).
+fn pin_line(ctx: Ctx<'_>, ws: &WsId, pane: &PaneId, pinned: bool) -> menu::Entry<Message> {
+    let label = if pinned { Key::PaneUnpin } else { Key::PanePin };
+    let action = Message::Panes(crate::panes::Msg::Pin(ws.clone(), pane.clone(), !pinned));
+    line(
+        ctx,
+        pane,
+        label,
+        Icon::Pin,
+        Some(CommandId::PanePin),
+        action,
+    )
+}
+
 /// The menu's lines for `pane`, with what the header folded.
 pub fn entries(ctx: Ctx<'_>, pane: &PaneId, folded: Folded) -> Vec<menu::Entry<Message>> {
     let Some(ws) = workspace_of(ctx.model, pane) else {
@@ -233,6 +249,9 @@ pub fn entries(ctx: Ctx<'_>, pane: &PaneId, folded: Folded) -> Vec<menu::Entry<M
             }),
         ));
     }
+    // With the splits, what else shapes the grid: the pane kept on its edge,
+    // at its size, whatever opens or closes beside it; or let go again.
+    entries.push(pin_line(ctx, &ws_id, pane, ws.pin_of(pane).is_some()));
 
     // Nothing to zoom out of, or onto, with a single pane.
     let zoomable = folded.zoom && ws.panes.len() > 1;
