@@ -193,6 +193,7 @@ pub fn up(model: &mut crate::state::Model, id: &str, hostname: &str) {
                 home: "/home/me".into(),
                 claude: true,
                 git: true,
+                ..Default::default()
             },
             local_port: 21012,
             token: TOKEN.into(),

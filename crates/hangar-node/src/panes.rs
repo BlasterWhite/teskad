@@ -4,6 +4,12 @@
 //! streams watching it (api.rs). A desktop that reconnects asks for what came
 //! after the last `seq` it saw.
 //!
+//! A pane whose agent Hangar launches (one of the node's own workspaces,
+//! own.rs) is spawned with that launch (`pty_spawn_launch`): its shell starts
+//! with the launch's variables, and a Codex pane to run attached gets its own
+//! `codex app-server` on the node first (docs/native/agents.md D5, §6.8),
+//! which lives and dies with the pane.
+//!
 //! Core hands over what each read of the PTY gave, a line or less while a
 //! command floods it (50 bytes on average for `seq`): the history joins
 //! small chunks, and a stream sends the live frames already waiting as one
@@ -13,7 +19,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use hangar_core::pty::{self, PtyEvent, PtyManager};
+use hangar_core::pty::{self, AgentLaunch, PtyEvent, PtyManager};
 use serde::Serialize;
 use tokio::sync::broadcast;
 use tokio::sync::broadcast::error::{RecvError, TryRecvError};
@@ -336,6 +342,14 @@ pub struct Spawn {
     /// Told everything the shell prints and its end, after the history has
     /// it: the screens of the panes the node runs itself (own.rs).
     pub observer: Option<Observer>,
+    /// The agent Hangar launches in it, for a pane whose launch the node
+    /// builds (own.rs): the pane then starts in the launch's folder, with its
+    /// MCP file and its kind (`cwd`, `mcp_config` and `agent` are not read),
+    /// and [`pty::Spawned::line`] is what its shell is to type. A Codex pane
+    /// to run attached gets its own server first, on the node
+    /// ([`pty::Spawned::server`]). `None`: a shell, its agent typed by whoever
+    /// spawned it (a desktop).
+    pub launch: Option<AgentLaunch>,
 }
 
 /// What follows a pane's output beside its history and its streams.
@@ -371,13 +385,24 @@ impl Panes {
     /// Blocks while the shell starts. An id whose shell is still running
     /// fails (core refuses it); one that ended takes the new shell, with a
     /// new history.
+    ///
+    /// With a launch, it blocks while the pane's Codex server starts too (ten
+    /// seconds at most, `pty_spawn_launch`).
     pub fn spawn(&self, spawn: Spawn) -> Result<pty::Spawned, String> {
+        // What the pane is listed with: its launch's, when it has one.
+        let (cwd, agent) = match &spawn.launch {
+            Some(launch) => (
+                launch.request.cwd.clone(),
+                Some(launch.request.kind.id().to_string()),
+            ),
+            None => (spawn.cwd.clone(), spawn.agent.clone()),
+        };
         let pane = Arc::new(Pane::new(
             Info {
                 id: spawn.id.clone(),
-                cwd: spawn.cwd.clone(),
+                cwd,
                 name: spawn.name.clone(),
-                agent: spawn.agent.clone(),
+                agent,
                 cols: spawn.cols,
                 rows: spawn.rows,
                 seq: 0,
@@ -400,24 +425,42 @@ impl Panes {
         // Booked before the shell starts, so its first bytes have a pane to
         // land in; put back as it was when the spawn fails.
         let previous = self.map().insert(spawn.id.clone(), pane.clone());
-        let spawned = pty::pty_spawn_with(
-            &self.pty,
-            sink,
-            spawn.id.clone(),
-            spawn.cwd,
-            spawn.shell,
-            spawn.cols,
-            spawn.rows,
-            spawn.name,
-            spawn.bridge,
-            spawn.port_base,
-            spawn.build_env,
-            spawn.mcp_config,
-            spawn.kits,
-            spawn.agent,
-            spawn.claude_account,
-            false,
-        );
+        let spawned = match spawn.launch {
+            Some(launch) => pty::pty_spawn_launch(
+                &self.pty,
+                sink,
+                spawn.id.clone(),
+                spawn.shell,
+                spawn.cols,
+                spawn.rows,
+                spawn.name,
+                spawn.bridge,
+                spawn.port_base,
+                spawn.build_env,
+                spawn.kits,
+                spawn.claude_account,
+                false,
+                launch,
+            ),
+            None => pty::pty_spawn_with(
+                &self.pty,
+                sink,
+                spawn.id.clone(),
+                spawn.cwd,
+                spawn.shell,
+                spawn.cols,
+                spawn.rows,
+                spawn.name,
+                spawn.bridge,
+                spawn.port_base,
+                spawn.build_env,
+                spawn.mcp_config,
+                spawn.kits,
+                spawn.agent,
+                spawn.claude_account,
+                false,
+            ),
+        };
         if spawned.is_err() {
             {
                 let mut map = self.map();

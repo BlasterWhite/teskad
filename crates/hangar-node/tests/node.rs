@@ -37,8 +37,11 @@ fn command(home: &Path) -> Command {
         "XDG_STATE_HOME",
         "XDG_CONFIG_HOME",
         "XDG_CACHE_HOME",
-        // The transcripts are the test home's own (`~/.claude/projects`).
+        // The transcripts are the test home's own (`~/.claude/projects`),
+        // the rollouts too (`~/.codex/sessions`).
         "CLAUDE_CONFIG_DIR",
+        "CODEX_HOME",
+        "CODEX_SQLITE_HOME",
     ] {
         command.env_remove(var);
     }
@@ -851,6 +854,267 @@ fn the_transcripts_are_read_on_the_node() {
     // Behind the token like every route.
     let path = format!("/node/sessions?cwd={cwd}");
     assert_eq!(node.call("GET", &path, None, None).0, 401);
+}
+
+/// A Codex thread the node keeps, as Codex writes it (hangar-core's rollout
+/// fixture, written from the protocol schema): run in `/home/dev/shop`.
+const ROLLOUT: &str = include_str!(
+    "../../hangar-core/src/sessions/fixtures/rollout-2026-11-18T09-12-03-019a9a3e-7c21-7d40-9b6e-2f1c4a8d5e90.jsonl"
+);
+const ROLLOUT_NAME: &str = "rollout-2026-11-18T09-12-03-019a9a3e-7c21-7d40-9b6e-2f1c4a8d5e90.jsonl";
+const THREAD: &str = "019a9a3e-7c21-7d40-9b6e-2f1c4a8d5e90";
+const THREAD_CWD: &str = "/home/dev/shop";
+
+/// The routes read Codex's rollouts when asked for Codex, Claude Code's
+/// transcripts otherwise, and refuse an agent they do not know.
+#[test]
+fn codex_s_conversations_are_read_on_the_node_by_kind() {
+    let node = Node::start();
+    let cwd = THREAD_CWD;
+    let codex = "&kind=codex";
+
+    // Nothing kept yet.
+    let (status, listed) = node.get(&format!("/node/sessions?cwd={cwd}{codex}"));
+    assert_eq!((status, listed["sessions"].clone()), (200, json!([])));
+    let (status, empty) = node.get(&format!("/node/chat?session={THREAD}&cwd={cwd}{codex}"));
+    assert_eq!((status, &empty["page"]), (200, &Value::Null), "{empty}");
+
+    // In the node's `~/.codex`, by date, as Codex files it.
+    let day = node.home().join(".codex/sessions/2026/11/18");
+    std::fs::create_dir_all(&day).unwrap();
+    std::fs::write(day.join(ROLLOUT_NAME), ROLLOUT).unwrap();
+
+    let (status, ids) = node.get(&format!("/node/sessions?cwd={cwd}{codex}"));
+    assert_eq!(status, 200, "{ids}");
+    assert_eq!(ids["sessions"][0]["id"], THREAD, "{ids}");
+    assert_eq!(ids["sessions"][0]["label"], "", "the hunt's listing");
+    let (_, labelled) = node.get(&format!("/node/sessions?cwd={cwd}&labels=1{codex}"));
+    assert_eq!(
+        labelled["sessions"][0]["label"], "Add a cart total to the checkout page",
+        "{labelled}"
+    );
+    // Claude Code's, when no agent is named: it keeps none here.
+    let (_, claude) = node.get(&format!("/node/sessions?cwd={cwd}"));
+    assert_eq!(claude["sessions"], json!([]), "{claude}");
+
+    let (status, page) = node.get(&format!(
+        "/node/chat?session={THREAD}&cwd={cwd}&limit=50{codex}"
+    ));
+    assert_eq!(status, 200, "{page}");
+    let texts: Vec<&str> = page["page"]["items"]
+        .as_array()
+        .expect("items")
+        .iter()
+        .filter_map(|item| item["text"].as_str())
+        .collect();
+    assert!(
+        texts.contains(&"Add a cart total to the checkout page"),
+        "{page}"
+    );
+    assert!(
+        texts.contains(&"The cart total now shows under the item list, and `npm test` passes."),
+        "{page}"
+    );
+
+    let (status, usage) = node.get(&format!("/node/context?session={THREAD}&cwd={cwd}{codex}"));
+    assert_eq!(status, 200, "{usage}");
+    assert!(
+        usage["usage"]["usedTokens"].as_u64().unwrap() > 0,
+        "{usage}"
+    );
+    assert!(
+        usage["usage"]["contextWindow"].as_u64().is_some(),
+        "{usage}"
+    );
+
+    // An agent the node does not know is refused, never read as another.
+    let (status, refused) = node.get(&format!("/node/sessions?cwd={cwd}&kind=gemini"));
+    assert_eq!(status, 400, "{refused}");
+    assert_eq!(
+        node.get(&format!("/node/chat?session={THREAD}&cwd={cwd}&kind=shell"))
+            .0,
+        400
+    );
+}
+
+/// What the fake `codex`'s server runs: on `app-server --listen
+/// unix://<path>`, a socket bound at the path, listening, removed on
+/// `SIGTERM`, as Codex removes its own.
+const FAKE_CODEX_SERVER: &str = r#"import os, signal, socket, sys
+path = sys.argv[sys.argv.index("--listen") + 1][len("unix://"):]
+def bye(*_):
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
+    os._exit(0)
+signal.signal(signal.SIGTERM, bye)
+server = socket.socket(socket.AF_UNIX)
+server.bind(path)
+server.listen(8)
+kept = []
+while True:
+    kept.append(server.accept()[0])
+"#;
+
+/// A fake `codex` in `dir`, for Hangar's tests, never OpenAI's program:
+/// `--version` says 0.170.0; `app-server` serves as above; any other run is
+/// its TUI, which writes what it was started with, an argument a line, to
+/// `$HOME/codex-tui.args`, and stays.
+fn fake_codex(dir: &Path) -> PathBuf {
+    let codex = dir.join("codex");
+    let script = format!(
+        "#!/bin/sh\n\
+         # A fake codex, for Hangar's tests: never OpenAI's program.\n\
+         case \"$1\" in\n\
+         --version) echo 'codex-cli 0.170.0'; exit 0 ;;\n\
+         app-server) exec python3 -I -c '{FAKE_CODEX_SERVER}' \"$@\" ;;\n\
+         esac\n\
+         printf '%s\\n' \"$@\" > \"$HOME/codex-tui.args\"\n\
+         exec sleep 600\n"
+    );
+    std::fs::write(&codex, script).unwrap();
+    std::fs::set_permissions(&codex, std::fs::Permissions::from_mode(0o755)).unwrap();
+    // A file just written cannot be run while a process another test forked
+    // meanwhile still holds it open (ETXTBSY, 26): tried until it can.
+    for _ in 0..100 {
+        match Command::new(&codex).arg("--version").output() {
+            Err(error) if error.raw_os_error() == Some(26) => {
+                std::thread::sleep(Duration::from_millis(20))
+            }
+            _ => break,
+        }
+    }
+    codex
+}
+
+/// `/node/info` says each agent the node has: Codex found on its PATH, its
+/// version, signed in; Claude Code as the node has it, said both ways alike.
+#[test]
+fn the_node_says_which_agents_it_has() {
+    let home = tempfile::tempdir().unwrap();
+    let bin = home.path().join("bin");
+    std::fs::create_dir_all(&bin).unwrap();
+    let codex = fake_codex(&bin);
+    // Signed in with an API key, as `codex login --with-api-key` leaves it.
+    std::fs::create_dir_all(home.path().join(".codex")).unwrap();
+    std::fs::write(
+        home.path().join(".codex/auth.json"),
+        r#"{"OPENAI_API_KEY":"sk-test-not-a-key"}"#,
+    )
+    .unwrap();
+    let path = std::env::join_paths(std::iter::once(bin.clone()).chain(std::env::split_paths(
+        &std::env::var_os("PATH").unwrap_or_default(),
+    )))
+    .unwrap();
+    let status = command(home.path())
+        .env("PATH", path)
+        // No login shell to put its PATH first (path_env.rs): the fake is
+        // the `codex` found.
+        .env_remove("SHELL")
+        .args(["serve", "--detach"])
+        .status()
+        .unwrap();
+    assert!(status.success(), "serve --detach: {status}");
+    let node = Node::found(home);
+
+    let (status, info) = node.get("/node/info");
+    assert_eq!(status, 200, "{info}");
+    assert_eq!(
+        info["agents"]["codex"],
+        json!({
+            "installed": true,
+            "path": codex.to_str().unwrap(),
+            "version": "0.170.0",
+            "signedIn": true,
+        }),
+        "{info}"
+    );
+    assert_eq!(info["codex"], true);
+    let claude = &info["agents"]["claude"];
+    assert_eq!(info["claude"], claude["installed"], "{info}");
+    assert!(claude["signedIn"].is_boolean(), "{info}");
+}
+
+/// A workspace the node runs itself, its orchestrator on Codex (the default
+/// orchestrator agent the settings name): its pane gets its own `codex
+/// app-server` on the node, in the runtime folder, and the line typed into
+/// it attaches Codex's TUI to that server; the server ends with the pane.
+#[test]
+fn a_codex_workspace_of_the_node_s_own_runs_codex_on_its_own_server() {
+    let home = tempfile::tempdir().unwrap();
+    let project = home.path().join("project");
+    std::fs::create_dir_all(&project).unwrap();
+    let codex = fake_codex(home.path());
+    // The panes' sockets in a runtime folder of the test's own, not the
+    // machine's, which other runs share.
+    let run = home.path().join("run");
+    std::fs::create_dir_all(&run).unwrap();
+    std::fs::set_permissions(&run, std::fs::Permissions::from_mode(0o700)).unwrap();
+    std::fs::create_dir_all(state_dir(home.path())).unwrap();
+    std::fs::write(
+        state_dir(home.path()).join("state.json"),
+        json!({ "settings": {
+            "agentCommands": { "codex": codex.to_str().unwrap() },
+            "defaultOrchestratorAgent": "codex",
+        } })
+        .to_string(),
+    )
+    .unwrap();
+    let status = command(home.path())
+        .env("XDG_RUNTIME_DIR", &run)
+        .args(["serve", "--detach"])
+        .status()
+        .unwrap();
+    assert!(status.success(), "serve --detach: {status}");
+    let node = Node::found(home);
+
+    let (status, made) = node.post(
+        "/node/own/workspaces",
+        json!({ "name": "Project", "cwd": project.to_str().unwrap() }),
+    );
+    assert_eq!(status, 200, "{made}");
+    let ws = made["id"].as_str().unwrap().to_string();
+    let (_, listed) = node.get("/node/own");
+    let orchestrator = &listed["workspaces"][0]["panes"][0];
+    assert_eq!(orchestrator["agent"], "codex", "{listed}");
+    assert_eq!(orchestrator["role"], "orchestrator", "{listed}");
+    let pane = orchestrator["id"].as_str().unwrap().to_string();
+
+    // Among the node's panes, streamed as any: Codex's, in the project.
+    let shell = wait_for("the orchestrator's shell", || {
+        node.pane(&pane).filter(|p| p["alive"] == true)
+    });
+    assert_eq!(shell["agent"], "codex", "{shell}");
+    assert_eq!(shell["cwd"], project.to_str().unwrap(), "{shell}");
+
+    // Its TUI was started attached to the server the node started for it.
+    let said = node.home().join("codex-tui.args");
+    let args = wait_for("Codex's TUI started", || {
+        std::fs::read_to_string(&said)
+            .ok()
+            .filter(|args| args.lines().any(|arg| arg == "--remote"))
+    });
+    let args: Vec<&str> = args.lines().collect();
+    let at = args.iter().position(|arg| *arg == "--remote").unwrap();
+    let socket = PathBuf::from(
+        args[at + 1]
+            .strip_prefix("unix://")
+            .unwrap_or_else(|| panic!("a socket's address: {args:?}")),
+    );
+    assert!(socket.starts_with(run.join("hangar")), "{socket:?}");
+    assert!(
+        std::os::unix::net::UnixStream::connect(&socket).is_ok(),
+        "its server listens on {socket:?}"
+    );
+
+    // Removed, the workspace takes its pane and the pane its server.
+    let (status, _) = node.delete(&format!("/node/own/workspaces/{ws}"));
+    assert_eq!(status, 200);
+    wait_for("the shell gone", || {
+        node.pane(&pane).is_none().then_some(())
+    });
+    wait_for("the server gone", || (!socket.exists()).then_some(()));
 }
 
 #[tokio::test(flavor = "multi_thread")]

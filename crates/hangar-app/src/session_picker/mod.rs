@@ -270,13 +270,14 @@ pub fn on_intent(
     ))
 }
 
-/// The conversations node `node` keeps for `cwd`, with their labels; empty
-/// when it cannot say, as a local listing that fails is.
+/// The Claude Code conversations node `node` keeps for `cwd`, with their
+/// labels, as `list_sessions` reads them here; empty when it cannot say, as
+/// a local listing that fails is.
 async fn listed_on(node: &str, cwd: &str) -> Vec<AgentSession> {
     let Ok(client) = crate::nodes::remote::client_of(node) else {
         return Vec::new();
     };
-    crate::nodes::remote::sessions(&client, cwd, true)
+    crate::nodes::remote::sessions(&client, hangar_core::agent::AgentKind::Claude, cwd, true)
         .await
         .unwrap_or_default()
 }

@@ -2534,6 +2534,10 @@ pub enum Key {
     NodesAdoptSettled,
     /// `nodes.adopt.unsettled`
     NodesAdoptUnsettled,
+    /// `nodes.agentBeta`
+    NodesAgentBeta,
+    /// `nodes.agentSignedOut`
+    NodesAgentSignedOut,
     /// `nodes.claudeFound`
     NodesClaudeFound,
     /// `nodes.claudeMissing`
@@ -2548,6 +2552,10 @@ pub enum Key {
     NodesCloneParentHint,
     /// `nodes.clone.running`
     NodesCloneRunning,
+    /// `nodes.codexFound`
+    NodesCodexFound,
+    /// `nodes.codexMissing`
+    NodesCodexMissing,
     /// `nodes.create.empty`
     NodesCreateEmpty,
     /// `nodes.create.failed`
@@ -4589,7 +4597,7 @@ pub enum Key {
 }
 
 /// How many keys there are.
-pub const KEY_COUNT: usize = 2286;
+pub const KEY_COUNT: usize = 2290;
 
 impl Key {
     /// Every key, in the order of their ids.
@@ -5854,6 +5862,8 @@ impl Key {
         Key::NodesAdoptRestoreFailed,
         Key::NodesAdoptSettled,
         Key::NodesAdoptUnsettled,
+        Key::NodesAgentBeta,
+        Key::NodesAgentSignedOut,
         Key::NodesClaudeFound,
         Key::NodesClaudeMissing,
         Key::NodesCloneDestination,
@@ -5861,6 +5871,8 @@ impl Key {
         Key::NodesCloneFailedAccess,
         Key::NodesCloneParentHint,
         Key::NodesCloneRunning,
+        Key::NodesCodexFound,
+        Key::NodesCodexMissing,
         Key::NodesCreateEmpty,
         Key::NodesCreateFailed,
         Key::NodesCreateFolder,
@@ -8145,6 +8157,8 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "nodes.adopt.restoreFailed", en: Text::plain("{node} could not take {name}: {reason}. It is still not on {node}."), fr: Text::plain("{node} n’a pas pu prendre {name}\u{202f}: {reason}. Il n’est toujours pas sur {node}.") },
     Message { id: "nodes.adopt.settled", en: Text::plain("{node} did take {name}: it runs there now."), fr: Text::plain("{node} a bien pris {name}\u{202f}: il tourne là-bas désormais.") },
     Message { id: "nodes.adopt.unsettled", en: Text::plain("{node} did not say whether it took {name}: {reason}. It is left as it is until {node} answers again."), fr: Text::plain("{node} n’a pas dit s’il a pris {name}\u{202f}: {reason}. Il reste tel quel jusqu’à ce que {node} réponde.") },
+    Message { id: "nodes.agentBeta", en: Text::plain("beta"), fr: Text::plain("bêta") },
+    Message { id: "nodes.agentSignedOut", en: Text::plain("{agent}, not signed in"), fr: Text::plain("{agent}, non connecté") },
     Message { id: "nodes.claudeFound", en: Text::plain("Claude Code"), fr: Text::plain("Claude Code") },
     Message { id: "nodes.claudeMissing", en: Text::plain("No Claude Code"), fr: Text::plain("Pas de Claude Code") },
     Message { id: "nodes.clone.destination", en: Text::plain("It will be cloned to {path} on {node}"), fr: Text::plain("Il sera cloné dans {path} sur {node}") },
@@ -8152,6 +8166,8 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "nodes.clone.failedAccess", en: Text::plain("{node} could not clone it: {reason}. {node} may not have access to this repository: it clones with its own keys, not this computer’s."), fr: Text::plain("{node} n’a pas pu le cloner\u{202f}: {reason}. {node} n’a peut-être pas accès à ce dépôt\u{202f}: le clonage se fait avec ses clés, pas celles de cet ordinateur.") },
     Message { id: "nodes.clone.parentHint", en: Text::plain("empty: the projects folder in the home of {node}"), fr: Text::plain("vide\u{202f}: le dossier projects dans le dossier personnel de {node}") },
     Message { id: "nodes.clone.running", en: Text::plain("Cloning on {node}…"), fr: Text::plain("Clonage sur {node}…") },
+    Message { id: "nodes.codexFound", en: Text::plain("Codex"), fr: Text::plain("Codex") },
+    Message { id: "nodes.codexMissing", en: Text::plain("No Codex"), fr: Text::plain("Pas de Codex") },
     Message { id: "nodes.create.empty", en: Text::plain("No sub-folder here."), fr: Text::plain("Aucun sous-dossier ici.") },
     Message { id: "nodes.create.failed", en: Text::plain("This folder could not be listed: {error}"), fr: Text::plain("Ce dossier n’a pas pu être listé\u{202f}: {error}") },
     Message { id: "nodes.create.folder", en: Text::plain("Folder on that machine"), fr: Text::plain("Dossier sur cette machine") },

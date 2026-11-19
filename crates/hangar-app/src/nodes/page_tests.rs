@@ -109,6 +109,59 @@ fn each_machine_is_a_row_that_says_how_its_link_is_doing() {
     h.shot(&mut ui, "machines-settings-en-graphite");
 }
 
+/// `GPU box` as a node says its agents: Claude Code signed in, Codex in beta
+/// and not signed in.
+fn with_both_agents(h: &mut Harness) {
+    use super::model::{NodeAgent, NodeAgents};
+    if let Some(NodeStatus::Connected { info, .. }) = h.model.live.nodes.statuses.get_mut("gpu") {
+        info.agents = NodeAgents {
+            claude: Some(NodeAgent {
+                installed: true,
+                path: Some("/home/me/.local/bin/claude".into()),
+                version: Some("2.1.3".into()),
+                signed_in: Some(true),
+            }),
+            codex: Some(NodeAgent {
+                installed: true,
+                path: Some("/usr/local/bin/codex".into()),
+                version: Some("0.170.0".into()),
+                signed_in: Some(false),
+            }),
+        };
+    }
+}
+
+/// A connected machine's row says each agent it has, with its version,
+/// Codex marked beta, and the one nobody signed in to.
+#[test]
+fn a_machine_says_its_agents_codex_in_beta() {
+    for (locale, texts) in [
+        (
+            Locale::En,
+            ["Claude Code 2.1.3", "Codex 0.170.0, not signed in", "beta"],
+        ),
+        (
+            Locale::Fr,
+            ["Claude Code 2.1.3", "Codex 0.170.0, non connecté", "bêta"],
+        ),
+    ] {
+        let (mut h, at) = page_at(locale, "graphite");
+        with_both_agents(&mut h);
+        let st = State::default();
+        let mut ui = h.show(drawn_at(&st, &h, at));
+        for text in texts {
+            assert!(ui.find(text).is_ok(), "{text} is on the page");
+        }
+    }
+
+    // A node that said Claude Code alone (from before Codex): no Codex.
+    let (h, at) = page_at(Locale::En, "graphite");
+    let st = State::default();
+    let mut ui = h.show(drawn_at(&st, &h, at));
+    assert!(ui.find("No Codex").is_ok());
+    assert!(ui.find("beta").is_err());
+}
+
 #[test]
 fn the_page_speaks_french_in_a_light_theme() {
     let (h, at) = page_at(Locale::Fr, "github-light");
