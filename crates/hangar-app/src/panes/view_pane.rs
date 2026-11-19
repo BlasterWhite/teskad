@@ -120,7 +120,12 @@ pub fn view<'a>(
         .on_enter(wrap(Msg::Hover(Some(id.to_owned()))))
         .on_exit(wrap(Msg::Hover(None)));
 
-    let body = crate::preview::view_entry(&ctx.pkg.preview, ctx, &ws.id, id);
+    // What the preview draws may hold fields of its own (a kit's tab): they
+    // take the keyboard from the terminals as the app's own fields do.
+    let body = crate::keymap::watch(
+        ctx,
+        crate::preview::view_entry(&ctx.pkg.preview, ctx, &ws.id, id),
+    );
     container(column![
         header,
         container(body).width(Length::Fill).height(Length::Fill)

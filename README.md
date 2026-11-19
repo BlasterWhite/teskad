@@ -20,7 +20,7 @@
   <a href="#install">Download</a> ·
   <a href="docs/guide/README.md">Guide</a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
-  <a href="https://hangar.simnjs.fr">Website</a> ·
+  <a href="https://hangarai.dev">Website</a> ·
   <a href="https://discord.gg/hangarai">Discord</a>
 </p>
 
@@ -35,7 +35,7 @@ optional Hangar account (Settings › Hangar account, off by default) links your
 syncs your usage statistics between them. Until you sign in, nothing leaves your PC. Once you
 do, and only if you turn the sync on, Hangar sends totals per machine, day, model and project
 name (tokens, active time and cost), never a path, a prompt or any code. What is sent, and how to
-delete it, is on the [privacy page](https://hangar.simnjs.fr/privacy.html).
+delete it, is on the [privacy page](https://hangarai.dev/privacy.html).
 
 ## What it does
 
