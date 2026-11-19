@@ -451,13 +451,17 @@ mod tests {
             side_channel_switch(AgentKind::Codex),
             "Attach Hangar to Codex"
         );
-        let mut settings = Settings::default();
-        settings.codex_attach = false;
-        assert!(side_channel_on(&settings, AgentKind::Claude));
-        assert!(!side_channel_on(&settings, AgentKind::Codex));
-        settings.claude_bridge = false;
-        settings.codex_attach = true;
-        assert!(!side_channel_on(&settings, AgentKind::Claude));
-        assert!(side_channel_on(&settings, AgentKind::Codex));
+        let no_attach = Settings {
+            codex_attach: false,
+            ..Settings::default()
+        };
+        assert!(side_channel_on(&no_attach, AgentKind::Claude));
+        assert!(!side_channel_on(&no_attach, AgentKind::Codex));
+        let no_bridge = Settings {
+            claude_bridge: false,
+            ..Settings::default()
+        };
+        assert!(!side_channel_on(&no_bridge, AgentKind::Claude));
+        assert!(side_channel_on(&no_bridge, AgentKind::Codex));
     }
 }
