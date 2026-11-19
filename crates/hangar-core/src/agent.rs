@@ -61,6 +61,16 @@ impl AgentKind {
     pub fn info(self) -> &'static AgentInfo {
         info(self)
     }
+
+    /// The arguments after the agent's command that resume `session_id`:
+    /// `claude --resume <id>`, `codex resume <id>`.
+    pub fn resume_args(self, session_id: &str) -> Vec<String> {
+        let verb = match self {
+            AgentKind::Claude => "--resume",
+            AgentKind::Codex => "resume",
+        };
+        vec![verb.to_string(), session_id.to_string()]
+    }
 }
 
 /// What Hangar knows of a kind without asking the machine.
@@ -72,8 +82,9 @@ pub struct AgentInfo {
     pub label: &'static str,
     /// The command a pane types when the settings name no other.
     pub program: &'static str,
-    /// The names its command is looked for by on PATH: the binary, and on
-    /// Windows the native executable and the shim npm writes.
+    /// The names its command is looked for by, on PATH and in its
+    /// installer's folders (`install::agent`): the binary, and on Windows
+    /// the native executable and the shim npm writes.
     pub binaries: &'static [&'static str],
     /// The project instructions file it reads, where Hangar's playbook goes.
     pub instructions_file: &'static str,
@@ -256,6 +267,12 @@ mod tests {
     #[test]
     fn no_kind_named_reads_as_claude_code() {
         assert_eq!(AgentKind::default(), AgentKind::Claude);
+    }
+
+    #[test]
+    fn each_kind_resumes_its_own_way() {
+        assert_eq!(AgentKind::Claude.resume_args("abc"), ["--resume", "abc"]);
+        assert_eq!(AgentKind::Codex.resume_args("abc"), ["resume", "abc"]);
     }
 
     #[test]

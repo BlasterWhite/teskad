@@ -23,7 +23,7 @@ use std::time::Duration;
 
 use serde::Serialize;
 
-use crate::sessions::AgentKind;
+use crate::agent::AgentKind;
 
 /// How an agent is installed, as its makers document it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -78,15 +78,6 @@ pub fn installer(agent: AgentKind) -> Installer {
     }
 }
 
-/// The names an agent's command goes by: the native binary, and on Windows
-/// the shim npm writes (`.cmd`).
-fn binaries(agent: AgentKind) -> &'static [&'static str] {
-    match agent {
-        AgentKind::Claude => &["claude.exe", "claude.cmd", "claude"],
-        AgentKind::Codex => &["codex.exe", "codex.cmd", "codex"],
-    }
-}
-
 /// The folders the official installer puts `agent` in. Looked in besides
 /// PATH: on Windows the installer adds its folder to the user's PATH in the
 /// registry, which a Hangar already running never sees.
@@ -114,10 +105,12 @@ fn install_dirs(agent: AgentKind) -> Vec<PathBuf> {
     folders
 }
 
-/// The first of `dirs` holding `agent`'s command, by any of its names.
+/// The first of `dirs` holding `agent`'s command, by any of its names (the
+/// native binary, and on Windows the shim npm writes, `.cmd`).
 fn find_in(dirs: &[PathBuf], agent: AgentKind) -> Option<PathBuf> {
     dirs.iter().find_map(|dir| {
-        binaries(agent)
+        crate::agent::info(agent)
+            .binaries
             .iter()
             .map(|bin| dir.join(bin))
             .find(|candidate| candidate.is_file())

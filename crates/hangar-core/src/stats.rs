@@ -31,7 +31,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::host::Host;
 
-pub use crate::sessions::AgentKind;
+use crate::agent::AgentKind;
 pub use aggregate::{Bucket, ModelInfo, SessionInfo, Window, ACTIVE_GAP_CAP_MS};
 use parse::Digest;
 

@@ -14,44 +14,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use std::time::UNIX_EPOCH;
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
-/// The agents whose sessions Hangar reads, by the id panes and `state.json`
-/// give them (`claude`, `codex`). Not a pane's kind: a shell is none of
-/// these.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum AgentKind {
-    #[default]
-    Claude,
-    Codex,
-}
-
-impl AgentKind {
-    pub const ALL: [AgentKind; 2] = [AgentKind::Claude, AgentKind::Codex];
-
-    /// The id `state.json` and the MCP tools use.
-    pub fn id(self) -> &'static str {
-        match self {
-            AgentKind::Claude => "claude",
-            AgentKind::Codex => "codex",
-        }
-    }
-
-    pub fn from_id(id: &str) -> Option<AgentKind> {
-        AgentKind::ALL.into_iter().find(|agent| agent.id() == id)
-    }
-
-    /// The arguments after the agent's command that resume `session_id`:
-    /// `claude --resume <id>`, `codex resume <id>`.
-    pub fn resume_args(self, session_id: &str) -> Vec<String> {
-        let verb = match self {
-            AgentKind::Claude => "--resume",
-            AgentKind::Codex => "resume",
-        };
-        vec![verb.to_string(), session_id.to_string()]
-    }
-}
+use crate::agent::AgentKind;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AgentSession {
@@ -572,19 +537,5 @@ mod tests {
             assert_eq!(session_exists_for(agent, "../escape".into()), None);
             assert_eq!(session_exists_for(agent, "a b".into()), None);
         }
-    }
-
-    #[test]
-    fn agents_are_named_by_their_pane_ids_and_resume_their_own_way() {
-        for agent in AgentKind::ALL {
-            assert_eq!(AgentKind::from_id(agent.id()), Some(agent));
-            assert_eq!(
-                serde_json::to_value(agent).unwrap(),
-                serde_json::json!(agent.id())
-            );
-        }
-        assert_eq!(AgentKind::from_id("shell"), None);
-        assert_eq!(AgentKind::Claude.resume_args("abc"), ["--resume", "abc"]);
-        assert_eq!(AgentKind::Codex.resume_args("abc"), ["resume", "abc"]);
     }
 }
