@@ -1139,7 +1139,7 @@ mod account_tests {
 
     use super::*;
     use crate::state::AppState;
-    use crate::state::types::{Pane, Workspace, WorkspaceFolder};
+    use crate::state::types::{AgentKind, Pane, Workspace, WorkspaceFolder};
 
     /// The workspace « w » filed in the folder « games » (on « perso » for
     /// Claude Code, « lab » for Codex), with `account` for its own Claude
@@ -1193,8 +1193,8 @@ mod account_tests {
             assert_eq!(made.claude_account.as_deref(), account);
             let origin = m.workspace("w").expect("its origin");
             assert_eq!(
-                AccountLevels::of(m.state(), made, None),
-                AccountLevels::of(m.state(), origin, None),
+                AccountLevels::of_kind(m.state(), made, None, AgentKind::Claude),
+                AccountLevels::of_kind(m.state(), origin, None, AgentKind::Claude),
                 "{account:?}"
             );
         }
@@ -1205,7 +1205,6 @@ mod account_tests {
     /// none of (docs/native/agents.md §6.1).
     #[test]
     fn a_worktrees_workspace_keeps_both_its_claude_and_its_codex_account() {
-        use crate::state::types::AgentKind;
         for (claude, codex) in [
             (Some("pro"), Some("team")),
             (None, Some(DEFAULT_CHOICE)),

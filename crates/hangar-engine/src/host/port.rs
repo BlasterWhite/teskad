@@ -14,8 +14,9 @@ use serde_json::Value;
 
 use hangar_core::Event;
 use hangar_core::accounts::Account;
+use hangar_core::agent::AgentKind;
 use hangar_core::board::{Board, Task, TaskPatch};
-use hangar_core::delivery::{Cleanup, Delivery, Outcome, Plan, Running};
+use hangar_core::delivery::{Cleanup, Delivery, Outcome, Plan, ReviewerChoice, Running};
 use hangar_core::git::Worktree;
 use hangar_core::kits::KitInfo;
 use hangar_core::shells::ShellInfo;
@@ -272,8 +273,14 @@ impl DeliveryDeps for HostDelivery {
         ))
     }
 
-    fn run(&self, delivery: Delivery) -> BoxFuture<Result<Outcome, String>> {
-        Box::pin(async move { Ok(hangar_core::delivery::delivery_run(delivery).await) })
+    fn run(
+        &self,
+        delivery: Delivery,
+        reviewer: ReviewerChoice,
+    ) -> BoxFuture<Result<Outcome, String>> {
+        Box::pin(
+            async move { Ok(hangar_core::delivery::delivery_run_with(delivery, reviewer).await) },
+        )
     }
 
     fn cleanup(
@@ -292,8 +299,8 @@ impl DeliveryDeps for HostDelivery {
         Box::pin(blocking(hangar_core::delivery::delivery_running))
     }
 
-    fn accounts(&self) -> BoxFuture<Result<Vec<Account>, String>> {
-        Box::pin(blocking(hangar_core::accounts::accounts_list))
+    fn accounts(&self, kind: AgentKind) -> BoxFuture<Result<Vec<Account>, String>> {
+        Box::pin(blocking(move || hangar_core::accounts::accounts_of(kind)))
     }
 
     fn shells(&self) -> Vec<ShellInfo> {

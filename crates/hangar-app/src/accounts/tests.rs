@@ -654,15 +654,40 @@ fn no_entries_before_the_accounts_are_known() {
 #[test]
 fn a_picker_whose_account_is_gone_says_the_default_applies() {
     let h = Harness::new(Locale::En, "graphite");
-    let mut ui = h.show(workspace_picker(h.ctx(), Some("gone"), None));
+    let mut ui = h.show(workspace_picker(h.ctx(), C, Some("gone"), None));
     assert!(
         ui.find("The account \u{201c}gone\u{201d} no longer exists: the default applies.")
             .is_ok()
     );
-    let mut ui = h.show(workspace_picker(h.ctx(), Some("perso"), None));
+    let mut ui = h.show(workspace_picker(h.ctx(), C, Some("perso"), None));
     assert!(ui.find("no longer exists").is_err());
-    let mut ui = h.show(workspace_picker(h.ctx(), None, None));
+    let mut ui = h.show(workspace_picker(h.ctx(), C, None, None));
     assert!(ui.find("no longer exists").is_err());
+}
+
+/// The picker of a Codex orchestrator lists Codex's accounts: a Claude
+/// account's id is gone there, a Codex one's is not.
+#[test]
+fn a_codex_picker_lists_the_codex_accounts() {
+    let h = with_codex(Locale::En, "graphite");
+    let mut ui = h.show(workspace_picker(h.ctx(), X, Some("team"), None));
+    assert!(ui.find("no longer exists").is_err());
+    let mut ui = h.show(workspace_picker(h.ctx(), X, Some("perso"), None));
+    assert!(
+        ui.find("The account \u{201c}perso\u{201d} no longer exists: the default applies.")
+            .is_ok()
+    );
+    assert!(has_any_of(h.ctx(), X));
+}
+
+#[test]
+fn the_pickers_label_names_its_agent_and_claude_codes_keeps_its_own() {
+    let en = hangar_i18n::Translator::new(Locale::En);
+    let fr = hangar_i18n::Translator::new(Locale::Fr);
+    assert_eq!(picker_label(en, C), "Claude account");
+    assert_eq!(picker_label(fr, C), "Compte Claude");
+    assert_eq!(picker_label(en, X), "Codex (beta) account");
+    assert_eq!(picker_label(fr, X), "Compte Codex (bêta)");
 }
 
 // ── Settings › Accounts ───────────────────────────────────────────────

@@ -28,8 +28,9 @@ use std::sync::Arc;
 use serde_json::Value;
 
 use hangar_core::accounts::Account;
+use hangar_core::agent::AgentKind;
 use hangar_core::board::{Board, Task, TaskPatch};
-use hangar_core::delivery::{Cleanup, Delivery, Outcome, Plan, Running};
+use hangar_core::delivery::{Cleanup, Delivery, Outcome, Plan, ReviewerChoice, Running};
 use hangar_core::git::Worktree;
 use hangar_core::kits::KitInfo;
 use hangar_core::shells::ShellInfo;
@@ -286,7 +287,13 @@ impl DeliveryDeps for RemoteDelivery {
         })
     }
 
-    fn run(&self, delivery: Delivery) -> BoxFuture<Result<Outcome, String>> {
+    /// Reviewed by the node's own reviewer: the setting is this machine's,
+    /// and `/node/delivery/run` takes none.
+    fn run(
+        &self,
+        delivery: Delivery,
+        _reviewer: ReviewerChoice,
+    ) -> BoxFuture<Result<Outcome, String>> {
         let client = self.client();
         Box::pin(async move { engine::delivery_run(&client?, &for_node(delivery)).await })
     }
@@ -309,7 +316,9 @@ impl DeliveryDeps for RemoteDelivery {
         Box::pin(async move { engine::delivery_running(&client?).await })
     }
 
-    fn accounts(&self) -> BoxFuture<Result<Vec<Account>, String>> {
+    /// None of this machine's, of any kind: the node reviews on its own
+    /// login.
+    fn accounts(&self, _kind: AgentKind) -> BoxFuture<Result<Vec<Account>, String>> {
         Box::pin(std::future::ready(Ok(engine::accounts())))
     }
 

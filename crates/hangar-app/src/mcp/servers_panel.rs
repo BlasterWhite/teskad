@@ -80,16 +80,18 @@ pub fn open(st: &mut State, m: &Model, ws_id: &str) -> Task<Message> {
         found: Found::Loading,
         overrides: None,
     });
-    // The account its Claude Code panes start on: its own, its folder's or
-    // the default, as a launch resolves it.
-    let levels = AccountLevels::of(m.state(), ws, None);
+    // The account the panes that take their servers in a file start on: its
+    // own, its folder's or the default, as a launch resolves it.
+    let levels = file_kind().map(|kind| (kind, AccountLevels::of_kind(m.state(), ws, None, kind)));
     let (id, cwd) = (ws.id.clone(), ws.cwd.clone());
     let file = Task::perform(
         async move {
             let at = id.clone();
             let found = tokio::task::spawn_blocking(move || {
-                let account = levels.launch().id;
-                mcp_scope::mcp_servers(cwd, (account != MAIN_ACCOUNT).then_some(account))
+                let account = levels
+                    .map(|(kind, levels)| levels.launch_of(kind).id)
+                    .filter(|account| account != MAIN_ACCOUNT);
+                mcp_scope::mcp_servers(cwd, account)
             })
             .await
             .map_err(|error| error.to_string());
@@ -131,6 +133,17 @@ pub fn open(st: &mut State, m: &Model, ws_id: &str) -> Task<Message> {
 /// it is counted and restarted. `None` for a shell, which starts no agent.
 fn takes_servers(pane: &Pane) -> Option<McpInjection> {
     pane.agent.kind().map(|kind| kind.info().caps.mcp.injection)
+}
+
+/// The agent whose panes take the servers in a file Hangar writes
+/// (`McpInjection::ConfigFile`: Claude Code's `--mcp-config`): the one whose
+/// own configuration the panel lists and a file's servers are copied from
+/// (`mcp_scope::mcp_servers`), read on that agent's account. `None` when no
+/// agent takes them so: the list is read without an account, on main.
+fn file_kind() -> Option<AgentKind> {
+    AgentKind::ALL
+        .into_iter()
+        .find(|kind| kind.info().caps.mcp.injection == McpInjection::ConfigFile)
 }
 
 /// The agent of the first pane of `ws` that takes its servers as overrides

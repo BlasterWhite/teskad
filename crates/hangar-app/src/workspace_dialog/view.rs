@@ -996,14 +996,19 @@ fn more_options<'a>(
         .align_y(Alignment::Center),
     ));
 
-    // The Claude account, when there are accounts to choose from.
-    if accounts::has_any(ctx) {
+    // The account of the agent the orchestrator runs, when there are
+    // accounts of it to choose from.
+    if let Some(kind) = st
+        .orchestrator(ctx.model)
+        .filter(|kind| accounts::has_any_of(ctx, *kind))
+    {
         form = form.push(labelled(
             ctx,
-            Some(ctx.t(Key::AccountsPickerLabel).into_owned()),
+            Some(accounts::picker_label(ctx.i18n, kind)),
             accounts::workspace_picker(
                 ctx,
-                st.folder.claude_account.as_deref(),
+                kind,
+                st.picked_account(kind),
                 st.inherited_account(ctx.model),
             ),
         ));

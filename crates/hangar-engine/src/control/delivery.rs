@@ -29,14 +29,19 @@ use std::sync::Mutex;
 
 use serde_json::{Value, json};
 
+use hangar_core::agent::AgentKind;
 use hangar_core::board::{Task, TaskPatch};
-use hangar_core::delivery::{Cleanup, Delivery, Kind, Outcome, Plan, TaskBrief, Tested};
+use hangar_core::delivery::{
+    Cleanup, Delivery, Kind, Outcome, Plan, ReviewerChoice, TaskBrief, Tested,
+};
 use hangar_core::shells::ShellInfo;
 
 use crate::accounts::{AccountLevels, MAIN_ACCOUNT};
 use crate::orchestration::heard;
-use crate::state::roles::{NEEDS_YOU_LABEL, READY_TO_LAND_LABEL, orchestration_of, workers_of};
-use crate::state::types::PaneRole;
+use crate::state::roles::{
+    NEEDS_YOU_LABEL, READY_TO_LAND_LABEL, orchestration_of, orchestrator_of, workers_of,
+};
+use crate::state::types::{OrchestrationRole, PaneRole};
 use crate::state::{AppState, Pane, Workspace, WsId};
 
 use super::delivery_text::{
@@ -437,31 +442,53 @@ async fn delivered_from(
     }
 }
 
-/// The Claude account the review spends: the one a pane of this workspace
-/// would start on (`launchAccount`), by P8's rule
-/// (`accounts::AccountLevels::launch_with`): pane over workspace over its
-/// folder over settings over main, an account that no longer exists skipped.
+/// The account a review by `kind`'s agent spends: the one a pane of this
+/// workspace running `kind` would start on (`launchAccount`), by P8's rule
+/// (`accounts::AccountLevels::launch_with`): workspace over its folder over
+/// settings over main, each level's choice for `kind`, an account that no
+/// longer exists skipped. `None`: the default one, main.
 ///
 /// P8's rule asks for the list synchronously, and only when a level names an
 /// account other than main; the deliveries' list is async. So the rule is
 /// asked once without the list, and again with it only if it wanted it.
-async fn launch_account(
+async fn review_account(
     state: &AppState,
     ws: &Workspace,
-    pane: Option<&Pane>,
+    kind: AgentKind,
     delivery: &dyn DeliveryDeps,
-) -> String {
-    let levels = AccountLevels::of(state, ws, pane);
+) -> Option<String> {
+    let levels = AccountLevels::of_kind(state, ws, None, kind);
     let mut wanted = false;
     let without = levels.launch_with(|| {
         wanted = true;
         Ok(Vec::new())
     });
-    if !wanted {
-        return without.id;
-    }
-    let accounts = delivery.accounts().await;
-    levels.launch_with(move || accounts).id
+    let id = if wanted {
+        let accounts = delivery.accounts(kind).await;
+        levels.launch_with(move || accounts).id
+    } else {
+        without.id
+    };
+    (id != MAIN_ACCOUNT).then_some(id)
+}
+
+/// The agent that reviews `ws`'s deliveries (docs/native/agents.md §4.4,
+/// D11): the one its orchestration names for the reviewer, else the
+/// settings' default, else what its orchestrator runs (« same agent as the
+/// orchestrator », `Settings::agent_for`). `installed` is
+/// `hangar_core::agent::detect::installed` outside the tests; core still
+/// stands an installed reviewer in for one that is not.
+fn reviewer_agent(
+    state: &AppState,
+    ws: &Workspace,
+    installed: impl Fn(AgentKind) -> bool,
+) -> AgentKind {
+    state.settings.agent_for(
+        OrchestrationRole::Reviewer,
+        ws.orchestration.as_ref(),
+        orchestrator_of(ws).and_then(|pane| pane.agent.kind()),
+        installed,
+    )
 }
 
 /// The first of `preferred` that is detected, else the first shell detected
@@ -854,8 +881,20 @@ async fn deliver(
 ) -> Outcome {
     let settings = orchestration_of(ws);
     let snapshot = port.snapshot();
-    // The review spends the account a pane of this workspace would start on.
-    let account = launch_account(&snapshot.state, ws, None, delivery).await;
+    // The review spends the account a pane of this workspace running its
+    // agent would start on: each kind's reviewer its own kind's, the one the
+    // setting names and the one core stands in when that one is not there.
+    let claude_account = review_account(&snapshot.state, ws, AgentKind::Claude, delivery).await;
+    let codex_account = review_account(&snapshot.state, ws, AgentKind::Codex, delivery).await;
+    let reviewer = ReviewerChoice {
+        agent: Some(reviewer_agent(
+            &snapshot.state,
+            ws,
+            hangar_core::agent::detect::installed,
+        )),
+        codex_model: settings.codex_models.reviewer.clone(),
+        codex_account,
+    };
     let shells = delivery.shells();
     let request = Delivery {
         workspace: ws.cwd.clone(),
@@ -879,7 +918,7 @@ async fn deliver(
             ],
         ),
         reviewer_model: settings.reviewer_model.clone(),
-        claude_account: (account != MAIN_ACCOUNT).then_some(account),
+        claude_account,
         land: landing || settings.auto_merge,
         reuse: landing,
         port_base: pane.port_base,
@@ -891,7 +930,7 @@ async fn deliver(
         data_dir: None,
         batch_size: settings.batch_size,
     };
-    let outcome = match delivery.run(request.clone()).await {
+    let outcome = match delivery.run(request.clone(), reviewer).await {
         Ok(outcome) => outcome,
         Err(error) => Outcome {
             outcome: Kind::Error,
@@ -1318,4 +1357,161 @@ pub fn iso_time(ms: u64) -> String {
         rest / 1000 % 60,
         rest % 1000
     )
+}
+
+#[cfg(test)]
+mod reviewer_tests {
+    use serde_json::json;
+
+    use hangar_core::agent::AgentKind;
+    use hangar_core::delivery::Kind;
+
+    use super::reviewer_agent;
+    use crate::control::fake::{lock, pane, workspace};
+    use crate::control::testing::setup;
+    use crate::state::types::{OrchestrationSettings, PaneRole};
+    use crate::state::{AgentId, AppState, Workspace};
+
+    fn orchestrated(agent: AgentId, reviewer: Option<AgentKind>) -> Workspace {
+        let mut lead = pane("p1", "Ava", agent, None);
+        lead.role = Some(PaneRole::Orchestrator);
+        let mut ws = workspace("w1", "App", "/srv/app", vec![lead]);
+        ws.orchestration = Some(OrchestrationSettings {
+            reviewer_agent: reviewer,
+            ..OrchestrationSettings::default()
+        });
+        ws
+    }
+
+    /// The reviewer setting (D11): the workspace's choice, else the
+    /// settings' default, else what its orchestrator runs — or one that is
+    /// installed when that one is not.
+    #[test]
+    fn the_reviewer_is_the_one_chosen_else_the_orchestrators_agent() {
+        let mut state = AppState::default();
+        let both = |_: AgentKind| true;
+        let claude_only = |kind: AgentKind| kind == AgentKind::Claude;
+
+        let codex_led = orchestrated(AgentId::Codex, None);
+        assert_eq!(reviewer_agent(&state, &codex_led, both), AgentKind::Codex);
+        assert_eq!(
+            reviewer_agent(&state, &orchestrated(AgentId::Claude, None), both),
+            AgentKind::Claude
+        );
+        // The orchestrator's agent is not there: one that is.
+        assert_eq!(
+            reviewer_agent(&state, &codex_led, claude_only),
+            AgentKind::Claude
+        );
+        // Chosen: kept, installed or not (core stands another one in).
+        let chosen = orchestrated(AgentId::Claude, Some(AgentKind::Codex));
+        assert_eq!(
+            reviewer_agent(&state, &chosen, claude_only),
+            AgentKind::Codex
+        );
+        // The settings' default, where the workspace chose none.
+        state.settings.default_reviewer_agent = Some(AgentKind::Claude);
+        assert_eq!(reviewer_agent(&state, &codex_led, both), AgentKind::Claude);
+        assert_eq!(reviewer_agent(&state, &chosen, both), AgentKind::Codex);
+    }
+
+    /// A workspace whose reviewer is Codex has its deliveries read by Codex,
+    /// on the workspace's Codex account, with its reviewer model; Claude
+    /// Code's account still goes with them, for Claude Code standing in.
+    #[tokio::test]
+    async fn a_codex_reviewer_reviews_on_the_workspaces_codex_account() {
+        let s = setup();
+        // A delivery that does not land keeps the worker's pane for the next one.
+        s.now(Kind::Conflict, "conflict", |_| {});
+        s.fake.patch("w1", |ws| {
+            let orchestration = ws.orchestration.get_or_insert_with(Default::default);
+            orchestration.reviewer_agent = Some(AgentKind::Codex);
+            orchestration.codex_models.reviewer = Some("gpt-5.5".into());
+            ws.claude_account = Some("work".into());
+        });
+        // « work » is Claude Code's: as a Codex choice it is gone.
+        for (account, expected) in [
+            (Some("team"), Some("team")),
+            (None, None),
+            (Some("main"), None),
+            (Some("work"), None),
+            (Some("gone"), None),
+        ] {
+            s.fake
+                .patch("w1", |ws| ws.codex_account = account.map(str::to_string));
+            s.submit(json!({})).await.unwrap();
+            s.fake.settle().await;
+            let reviewer = s.reviewers().last().cloned().unwrap();
+            assert_eq!(reviewer.agent, Some(AgentKind::Codex), "{account:?}");
+            assert_eq!(reviewer.codex_model.as_deref(), Some("gpt-5.5"));
+            assert_eq!(reviewer.codex_account.as_deref(), expected, "{account:?}");
+            assert_eq!(
+                s.runs().last().unwrap().claude_account.as_deref(),
+                Some("work"),
+                "{account:?}"
+            );
+        }
+        // Each kind's accounts were asked of that kind.
+        let listed = lock(&s.delivery.listed_kinds).clone();
+        assert!(listed.contains(&AgentKind::Codex), "{listed:?}");
+        assert!(listed.contains(&AgentKind::Claude), "{listed:?}");
+    }
+
+    /// The Codex levels are read as the Claude ones: the folder's, and the
+    /// settings' default, each the Codex choice of its level.
+    #[tokio::test]
+    async fn a_codex_review_reads_the_folder_and_the_default_codex_accounts() {
+        let s = setup();
+        s.now(Kind::Conflict, "conflict", |_| {});
+        lock(&s.fake.state).folders = vec![crate::state::types::WorkspaceFolder {
+            id: "games".into(),
+            name: "Games".into(),
+            claude_account: Some("work".into()),
+            codex_account: Some("team".into()),
+            ..Default::default()
+        }];
+        s.fake.patch("w1", |ws| {
+            ws.folder_id = Some("games".into());
+            let orchestration = ws.orchestration.get_or_insert_with(Default::default);
+            orchestration.reviewer_agent = Some(AgentKind::Codex);
+        });
+        s.submit(json!({})).await.unwrap();
+        s.fake.settle().await;
+        assert_eq!(
+            s.reviewers().last().unwrap().codex_account.as_deref(),
+            Some("team")
+        );
+        assert_eq!(
+            s.runs().last().unwrap().claude_account.as_deref(),
+            Some("work")
+        );
+
+        // Out of the folder, the settings' Codex default.
+        lock(&s.fake.state).settings.codex_account = Some("team".into());
+        s.fake.patch("w1", |ws| ws.folder_id = None);
+        s.submit(json!({})).await.unwrap();
+        s.fake.settle().await;
+        assert_eq!(
+            s.reviewers().last().unwrap().codex_account.as_deref(),
+            Some("team")
+        );
+        assert_eq!(s.runs().last().unwrap().claude_account, None);
+    }
+
+    /// Nothing named for Codex: its accounts are never listed, as Claude
+    /// Code's are not (one machine, one account, no asking).
+    #[tokio::test]
+    async fn the_codex_accounts_are_listed_only_when_a_level_names_one() {
+        let s = setup();
+        s.now(Kind::Conflict, "conflict", |_| {});
+        s.fake.patch("w1", |ws| {
+            let orchestration = ws.orchestration.get_or_insert_with(Default::default);
+            orchestration.reviewer_agent = Some(AgentKind::Codex);
+            ws.codex_account = Some("main".into());
+        });
+        s.submit(json!({})).await.unwrap();
+        s.fake.settle().await;
+        assert!(lock(&s.delivery.listed_kinds).is_empty());
+        assert_eq!(s.reviewers().last().unwrap().codex_account, None);
+    }
 }

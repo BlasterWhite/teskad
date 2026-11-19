@@ -7,7 +7,7 @@ use crate::accounts::{AccountLevels, AccountSource, ClaudeAccount, DEFAULT_CHOIC
 use crate::state::layout::{
     Rect, Side, closed_by_preset_in, compute_layout, drawn_tree, leaf_ids, normalize_tree, ratio_at,
 };
-use crate::state::types::{PanePin, PaneRole, WindowBounds};
+use crate::state::types::{AgentKind, PanePin, PaneRole, WindowBounds};
 
 fn draft(layout: u8, agents: &[AgentId]) -> WorkspaceDraft {
     WorkspaceDraft {
@@ -259,8 +259,8 @@ fn folder_on(m: &mut Store, account: Option<&str>) -> String {
     id
 }
 
-/// The account workspace `id` runs on, and the level that decided it, among
-/// the accounts « perso » and « pro ».
+/// The account workspace `id`'s Claude Code panes run on, and the level that
+/// decided it, among the accounts « perso » and « pro ».
 fn account_of(m: &Store, id: &str) -> (String, AccountSource) {
     let accounts: Vec<ClaudeAccount> = ["main", "perso", "pro"]
         .into_iter()
@@ -273,7 +273,8 @@ fn account_of(m: &Store, id: &str) -> (String, AccountSource) {
             plan: None,
         })
         .collect();
-    let resolved = AccountLevels::of(m.state(), ws(m, id), None).resolve(&accounts);
+    let resolved =
+        AccountLevels::of_kind(m.state(), ws(m, id), None, AgentKind::Claude).resolve(&accounts);
     (resolved.id, resolved.source)
 }
 
@@ -396,8 +397,15 @@ fn moving_a_hosted_workspace_into_a_folder_tells_its_node_nothing() {
     assert_eq!(after.folder_id, Some(games));
     assert_eq!(after.claude_account.as_deref(), Some("their-own"));
     assert!(hosted::diff(&before, Some(after), m.respawns()).is_empty());
-    // Nor does it read the folder's account: its own is its machine's.
-    assert_eq!(AccountLevels::of(m.state(), after, None).folder, None);
+    // Nor does it read the folder's account, of any kind: its own is its
+    // machine's.
+    for kind in AgentKind::ALL {
+        assert_eq!(
+            AccountLevels::of_kind(m.state(), after, None, kind).folder,
+            None,
+            "{kind:?}"
+        );
+    }
 }
 
 #[test]

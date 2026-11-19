@@ -186,13 +186,17 @@ impl FromGitDeps for AppDeps {
         !hangar_core::paths::Paths::isolated()
     }
 
-    // The account the new workspace's panes will start on: the trust is
-    // that account's (each keeps its own `.claude.json`).
+    // The account the new workspace's Claude Code panes will start on: the
+    // trust is that account's (each keeps its own `.claude.json`).
     async fn trust_folder(&self, path: &str) -> Result<(), String> {
-        let levels = new_workspace_levels(&self.services.snapshot().state, self.folder.as_deref());
+        let levels = new_workspace_levels(
+            &self.services.snapshot().state,
+            self.folder.as_deref(),
+            TRUSTED_BY,
+        );
         let path = path.to_string();
         tokio::task::spawn_blocking(move || {
-            let account = levels.launch();
+            let account = levels.launch_of(TRUSTED_BY);
             let account = (account.id != MAIN_ACCOUNT).then_some(account.id);
             hangar_core::mcp_scope::claude_trust_folder(path, account).map(|_| ())
         })
@@ -220,16 +224,24 @@ impl FromGitDeps for AppDeps {
     }
 }
 
-/// The levels the panes of the workspace the flow makes resolve their account
-/// in: it chooses none of its own, so the account of the folder it is filed
-/// in (`folder`, when it still exists), then the settings' default. The same
-/// rule as for any workspace (`AccountLevels::of`), for one not made yet.
-fn new_workspace_levels(state: &AppState, folder: Option<&str>) -> AccountLevels {
+/// The agent whose trust of a folder the flow records: Claude Code's, in its
+/// own configuration (`~/.claude.json` of each account,
+/// `mcp_scope::claude_trust_folder`), which it asks about otherwise. Codex
+/// keeps no file of Hangar's to write: its trust travels on its launch line
+/// (`LaunchRequest::trusted`).
+const TRUSTED_BY: AgentKind = AgentKind::Claude;
+
+/// The levels the panes of `kind`'s agent in the workspace the flow makes
+/// resolve their account in: it chooses none of its own, so the account of
+/// `kind` of the folder it is filed in (`folder`, when it still exists), then
+/// the settings' default. The same rule as for any workspace
+/// (`AccountLevels::of_kind`), for one not made yet.
+fn new_workspace_levels(state: &AppState, folder: Option<&str>, kind: AgentKind) -> AccountLevels {
     let filed = Workspace {
         folder_id: folder.map(str::to_string),
         ..Workspace::default()
     };
-    AccountLevels::of(state, &filed, None)
+    AccountLevels::of_kind(state, &filed, None, kind)
 }
 
 // ── on the UI thread: what the flow asked of the model ────────────────
@@ -354,7 +366,8 @@ mod tests {
     use crate::state::Settings;
     use crate::state::types::WorkspaceFolder;
 
-    /// A model with a folder « games » on `account`, and « pro » for default.
+    /// A model with a folder « games » on `account`, and « pro » for default;
+    /// Codex's are « team » and « lab ».
     fn model_with_games(account: Option<&str>) -> Model {
         let mut m = Model::default();
         m.hydrate(AppState {
@@ -362,10 +375,12 @@ mod tests {
                 id: "games".into(),
                 name: "Games".into(),
                 claude_account: account.map(str::to_string),
+                codex_account: Some("team".into()),
                 ..WorkspaceFolder::default()
             }],
             settings: Settings {
                 claude_account: Some("pro".into()),
+                codex_account: Some("lab".into()),
                 ..Settings::default()
             },
             ..AppState::default()
@@ -398,29 +413,46 @@ mod tests {
     #[test]
     fn a_clone_filed_in_a_folder_is_trusted_for_the_folders_account() {
         let m = model_with_games(Some("perso"));
-        let levels = new_workspace_levels(m.state(), Some("games"));
+        let levels = new_workspace_levels(m.state(), Some("games"), TRUSTED_BY);
         assert_eq!(levels.folder.as_deref(), Some("perso"));
         assert_eq!(levels.launch_with(accounts).id, "perso");
         // Filed nowhere, in a folder since removed, or in one that names no
         // account: the settings' default.
         for folder in [None, Some("gone")] {
-            let levels = new_workspace_levels(m.state(), folder);
+            let levels = new_workspace_levels(m.state(), folder, TRUSTED_BY);
             assert_eq!(levels.launch_with(accounts).id, "pro", "{folder:?}");
         }
         let plain = model_with_games(None);
-        let levels = new_workspace_levels(plain.state(), Some("games"));
+        let levels = new_workspace_levels(plain.state(), Some("games"), TRUSTED_BY);
         assert_eq!(levels.launch_with(accounts).id, "pro");
+    }
+
+    /// The trust is Claude Code's, on its account: the folder's Codex
+    /// account, or the Codex default, never stands for it.
+    #[test]
+    fn the_trust_is_claude_codes_and_codex_s_levels_are_its_own() {
+        assert_eq!(TRUSTED_BY, AgentKind::Claude);
+        let m = model_with_games(None);
+        let trusted = new_workspace_levels(m.state(), Some("games"), TRUSTED_BY);
+        assert_eq!(trusted.folder, None);
+        assert_eq!(trusted.default.as_deref(), Some("pro"));
+        let codex = new_workspace_levels(m.state(), Some("games"), AgentKind::Codex);
+        assert_eq!(codex.folder.as_deref(), Some("team"));
+        assert_eq!(codex.default.as_deref(), Some("lab"));
     }
 
     #[test]
     fn the_flows_workspace_is_filed_in_its_folder_and_runs_on_the_account_trusted() {
         let mut m = model_with_games(Some("perso"));
-        let trusted = new_workspace_levels(m.state(), Some("games"));
+        let trusted = new_workspace_levels(m.state(), Some("games"), TRUSTED_BY);
         let created = create_workspace(&mut m, shop(), Some("games".into())).unwrap();
         let ws = m.workspace(&created.workspace.id).unwrap();
         assert_eq!(ws.folder_id.as_deref(), Some("games"));
         assert_eq!(ws.claude_account, None, "read from the folder, not copied");
-        assert_eq!(AccountLevels::of(m.state(), ws, None), trusted);
+        assert_eq!(
+            AccountLevels::of_kind(m.state(), ws, None, TRUSTED_BY),
+            trusted
+        );
         // A folder removed while the clone ran files it nowhere.
         let created = create_workspace(&mut m, shop(), Some("gone".into())).unwrap();
         assert_eq!(m.workspace(&created.workspace.id).unwrap().folder_id, None);

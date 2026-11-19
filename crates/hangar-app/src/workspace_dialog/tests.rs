@@ -2496,10 +2496,22 @@ fn made<'a>(h: &'a Harness, cwd: &str) -> &'a crate::state::Workspace {
         .expect("the workspace is made")
 }
 
-/// The account `ws` runs on, by the rule every launch follows.
+/// The account `ws`'s Claude Code panes run on, by the rule every launch
+/// follows.
 fn runs_on(h: &Harness, ws: &crate::state::Workspace) -> String {
-    let accounts = h.model.live.accounts.accounts.clone().unwrap_or_default();
-    hangar_engine::accounts::AccountLevels::of(h.model.state(), ws, None)
+    runs_on_of(h, ws, AgentKind::Claude)
+}
+
+/// The account `ws`'s panes of `kind` run on, among `kind`'s accounts.
+fn runs_on_of(h: &Harness, ws: &crate::state::Workspace, kind: AgentKind) -> String {
+    let accounts = h
+        .model
+        .live
+        .accounts
+        .of(kind)
+        .map(<[_]>::to_vec)
+        .unwrap_or_default();
+    hangar_engine::accounts::AccountLevels::of_kind(h.model.state(), ws, None, kind)
         .resolve(&accounts)
         .id
 }
@@ -2515,7 +2527,7 @@ fn opened_from_a_folder_the_form_files_the_workspace_there_on_its_account() {
     );
     // Nothing chosen: the workspace reads the folder's account, the form
     // keeps no choice of its own.
-    assert_eq!(st.folder.claude_account, None);
+    assert_eq!(st.picked_account(AgentKind::Claude), None);
     assert_eq!(st.inherited_account(&h.model), Some("perso"));
 
     let _ = form(&mut st, &mut h.model, Msg::Cwd("/home/me/dev/game".into()));
@@ -2546,7 +2558,101 @@ fn the_default_picked_inside_a_folder_with_an_account_sticks() {
     let mut st = opened_in(&h, "games");
     let _ = form(&mut st, &mut h.model, Msg::Account(Some("pro".into())));
     let _ = form(&mut st, &mut h.model, Msg::Account(None));
-    assert_eq!(st.folder.claude_account, None);
+    assert_eq!(st.picked_account(AgentKind::Claude), None);
+}
+
+/// The harness of [`with_games`], with Codex installed and its accounts
+/// « Main » and « Team », « Games » naming « lab » for Codex.
+fn with_codex_accounts(account: Option<&str>) -> Harness {
+    let mut h = with_games(account).edit(|state| {
+        state.folders[0].codex_account = Some("lab".into());
+    });
+    h.model.live.accounts.codex = Some(vec![
+        super::testing::account("main", "Main", true),
+        super::testing::account("team", "Team", true),
+        super::testing::account("lab", "Lab", true),
+    ]);
+    h
+}
+
+/// With a Codex orchestrator, the picker lists Codex's accounts, says
+/// which agent's they are, and the choice is saved as the workspace's Codex
+/// account: its Claude account stays unchosen.
+#[test]
+fn a_codex_orchestrator_picks_among_the_codex_accounts_and_saves_its_choice_there() {
+    let mut h = with_codex_accounts(Some("perso"));
+    let mut st = with_agents(
+        opened_in(&h, "games"),
+        &[AgentKind::Claude, AgentKind::Codex],
+    );
+    let _ = form(&mut st, &mut h.model, Msg::Orchestrator(AgentKind::Codex));
+    // The folder's account offered first is its Codex one.
+    assert_eq!(st.inherited_account(&h.model), Some("lab"));
+    // « More options » unfolded, where the account is.
+    st.folder.more = true;
+    {
+        let mut ui = h.show(view(&st, h.ctx()));
+        assert!(ui.find("Codex (beta) account").is_ok());
+        assert!(ui.find("Claude account").is_err());
+    }
+    let _ = form(&mut st, &mut h.model, Msg::Account(Some("team".into())));
+    assert_eq!(st.picked_account(AgentKind::Codex), Some("team"));
+    assert_eq!(st.picked_account(AgentKind::Claude), None);
+    let _ = form(&mut st, &mut h.model, Msg::Cwd("/home/me/dev/codex".into()));
+    let _ = submit_folder(&mut st, &mut h.model, &[]);
+    let ws = made(&h, "/home/me/dev/codex");
+    assert_eq!(ws.codex_account.as_deref(), Some("team"));
+    assert_eq!(ws.claude_account, None);
+    assert_eq!(runs_on_of(&h, ws, AgentKind::Codex), "team");
+    // Its Claude Code panes still read the folder's Claude account.
+    assert_eq!(runs_on(&h, ws), "perso");
+}
+
+/// Nothing picked for Codex: the folder's Codex account, read and never
+/// copied, as for Claude Code.
+#[test]
+fn a_codex_orchestrator_with_nothing_picked_reads_the_folders_codex_account() {
+    let mut h = with_codex_accounts(None);
+    let mut st = with_agents(
+        opened_in(&h, "games"),
+        &[AgentKind::Claude, AgentKind::Codex],
+    );
+    let _ = form(&mut st, &mut h.model, Msg::Orchestrator(AgentKind::Codex));
+    let _ = form(&mut st, &mut h.model, Msg::Cwd("/home/me/dev/codex".into()));
+    let _ = submit_folder(&mut st, &mut h.model, &[]);
+    let ws = made(&h, "/home/me/dev/codex");
+    assert_eq!(ws.codex_account, None, "read from the folder, not copied");
+    assert_eq!(runs_on_of(&h, ws, AgentKind::Codex), "lab");
+}
+
+/// Each agent's pick is kept while the person switches the orchestrator
+/// between them; only the orchestrator's agent's is saved.
+#[test]
+fn switching_the_orchestrator_keeps_each_agents_pick_and_saves_the_orchestrators() {
+    let mut h = with_codex_accounts(None);
+    let mut st = with_agents(
+        opened_in(&h, "games"),
+        &[AgentKind::Claude, AgentKind::Codex],
+    );
+    let _ = form(&mut st, &mut h.model, Msg::Orchestrator(AgentKind::Claude));
+    let _ = form(&mut st, &mut h.model, Msg::Account(Some("pro".into())));
+    let _ = form(&mut st, &mut h.model, Msg::Orchestrator(AgentKind::Codex));
+    let _ = form(&mut st, &mut h.model, Msg::Account(Some("team".into())));
+    assert_eq!(st.picked_account(AgentKind::Claude), Some("pro"));
+    assert_eq!(st.picked_account(AgentKind::Codex), Some("team"));
+    // Back to Claude Code: its own pick, saved as before Codex.
+    let _ = form(&mut st, &mut h.model, Msg::Orchestrator(AgentKind::Claude));
+    st.folder.more = true;
+    {
+        let mut ui = h.show(view(&st, h.ctx()));
+        assert!(ui.find("Claude account").is_ok());
+        assert!(ui.find("Codex (beta) account").is_err());
+    }
+    let _ = form(&mut st, &mut h.model, Msg::Cwd("/home/me/dev/game".into()));
+    let _ = submit_folder(&mut st, &mut h.model, &[]);
+    let ws = made(&h, "/home/me/dev/game");
+    assert_eq!(ws.claude_account.as_deref(), Some("pro"));
+    assert_eq!(ws.codex_account, None);
 }
 
 #[test]

@@ -237,7 +237,7 @@ const ALLOWED: &[Allowed] = &[
     only(
         "crates/hangar-app/src/accounts/mod.rs",
         &["if kind == AgentKind::default() {"],
-        "Claude Code's accounts keep their place from before Codex: unprefixed keys, a section always shown",
+        "Claude Code's accounts keep their place from before Codex: unprefixed keys, a section always shown, the picker's « Claude account »",
     ),
     only(
         "crates/hangar-app/src/accounts/mod.rs",
@@ -328,23 +328,21 @@ const ALLOWED: &[Allowed] = &[
         &["vec![AgentKind::default()]"],
         "a workspace that names no agent, with none installed, gets the default kind's playbook file",
     ),
-    // Features that name a kind where they should read a capability.
     only(
-        "crates/hangar-engine/src/accounts.rs",
+        "crates/hangar-engine/src/control/delivery.rs",
         &[
-            "Self::of_kind(state, ws, pane, AgentKind::Claude)",
-            "self.launch_of(AgentKind::Claude)",
+            "let claude_account = review_account(&snapshot.state, ws, AgentKind::Claude, delivery).await;",
+            "let codex_account = review_account(&snapshot.state, ws, AgentKind::Codex, delivery).await;",
         ],
-        "TODO(capability): `of` and `launch` are Claude Code's whatever the pane runs; pass its kind",
+        "a delivery carries one account per kind, where core's reviewers read them (`Delivery::claude_account`, `ReviewerChoice::codex_account`)",
     ),
     only(
-        "crates/hangar-app/src/accounts/mod.rs",
-        &[
-            "picker::view(ctx, AgentKind::Claude, value, folder, |id| {",
-            "has_any_of(ctx, AgentKind::Claude)",
-        ],
-        "TODO(capability): the new-workspace dialog's account picker offers Claude Code's accounts only",
+        "crates/hangar-app/src/git_flow/deps.rs",
+        &["const TRUSTED_BY: AgentKind = AgentKind::Claude;"],
+        "the clone records Claude Code's trust in its own `.claude.json` (`claude_trust_folder`); Codex's travels on its launch line",
     ),
+    // Features that name a kind where they should read a capability: none
+    // left. A new one says `TODO(capability): …`.
 ];
 
 impl Allowed {

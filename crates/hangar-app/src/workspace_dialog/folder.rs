@@ -295,7 +295,6 @@ pub struct FolderForm<'a> {
     pub assignments: &'a [AgentId],
     pub shell_id: Option<&'a str>,
     pub kits: &'a [crate::state::types::WorkspaceKit],
-    pub claude_account: Option<&'a str>,
 }
 
 /// What `addWorkspace` is given, or `None` without a folder.
@@ -332,7 +331,9 @@ pub fn draft_of(form: &FolderForm) -> Option<WorkspaceDraft> {
         folder_id: None,
         // Written only when set: absent rather than empty.
         kits: (!form.kits.is_empty()).then(|| form.kits.to_vec()),
-        claude_account: form.claude_account.map(str::to_string),
+        // The account picked goes in its agent's field once the workspace is
+        // made (`make_workspace`): the draft has Claude Code's only.
+        claude_account: None,
     })
 }
 
@@ -662,7 +663,6 @@ mod tests {
             assignments: &[],
             shell_id: None,
             kits: &[],
-            claude_account: None,
         }
     }
 
@@ -726,7 +726,7 @@ mod tests {
     }
 
     #[test]
-    fn kits_and_account_are_written_only_when_set() {
+    fn kits_are_written_only_when_set_and_the_draft_names_no_account() {
         let mut fields = form("", "/x", &[]);
         let draft = draft_of(&fields).expect("a draft");
         assert!(draft.kits.is_none());
@@ -736,11 +736,10 @@ mod tests {
             granted: vec![],
         }];
         fields.kits = &kits;
-        fields.claude_account = Some("perso");
         fields.shell_id = Some("bash");
         let draft = draft_of(&fields).expect("a draft");
         assert_eq!(draft.kits.as_ref().map(Vec::len), Some(1));
-        assert_eq!(draft.claude_account.as_deref(), Some("perso"));
+        assert!(draft.claude_account.is_none(), "set once it is made");
         assert_eq!(draft.shell_id.as_deref(), Some("bash"));
     }
 }

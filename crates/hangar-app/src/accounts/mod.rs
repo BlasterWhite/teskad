@@ -65,8 +65,8 @@ pub use hangar_core::accounts::login_command;
 #[allow(unused_imports)]
 pub use model::{
     Account, AccountId, AccountLevels, AccountSource, ClaudeAccount, DEFAULT_CHOICE, LOGIN_COMMAND,
-    Launched, MAIN_ACCOUNT, ResolvedAccount, launch_account, launch_account_with,
-    read_account_choice, resolve_account,
+    Launched, MAIN_ACCOUNT, ResolvedAccount, launch_account_with, read_account_choice,
+    resolve_account,
 };
 pub use switch::{Follow, FollowInput, Job, Turn, follow};
 use switch::{
@@ -922,18 +922,36 @@ pub fn folder_menu_items<'a>(ctx: Ctx<'a>, folder: &'a str) -> Vec<MenuEntry> {
     menu_items::folder_entries(ctx, folder)
 }
 
-/// The workspace dialog's Claude account picker. `value` is the account the
-/// workspace being made has chosen for itself (`None`: none, it follows its
-/// folder's, else the default; `DEFAULT_CHOICE`: the default over the
-/// folder's), `folder` the account its folder names, if any.
+/// The workspace dialog's account picker, among `kind`'s accounts: those of
+/// the agent the workspace's orchestrator runs. `value` is the account of
+/// `kind` the workspace being made has chosen for itself (`None`: none, it
+/// follows its folder's, else the default; `DEFAULT_CHOICE`: the default
+/// over the folder's), `folder` the account of `kind` its folder names, if
+/// any.
 pub fn workspace_picker<'a>(
     ctx: Ctx<'a>,
+    kind: AgentKind,
     value: Option<&'a str>,
     folder: Option<&'a str>,
 ) -> Element<'a, Message> {
-    picker::view(ctx, AgentKind::Claude, value, folder, |id| {
+    picker::view(ctx, kind, value, folder, |id| {
         Message::WorkspaceDialog(crate::workspace_dialog::Msg::Account(id))
     })
+}
+
+/// What the workspace dialog calls its account picker for `kind`'s
+/// accounts: « Claude account » for Claude Code's, as before there were
+/// others; « Codex (beta) account » for another kind's.
+pub fn picker_label(t: hangar_i18n::Translator, kind: AgentKind) -> String {
+    if kind == AgentKind::default() {
+        return t.t(hangar_i18n::Key::AccountsPickerLabel).into_owned();
+    }
+    let agent = agent_label(t, kind);
+    t.t_with(
+        hangar_i18n::Key::AccountsMenuTitle,
+        &hangar_i18n::args!("agent" => agent.as_str()),
+    )
+    .into_owned()
 }
 
 /// Settings › Accounts (embedded by the settings).
@@ -941,13 +959,8 @@ pub fn settings_page<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
     settings_page::view(&st.page, ctx)
 }
 
-/// Whether there is any Claude account to choose from (the dialog shows the
-/// picker then).
-pub fn has_any(ctx: Ctx<'_>) -> bool {
-    has_any_of(ctx, AgentKind::Claude)
-}
-
-/// Whether there is any account of `kind` to choose from.
+/// Whether there is any account of `kind` to choose from (the dialog shows
+/// its picker then).
 pub fn has_any_of(ctx: Ctx<'_>, kind: AgentKind) -> bool {
     live(ctx)
         .of(kind)

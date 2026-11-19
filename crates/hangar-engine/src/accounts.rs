@@ -101,16 +101,15 @@ pub struct AccountLevels {
 }
 
 impl AccountLevels {
-    /// The Claude Code levels of `pane` of `ws` ([`AccountLevels::of_kind`]).
-    pub fn of(state: &AppState, ws: &Workspace, pane: Option<&Pane>) -> AccountLevels {
-        Self::of_kind(state, ws, pane, AgentKind::Claude)
-    }
-
     /// The levels of `kind`'s agent for `pane` of `ws` (`None`: the
-    /// workspace itself, as a review or `claude mcp` runs on it), as `state`
-    /// holds them: each level's choice for that kind. A workspace its node
-    /// runs has no folder level: its account is chosen on that machine, and
-    /// the folders are this one's presentation.
+    /// workspace itself, as a review or an agent's MCP listing runs on it),
+    /// as `state` holds them: each level's choice for that kind. A workspace
+    /// its node runs has no folder level: its account is chosen on that
+    /// machine, and the folders are this one's presentation.
+    ///
+    /// There is no kind-less reading: every caller names the agent the
+    /// account is for (docs/native/agents.md §6.1), so that a Codex pane,
+    /// reviewer or workspace never runs on a Claude Code account.
     pub fn of_kind(
         state: &AppState,
         ws: &Workspace,
@@ -147,12 +146,6 @@ impl AccountLevels {
         list: impl FnOnce() -> Result<Vec<ClaudeAccount>, String>,
     ) -> ResolvedAccount {
         launch_levels_with(list, self.borrowed())
-    }
-
-    /// [`launch_account`], with the folder's level: Claude Code's
-    /// ([`AccountLevels::launch_of`]).
-    pub fn launch(&self) -> ResolvedAccount {
-        self.launch_of(AgentKind::Claude)
     }
 
     /// The account a pane of `kind`'s agent starts on, among that kind's
@@ -238,9 +231,10 @@ fn resolve_levels(
     }
 }
 
-/// The account a Claude Code pane starts on, as [`resolve_account`] decides:
-/// asking for the accounts only when some level names one other than main, so
-/// a machine with a single account never asks. When the list cannot be had,
+/// The account a pane starts on, among the accounts of its kind that `list`
+/// gives, as [`resolve_account`] decides: asking for the accounts only when
+/// some level names one other than main, so a machine with a single account
+/// never asks. When the list cannot be had,
 /// every other account counts as gone: the pane starts on main, and `missing`
 /// says which was asked for.
 pub fn launch_account_with(
@@ -273,21 +267,6 @@ fn launch_levels_with(
         Vec::new()
     };
     resolve_levels(&accounts, levels)
-}
-
-/// [`launch_account_with`] on the accounts of this machine
-/// (`hangar_core::accounts::accounts_list`, which reads a few small files).
-pub fn launch_account(
-    default: Option<&str>,
-    workspace: Option<&str>,
-    pane: Option<&str>,
-) -> ResolvedAccount {
-    launch_account_with(
-        || Ok(hangar_core::accounts::accounts_list()),
-        default,
-        workspace,
-        pane,
-    )
 }
 
 /// The account each running agent pane was launched on, by pane id: an
@@ -596,15 +575,15 @@ mod tests {
         }));
         let ws = &state.workspaces[0];
         assert_eq!(
-            AccountLevels::of(&state, ws, ws.panes.first()),
+            AccountLevels::of_kind(&state, ws, ws.panes.first(), AgentKind::Claude),
             levels(Some("main"), None, Some("pro"), Some("perso"))
         );
         assert_eq!(
-            AccountLevels::of(&state, ws, None),
+            AccountLevels::of_kind(&state, ws, None, AgentKind::Claude),
             levels(None, None, Some("pro"), Some("perso"))
         );
         assert_eq!(
-            AccountLevels::of(&state, &state.workspaces[1], None),
+            AccountLevels::of_kind(&state, &state.workspaces[1], None, AgentKind::Claude),
             levels(None, None, None, Some("perso"))
         );
     }
@@ -636,11 +615,6 @@ mod tests {
         assert_eq!(
             AccountLevels::of_kind(&state, ws, ws.panes.first(), AgentKind::Claude),
             levels(Some("main"), Some("pro"), Some("pro"), Some("perso"))
-        );
-        // `of` is Claude Code's.
-        assert_eq!(
-            AccountLevels::of(&state, ws, ws.panes.first()),
-            AccountLevels::of_kind(&state, ws, ws.panes.first(), AgentKind::Claude)
         );
         // A workspace its node runs has no folder level, of any kind.
         assert_eq!(

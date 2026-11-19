@@ -53,7 +53,7 @@ use crate::panes::agents::permission_mode;
 use crate::panes::session_watch::session_to_resume;
 use crate::panes::wall_clock_ms;
 use crate::state::roles::{ORCHESTRATION_ALLOWED_TOOLS, orchestration_of};
-use crate::state::types::{AppState, McpMode, Pane, Settings, Workspace};
+use crate::state::types::{McpMode, Pane, Settings, Workspace};
 
 /// How long a shell may stay quiet after it first printed before it is
 /// taken as ready for the agent's command.
@@ -116,28 +116,6 @@ fn servers(ws: &Workspace, pane: &Pane, kind: Option<AgentKind>) -> Servers {
     }
 }
 
-/// The choices the account of `kind`'s agent in `pane` is looked up in: the
-/// pane's, its workspace's, its folder's — none for a workspace its node
-/// runs, whose account is chosen there — and the settings' default. What
-/// `AccountLevels::of` reads for Claude Code, read for either kind.
-fn account_levels(state: &AppState, ws: &Workspace, pane: &Pane, kind: AgentKind) -> AccountLevels {
-    let owned = |choice: Option<&str>| choice.map(str::to_string);
-    let folder = ws
-        .folder_id
-        .as_deref()
-        .filter(|_| !ws.is_hosted())
-        .and_then(|id| state.folders.iter().find(|folder| folder.id == id))
-        .and_then(|folder| folder.account(kind))
-        .map(str::trim)
-        .filter(|id| !id.is_empty());
-    AccountLevels {
-        pane: owned(pane.account(kind)),
-        workspace: owned(ws.account(kind)),
-        folder: owned(folder),
-        default: owned(state.settings.account(kind)),
-    }
-}
-
 /// Hangar's own executable, whose `--mcp` is Hangar's MCP server; `None`,
 /// said in the log, when it cannot be told: the pane starts without
 /// Hangar's tools.
@@ -182,8 +160,8 @@ fn prepare(host: &EngineHost, ws: &Workspace, pane: &Pane) -> Prepared {
     let cwd = folder_of(ws, pane);
     let kind = pane.agent.kind();
     let account = kind.map(|kind| {
-        account_levels(&snapshot.state, ws, pane, kind)
-            .launch_with(|| Ok(hangar_core::accounts::accounts_of(kind)))
+        AccountLevels::of_kind(&snapshot.state, ws, Some(pane), kind)
+            .launch_of(kind)
             .id
     });
     let (mcp, hangar_mcp) = match servers(ws, pane, kind) {
@@ -475,7 +453,7 @@ mod tests {
 
     use super::*;
     use crate::state::types::{
-        AgentId, OrchestrationSettings, PaneRole, WorkspaceFolder, WorkspaceMcp,
+        AgentId, AppState, OrchestrationSettings, PaneRole, WorkspaceFolder, WorkspaceMcp,
     };
 
     const THREAD: &str = "0199a5c4-7b3e-7c51-a2f4-6d0e8c1b9f20";
@@ -791,11 +769,21 @@ mod tests {
         state.settings.codex_account = Some("perso".into());
         let mut leo = pane(AgentId::Codex, None, None);
         leo.codex_account = Some("@default".into());
+        let levels = |state: &AppState, ws: &Workspace, kind: AgentKind| {
+            AccountLevels::of_kind(state, ws, Some(&leo), kind)
+        };
 
-        let claude = account_levels(&state, &ws, &leo, AgentKind::Claude);
-        assert_eq!(claude, AccountLevels::of(&state, &ws, Some(&leo)));
         assert_eq!(
-            account_levels(&state, &ws, &leo, AgentKind::Codex),
+            levels(&state, &ws, AgentKind::Claude),
+            AccountLevels {
+                pane: None,
+                workspace: Some("work".into()),
+                folder: Some("pro".into()),
+                default: Some("main".into()),
+            }
+        );
+        assert_eq!(
+            levels(&state, &ws, AgentKind::Codex),
             AccountLevels {
                 pane: Some("@default".into()),
                 workspace: None,
@@ -805,7 +793,7 @@ mod tests {
         );
         // « Default » chosen on the pane: the settings' Codex account, which
         // must be one of this machine's.
-        let codex = account_levels(&state, &ws, &leo, AgentKind::Codex);
+        let codex = levels(&state, &ws, AgentKind::Codex);
         let listed = |ids: &[&str]| {
             ids.iter()
                 .map(|id| crate::accounts::ClaudeAccount {
@@ -821,16 +809,11 @@ mod tests {
         assert_eq!(codex.launch_with(|| Ok(listed(&["perso"]))).id, "perso");
         assert_eq!(codex.launch_with(|| Ok(listed(&[]))).id, "main");
 
-        // A workspace its node runs has no folder level.
+        // A workspace its node runs has no folder level, for either kind.
         ws.hosted = Some(true);
-        assert_eq!(
-            account_levels(&state, &ws, &leo, AgentKind::Codex).folder,
-            None
-        );
-        assert_eq!(
-            account_levels(&state, &ws, &leo, AgentKind::Claude),
-            AccountLevels::of(&state, &ws, Some(&leo))
-        );
+        for kind in AgentKind::ALL {
+            assert_eq!(levels(&state, &ws, kind).folder, None, "{kind:?}");
+        }
     }
 
     /// What a pane's machine is told of its side channel: Codex attached to

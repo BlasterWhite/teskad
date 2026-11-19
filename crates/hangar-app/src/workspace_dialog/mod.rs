@@ -24,12 +24,13 @@ pub(crate) mod testing;
 mod tests;
 mod view;
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
-use hangar_engine::accounts::DEFAULT_CHOICE;
+use hangar_engine::accounts::{DEFAULT_CHOICE, read_account_choice};
 use hangar_i18n::{Key, Translator, args};
 use iced::widget::{Id, operation};
 use iced::{Element, Subscription, Task};
@@ -45,7 +46,6 @@ use crate::git_flow::paths::{projects_folder_of, resolve_parent};
 use crate::message::{GitOrigin, Intent, Message};
 use crate::services::{CoreEvent, Services, dialogs};
 use crate::shell::{Notice, Overlay};
-use crate::state::folders;
 use crate::state::types::{AgentId, AgentKind, WorkspaceFolder, WorkspaceKit};
 use crate::state::{Model, Patch, StoreAction, WsId};
 
@@ -96,7 +96,11 @@ struct Folder {
     /// What the workers run, once picked; until then the settings' default
     /// (`folder::workers_of`).
     workers: Option<Workers>,
-    claude_account: Option<String>,
+    /// The account picked for the workspace, by the agent it is one of. The
+    /// picker lists the accounts of the agent the orchestrator runs, and
+    /// each agent's pick is kept while the person switches between them;
+    /// only that of the orchestrator's agent is saved.
+    accounts: HashMap<AgentKind, String>,
     hooks: HooksDraft,
     /// « More options » is unfolded. Folding it keeps what was chosen there.
     more: bool,
@@ -121,7 +125,7 @@ impl Default for Folder {
             assignments: folder::initial_assignments(folder::DEFAULT_LAYOUT),
             orchestrator: None,
             workers: None,
-            claude_account: None,
+            accounts: HashMap::new(),
             hooks: HooksDraft::default(),
             more: false,
             custom: false,
@@ -444,16 +448,26 @@ impl State {
         m.state().folders.iter().find(|folder| folder.id == id)
     }
 
-    /// The account the workspace made here runs on when the person picks
-    /// none: its folder's, read and never copied (`folders::account_of`). Not
-    /// for a workspace its node runs: it has no folder level. The account
-    /// picker offers it first (« Folder default (Pro) »), and « Default » is
-    /// then a choice of its own (`DEFAULT_CHOICE`).
+    /// The account of `kind` picked for the workspace, if any: `None`, it
+    /// follows its folder's, else the default; [`DEFAULT_CHOICE`], the
+    /// default over the folder's.
+    pub(crate) fn picked_account(&self, kind: AgentKind) -> Option<&str> {
+        self.folder.accounts.get(&kind).map(String::as_str)
+    }
+
+    /// The account the orchestrator of the workspace made here runs on when
+    /// the person picks none: its folder's, of the agent it runs, read and
+    /// never copied (`AccountLevels::of_kind`). Not for a workspace its node
+    /// runs: it has no folder level. The account picker offers it first
+    /// (« Folder default (Pro) »), and « Default » is then a choice of its
+    /// own (`DEFAULT_CHOICE`).
     pub(crate) fn inherited_account<'a>(&self, m: &'a Model) -> Option<&'a str> {
         if self.place.node.is_some() {
             return None;
         }
-        folders::folder_account(self.target_folder(m)?)
+        let kind = self.orchestrator(m)?;
+        let id = self.target_folder(m)?.account(kind)?.trim();
+        (!id.is_empty()).then_some(id)
     }
 }
 
@@ -761,7 +775,17 @@ fn form(st: &mut State, m: &mut Model, msg: Msg) -> Task<Message> {
             Task::none()
         }
         Msg::Account(id) => {
-            st.folder.claude_account = id;
+            // A pick among the accounts of the agent the orchestrator runs.
+            if let Some(kind) = st.orchestrator(m) {
+                match id {
+                    Some(id) => {
+                        st.folder.accounts.insert(kind, id);
+                    }
+                    None => {
+                        st.folder.accounts.remove(&kind);
+                    }
+                }
+            }
             Task::none()
         }
         Msg::MoreOptions => {
@@ -1131,7 +1155,6 @@ fn node_cloned(
         assignments: &[],
         shell_id: None,
         kits: &[],
-        claude_account: None,
     }) else {
         return Task::none();
     };
@@ -1144,7 +1167,7 @@ fn node_cloned(
                 .into_owned(),
         ));
     }
-    if let Some(id) = make_workspace(m, draft, Some(node.to_owned()), None, start, agents) {
+    if let Some(id) = make_workspace(m, draft, Some(node.to_owned()), None, start, agents, None) {
         tasks.push(Task::done(Message::Intent(Intent::ActivateWorkspace(id))));
     }
     Task::batch(tasks)
@@ -1155,6 +1178,8 @@ fn node_cloned(
 /// the ids it was just given, and runs there whether this computer is on
 /// or not. Nothing of it starts here meanwhile; were the node to refuse
 /// it, it is taken back out and the reason shown.
+///
+/// `account`: the account picked, and the agent it is one of.
 fn make_workspace(
     m: &mut Model,
     draft: crate::state::WorkspaceDraft,
@@ -1162,8 +1187,20 @@ fn make_workspace(
     hooks: Option<crate::state::types::WorktreeHooks>,
     start: folder::Start,
     agents: Option<folder::Agents>,
+    account: Option<(AgentKind, String)>,
 ) -> Option<WsId> {
     let id = m.apply(StoreAction::AddWorkspace(draft)).workspace?;
+    // The account picked goes in its agent's field (T13), which the draft
+    // has no room for: set as the workspace is made, before anything
+    // launches in it and before a node is handed it.
+    if let Some((kind, account)) = account {
+        m.apply(StoreAction::UpdateWorkspace(
+            id.clone(),
+            Patch::new(move |workspace: &mut crate::state::Workspace| {
+                *workspace.account_mut(kind) = read_account_choice(Some(&account));
+            }),
+        ));
+    }
     // Before its terminals start: they start on the node.
     if let Some(node) = remote.clone() {
         m.apply(StoreAction::UpdateWorkspace(
@@ -1213,13 +1250,12 @@ fn submit_folder(st: &mut State, m: &mut Model, kits: &[WorkspaceKit]) -> Task<M
     let orchestrator = st.orchestrator(m);
     let start = start_of(st, m);
     let agents = folder::agents_of(start, orchestrator, st.workers(m), m.settings());
-    // « Default » over a folder's account means nothing to a workspace its
-    // node runs: it has no folder level.
-    let account = st
-        .folder
-        .claude_account
-        .as_deref()
-        .filter(|id| remote.is_none() || *id != DEFAULT_CHOICE);
+    // The account picked among those of the orchestrator's agent, for that
+    // agent. « Default » over a folder's account means nothing to a
+    // workspace its node runs: it has no folder level.
+    let account = orchestrator
+        .and_then(|kind| Some((kind, st.picked_account(kind)?.to_string())))
+        .filter(|(_, id)| remote.is_none() || id != DEFAULT_CHOICE);
     let Some(mut draft) = folder::draft_of(&FolderForm {
         name: &st.name,
         cwd: &st.folder.cwd,
@@ -1230,7 +1266,6 @@ fn submit_folder(st: &mut State, m: &mut Model, kits: &[WorkspaceKit]) -> Task<M
         assignments: &st.folder.assignments,
         shell_id: st.folder.shell_id.as_deref(),
         kits,
-        claude_account: account,
     }) else {
         return Task::none();
     };
@@ -1239,7 +1274,7 @@ fn submit_folder(st: &mut State, m: &mut Model, kits: &[WorkspaceKit]) -> Task<M
     draft.folder_id = st.in_folder.clone();
     let mut tasks = vec![close(m)];
     let hooks = folder::hooks_of(&st.folder.hooks);
-    if let Some(id) = make_workspace(m, draft, remote, hooks, start, agents) {
+    if let Some(id) = make_workspace(m, draft, remote, hooks, start, agents, account) {
         // The new workspace is the one in front, and its terminals start.
         tasks.push(Task::done(Message::Intent(Intent::ActivateWorkspace(id))));
     }
