@@ -343,6 +343,10 @@ impl AppPort for LivePort {
         self.shared.hooks().mobile.clone()
     }
 
+    fn core(&self) -> Option<Host> {
+        Some(self.host())
+    }
+
     fn deliveries(&self) -> &Deliveries {
         &self.shared.deliveries
     }

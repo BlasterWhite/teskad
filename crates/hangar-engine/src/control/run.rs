@@ -83,6 +83,10 @@ pub async fn run(op: &str, args: Value, port: &Port, gate: Gate) -> Result<Value
     if op.starts_with("delivery_") {
         return super::delivery::control(op, &ws, &args, &caller, port).await;
     }
+    // A sub-task to an agent with no terminal: core's registry, delegate.rs.
+    if super::delegate::OPERATIONS.contains(&op) {
+        return super::delegate::control(op, &ws, &args, &caller, port).await;
+    }
 
     match op {
         "pane_list" => super::panes::pane_list(&ws, &caller, port).await,
