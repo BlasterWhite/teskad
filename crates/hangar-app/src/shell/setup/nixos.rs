@@ -2,9 +2,15 @@
 //!
 //! Anthropic's native installer drops a `claude` linked for the loader of a
 //! usual Linux (`/lib64/ld-linux-x86-64.so.2`), which NixOS does not have: it
-//! does not start there without nix-ld. So on NixOS the setup sheet shows the
-//! Nix way, and keeps the installer behind « Use Anthropic's installer anyway »
-//! for the systems that have nix-ld.
+//! does not start there without nix-ld. So on NixOS Claude Code's card shows
+//! the Nix way, and keeps the installer behind « Use Anthropic's installer
+//! anyway » for the systems that have nix-ld.
+//!
+//! Codex's installer is not in that case: on Linux it downloads the
+//! `x86_64-unknown-linux-musl` or `aarch64-unknown-linux-musl` build, a static
+//! binary that needs no loader (scripts/install/install.sh of openai/codex,
+//! rust-v0.170.0), so it starts on NixOS like anywhere else and its card is
+//! the installer's there too.
 //!
 //! nixpkgs marks `claude-code` unfree (`meta.license = lib.licenses.unfree`,
 //! pkgs/by-name/cl/claude-code/package.nix): a configuration allows it with
@@ -12,6 +18,8 @@
 //! evaluation is pure, only with `NIXPKGS_ALLOW_UNFREE=1` and `--impure`.
 
 use std::path::Path;
+
+use hangar_core::agent::AgentKind;
 
 /// The install for good: a line of the NixOS configuration (`home.packages`
 /// with Home Manager), then a rebuild.
@@ -21,6 +29,12 @@ pub const SYSTEM_PACKAGES: &str = "environment.systemPackages = [ pkgs.claude-co
 /// for this one command.
 pub const PROFILE_INSTALL: &str =
     "NIXPKGS_ALLOW_UNFREE=1 nix profile install --impure nixpkgs#claude-code";
+
+/// Whether `kind` comes from nixpkgs on NixOS: the agent whose installer's
+/// program does not start there, Claude Code.
+pub fn from_nixpkgs(kind: AgentKind) -> bool {
+    matches!(kind, AgentKind::Claude)
+}
 
 /// Whether this machine runs NixOS. Linux only: on a Mac with Nix, the native
 /// installer's `claude` starts like any other program.
