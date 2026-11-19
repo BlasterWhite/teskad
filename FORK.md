@@ -2,7 +2,9 @@
 
 [OLIVIER-CG/hangar](https://github.com/OLIVIER-CG/hangar), forked from
 [hangar-ai/hangar](https://github.com/hangar-ai/hangar) at **v2.4.0**, with upstream's
-**2.4.1** merged in. Our changes live on the `custom` branch; `main` mirrors upstream.
+**2.5.1** merged in (Codex support is upstream's own, from 2.5.0). Our changes live on the
+`custom` branch; `main` mirrors upstream. The `codex-panes` branch holds our earlier Codex
+work, kept for reference only: it is not merged.
 
 ## What differs from upstream
 
