@@ -207,6 +207,9 @@ fn live(m: &Model, w: window::Id) -> HashSet<CommandId> {
     let Some(focused) = scope.focused.as_deref() else {
         return live;
     };
+    // Any pane of the grid, a terminal or a view, is pinned to its edge or
+    // let go.
+    live.insert(PanePin);
     // A view moves, swaps, zooms and closes like any pane; nothing else of
     // a pane is about it, and its keys reach what it shows.
     let moves = [
@@ -479,6 +482,12 @@ fn message(m: &Model, w: window::Id, id: CommandId) -> Option<Message> {
             pane: focused.clone(),
             pinned: id == PanePinOrchestrator,
         }),
+        // One key both ways, like the zoom's.
+        PanePin => Some(Message::Panes(crate::panes::Msg::Pin(
+            wid,
+            focused.clone(),
+            ws.pin_of(&focused).is_none(),
+        ))),
         PaneFocusLeft => toward(Direction::Left).as_ref().and_then(focus),
         PaneFocusRight => toward(Direction::Right).as_ref().and_then(focus),
         PaneFocusUp => toward(Direction::Up).as_ref().and_then(focus),

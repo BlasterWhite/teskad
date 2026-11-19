@@ -698,6 +698,8 @@ pub enum Key {
     CmdPaneFocusUp,
     /// `cmd.pane.next`
     CmdPaneNext,
+    /// `cmd.pane.pin`
+    CmdPanePin,
     /// `cmd.pane.pinOrchestrator`
     CmdPanePinOrchestrator,
     /// `cmd.pane.prev`
@@ -3058,6 +3060,16 @@ pub enum Key {
     PaneNotOnPath,
     /// `pane.noteDismiss`
     PaneNoteDismiss,
+    /// `pane.pin`
+    PanePin,
+    /// `pane.pinned.bottom`
+    PanePinnedBottom,
+    /// `pane.pinned.left`
+    PanePinnedLeft,
+    /// `pane.pinned.right`
+    PanePinnedRight,
+    /// `pane.pinned.top`
+    PanePinnedTop,
     /// `pane.queue`
     PaneQueue,
     /// `pane.restart`
@@ -3096,6 +3108,8 @@ pub enum Key {
     PaneStateYours,
     /// `pane.state.yoursShort`
     PaneStateYoursShort,
+    /// `pane.unpin`
+    PaneUnpin,
     /// `pane.zoomIn`
     PaneZoomIn,
     /// `paneBranch.branch`
@@ -4525,7 +4539,7 @@ pub enum Key {
 }
 
 /// How many keys there are.
-pub const KEY_COUNT: usize = 2254;
+pub const KEY_COUNT: usize = 2261;
 
 impl Key {
     /// Every key, in the order of their ids.
@@ -4872,6 +4886,7 @@ impl Key {
         Key::CmdPaneFocusRight,
         Key::CmdPaneFocusUp,
         Key::CmdPaneNext,
+        Key::CmdPanePin,
         Key::CmdPanePinOrchestrator,
         Key::CmdPanePrev,
         Key::CmdPaneResetAll,
@@ -6052,6 +6067,11 @@ impl Key {
         Key::PaneNoSession,
         Key::PaneNotOnPath,
         Key::PaneNoteDismiss,
+        Key::PanePin,
+        Key::PanePinnedBottom,
+        Key::PanePinnedLeft,
+        Key::PanePinnedRight,
+        Key::PanePinnedTop,
         Key::PaneQueue,
         Key::PaneRestart,
         Key::PaneRestartNow,
@@ -6071,6 +6091,7 @@ impl Key {
         Key::PaneStateWorking,
         Key::PaneStateYours,
         Key::PaneStateYoursShort,
+        Key::PaneUnpin,
         Key::PaneZoomIn,
         Key::PaneBranchBranch,
         Key::PaneBranchBranchWorktree,
@@ -7131,6 +7152,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "cmd.pane.focusRight", en: Text::plain("Focus the pane on the right"), fr: Text::plain("Aller au panneau de droite") },
     Message { id: "cmd.pane.focusUp", en: Text::plain("Focus the pane above"), fr: Text::plain("Aller au panneau du dessus") },
     Message { id: "cmd.pane.next", en: Text::plain("Next pane"), fr: Text::plain("Panneau suivant") },
+    Message { id: "cmd.pane.pin", en: Text::plain("Pin the focused pane in place, or unpin it"), fr: Text::plain("Épingler le panneau actif à sa place, ou le désépingler") },
     Message { id: "cmd.pane.pinOrchestrator", en: Text::plain("Pin the focused pane as orchestrator"), fr: Text::plain("Épingler le panneau actif comme orchestrateur") },
     Message { id: "cmd.pane.prev", en: Text::plain("Previous pane"), fr: Text::plain("Panneau précédent") },
     Message { id: "cmd.pane.resetAll", en: Text::plain("Start every agent on a new session"), fr: Text::plain("Relancer chaque agent sur une nouvelle session") },
@@ -8311,6 +8333,11 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "pane.noSession", en: Text::plain("No session stored — click to pick one"), fr: Text::plain("Aucune session mémorisée — cliquer pour en choisir une") },
     Message { id: "pane.notOnPath", en: Text::plain("{agent} not found on PATH"), fr: Text::plain("{agent} introuvable dans le PATH") },
     Message { id: "pane.noteDismiss", en: Text::plain("Dismiss the note"), fr: Text::plain("Masquer la note") },
+    Message { id: "pane.pin", en: Text::plain("Pin in place"), fr: Text::plain("Épingler à sa place") },
+    Message { id: "pane.pinned.bottom", en: Text::plain("Pinned to the bottom: keeps its height while panes open and close. Click to unpin."), fr: Text::plain("Épinglé en bas\u{202f}: garde sa hauteur quand des panneaux s'ouvrent ou se ferment. Cliquer pour désépingler.") },
+    Message { id: "pane.pinned.left", en: Text::plain("Pinned to the left: keeps its width while panes open and close. Click to unpin."), fr: Text::plain("Épinglé à gauche\u{202f}: garde sa largeur quand des panneaux s'ouvrent ou se ferment. Cliquer pour désépingler.") },
+    Message { id: "pane.pinned.right", en: Text::plain("Pinned to the right: keeps its width while panes open and close. Click to unpin."), fr: Text::plain("Épinglé à droite\u{202f}: garde sa largeur quand des panneaux s'ouvrent ou se ferment. Cliquer pour désépingler.") },
+    Message { id: "pane.pinned.top", en: Text::plain("Pinned to the top: keeps its height while panes open and close. Click to unpin."), fr: Text::plain("Épinglé en haut\u{202f}: garde sa hauteur quand des panneaux s'ouvrent ou se ferment. Cliquer pour désépingler.") },
     Message { id: "pane.queue", en: Text::plural("{n} prompt waits for the agent to be free. Click to cancel it.", "{n} prompts wait for the agent to be free. Click to cancel them."), fr: Text::plural("{n} prompt attend que l'agent soit libre. Clique pour l'annuler.", "{n} prompts attendent que l'agent soit libre. Clique pour les annuler.") },
     Message { id: "pane.restart", en: Text::plain("Restart pane"), fr: Text::plain("Relancer le panneau") },
     Message { id: "pane.restartNow", en: Text::plain("Restart"), fr: Text::plain("Relancer") },
@@ -8330,6 +8357,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "pane.state.working", en: Text::plain("Working"), fr: Text::plain("Travaille") },
     Message { id: "pane.state.yours", en: Text::plain("Finished — your turn"), fr: Text::plain("Terminé — à toi") },
     Message { id: "pane.state.yoursShort", en: Text::plain("Your turn"), fr: Text::plain("À toi") },
+    Message { id: "pane.unpin", en: Text::plain("Unpin this pane"), fr: Text::plain("Désépingler ce panneau") },
     Message { id: "pane.zoomIn", en: Text::plain("Fill the grid with this pane"), fr: Text::plain("Afficher ce panneau sur toute la grille") },
     Message { id: "paneBranch.branch", en: Text::plain("Git branch {branch}"), fr: Text::plain("Branche git {branch}") },
     Message { id: "paneBranch.branchWorktree", en: Text::plain("Git branch {branch}, in a linked worktree"), fr: Text::plain("Branche git {branch}, dans un worktree lié") },

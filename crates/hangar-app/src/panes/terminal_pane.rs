@@ -127,10 +127,17 @@ pub fn view<'a>(
             }),
     );
     container(pane_column)
+        .id(slot_id(&pane.id))
         .width(Length::Fill)
         .height(Length::Fill)
         .style(style::container::page(t))
         .into()
+}
+
+/// The id of pane `pane`'s whole body in the grid, a terminal's or a view's,
+/// its header included: where the grid laid it out, as a selector finds it.
+pub fn slot_id(pane: &str) -> iced::widget::Id {
+    iced::widget::Id::from(format!("pane-slot-{pane}"))
 }
 
 /// How opaque the terminal of a pane whose node is away is.

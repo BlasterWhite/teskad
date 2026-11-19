@@ -1,5 +1,6 @@
-//! One Claude Code transcript in, one digest out: the calls the agent was
-//! billed for, the times it was active, and what the session was about.
+//! One transcript in, one digest out: the calls the agent was billed for,
+//! the times it was active, and what the session was about. Claude Code's
+//! transcripts are read here, Codex's rollouts in codex.rs.
 //!
 //! The digest keeps facts, not totals. Totals depend on the period asked for,
 //! on the time zone and on the price table, and the digest is what goes in
@@ -17,6 +18,12 @@ use std::io::{BufRead, Read};
 use serde::de::{self, Deserializer, SeqAccess, Visitor};
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
+
+use crate::sessions::AgentKind;
+
+mod codex;
+
+use codex::CodexState;
 
 /// One API call, at the moment its answer started. Field names are one
 /// letter because the cache holds tens of thousands of these.
@@ -70,6 +77,9 @@ pub const TITLE_CUSTOM: u8 = 3;
 /// What one transcript file contributes.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Digest {
+    /// Whose transcript it is.
+    #[serde(default)]
+    pub agent: AgentKind,
     /// The conversation it belongs to. A subagent's file names its parent's,
     /// so a session's subagents count as part of it.
     pub session: String,
@@ -90,11 +100,16 @@ pub struct Digest {
     /// Bytes parsed so far, always on a line boundary: where an appended
     /// transcript picks up.
     pub offset: u64,
+    /// What a Codex rollout's next lines are read against: the model named
+    /// last, the running totals reported last.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub codex: Option<CodexState>,
 }
 
 impl Digest {
-    pub fn new(sub: bool) -> Self {
+    pub fn new(agent: AgentKind, sub: bool) -> Self {
         Self {
+            agent,
             sub,
             ..Self::default()
         }
@@ -465,16 +480,25 @@ pub fn claude_line(line: &str, digest: &mut Digest, seen: &mut HashMap<u64, usiz
 /// of the same file found: an appended transcript resumes where it stopped.
 /// Returns the bytes consumed, to add to `digest.offset`.
 pub fn read_into(digest: &mut Digest, reader: impl Read, finished: bool) -> std::io::Result<u64> {
-    let mut seen: HashMap<u64, usize> = digest
-        .calls
-        .iter()
-        .enumerate()
-        .filter(|(_, call)| call.key != 0)
-        .map(|(index, call)| (call.key, index))
-        .collect();
-    for_each_line(reader, finished, |line| {
-        claude_line(line, digest, &mut seen)
-    })
+    match digest.agent {
+        AgentKind::Claude => {
+            let mut seen: HashMap<u64, usize> = digest
+                .calls
+                .iter()
+                .enumerate()
+                .filter(|(_, call)| call.key != 0)
+                .map(|(index, call)| (call.key, index))
+                .collect();
+            for_each_line(reader, finished, |line| {
+                claude_line(line, digest, &mut seen)
+            })
+        }
+        AgentKind::Codex => {
+            let consumed = for_each_line(reader, finished, |line| codex::codex_line(line, digest))?;
+            codex::name_early_calls(digest);
+            Ok(consumed)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -496,7 +520,7 @@ mod tests {
     }
 
     fn read(text: &str) -> Digest {
-        let mut digest = Digest::new(false);
+        let mut digest = Digest::new(AgentKind::Claude, false);
         let consumed = read_into(&mut digest, text.as_bytes(), true).unwrap();
         digest.offset += consumed;
         digest
@@ -608,7 +632,7 @@ mod tests {
         let whole = assistant("m1", "2026-10-01T10:00:05Z", 10);
         let partial = assistant("m2", "2026-10-01T10:00:06Z", 10);
         let text = format!("{whole}\n{}", &partial[..50]);
-        let mut digest = Digest::new(false);
+        let mut digest = Digest::new(AgentKind::Claude, false);
         let consumed = read_into(&mut digest, text.as_bytes(), false).unwrap();
         assert_eq!(consumed, whole.len() as u64 + 1);
         assert_eq!(digest.calls.len(), 1);

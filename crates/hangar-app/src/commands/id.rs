@@ -2,7 +2,8 @@
 //! `src/lib/shortcuts.ts` (inventory §1.10), in its order, but
 //! `view.modelPreview`, which showed and hid a preview panel that previews no
 //! longer have: each is a pane of the grid. A binding saved for it is kept, as
-//! any id this version does not know is.
+//! any id this version does not know is. `pane.pin` is this version's own: a
+//! pane pinned to its edge of the grid.
 //!
 //! The order matters: the dispatcher runs the first command of the keymap
 //! with a live handler (P7), and the settings list them in it. The string ids
@@ -119,6 +120,7 @@ commands! {
     PaneTidy = "pane.tidy", Panes, CmdPaneTidy;
     PaneSessions = "pane.sessions", Panes, CmdPaneSessions;
     PaneZoom = "pane.zoom", Panes, CmdPaneZoom;
+    PanePin = "pane.pin", Panes, CmdPanePin;
     PanePinOrchestrator = "pane.pinOrchestrator", Panes, CmdPanePinOrchestrator;
     PaneUnpinOrchestrator = "pane.unpinOrchestrator", Panes, CmdPaneUnpinOrchestrator;
     PaneNext = "pane.next", Navigation, CmdPaneNext;
@@ -237,10 +239,10 @@ mod tests {
     use std::collections::HashSet;
 
     #[test]
-    fn there_are_87_commands_each_with_its_own_id() {
-        assert_eq!(CommandId::ALL.len(), 87);
+    fn there_are_88_commands_each_with_its_own_id() {
+        assert_eq!(CommandId::ALL.len(), 88);
         let ids: HashSet<&str> = CommandId::ALL.iter().map(|c| c.as_str()).collect();
-        assert_eq!(ids.len(), 87);
+        assert_eq!(ids.len(), 88);
     }
 
     #[test]

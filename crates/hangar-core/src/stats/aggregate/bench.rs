@@ -77,6 +77,7 @@ fn stats_on_months_of_history() {
     let disk = root.join("usage-stats-cache.json");
     let roots = Roots {
         claude: vec![projects],
+        codex: Vec::new(),
     };
     let all = Window {
         from: None,

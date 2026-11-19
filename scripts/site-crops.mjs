@@ -312,7 +312,7 @@ html = html
   .replace(/(href=")styles\.css(?:\?v=[0-9a-f]+)?(")/g, (_, a, b) => a + stampedIn(siteDir, "styles.css") + b)
   .replace(/(src=")main\.js(?:\?v=[0-9a-f]+)?(")/g, (_, a, b) => a + stampedIn(siteDir, "main.js") + b)
   .replace(/((?:href|src)=")(assets\/[\w./-]+?)(?:\?v=[0-9a-f]+)?(")/g, (_, a, file, b) => a + stampedIn(siteDir, file) + b)
-  .replace(/(https:\/\/hangar\.simnjs\.fr\/)og\.png(?:\?v=[0-9a-f]+)?/g, (_, a) => a + stampedIn(siteDir, "og.png"));
+  .replace(/(https:\/\/hangarai\.dev\/)og\.png(?:\?v=[0-9a-f]+)?/g, (_, a) => a + stampedIn(siteDir, "og.png"));
 writeFileSync(pagePath, html);
 console.log(`${pagePath.slice(root.length + 1)}: sizes and srcsets of ${used.size} images written`);
 

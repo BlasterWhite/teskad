@@ -10,6 +10,16 @@ Every release, with its installers, is on the
 
 ## [Unreleased]
 
+## [2.4.4] - 2026-11-19
+
+### Changed
+
+- Hangar's address is now hangarai.dev: the website at https://hangarai.dev and the optional Hangar account's server at https://account.hangarai.dev. The old addresses (hangar.simnjs.fr, hangar-account.simnjs.fr) keep working and lead to the new ones.
+
+### Fixed
+
+- Typing in a text field while a pane was selected went to the pane: the "Send the same instruction to all panes" bar, the terminal's search, renaming in the navigator and adding a card on the board lost the keyboard to the terminal, often after the first letter. A field that takes the keyboard now has it until you click a pane again, everywhere in the app.
+
 ## [2.4.3] - 2026-11-18
 
 ### Added
@@ -834,6 +844,7 @@ statistics, workspace sleep and per-workspace MCP servers.
 - Automatic updates from signed GitHub releases.
 - An interface in English and French (0.1.1).
 
+[2.4.4]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.4
 [2.4.3]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.3
 [2.4.2]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.2
 [2.4.1]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.1

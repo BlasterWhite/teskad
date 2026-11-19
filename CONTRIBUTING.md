@@ -75,6 +75,12 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked    # ICED_TEST_BACKEND=tiny-skia draws the views' tests in software
 ```
 
+The maintainers run them on a machine rented from Vast.ai rather than their own:
+`scripts/remote/rcargo <cargo arguments>` runs any cargo command there on the current
+worktree, and `scripts/remote/rbuild check` runs the CI's Linux checks in one call (it
+needs the `vastai` CLI and an account; see
+[docs/native/remote-build.md](docs/native/remote-build.md)).
+
 Hangar Mobile and the generated files:
 
 ```bash
