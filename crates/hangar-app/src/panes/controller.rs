@@ -2410,9 +2410,10 @@ mod tests {
         );
     }
 
-    /// A Codex pane of the old app's file: a shell now, which says so in its
-    /// bar the first time it starts, in English or French, and never again.
-    /// Saying it saves the pane as the shell it is.
+    /// A Gemini CLI pane of the old app's file: a shell now, which says so
+    /// in its bar the first time it starts, in English or French, and never
+    /// again. Saying it saves the pane as the shell it is. (Its Codex pane is
+    /// Codex again, and says nothing of the kind.)
     #[test]
     fn a_pane_of_a_retired_agent_says_once_that_it_is_a_shell_now() {
         let raw = serde_json::from_str(include_str!(
@@ -2423,14 +2424,18 @@ mod tests {
         let mut m = Model::default();
         m.hydrate_read(state, kept);
         let ws = m.state().workspaces[0].clone();
-        let bob = ws.panes[1].clone();
         assert_eq!(
-            (bob.agent, bob.retired_agent),
-            (AgentId::Shell, Some("Codex"))
+            (ws.panes[1].agent, ws.panes[1].retired_agent),
+            (AgentId::Codex, None)
+        );
+        let cleo = ws.panes[2].clone();
+        assert_eq!(
+            (cleo.agent, cleo.retired_agent),
+            (AgentId::Shell, Some("Gemini CLI"))
         );
 
         let revision = m.revision();
-        let mut rt = mounted(&ws, &bob);
+        let mut rt = mounted(&ws, &cleo);
         let _ = spawned(
             &mut rt,
             &mut m,
@@ -2438,14 +2443,17 @@ mod tests {
             Ok(report(Vec::new())),
         );
         let note = Translator::new(Locale::En)
-            .t_with(Key::PaneAgentRetired, &args!("agent" => "Codex"))
+            .t_with(Key::PaneAgentRetired, &args!("agent" => "Gemini CLI"))
             .into_owned();
-        assert!(note.contains("Codex") && note.contains("shell"), "{note}");
+        assert!(
+            note.contains("Gemini CLI") && note.contains("shell"),
+            "{note}"
+        );
         assert_eq!(rt.notes, [note]);
-        let saved = &m.state().workspaces[0].panes[1];
+        let saved = &m.state().workspaces[0].panes[2];
         assert_eq!(saved.retired_agent, None);
         assert!(m.revision() > revision, "the shell is saved");
-        assert_eq!(m.to_json()["workspaces"][0]["panes"][1]["agent"], "shell");
+        assert_eq!(m.to_json()["workspaces"][0]["panes"][2]["agent"], "shell");
 
         // Restarted or woken up: nothing more to say.
         let mut again = mounted(&ws, saved);

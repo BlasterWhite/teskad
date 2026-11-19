@@ -101,6 +101,7 @@ fields! {
         orchestration: Option<OrchestrationSettings>,
         hq: Option<bool>,
         claude_account: Option<String>,
+        codex_account: Option<String>,
         worktree_hooks: Option<WorktreeHooks>,
     }
 }
@@ -122,6 +123,7 @@ fields! {
         shared_folder: Option<bool>,
         node: Option<String>,
         claude_account: Option<String>,
+        codex_account: Option<String>,
         login: Option<bool>,
         extra: Extra,
     }
@@ -144,6 +146,7 @@ fn workspace_fields(ws: &Workspace) -> WorkspaceFields {
         orchestration,
         hq,
         claude_account,
+        codex_account,
         worktree_hooks,
         // The mirror's own: how this Hangar shows it and files it. Its
         // kits are among them: a node starts its agents without any, so
@@ -178,6 +181,7 @@ fn workspace_fields(ws: &Workspace) -> WorkspaceFields {
         orchestration: Some(orchestration.clone()),
         hq: Some(*hq),
         claude_account: Some(claude_account.clone()),
+        codex_account: Some(codex_account.clone()),
         worktree_hooks: Some(worktree_hooks.clone()),
     }
 }
@@ -199,6 +203,7 @@ fn pane_fields(pane: &Pane) -> PaneFields {
         shared_folder,
         node,
         claude_account,
+        codex_account,
         login,
         // Said once by the Hangar that read the file, and never written.
         retired_agent: _,
@@ -218,6 +223,7 @@ fn pane_fields(pane: &Pane) -> PaneFields {
         shared_folder: Some(*shared_folder),
         node: Some(node.clone()),
         claude_account: Some(claude_account.clone()),
+        codex_account: Some(codex_account.clone()),
         login: Some(*login),
         extra: Some(extra.clone()),
     }

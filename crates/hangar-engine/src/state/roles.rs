@@ -9,7 +9,7 @@
 //! (`orchestration_ui`) and P19 (`orchestration`) build on these rather than
 //! writing their own.
 
-use super::types::{AppState, OrchestrationSettings, Pane, PaneRole, Workspace};
+use super::types::{AppState, CodexModels, OrchestrationSettings, Pane, PaneRole, Workspace};
 
 /// The board label of a task only the person can move forward.
 pub const NEEDS_YOU_LABEL: &str = "needs-you";
@@ -70,6 +70,15 @@ pub fn orchestration_of(ws: &Workspace) -> OrchestrationSettings {
             .permission_mode
             .clone()
             .filter(|mode| ORCHESTRATION_PERMISSION_MODES.contains(&mode.as_str())),
+        orchestrator_agent: saved.orchestrator_agent,
+        worker_agent: saved.worker_agent,
+        reviewer_agent: saved.reviewer_agent,
+        codex_models: CodexModels {
+            orchestrator: optional(&saved.codex_models.orchestrator),
+            worker: optional(&saved.codex_models.worker),
+            reviewer: optional(&saved.codex_models.reviewer),
+            extra: saved.codex_models.extra.clone(),
+        },
     }
 }
 
@@ -194,5 +203,49 @@ mod tests {
         assert_eq!(read.reviewer_model, "haiku");
         assert_eq!(read.check_command, None);
         assert_eq!(read.permission_mode, None);
+    }
+
+    /// The agents chosen and Codex's models read back as stored, the names
+    /// trimmed and a blank one as none: Codex's own default.
+    #[test]
+    fn reads_back_the_agents_and_codex_s_models() {
+        use super::super::types::AgentKind;
+
+        let stored = OrchestrationSettings {
+            orchestrator_agent: Some(AgentKind::Codex),
+            worker_agent: Some(AgentKind::Claude),
+            reviewer_agent: Some(AgentKind::Codex),
+            codex_models: CodexModels {
+                orchestrator: Some(" gpt-5.5 ".into()),
+                worker: Some("  ".into()),
+                reviewer: None,
+                extra: serde_json::from_value(serde_json::json!({"planner": "o9"})).unwrap(),
+            },
+            ..OrchestrationSettings::default()
+        };
+        let mut w = ws(vec![]);
+        w.orchestration = Some(stored.clone());
+        let read = orchestration_of(&w);
+        assert_eq!(
+            (
+                read.orchestrator_agent,
+                read.worker_agent,
+                read.reviewer_agent
+            ),
+            (
+                Some(AgentKind::Codex),
+                Some(AgentKind::Claude),
+                Some(AgentKind::Codex)
+            )
+        );
+        assert_eq!(
+            read.codex_models,
+            CodexModels {
+                orchestrator: Some("gpt-5.5".into()),
+                worker: None,
+                reviewer: None,
+                extra: stored.codex_models.extra.clone(),
+            }
+        );
     }
 }
