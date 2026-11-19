@@ -7,9 +7,10 @@
 //! [`WAIT_MAX`] for it to end; [`cancel`] stops it; [`list`] lists them all.
 //!
 //! - **The child** is picked by what its kind can do without a terminal (`Headless`), never by
-//!   kind: one that serves a protocol (`app_server`) runs as a thread of a server of its own —
-//!   Codex's `codex app-server` on stdio (delegate/codex.rs). A one-shot child (`claude -p`) is
-//!   task T11b's.
+//!   kind ([`runner_for`]): one that serves a protocol (`app_server`) runs as a thread of a server
+//!   of its own — Codex's `codex app-server` on stdio (delegate/codex.rs); one that runs one
+//!   prompt to its answer (`one_shot`) runs as such a run, streamed both ways — Claude Code's
+//!   `claude -p` in stream-json, Hangar the host of its permission prompts (delegate/claude.rs).
 //! - **Permissions**: the workspace's orchestration policy ([`Request::permission_mode`]), as the
 //!   child's kind enforces it; a policy the kind does not enforce steps down to the next stricter
 //!   one it does ([`policy_for`]). Hangar never imitates a policy by answering for the person.
@@ -25,6 +26,7 @@
 //!   (`bridge::enqueue_from`), from Hangar: "Delegation d-3 (codex) finished: …", which the
 //!   caller's side channel labels as Hangar's on its way in.
 
+mod claude;
 mod codex;
 mod worktree;
 
@@ -150,7 +152,7 @@ pub struct Delegation {
     pub isolation: Isolation,
     /// The folder the child works in: the caller's, or its worktree.
     pub cwd: String,
-    /// The child's session (a Codex thread id), once started.
+    /// The child's session (a Codex thread id, a Claude Code session id), once started.
     pub session: Option<String>,
     /// Its final message.
     pub result: Option<String>,
@@ -290,6 +292,35 @@ type Connect = Box<
         + Send,
 >;
 
+/// How a delegation's child runs, by what its kind can do without a terminal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Runner {
+    /// A thread of a protocol server of its own (delegate/codex.rs).
+    AppServer,
+    /// One prompt run to its answer, streamed both ways (delegate/claude.rs).
+    OneShot,
+}
+
+/// The runner of a child of `kind`: its protocol server when it serves one, else its one-shot
+/// run; none when it has neither.
+fn runner_for(kind: AgentKind) -> Option<Runner> {
+    let headless = kind.info().caps.headless;
+    if headless.app_server {
+        Some(Runner::AppServer)
+    } else if headless.one_shot {
+        Some(Runner::OneShot)
+    } else {
+        None
+    }
+}
+
+/// A child ready to start: the connection to its server, or its run's stdio — spawned, or a
+/// test's.
+enum Child {
+    AppServer(Connect),
+    OneShot(claude::Open),
+}
+
 // ---------------------------------------------------------------------------
 // The calls
 // ---------------------------------------------------------------------------
@@ -330,7 +361,7 @@ pub async fn status(id: &str, wait: Option<Duration>) -> Option<Polled> {
     }
 }
 
-/// Stops delegation `id`: its child's turn is interrupted and its server stopped, what it asked
+/// Stops delegation `id`: its child's turn is interrupted and its process stopped, what it asked
 /// the person is withdrawn, and its worktree removed unless it holds commits. Answers once it
 /// stopped (or after a few seconds, still stopping); one that had ended already is left as it
 /// is.
@@ -382,12 +413,8 @@ fn capped(wait: Option<Duration>) -> Duration {
     wait.unwrap_or(Duration::ZERO).min(WAIT_MAX)
 }
 
-/// [`start`], with the test's connection to a fake server in place of a spawned one.
-async fn begin(
-    host: &Host,
-    request: Request,
-    connect: Option<Connect>,
-) -> Result<Delegation, String> {
+/// [`start`], with a test's fake child in place of a spawned one.
+async fn begin(host: &Host, request: Request, child: Option<Child>) -> Result<Delegation, String> {
     let task = request.task.trim().to_string();
     if task.is_empty() {
         return Err("a delegation needs a task".into());
@@ -398,12 +425,12 @@ async fn begin(
     if !Path::new(&request.cwd).is_dir() {
         return Err(format!("{} is not a folder", request.cwd));
     }
-    let label = request.kind.info().label;
-    if !request.kind.info().caps.headless.app_server {
+    let Some(runner) = runner_for(request.kind) else {
         return Err(format!(
-            "Hangar cannot run a delegation on {label} without a terminal yet"
+            "Hangar cannot run a delegation on {} without a terminal",
+            request.kind.info().label
         ));
-    }
+    };
     let mode = policy_for(request.kind, request.permission_mode)?;
 
     let number = NEXT.fetch_add(1, Ordering::Relaxed);
@@ -415,12 +442,17 @@ async fn begin(
     let cwd = made
         .as_ref()
         .map_or_else(|| request.cwd.clone(), |made| made.path.clone());
-    let connect = match connect {
-        Some(connect) => connect,
+    let child = match child {
+        Some(child) => child,
         None => {
-            let spawn = codex::spawn_spec(&request, &cwd, mode, made.as_ref());
+            let spawn = match runner {
+                Runner::AppServer => codex::spawn_spec(&request, &cwd, mode, made.as_ref())
+                    .map(|spawn| Child::AppServer(codex::stdio(spawn))),
+                Runner::OneShot => claude::spawn_spec(&request, &cwd, mode, made.as_ref())
+                    .map(|spawn| Child::OneShot(claude::stdio(spawn))),
+            };
             match spawn {
-                Ok(spawn) => codex::stdio(spawn),
+                Ok(child) => child,
                 Err(error) => {
                     if let Some(made) = &made {
                         let _ = worktree::remove(made).await;
@@ -469,7 +501,12 @@ async fn begin(
         id: id.clone(),
     };
     tokio::spawn(async move {
-        let outcome = codex::run(live.clone(), connect, task, cwd, stopped).await;
+        let outcome = match child {
+            Child::AppServer(connect) => {
+                codex::run(live.clone(), connect, task, cwd, stopped).await
+            }
+            Child::OneShot(open) => claude::run(live.clone(), open, task, cwd, stopped).await,
+        };
         finish(&live, outcome, made).await;
     });
     Ok(delegation)
