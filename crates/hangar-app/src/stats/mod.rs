@@ -6,7 +6,8 @@
 //! iced's `canvas`.
 //!
 //! - [`model`]: the pure part: periods, projects, `summarize` (P20's
-//!   `remote_stats` uses it too).
+//!   `remote_stats` uses it too) and `summarize_by_agent`, which the page
+//!   uses: it knows the agent each session ran, for the "by agent" card.
 //! - [`cache`]: the usage statistics, fresh for a minute and shared with Hangar
 //!   Mobile; [`usage`] is the function P20 calls.
 //! - [`view`], [`ranked`], [`sessions`], [`tables`] and [`charts`]: the page.
@@ -22,7 +23,7 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Arc;
 use std::time::Instant;
 
-use hangar_core::stats::UsageStats;
+use hangar_core::stats::UsageStatsByAgent;
 use iced::keyboard::{self, Key as KeyboardKey, key::Named};
 use iced::{Element, Subscription, Task};
 
@@ -57,9 +58,10 @@ use model::{Measure, Period, Project, ProjectRoot, Summary, SummaryOptions, TOP_
 /// choices, the workspaces' folders, the day).
 #[derive(Debug)]
 pub struct Computed {
-    /// The statistics it was made from: the page shows these with it, never
-    /// a newer answer beside an older summary.
-    pub data: Arc<UsageStats>,
+    /// The statistics it was made from, with the agent of each session: the
+    /// page shows these with it, never a newer answer beside an older
+    /// summary.
+    pub data: Arc<UsageStatsByAgent>,
     pub summary: Arc<Summary>,
     /// The project of each session, by index.
     pub projects: Vec<Project>,
@@ -166,11 +168,12 @@ impl State {
             async move {
                 tokio::task::spawn_blocking(move || {
                     let projects: Vec<Project> = data
+                        .stats
                         .sessions
                         .iter()
                         .map(|session| model::project_for(&session.cwd, &roots))
                         .collect();
-                    let summary = model::summarize(
+                    let summary = model::summarize_by_agent(
                         &data,
                         &SummaryOptions {
                             period,
@@ -260,7 +263,7 @@ fn workspaces_fingerprint(workspaces: &[crate::state::types::Workspace]) -> u64 
 #[derive(Debug, Default)]
 pub struct Live {
     /// The last answer: the cache's on first sight, then the scan's.
-    pub data: Option<Arc<UsageStats>>,
+    pub data: Option<Arc<UsageStatsByAgent>>,
     /// Bumped whenever `data` is replaced, so the summary knows to redo.
     pub generation: u64,
     /// Reading the transcripts: the page shows it without hiding what it has.
@@ -272,7 +275,7 @@ pub struct Live {
 }
 
 impl Live {
-    fn set_data(&mut self, data: Arc<UsageStats>) {
+    fn set_data(&mut self, data: Arc<UsageStatsByAgent>) {
         self.data = Some(data);
         self.generation += 1;
     }
@@ -341,9 +344,9 @@ pub enum Msg {
     ProjectMenu(bool),
     Refresh,
     /// The cache's answer, which is shown while the scan runs.
-    Cached(Result<Arc<UsageStats>, String>),
+    Cached(Result<Arc<UsageStatsByAgent>, String>),
     /// The scan's.
-    Loaded(Result<Arc<UsageStats>, String>),
+    Loaded(Result<Arc<UsageStatsByAgent>, String>),
     /// The worktrees of each workspace, for the request numbered so.
     Worktrees(u64, HashMap<String, Vec<String>>),
     /// A summary worked out off the UI thread, for the request numbered so
@@ -396,7 +399,7 @@ pub fn update(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Me
             // An empty cache is no answer yet: the scan's is the first one.
             if let Ok(data) = answer
                 && live.data.is_none()
-                && !data.buckets.is_empty()
+                && !data.stats.buckets.is_empty()
             {
                 live.set_data(data);
             }
@@ -693,3 +696,5 @@ fn iced_keys<'a>(
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod view_tests;

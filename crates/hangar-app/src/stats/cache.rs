@@ -12,12 +12,16 @@
 //! P20 calls [`usage`]. The page uses the pieces: [`UsageCache::last`] to show
 //! what there is, [`UsageCache::cached_only`] for the instant first answer,
 //! [`UsageCache::scan`] for the real one.
+//!
+//! What is kept is hangar-core's answer with the agent of each session
+//! (`UsageStatsByAgent`), so the page's "by agent" card is exact; `usage`
+//! hands Hangar Mobile the plain statistics it has always read.
 
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use hangar_core::Host;
-use hangar_core::stats::UsageStats;
+use hangar_core::stats::{UsageStats, UsageStatsByAgent};
 use iced::futures::FutureExt;
 use iced::futures::future::{BoxFuture, Shared};
 
@@ -30,18 +34,20 @@ pub const FRESH_FOR_MS: i64 = 60_000;
 /// (`STATS_WAIT_MS`).
 pub const REMOTE_WAIT: Duration = Duration::from_secs(6);
 
-/// What a read answers: the statistics, shared, or what went wrong.
-pub type Reply = Result<Arc<UsageStats>, String>;
+/// What a read answers: the statistics and the agent of each session,
+/// shared, or what went wrong.
+pub type Reply = Result<Arc<UsageStatsByAgent>, String>;
 
 /// Reads the statistics from the transcripts (`false`) or from the cache
-/// alone (`true`): `hangar_core::stats::usage_stats` for the app, a script
-/// for the tests.
-pub type Reader = Arc<dyn Fn(bool) -> BoxFuture<'static, Result<UsageStats, String>> + Send + Sync>;
+/// alone (`true`): `hangar_core::stats::usage_stats_by_agent` for the app, a
+/// script for the tests.
+pub type Reader =
+    Arc<dyn Fn(bool) -> BoxFuture<'static, Result<UsageStatsByAgent, String>> + Send + Sync>;
 
 /// The last full scan and when it finished, ms.
 #[derive(Debug, Clone)]
 pub struct Last {
-    pub data: Arc<UsageStats>,
+    pub data: Arc<UsageStatsByAgent>,
     pub at: i64,
 }
 
@@ -159,7 +165,8 @@ pub fn shared(host: &Host) -> &'static Arc<UsageCache> {
             Arc::new(move |cached_only| {
                 let host = host.clone();
                 async move {
-                    hangar_core::stats::usage_stats(host, None, None, Some(cached_only)).await
+                    hangar_core::stats::usage_stats_by_agent(host, None, None, Some(cached_only))
+                        .await
                 }
                 .boxed()
             }),
@@ -170,10 +177,15 @@ pub fn shared(host: &Host) -> &'static Arc<UsageCache> {
 
 /// What `remote_stats` reads (P20): the statistics, scanned at most once a
 /// minute, shared with the statistics page. A scan that takes more than
-/// [`REMOTE_WAIT`] answers with the cache's version and carries on.
+/// [`REMOTE_WAIT`] answers with the cache's version and carries on. The
+/// phone sums the plain statistics up itself, so the agents of the sessions
+/// stay with the page.
 #[allow(dead_code)] // P20 (mobile) calls it; nothing in the window does.
-pub async fn usage(host: &Host) -> Reply {
-    shared(host).fresh(REMOTE_WAIT).await
+pub async fn usage(host: &Host) -> Result<Arc<UsageStats>, String> {
+    shared(host)
+        .fresh(REMOTE_WAIT)
+        .await
+        .map(|answer| Arc::new(answer.stats.clone()))
 }
 
 /// Worktrees change seldom: git is asked again after this
@@ -246,18 +258,21 @@ mod tests {
 
     use super::*;
 
-    fn data(cached_only: bool, generated_at: i64) -> UsageStats {
-        UsageStats {
-            generated_at,
-            scan: ScanInfo {
-                cached_only,
-                ..ScanInfo::default()
+    fn data(cached_only: bool, generated_at: i64) -> UsageStatsByAgent {
+        UsageStatsByAgent {
+            stats: UsageStats {
+                generated_at,
+                scan: ScanInfo {
+                    cached_only,
+                    ..ScanInfo::default()
+                },
+                sources: Vec::new(),
+                active_gap_cap_ms: 0,
+                sessions: Vec::new(),
+                models: Vec::new(),
+                buckets: Vec::new(),
             },
-            sources: Vec::new(),
-            active_gap_cap_ms: 0,
-            sessions: Vec::new(),
-            models: Vec::new(),
-            buckets: Vec::new(),
+            session_agents: Vec::new(),
         }
     }
 
@@ -282,11 +297,11 @@ mod tests {
             clock(&now),
         );
         let wait = Duration::from_secs(60);
-        assert_eq!(cache.fresh(wait).await.unwrap().generated_at, 0);
+        assert_eq!(cache.fresh(wait).await.unwrap().stats.generated_at, 0);
         now.store(59_000, Ordering::SeqCst);
-        assert_eq!(cache.fresh(wait).await.unwrap().generated_at, 0);
+        assert_eq!(cache.fresh(wait).await.unwrap().stats.generated_at, 0);
         now.store(61_000, Ordering::SeqCst);
-        assert_eq!(cache.fresh(wait).await.unwrap().generated_at, 61_000);
+        assert_eq!(cache.fresh(wait).await.unwrap().stats.generated_at, 61_000);
         assert_eq!(reads.load(Ordering::SeqCst), 2);
     }
 
@@ -361,14 +376,14 @@ mod tests {
             Arc::new(|| 0),
         );
         let answer = cache.fresh(Duration::from_millis(30)).await.unwrap();
-        assert!(answer.scan.cached_only);
+        assert!(answer.stats.scan.cached_only);
         finish.send(()).unwrap();
         // The scan went on without anyone waiting for it.
         while cache.scanning() {
             tokio::task::yield_now().await;
         }
         let later = cache.fresh(Duration::from_millis(30)).await.unwrap();
-        assert!(!later.scan.cached_only);
+        assert!(!later.stats.scan.cached_only);
         assert_eq!(scans.load(Ordering::SeqCst), 1);
     }
 
@@ -394,7 +409,7 @@ mod tests {
         );
         let wait = Duration::from_secs(5);
         assert_eq!(cache.fresh(wait).await.unwrap_err(), "no transcripts");
-        assert_eq!(cache.fresh(wait).await.unwrap().generated_at, 3);
+        assert_eq!(cache.fresh(wait).await.unwrap().stats.generated_at, 3);
     }
 
     #[tokio::test]
@@ -435,10 +450,10 @@ mod tests {
             Arc::new(|cached_only| async move { Ok(data(cached_only, 7)) }.boxed()),
             Arc::new(|| 0),
         );
-        assert!(cache.cached_only().await.unwrap().scan.cached_only);
+        assert!(cache.cached_only().await.unwrap().stats.scan.cached_only);
         assert!(cache.last().is_none());
         assert!(cache.fresh_last().is_none());
         cache.scan().await.unwrap();
-        assert_eq!(cache.last().unwrap().data.generated_at, 7);
+        assert_eq!(cache.last().unwrap().data.stats.generated_at, 7);
     }
 }

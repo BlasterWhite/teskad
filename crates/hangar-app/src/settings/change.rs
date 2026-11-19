@@ -14,7 +14,7 @@
 use hangar_i18n::Locale;
 
 use super::experiments::with_experiment;
-use crate::state::types::{CursorStyle, Settings, VoiceEngine, Workspace};
+use crate::state::types::{AgentKind, CursorStyle, Settings, VoiceEngine, Workspace};
 use crate::state::{Patch, StoreAction};
 
 /// Where the « shells only » choice is kept in the settings file: a key of
@@ -59,12 +59,25 @@ pub enum Target {
     ProjectsFolder,
     AutoResume,
     ClaudeBridge,
+    /// « Attach Hangar to Codex » (`codexAttach`).
+    CodexAttach,
     LaunchDelayMs,
     HibernateIdle,
     HibernateAfterMin,
     AgentPaneControl,
     /// Claude Code's launch command (`agentCommands.claude`).
     ClaudeCommand,
+    /// Codex's launch command (`agentCommands.codex`).
+    CodexCommand,
+    /// The agent the orchestrators of new workspaces run (`""`:
+    /// « Automatic »).
+    DefaultOrchestratorAgent,
+    /// The agent workers run where their workspace chose none (`""`: the
+    /// orchestrator's).
+    DefaultWorkerAgent,
+    /// The agent that reviews deliveries where their workspace chose none
+    /// (`""`: the orchestrator's).
+    DefaultReviewerAgent,
     /// Hangar without Claude Code: the setup no longer asks to install it
     /// ([`shells_only`]).
     ShellsOnly,
@@ -238,6 +251,7 @@ pub fn apply(settings: &mut Settings, target: &Target, value: &Value) -> bool {
         (T::ProjectsFolder, Text(path)) => settings.projects_folder = Some(path.clone()),
         (T::AutoResume, Bool(on)) => settings.auto_resume = *on,
         (T::ClaudeBridge, Bool(on)) => settings.claude_bridge = *on,
+        (T::CodexAttach, Bool(on)) => settings.codex_attach = *on,
         (T::LaunchDelayMs, Number(ms)) => settings.launch_delay_ms = count(*ms),
         (T::HibernateIdle, Bool(on)) => settings.hibernate_idle = *on,
         (T::HibernateAfterMin, Text(text)) => match minutes(text) {
@@ -252,6 +266,22 @@ pub fn apply(settings: &mut Settings, target: &Target, value: &Value) -> bool {
             // not trimmed: it is what the person typed.
             settings.agent_commands.claude = (!command.trim().is_empty()).then(|| command.clone());
         }
+        (T::CodexCommand, Text(command)) => {
+            // Like Claude Code's: cleared is the default, not a pinned "".
+            settings.agent_commands.codex = (!command.trim().is_empty()).then(|| command.clone());
+        }
+        (T::DefaultOrchestratorAgent, Text(id)) => match agent_choice(id) {
+            Some(agent) => settings.default_orchestrator_agent = agent,
+            None => return false,
+        },
+        (T::DefaultWorkerAgent, Text(id)) => match agent_choice(id) {
+            Some(agent) => settings.default_worker_agent = agent,
+            None => return false,
+        },
+        (T::DefaultReviewerAgent, Text(id)) => match agent_choice(id) {
+            Some(agent) => settings.default_reviewer_agent = agent,
+            None => return false,
+        },
         (T::UiScale, Number(percent)) => settings.ui_scale = *percent,
         (T::NavigatorOpen, Bool(on)) => settings.navigator_open = *on,
         (T::InspectorOpen, Bool(on)) => settings.inspector_open = *on,
@@ -299,6 +329,21 @@ pub fn apply(settings: &mut Settings, target: &Target, value: &Value) -> bool {
         _ => return false,
     }
     true
+}
+
+/// The id a default-agent select reports: the agent's own, `""` for the
+/// choice that names none (« Automatic », « Same as the orchestrator »).
+pub fn agent_choice_id(agent: Option<AgentKind>) -> &'static str {
+    agent.map_or("", AgentKind::id)
+}
+
+/// The agent a default-agent select's id stands for: `Some(None)` for the
+/// choice that names none, `None` for an id that is no agent's.
+fn agent_choice(id: &str) -> Option<Option<AgentKind>> {
+    if id.is_empty() {
+        return Some(None);
+    }
+    AgentKind::from_id(id).map(Some)
 }
 
 /// The id the cursor style segmented control reports.
@@ -515,6 +560,77 @@ mod tests {
             Change::text(Target::ClaudeCommand, ""),
         );
         assert_eq!(none.agent_commands, Default::default());
+    }
+
+    #[test]
+    fn a_codex_command_is_kept_as_typed_apart_from_claude_codes_and_dropped_when_blank() {
+        let typed = set(
+            Target::CodexCommand,
+            Value::Text("codex --profile work".into()),
+        );
+        assert_eq!(
+            typed.agent_commands.codex.as_deref(),
+            Some("codex --profile work")
+        );
+        assert_eq!(typed.agent_commands.claude, None);
+        let both = applied(typed, Change::text(Target::ClaudeCommand, "claude"));
+        assert_eq!(both.agent_commands.claude.as_deref(), Some("claude"));
+        assert_eq!(
+            both.agent_commands.codex.as_deref(),
+            Some("codex --profile work")
+        );
+        let cleared = applied(both, Change::text(Target::CodexCommand, "  "));
+        assert_eq!(cleared.agent_commands.codex, None);
+        assert_eq!(cleared.agent_commands.claude.as_deref(), Some("claude"));
+    }
+
+    #[test]
+    fn attaching_hangar_to_codex_is_on_until_switched_off() {
+        assert!(Settings::default().codex_attach);
+        let off = set(Target::CodexAttach, Value::Bool(false));
+        assert!(!off.codex_attach);
+        // The Claude Code bridge is its own switch.
+        assert!(off.claude_bridge);
+        assert!(applied(off, Change::toggle(Target::CodexAttach, true)).codex_attach);
+    }
+
+    #[test]
+    fn a_default_agent_is_an_agent_or_none() {
+        let chosen = applied(
+            applied(
+                set(
+                    Target::DefaultOrchestratorAgent,
+                    Value::Text("codex".into()),
+                ),
+                Change::text(Target::DefaultWorkerAgent, "claude"),
+            ),
+            Change::text(Target::DefaultReviewerAgent, "codex"),
+        );
+        assert_eq!(chosen.default_orchestrator_agent, Some(AgentKind::Codex));
+        assert_eq!(chosen.default_worker_agent, Some(AgentKind::Claude));
+        assert_eq!(chosen.default_reviewer_agent, Some(AgentKind::Codex));
+        // Empty is « Automatic » / « Same as the orchestrator »: none, not "".
+        let none = applied(
+            applied(chosen, Change::text(Target::DefaultOrchestratorAgent, "")),
+            Change::text(Target::DefaultWorkerAgent, ""),
+        );
+        assert_eq!(none.default_orchestrator_agent, None);
+        assert_eq!(none.default_worker_agent, None);
+        assert_eq!(none.default_reviewer_agent, Some(AgentKind::Codex));
+        assert_eq!(agent_choice_id(None), "");
+        assert_eq!(agent_choice_id(Some(AgentKind::Codex)), "codex");
+        // An id that is no agent's changes nothing.
+        let scope = Scope {
+            workspace: None,
+            theme_id: "graphite",
+        };
+        for target in [
+            Target::DefaultOrchestratorAgent,
+            Target::DefaultWorkerAgent,
+            Target::DefaultReviewerAgent,
+        ] {
+            assert!(action(scope, &Change::text(target, "aider")).is_none());
+        }
     }
 
     #[test]
