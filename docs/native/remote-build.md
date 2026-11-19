@@ -11,6 +11,7 @@ tool's.
 scripts/remote/rcargo test -p hangar-app            # any cargo command
 scripts/remote/rcargo clippy --workspace --all-targets --locked -- -D warnings
 scripts/remote/rbuild check                         # the CI's Linux rust checks, the workspace check
+scripts/remote/rbuild check --affected              # the same, for the crates a branch changes and their dependents
 scripts/remote/rbuild status                        # the machine, today's spend, the last builds
 ```
 
@@ -60,6 +61,101 @@ order, and stops at the first failure (`--keep-going` runs them all):
 `hangar-webview` with its engine, then `cargo test --workspace --locked
 --no-fail-fast`. The cross-check of `hangar-node` for Linux arm64 and the
 Windows job stay with GitHub CI.
+
+## `check --affected`: only what a change reaches
+
+`rbuild check` is the whole workspace, a few minutes even for a one-line
+change, and it stays what a release is judged by. `rbuild check --affected`
+runs the same checks for the crates a change reaches and no others:
+
+1. **The files that changed.** The PC (git is only there: the lanes have no
+   `.git`) lists the files that differ from the merge-base of `HEAD` and
+   `origin/main` as the worktree is now: committed, staged, unstaged and
+   untracked ones (not git's ignored ones), a deletion, and both sides of a
+   rename. Nothing is fetched. `main` is the base when there is no
+   `origin/main`; `--base REF` (or `HANGAR_RBUILD_BASE`) names another, say
+   `HEAD~1`, or `HEAD` to check what is not committed yet. A stale
+   `origin/main`, or a local `main` ahead of it that the checkout is built on,
+   only widens the list.
+2. **The crates.** On the box, `cargo metadata` gives the workspace's crates,
+   their folders and their dependencies. A file belongs to every crate whose
+   folder holds it (a crate nested in another, `hangar-kit-host`'s probe,
+   takes its parent along), and to the crates that read it from outside
+   their folder: an `include_str!`, `include_bytes!`, `include!` or
+   `#[path]` that leaves the crate (`hangar-theme` embeds
+   `hangar-core/kit-sdk/tokens.json`), or a test's `CARGO_MANIFEST_DIR`
+   joined with a `../…` path (an asset, the example kit), found by reading
+   the crates' sources. Then come the crates that depend on those, directly
+   or through others (normal, dev and build dependencies), and the crates
+   whose tests run cargo on another (`"-p", "hangar-kit-probe"`).
+3. **The steps** are the full check's, for those crates: `cargo fmt --all
+   --check`; `cargo clippy -p <each> --all-targets --locked -- -D warnings`;
+   the headless `hangar-core` clippy and tests only if `hangar-core` is
+   affected; the webview engine clippy only if `hangar-webview` is; `cargo
+   test -p <each> --locked --no-fail-fast`.
+
+It says what it chose and why before cargo starts, and again at the end:
+
+```
+[rbuild-box] affected: 1 file differs from origin/main (merge-base 38e5a712)
+[rbuild-box] 4 of 19 crates: hangar-app, hangar-kit-host, hangar-theme, hangar-ui
+[rbuild-box]   hangar-app: depends on hangar-kit-host, hangar-theme, hangar-ui
+[rbuild-box]   hangar-kit-host: depends on hangar-theme, hangar-ui
+[rbuild-box]   hangar-theme: 1 file changed (crates/hangar-theme/src/lib.rs)
+[rbuild-box]   hangar-ui: depends on hangar-theme
+[rbuild-box] steps for hangar-core, hangar-webview skipped: not affected
+```
+
+**It runs the full check instead** (the same command, the reason in the
+output) when it cannot be sure what a change reaches: a `Cargo.toml` (any
+crate's: features and dependencies are how crates are unified), `Cargo.lock`,
+a `rust-toolchain` file, rustfmt's or clippy's settings, anything in
+`.cargo/`, a `build.rs` (or any build script cargo lists) or the remote
+build's own `scripts/remote/` changed; a file no crate owns or reads and that
+is not plainly documentation (anything outside `docs/`, `site/`, `mobile/`,
+`.github/`, `scripts/` (not `scripts/remote/`), `nix/` and the root's
+Markdown, licence, lockfile and packaging files, so a new top-level folder
+gets the full check until `IGNORED_DIRS` in `vm/affected.py` is told); every crate is affected;
+nothing differs from the base; or git or cargo metadata cannot be read.
+**Documentation alone** (`docs/`, `site/`, `mobile/`…) is `cargo fmt --all
+--check` and nothing else: exit 0 in about 8 seconds on a running machine.
+
+What it can miss: cargo unifies features over the crates it builds, so `-p`
+builds a crate with the features its selected dependents ask for, not the
+whole workspace's (the first affected check in a lane compiles those
+variants once: 40 s more, and the next ones find them); a test that reads a repository
+file through a path built at run time, not by one of the forms above, is not
+seen to depend on it; and the arm64 and Windows checks stay with the CI, as
+for the full check. The full check is what a release, and anything that
+touches a manifest, goes through. Its seed refresh does not follow a partial
+run: only a lane that tested the whole workspace updates the mirror.
+
+Measured on 19 November 2026 on the shared machine (an AMD EPYC 7B13, 64
+threads; other workers' checks ran in its other lanes meanwhile, so a time
+varies by 10 to 20 s), in one lane: a one-line comment added to a source file
+of the crate, `check` and `check --affected` run in turn, each on a new
+version of the line (`--base HEAD`, the change not committed):
+
+| The change | `check --affected` | `check` (full) |
+|---|---|---|
+| `docs/` only | 8 s: fmt 4 s, exit 0 | about 100 s (nothing to recompile) |
+| `hangar-app`: 1 of 19 crates | 81, 85 and 87 s: clippy 19 s, tests 55 to 60 s | 158 and 158 s: clippy 21 s, headless core tests 18 s, tests 111 s |
+| `hangar-theme`: 4 crates, with `hangar-ui`, `hangar-kit-host` and `hangar-app` | 91, 95, 101 and 102 s (139 and 141 s for the first in a lane): clippy 20 to 24 s, tests 62 to 70 s | 158 and 179 s; 230 and 251 s when the check before was on `hangar-core`, whose headless steps then run again |
+| `hangar-core`: 7 crates, and the headless core and webview engine steps | 234 and 237 s: clippy 38 s, headless core 13 s and 41 s, webview engine 12 s, tests 125 s | 247 and 252 s |
+| nothing changed since the last run (`hangar-theme`) | 34 s: clippy 1 s, tests 26 s | 100 to 104 s ([above](#the-seed-a-new-machine-starts-warm)) |
+
+So it halves the wait for a change in `hangar-app` (the crate most changes
+are in, and that nothing depends on) and cuts it by about 40 % for one in
+`hangar-theme`. For `hangar-core`, which `hangar-app`, `hangar-engine`,
+`hangar-discord`, `hangar-node`, `hangar-term` and `hangar-webview` all lean
+on, it saves 10 to 18 s: the tests of the twelve other crates, the big ones
+being affected anyway; and the headless core and webview engine steps run
+again either way.
+
+The planning is `scripts/remote/vm/affected.py` and its tests are
+`python3 -B -m unittest discover -s scripts/remote/tests` (no machine, no
+cargo; `-B`, so that no `__pycache__` lands in `vm/`, which is shipped to
+the box).
 
 ## The machine
 
@@ -243,6 +339,7 @@ durations. `rbuild status` sums it up.
 | `HANGAR_RBUILD_DISK` | 150 | GB of disk |
 | `HANGAR_RBUILD_MIN_FREE`, `HANGAR_RBUILD_MIN_FREE_PCT` | 20, 15 | the box keeps the larger of this many GB and this % of its disk free before a run, pruning idle lanes ([the disk](#the-disk)) |
 | `HANGAR_RBUILD_INCREMENTAL` | unset (cargo's default: on) | `0` or `1`: `CARGO_INCREMENTAL` for the box's cargo; a change recompiles the workspace's crates once in each lane |
+| `HANGAR_RBUILD_BASE` | `origin/main`, else `main` | the ref `check --affected` takes its merge-base with (`--base REF` on the command line) |
 | `HANGAR_RBUILD_SKIP_MACHINES` | | Vast machine ids never to rent |
 | `HANGAR_RBUILD_ANYWHERE` | | `1` to rent outside Europe too |
 | `HANGAR_RBUILD_LABEL`, `HANGAR_RBUILD_STATE` | `hangar-rbuild`, `~/.local/state/hangar-rbuild` | a trial machine beside the shared one: another label (the GitHub reaper ignores it, so `rbuild stop` it) and another journal |
@@ -257,6 +354,16 @@ durations. `rbuild status` sums it up.
   `rbuild status` shows what holds the disk). Run it again: the next call
   rents another machine, or finds the lanes free. Nothing was compiled
   locally.
+- **`check --affected` ran everything**: the box says why in a `full check:`
+  line before cargo starts (a manifest, the lockfile or `scripts/remote/`
+  changed, a file nothing reads, every crate affected, no merge-base…), and
+  the journal keeps it (`plan` in the build's event). A local `main` far
+  ahead of `origin/main` widens the list of changed files: `--base` names a
+  nearer ref (`--base HEAD~1`, or `--base HEAD` for what is not committed).
+  While two worktrees have different versions of `scripts/remote/vm/`, each
+  call ships its own to the box, so a call can meet the older `remote.py`
+  that another one just put there: it runs the whole check, without the
+  `affected:` lines. Run it again.
 - **A host that misbehaves** (SSH refused, slow disk): `rbuild stop`, then
   `HANGAR_RBUILD_SKIP_MACHINES=<machine id>` (`rbuild status` shows it).
 - **Look around**: `scripts/remote/rbuild ssh` opens a shell on it (the lanes
