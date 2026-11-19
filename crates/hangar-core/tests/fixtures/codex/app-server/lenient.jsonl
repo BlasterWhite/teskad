@@ -1,0 +1,17 @@
+# from the protocol schema (Codex 0.170.0) — thread/name/updated and item/tool/call are methods of 0.170.0 outside Hangar's subset (scripts/codex-protocol/subset.json); the other shapes are the subset's, with what a newer Codex could add or change. Written by hand, not recorded.
+# What Hangar must survive: methods it does not read, fields it does not know, messages it cannot read. Nothing of it may stop the stream.
+# ">" is what Hangar sends, "<" what Codex sends, in order. Follows initialize.jsonl; Hangar is the only client (Unhandled::Refuse).
+< {"method":"thread/name/updated","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10","threadName":"Rebase the branch"}}
+< {"method":"thread/name/updated","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10","threadName":"Rebase the branch on main"}}
+< {"method":"turn/started","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10","turn":{"id":"turn-2","items":[],"status":"inProgress","queuedBy":"a field of a newer Codex"},"origin":"another one"}}
+< {"method":"turn/completed","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10"}}
+< {"method":"turn/completed","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10","turn":"not a turn"}}
+< not JSON at all
+< [1,2,3]
+< {"id":7,"method":"item/tool/call","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10","turnId":"turn-2","callId":"call-1","tool":"lookup","arguments":{}}}
+> {"id":7,"error":{"code":-32601,"message":"Hangar does not handle `item/tool/call`"}}
+< {"id":8,"method":"item/commandExecution/requestApproval","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10","turnId":"turn-2"}}
+> {"id":8,"error":{"code":-32602,"message":"Hangar could not read this `item/commandExecution/requestApproval` request"}}
+< {"id":9,"method":"item/fileChange/requestApproval","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10","turnId":"turn-2","itemId":"item-9","startedAtMs":1795050040000,"decisionHint":"a field of a newer Codex"}}
+> {"id":9,"result":{"decision":"cancel"}}
+< {"method":"warning","params":{"message":"The model was rerouted"}}

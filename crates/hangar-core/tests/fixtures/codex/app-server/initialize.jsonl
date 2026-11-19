@@ -1,0 +1,6 @@
+# from the protocol schema (Codex 0.170.0) — InitializeParams, InitializeResponse — and, where the schema says nothing, from the source at rust-v0.170.0: app-server/src/request_processors/initialize_processor.rs (the answer) and login/src/auth/default_client.rs (the userAgent's shape). Written by hand, not recorded.
+# The handshake of a connection Hangar opens first: its clientInfo.name becomes the server's originator, the start of the userAgent.
+# ">" is what Hangar sends, "<" what Codex sends, in order.
+> {"id":0,"method":"initialize","params":{"clientInfo":{"name":"Hangar","version":"test"},"capabilities":{"experimentalApi":false}}}
+< {"id":0,"result":{"userAgent":"Hangar/0.170.0 (Ubuntu 24.4.0; x86_64) xterm-256color (Hangar; test)","codexHome":"/home/ada/.codex","platformFamily":"unix","platformOs":"linux"}}
+> {"method":"initialized"}
