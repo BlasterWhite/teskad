@@ -36,6 +36,7 @@ pub mod cloud;
 pub mod codex_app;
 pub mod context;
 pub mod control;
+pub mod delegate;
 pub mod delivery;
 #[cfg(feature = "desktop")]
 pub mod discord;
