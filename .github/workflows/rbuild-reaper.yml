@@ -4,7 +4,7 @@ name: Build machine reaper
 # is a Vast.ai instance that must not outlive its last use by more than an
 # hour. The PC that rented it destroys it on time when it is on; this does it
 # when it is off. Every 15 minutes it destroys the instances labelled
-# "hangar-rbuild <last use> <state>" that have been idle for 70 minutes (ten
+# "hangar-rbuild <last use> <state>" (or "hangar-rbuild-<trial> …") that have been idle for 70 minutes (ten
 # more than the PC's own reaper, which first copies the machine's dependency
 # cache home), that are marked busy since more than 4 hours (a lost run), whose
 # creation never finished, or that are stopped or broken. It never touches an

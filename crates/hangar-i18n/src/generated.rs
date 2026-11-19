@@ -2908,6 +2908,16 @@ pub enum Key {
     OrchCheckHint,
     /// `orch.checkPlaceholder`
     OrchCheckPlaceholder,
+    /// `orch.codexModelDefault`
+    OrchCodexModelDefault,
+    /// `orch.codexModelHint`
+    OrchCodexModelHint,
+    /// `orch.codexOrchestratorModel`
+    OrchCodexOrchestratorModel,
+    /// `orch.codexReviewerModel`
+    OrchCodexReviewerModel,
+    /// `orch.codexWorkerModel`
+    OrchCodexWorkerModel,
     /// `orch.default`
     OrchDefault,
     /// `orch.intro`
@@ -3378,6 +3388,8 @@ pub enum Key {
     SessionsTitle,
     /// `sessions.untitled`
     SessionsUntitled,
+    /// `settings.agentBeta`
+    SettingsAgentBeta,
     /// `settings.agentCommands`
     SettingsAgentCommands,
     /// `settings.agentCommandsHint`
@@ -3388,6 +3400,28 @@ pub enum Key {
     SettingsAgentPaneControl,
     /// `settings.agentPaneControlHint`
     SettingsAgentPaneControlHint,
+    /// `settings.agentsAutomatic`
+    SettingsAgentsAutomatic,
+    /// `settings.agentsDefaults`
+    SettingsAgentsDefaults,
+    /// `settings.agentsDefaultsHint`
+    SettingsAgentsDefaultsHint,
+    /// `settings.agentsKeywords`
+    SettingsAgentsKeywords,
+    /// `settings.agentsOrchestrator`
+    SettingsAgentsOrchestrator,
+    /// `settings.agentsOrchestratorHint`
+    SettingsAgentsOrchestratorHint,
+    /// `settings.agentsReviewer`
+    SettingsAgentsReviewer,
+    /// `settings.agentsReviewerHint`
+    SettingsAgentsReviewerHint,
+    /// `settings.agentsSameAsOrchestrator`
+    SettingsAgentsSameAsOrchestrator,
+    /// `settings.agentsWorker`
+    SettingsAgentsWorker,
+    /// `settings.agentsWorkerHint`
+    SettingsAgentsWorkerHint,
     /// `settings.autoResume`
     SettingsAutoResume,
     /// `settings.autoResumeHint`
@@ -3426,6 +3460,10 @@ pub enum Key {
     SettingsClaudeBridgeHint,
     /// `settings.close`
     SettingsClose,
+    /// `settings.codexAttach`
+    SettingsCodexAttach,
+    /// `settings.codexAttachHint`
+    SettingsCodexAttachHint,
     /// `settings.cursor`
     SettingsCursor,
     /// `settings.cursorBar`
@@ -4603,7 +4641,7 @@ pub enum Key {
 }
 
 /// How many keys there are.
-pub const KEY_COUNT: usize = 2293;
+pub const KEY_COUNT: usize = 2312;
 
 impl Key {
     /// Every key, in the order of their ids.
@@ -6055,6 +6093,11 @@ impl Key {
         Key::OrchCheckCommand,
         Key::OrchCheckHint,
         Key::OrchCheckPlaceholder,
+        Key::OrchCodexModelDefault,
+        Key::OrchCodexModelHint,
+        Key::OrchCodexOrchestratorModel,
+        Key::OrchCodexReviewerModel,
+        Key::OrchCodexWorkerModel,
         Key::OrchDefault,
         Key::OrchIntro,
         Key::OrchModelInvalid,
@@ -6290,11 +6333,23 @@ impl Key {
         Key::SessionsNote,
         Key::SessionsTitle,
         Key::SessionsUntitled,
+        Key::SettingsAgentBeta,
         Key::SettingsAgentCommands,
         Key::SettingsAgentCommandsHint,
         Key::SettingsAgentControlSection,
         Key::SettingsAgentPaneControl,
         Key::SettingsAgentPaneControlHint,
+        Key::SettingsAgentsAutomatic,
+        Key::SettingsAgentsDefaults,
+        Key::SettingsAgentsDefaultsHint,
+        Key::SettingsAgentsKeywords,
+        Key::SettingsAgentsOrchestrator,
+        Key::SettingsAgentsOrchestratorHint,
+        Key::SettingsAgentsReviewer,
+        Key::SettingsAgentsReviewerHint,
+        Key::SettingsAgentsSameAsOrchestrator,
+        Key::SettingsAgentsWorker,
+        Key::SettingsAgentsWorkerHint,
         Key::SettingsAutoResume,
         Key::SettingsAutoResumeHint,
         Key::SettingsBlink,
@@ -6314,6 +6369,8 @@ impl Key {
         Key::SettingsClaudeBridge,
         Key::SettingsClaudeBridgeHint,
         Key::SettingsClose,
+        Key::SettingsCodexAttach,
+        Key::SettingsCodexAttachHint,
         Key::SettingsCursor,
         Key::SettingsCursorBar,
         Key::SettingsCursorBlock,
@@ -8353,6 +8410,11 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "orch.checkCommand", en: Text::plain("Check command"), fr: Text::plain("Commande de vérification") },
     Message { id: "orch.checkHint", en: Text::plain("Run by your shell in a clean copy of the delivery, before it lands: install what it needs in the same command"), fr: Text::plain("Lancée par ton shell dans une copie propre de la livraison, avant qu'elle arrive\u{202f}: installe ce qu'il lui faut dans la même commande") },
     Message { id: "orch.checkPlaceholder", en: Text::plain("none — pnpm test, cargo test…"), fr: Text::plain("aucune — pnpm test, cargo test…") },
+    Message { id: "orch.codexModelDefault", en: Text::plain("Codex's own default"), fr: Text::plain("Celui que Codex choisit") },
+    Message { id: "orch.codexModelHint", en: Text::plain("A Codex model id. Empty: the model Codex picks itself. Used when this role runs on Codex."), fr: Text::plain("Un identifiant de modèle Codex. Vide\u{202f}: le modèle que Codex choisit lui-même. Vaut quand ce rôle tourne sur Codex.") },
+    Message { id: "orch.codexOrchestratorModel", en: Text::plain("Orchestrator, Codex (beta)"), fr: Text::plain("Orchestrateur, Codex (bêta)") },
+    Message { id: "orch.codexReviewerModel", en: Text::plain("Reviewer, Codex (beta)"), fr: Text::plain("Relecteur, Codex (bêta)") },
+    Message { id: "orch.codexWorkerModel", en: Text::plain("Workers, Codex (beta)"), fr: Text::plain("Workers, Codex (bêta)") },
     Message { id: "orch.default", en: Text::plain("default: {value}"), fr: Text::plain("par défaut\u{202f}: {value}") },
     Message { id: "orch.intro", en: Text::plain("A Claude Code pane pinned as orchestrator plans the work on the board and hands each task to a worker of its own, in a worktree. It decides how many workers run at once and how many times a task is tried. What is set here, Hangar holds itself, whatever the prompt says."), fr: Text::plain("Un panneau Claude Code épinglé comme orchestrateur planifie le travail au tableau et confie chaque tâche à un worker à lui, dans un worktree. C'est lui qui décide combien de workers tournent en même temps et combien de fois une tâche est retentée. Ce qui est réglé ici, Hangar le tient lui-même, quoi que dise le prompt.") },
     Message { id: "orch.modelInvalid", en: Text::plain("No spaces or quotes in a model name"), fr: Text::plain("Pas d'espace ni de guillemet dans un nom de modèle") },
@@ -8588,11 +8650,23 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "sessions.note", en: Text::plain("The pane restarts to apply the chosen session."), fr: Text::plain("Le panneau redémarre pour appliquer la session choisie.") },
     Message { id: "sessions.title", en: Text::plain("{agent} sessions"), fr: Text::plain("Sessions de {agent}") },
     Message { id: "sessions.untitled", en: Text::plain("untitled"), fr: Text::plain("sans titre") },
+    Message { id: "settings.agentBeta", en: Text::plain("beta"), fr: Text::plain("bêta") },
     Message { id: "settings.agentCommands", en: Text::plain("Launch command"), fr: Text::plain("Commande de lancement") },
-    Message { id: "settings.agentCommandsHint", en: Text::plain("What a pane types to start Claude Code. It goes into an interactive shell, so an alias or a script of your own works too, and resume arguments are added after it. Leave empty for the default."), fr: Text::plain("Ce qu'un panneau tape pour démarrer Claude Code. C'est envoyé à un shell interactif\u{202f}: un alias ou un script à toi fonctionne aussi, et les arguments de reprise sont ajoutés à la suite. Laisse vide pour la valeur par défaut.") },
+    Message { id: "settings.agentCommandsHint", en: Text::plain("What a pane types to start an agent, Claude Code or Codex. It goes into an interactive shell, so an alias or a script of your own works too, and resume arguments are added after it. Leave a field empty for its default."), fr: Text::plain("Ce qu'un panneau tape pour démarrer un agent, Claude Code ou Codex. C'est envoyé à un shell interactif\u{202f}: un alias ou un script à toi fonctionne aussi, et les arguments de reprise sont ajoutés à la suite. Laisse un champ vide pour sa valeur par défaut.") },
     Message { id: "settings.agentControlSection", en: Text::plain("Agents and panes"), fr: Text::plain("Agents et panneaux") },
     Message { id: "settings.agentPaneControl", en: Text::plain("Let agents manage the panes"), fr: Text::plain("Laisser les agents gérer les panneaux") },
     Message { id: "settings.agentPaneControlHint", en: Text::plain("Through Hangar's MCP server, an agent can list, open, close, restart and type into the panes of your workspaces — to run other agents, for instance — and show you files in the preview: 3D models, images, videos, documents, web pages. Each of those calls still goes through the agent's own permission prompts."), fr: Text::plain("Via le serveur MCP de Hangar, un agent peut lister, ouvrir, fermer, relancer les panneaux de tes workspaces et y écrire — pour lancer d'autres agents, par exemple — et t'ouvrir des fichiers dans l'aperçu\u{202f}: modèles 3D, images, vidéos, documents, pages web. Chacun de ces appels passe quand même par les demandes d'autorisation de l'agent.") },
+    Message { id: "settings.agentsAutomatic", en: Text::plain("Automatic"), fr: Text::plain("Automatique") },
+    Message { id: "settings.agentsDefaults", en: Text::plain("Default agents"), fr: Text::plain("Agents par défaut") },
+    Message { id: "settings.agentsDefaultsHint", en: Text::plain("Which agent runs each role where a workspace chose none."), fr: Text::plain("L'agent qui tient chaque rôle là où un workspace n'a rien choisi.") },
+    Message { id: "settings.agentsKeywords", en: Text::plain("agent agents default défaut orchestrator orchestrateur worker workers reviewer relecteur revue review automatic automatique claude code codex openai beta bêta"), fr: Text::plain("agent agents default défaut orchestrator orchestrateur worker workers reviewer relecteur revue review automatic automatique claude code codex openai beta bêta") },
+    Message { id: "settings.agentsOrchestrator", en: Text::plain("Orchestrator"), fr: Text::plain("Orchestrateur") },
+    Message { id: "settings.agentsOrchestratorHint", en: Text::plain("Started by new workspaces. Automatic: Claude Code when both agents are installed, the one that is when only one is."), fr: Text::plain("Lancé par les nouveaux workspaces. Automatique\u{202f}: Claude Code quand les deux agents sont installés, celui qui l'est quand il n'y en a qu'un.") },
+    Message { id: "settings.agentsReviewer", en: Text::plain("Delivery reviewer"), fr: Text::plain("Relecteur des livraisons") },
+    Message { id: "settings.agentsReviewerHint", en: Text::plain("The agent that reads each delivery before it lands."), fr: Text::plain("L'agent qui lit chaque livraison avant qu'elle n'atterrisse.") },
+    Message { id: "settings.agentsSameAsOrchestrator", en: Text::plain("Same as the orchestrator"), fr: Text::plain("Comme l'orchestrateur") },
+    Message { id: "settings.agentsWorker", en: Text::plain("Workers"), fr: Text::plain("Workers") },
+    Message { id: "settings.agentsWorkerHint", en: Text::plain("The agent a worker runs, whatever its orchestrator runs."), fr: Text::plain("L'agent que lance un worker, quel que soit celui de son orchestrateur.") },
     Message { id: "settings.autoResume", en: Text::plain("Auto resume"), fr: Text::plain("Reprise automatique") },
     Message { id: "settings.autoResumeHint", en: Text::plain("Relaunches agents on their last session"), fr: Text::plain("Relance les agents sur leur dernière session") },
     Message { id: "settings.blink", en: Text::plain("Blink"), fr: Text::plain("Clignotement") },
@@ -8612,6 +8686,8 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "settings.claudeBridge", en: Text::plain("Claude Code bridge"), fr: Text::plain("Pont Claude Code") },
     Message { id: "settings.claudeBridgeHint", en: Text::plain("Loads Hangar's mod into Claude Code, for exact states, plan usage and prompts held until free; applies to panes started from now on"), fr: Text::plain("Charge le mod de Hangar dans Claude Code, pour des états exacts, la consommation du forfait et les prompts gardés jusqu'à ce qu'il soit libre\u{202f}; vaut pour les panneaux lancés ensuite") },
     Message { id: "settings.close", en: Text::plain("Close"), fr: Text::plain("Fermer") },
+    Message { id: "settings.codexAttach", en: Text::plain("Attach Hangar to Codex"), fr: Text::plain("Attacher Hangar à Codex") },
+    Message { id: "settings.codexAttachHint", en: Text::plain("Hangar follows each Codex pane through Codex's own server: exact states, approvals held until you answer, plan usage. Off, or if Codex cannot be attached, the pane runs Codex's plain terminal and Hangar reads its output and files instead. Applies to panes started from now on."), fr: Text::plain("Hangar suit chaque panneau Codex par le serveur de Codex lui-même\u{202f}: états exacts, approbations gardées jusqu'à ta réponse, consommation du forfait. Désactivé, ou si Codex ne peut pas être attaché, le panneau lance le terminal de Codex tel quel et Hangar le lit d'après sa sortie et ses fichiers. Vaut pour les panneaux lancés ensuite.") },
     Message { id: "settings.cursor", en: Text::plain("Shape"), fr: Text::plain("Forme") },
     Message { id: "settings.cursorBar", en: Text::plain("Bar"), fr: Text::plain("Barre") },
     Message { id: "settings.cursorBlock", en: Text::plain("Block"), fr: Text::plain("Bloc") },
