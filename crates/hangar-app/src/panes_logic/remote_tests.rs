@@ -1,6 +1,7 @@
 //! A Claude Code pane of a workspace on a node, against a fake node: its
 //! session hunt and its context gauge read the node's transcripts.
 
+use hangar_core::agent::AgentKind;
 use iced::futures::StreamExt as _;
 use iced_runtime::Action;
 use tokio::net::TcpListener;
@@ -49,6 +50,11 @@ fn remote_model(node: &str) -> Model {
 }
 
 fn model_on(node: Option<&str>) -> Model {
+    model_running(node, AgentId::Claude)
+}
+
+/// [`model_on`], its pane running `agent`.
+fn model_running(node: Option<&str>, agent: AgentId) -> Model {
     let mut m = Model::default();
     m.hydrate(AppState {
         workspaces: vec![Workspace {
@@ -59,7 +65,7 @@ fn model_on(node: Option<&str>) -> Model {
             panes: vec![Pane {
                 id: "p1".into(),
                 name: "Ava".into(),
-                agent: AgentId::Claude,
+                agent,
                 session_id: Some("s-old".into()),
                 ..Pane::default()
             }],
@@ -110,6 +116,31 @@ async fn a_remote_launch_starts_the_hunt_with_what_the_node_holds() {
     assert_eq!(
         fake.await.unwrap(),
         ["GET /node/sessions?cwd=%2Fhome%2Fhangar%2Fdemo HTTP/1.1"]
+    );
+    remote::publish(node, None);
+}
+
+/// A Codex pane of a remote workspace hunts its own agent's sessions on the
+/// node: Codex's rollouts, asked by kind.
+#[tokio::test]
+async fn a_remote_codex_launch_asks_the_node_for_codex_sessions() {
+    let (listener, client) = listen().await;
+    let node = "node-hunt-codex";
+    remote::publish(node, Some(client));
+    let fake = serve(
+        listener,
+        vec![r#"{"sessions":[{"id":"0199a5c4","label":"","modifiedMs":1}]}"#.into()],
+    );
+    let m = model_running(Some(node), AgentId::Codex);
+    let messages = outputs(watch_remote(&m, "p1", None)).await;
+    let [Message::PanesLogic(Msg::WatchSession { agent, known, .. })] = &messages[..] else {
+        panic!("one WatchSession, got {messages:?}");
+    };
+    assert_eq!(*agent, AgentId::Codex);
+    assert!(known.contains("0199a5c4"), "{known:?}");
+    assert_eq!(
+        fake.await.unwrap(),
+        ["GET /node/sessions?cwd=%2Fhome%2Fhangar%2Fdemo&kind=codex HTTP/1.1"]
     );
     remote::publish(node, None);
 }
@@ -188,7 +219,7 @@ async fn a_node_away_keeps_the_gauge_and_finds_no_session() {
     let node = "node-away";
     remote::publish(node, None);
     assert!(
-        remote_transcripts::hunt_listing(node.into(), "/w".into())
+        remote_transcripts::hunt_listing(node.into(), AgentKind::Claude, "/w".into())
             .await
             .is_none()
     );

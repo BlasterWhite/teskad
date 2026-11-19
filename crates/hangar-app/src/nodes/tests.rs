@@ -521,6 +521,53 @@ fn http_get_sends_the_token_and_reads_the_answer() {
     assert_eq!(info.hostname, "h");
 }
 
+/// A node says each agent it has: where, which version, signed in. One from
+/// before Codex said whether Claude Code is there, and nothing of Codex.
+#[test]
+fn a_node_s_agents_are_read_and_an_older_node_has_claude_alone() {
+    use super::model::NodeAgent;
+    use hangar_core::agent::AgentKind;
+
+    let info: NodeInfo = serde_json::from_value(serde_json::json!({
+        "version": "2.5.0",
+        "claude": false,
+        "codex": true,
+        "agents": {
+            "claude": { "installed": false, "path": null, "version": null, "signedIn": false },
+            "codex": {
+                "installed": true,
+                "path": "/home/me/.local/bin/codex",
+                "version": "0.170.0",
+                "signedIn": true,
+            },
+        },
+        "git": true,
+    }))
+    .unwrap();
+    assert_eq!(
+        info.agent(AgentKind::Codex),
+        NodeAgent {
+            installed: true,
+            path: Some("/home/me/.local/bin/codex".into()),
+            version: Some("0.170.0".into()),
+            signed_in: Some(true),
+        }
+    );
+    assert!(!info.agent(AgentKind::Claude).installed);
+    assert_eq!(info.agent(AgentKind::Claude).signed_in, Some(false));
+
+    let older: NodeInfo =
+        serde_json::from_str(r#"{"version":"2.4.0","claude":true,"git":true}"#).unwrap();
+    assert_eq!(
+        older.agent(AgentKind::Claude),
+        NodeAgent {
+            installed: true,
+            ..NodeAgent::default()
+        }
+    );
+    assert_eq!(older.agent(AgentKind::Codex), NodeAgent::default());
+}
+
 #[test]
 fn nodes_are_read_leniently_and_written_only_when_there_are_some() {
     let state = read_state(serde_json::json!({"settings": {"nodes": [
@@ -766,6 +813,7 @@ fn info() -> NodeInfo {
         home: "/home/me".into(),
         claude: true,
         git: true,
+        ..NodeInfo::default()
     }
 }
 

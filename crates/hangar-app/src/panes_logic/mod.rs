@@ -1133,14 +1133,14 @@ fn watch_remote(m: &Model, pane: &str, resumed: Option<&str>) -> Task<Message> {
         return Task::none();
     };
     let agent = found.agent;
-    if !is_resumable(agent) {
+    let Some(kind) = agent.kind().filter(|_| is_resumable(agent)) else {
         return Task::none();
-    }
+    };
     let cwd = folder_of(ws, found);
     let pane = pane.to_owned();
     let resumed = resumed.map(str::to_owned);
     Task::perform(
-        remote_transcripts::known_session_ids(node, cwd.clone()),
+        remote_transcripts::known_session_ids(node, kind, cwd.clone()),
         move |mut known| {
             known.extend(resumed.clone());
             Message::PanesLogic(Msg::WatchSession {
@@ -1292,7 +1292,7 @@ fn slow(st: &mut State, m: &mut Model, now: EpochMs) -> Task<Message> {
         tasks.push(Task::perform(
             async move {
                 match node {
-                    Some(node) => remote_transcripts::hunt_listing(node, cwd).await,
+                    Some(node) => remote_transcripts::hunt_listing(node, kind, cwd).await,
                     None => {
                         tokio::task::spawn_blocking(move || session_watch::hunt_listing(kind, cwd))
                             .await

@@ -553,12 +553,14 @@ impl Sources for LiveSources {
     }
 }
 
-/// A page of the transcript of a pane on node `node`, read there over its
-/// connection (`GET /node/chat`).
+/// A page of the Claude Code transcript of a pane on node `node` (what
+/// `Sources::chat` reads here), read there over its connection (`GET
+/// /node/chat`).
 pub async fn node_chat(node: String, read: ChatRead) -> Result<Option<serde_json::Value>, String> {
     let client = crate::nodes::remote::client_of(&node)?;
     crate::nodes::remote::chat(
         &client,
+        hangar_core::agent::AgentKind::Claude,
         &read.session_id,
         &read.cwd,
         read.before.as_deref(),

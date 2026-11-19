@@ -284,20 +284,14 @@ fn resumable_kind(agent: AgentId) -> Option<AgentKind> {
 }
 
 /// The conversations agent `kind` keeps for `cwd` on node `node`, with their
-/// labels; empty when it cannot say, as a local listing that fails is.
-///
-/// The node's `/node/sessions` names no agent yet: it answers for the kind a
-/// request that names none has always meant (`AgentKind::default`, Claude
-/// Code). Another kind's are not asked of it until it takes one
-/// (docs/native/agents.md T29), rather than offer it the wrong agent's.
+/// labels; empty when it cannot say, as a local listing that fails is. The
+/// node's `/node/sessions` reads the kind asked (Claude Code's when none is
+/// named, as a node before Codex answers).
 async fn listed_on(node: &str, kind: AgentKind, cwd: &str) -> Vec<AgentSession> {
-    if kind != AgentKind::default() {
-        return Vec::new();
-    }
     let Ok(client) = crate::nodes::remote::client_of(node) else {
         return Vec::new();
     };
-    crate::nodes::remote::sessions(&client, cwd, true)
+    crate::nodes::remote::sessions(&client, kind, cwd, true)
         .await
         .unwrap_or_default()
 }
@@ -588,11 +582,31 @@ mod tests {
         assert!(listed_on(node, AgentKind::Claude, "/w").await.is_empty());
     }
 
+    /// A Codex pane's sessions are asked of its node by their kind, which
+    /// the node reads (its `/node/sessions` takes `kind`), never as Claude
+    /// Code's.
     #[tokio::test]
-    async fn a_node_is_not_asked_for_another_kind_s_sessions_it_would_answer_for_claude_code() {
-        // Nothing listens: the node is not even reached.
+    async fn a_node_is_asked_for_a_codex_pane_s_sessions_by_their_kind() {
+        use crate::nodes::testing::{answer, listen, read_request};
+
+        let (listener, client) = listen().await;
         let node = "node-session-picker-codex";
-        assert!(listed_on(node, AgentKind::Codex, "/w").await.is_empty());
+        crate::nodes::remote::publish(node, Some(client));
+        let fake = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let line = read_request(&mut stream).await.line().to_owned();
+            let body = r#"{"sessions":[{"id":"019a9a3e","label":"cart total","modifiedMs":5}]}"#;
+            answer(&mut stream, 200, body).await;
+            line
+        });
+        let found = listed_on(node, AgentKind::Codex, "/w").await;
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].id, "019a9a3e");
+        assert_eq!(
+            fake.await.unwrap(),
+            "GET /node/sessions?cwd=%2Fw&labels=1&kind=codex HTTP/1.1"
+        );
+        crate::nodes::remote::publish(node, None);
     }
 
     #[test]
