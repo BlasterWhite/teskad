@@ -35,6 +35,7 @@ fn the_decimals_of_a_step() {
 fn every_text_field_of_the_schema_shows_what_its_row_holds() {
     let mut settings = Settings::default();
     settings.agent_commands.claude = Some("claude --yolo".into());
+    settings.agent_commands.codex = Some("codex --profile work".into());
     settings.voice_cleanup_model = "llama".into();
     settings.voice_cleanup_hint = "Hangar, Tauri".into();
     settings.discord_app_id = "1234".into();
@@ -60,14 +61,26 @@ fn every_text_field_of_the_schema_shows_what_its_row_holds() {
             seen += 1;
         }
     }
-    // Claude Code's launch command, the cleanup model and vocabulary, the
-    // application.
-    assert_eq!(seen, 4);
+    // Claude Code's and Codex's launch commands, the cleanup model and
+    // vocabulary, the application.
+    assert_eq!(seen, 5);
 }
 
 #[test]
 fn a_launch_command_not_set_reads_as_nothing_and_not_as_the_default() {
     let settings = Settings::default();
+    assert_eq!(text_of(&settings, &Target::ClaudeCommand), "");
+}
+
+#[test]
+fn each_launch_command_reads_its_own_field() {
+    let mut settings = Settings::default();
+    assert_eq!(text_of(&settings, &Target::CodexCommand), "");
+    settings.agent_commands.codex = Some("codex --profile work".into());
+    assert_eq!(
+        text_of(&settings, &Target::CodexCommand),
+        "codex --profile work"
+    );
     assert_eq!(text_of(&settings, &Target::ClaudeCommand), "");
 }
 

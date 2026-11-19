@@ -77,6 +77,16 @@ fn clicking_a_switch_flips_it() {
 }
 
 #[test]
+fn clicking_attach_hangar_to_codex_turns_it_off() {
+    let words = said(SettingsCategory::General, State::default(), |ui| {
+        ui.click("Attach Hangar to Codex (beta)")
+            .expect("the row is on the page");
+    });
+    // Attached by default (D5): the click is the way out.
+    assert_eq!(words, ["Settings(Change(Set(CodexAttach, Bool(false))))"]);
+}
+
+#[test]
 fn clicking_a_theme_card_picks_the_theme() {
     let words = said(SettingsCategory::Appearance, State::default(), |ui| {
         ui.click("Dracula").expect("the card is on the page");
