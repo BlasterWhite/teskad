@@ -10,9 +10,21 @@ Every release, with its installers, is on the
 
 ## [Unreleased]
 
+## [2.4.5] - 2026-11-19
+
+### Added
+
+- Pin a pane: a pinned pane keeps its edge and its size while workers and other panes open and close, and presets never close it. Pin and unpin it from the pane's menu or the command palette; a pin marks it in its header.
+- Window opacity, for every theme (Linux): Settings › Appearance › Window opacity lets the desktop show through the window, the panes and the terminals, while each theme keeps its own colours. Blur is the desktop's: KDE does it, GNOME with an extension such as Blur my Shell.
+
 ### Changed
 
-- HangarAI: the new name, with hangarai.dev in the title bar.
+- HangarAI: the new name, with hangarai.dev always shown in the title bar (a click opens the site). The program, its folders and its settings keep their names, so nothing moves on an upgrade.
+- Contact: contact@hangarai.dev, for questions about your data, conduct reports and security reports by email.
+
+### Fixed
+
+- Discord: a message written in a channel while its agent was busy could lose its place in the queue, and its ⚡ then did nothing.
 
 ## [2.4.4] - 2026-11-19
 
@@ -848,6 +860,7 @@ statistics, workspace sleep and per-workspace MCP servers.
 - Automatic updates from signed GitHub releases.
 - An interface in English and French (0.1.1).
 
+[2.4.5]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.5
 [2.4.4]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.4
 [2.4.3]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.3
 [2.4.2]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.2

@@ -16,7 +16,7 @@ reaches you once you accept the update.
 
 Report it privately through GitHub Security Advisories. Open the repository's
 [**Security** tab](https://github.com/hangar-ai/hangar/security), click **Report a
-vulnerability**, and fill in the form. Only the maintainer can see the report.
+vulnerability**, and fill in the form. Only the maintainer can see the report. If you cannot use GitHub, write to [contact@hangarai.dev](mailto:contact@hangarai.dev).
 
 Please include:
 

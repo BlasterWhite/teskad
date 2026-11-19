@@ -38,7 +38,7 @@ pub const KEY_FILE: &str = "vapid.json";
 /// Who sends, as RFC 8292 asks of every signature: the project's site, where
 /// a push service that has something to say about these messages finds who
 /// makes Hangar.
-const CONTACT: &str = "https://hangarai.dev";
+const CONTACT: &str = "mailto:contact@hangarai.dev";
 
 /// How long a signature holds (RFC 8292 allows a day at most), and how long
 /// a push service keeps a message for a phone that is off.
