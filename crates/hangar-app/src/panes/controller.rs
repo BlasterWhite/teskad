@@ -344,9 +344,10 @@ struct Spawn {
     /// `None` for a login pane, which starts with no kit.
     kits: Option<KitChoice>,
     agent: AgentId,
-    /// A Claude Code pane's: the account choices it is launched on (pane,
-    /// workspace, the workspace's folder, default), which P8 resolves off
-    /// the UI thread (`AccountLevels::launch`): it reads the accounts' files.
+    /// An agent pane's: the account choices of its kind it is launched on
+    /// (pane, workspace, the workspace's folder, default), which P8 resolves
+    /// off the UI thread (`AccountLevels::launch_of`): it reads the
+    /// accounts' files.
     account: Option<AccountLevels>,
     /// The workspace's MCP choice applies (a Claude Code that is not a login
     /// pane).
@@ -419,9 +420,13 @@ pub fn mount(
 
     let node = crate::nodes::away::node_of(ws, pane);
     let remote = node.is_some();
-    let login = pane.agent == AgentId::Claude && pane.login == Some(true);
-    let account =
-        (pane.agent == AgentId::Claude).then(|| AccountLevels::of(m.state(), ws, Some(pane)));
+    // An agent pane runs on an account of its kind; one opened to log an
+    // account in runs that kind's login on it (P8).
+    let login = pane.agent.kind().is_some() && pane.login == Some(true);
+    let account = pane
+        .agent
+        .kind()
+        .map(|kind| AccountLevels::of_kind(m.state(), ws, Some(pane), kind));
     // Resolved again when the shell starts (`start`), once the machine's
     // shells are known.
     let shell = shell_of(m, ws, pane).cloned();
@@ -776,7 +781,11 @@ impl Spawn {
         kits: PaneKits,
     ) -> Result<SpawnReport, String> {
         let mut notes = Vec::new();
-        let resolved = self.account.as_ref().map(AccountLevels::launch);
+        let resolved = self
+            .agent
+            .kind()
+            .zip(self.account.as_ref())
+            .map(|(kind, levels)| levels.launch_of(kind));
         let account = resolved.as_ref().map(|resolved| resolved.id.clone());
         let missing = resolved.and_then(|resolved| resolved.missing);
         let (mcp, scope) = match &self.mcp {
@@ -980,7 +989,7 @@ pub fn spawned(
     let fell_back =
         report.missing.is_some() || (report.account.is_some() && report.account != report.resolved);
     // Not a pane its node runs itself: the account it runs on is the node's.
-    if rt.agent == AgentId::Claude && !rt.hosted {
+    if rt.agent.kind().is_some() && !rt.hosted {
         if let Some(missing) = &report.missing {
             notes.push(
                 tr.t_with(Key::AccountsPickerMissing, &args!("id" => missing.as_str()))
@@ -1014,7 +1023,7 @@ pub fn spawned(
     // The person logs in in the browser; nothing to resume or follow. Never
     // on an account the pane fell back to: logging in to an account that is
     // gone would log main in again in its place.
-    if pane.login == Some(true) && rt.agent == AgentId::Claude {
+    if pane.login == Some(true) && rt.agent.kind().is_some() {
         if fell_back {
             return running;
         }
@@ -1219,7 +1228,7 @@ pub fn launch_ready(
     // with no id yet, or whose transcript is not found, starts afresh.
     if rt.moved {
         rt.moved = false;
-        let note = moved_note(m, rt.account.as_deref(), resume.is_some());
+        let note = moved_note(m, rt.agent, rt.account.as_deref(), resume.is_some());
         rt.notes.push(note);
     }
     let settings = m.settings();
@@ -1281,10 +1290,13 @@ pub fn launch_ready(
     }
 }
 
-/// The login pane's shell has settled.
+/// The login pane's shell has settled: its agent's login, on the account the
+/// pane started on (`claude auth login`, `codex login`).
 pub fn login_ready(rt: &mut PaneRt) {
     rt.launch = None;
-    type_line(rt, crate::accounts::LOGIN_COMMAND);
+    if let Some(kind) = rt.agent.kind() {
+        type_line(rt, crate::accounts::login_command(kind));
+    }
 }
 
 /// The workspace and the pane of `pane`, if both still exist.
@@ -1552,13 +1564,14 @@ pub fn turn_mark(m: &Model, pane: &str) -> TurnMark {
         .map(|event| event.at)
 }
 
-/// Whether `rt` is a pane an account moves: a running Claude Code of this
-/// computer, not opened to log in. Not a pane on a node, whether the node
-/// runs it itself, its workspace lives there or it is a worker sent there:
-/// its Claude Code starts on the node's login, never on an account of this
-/// computer.
+/// Whether `rt` is a pane an account moves: a running agent of this
+/// computer, of a kind that can restart on another account with its
+/// conversation (`accounts::movable_kind`), not opened to log in. Not a pane
+/// on a node, whether the node runs it itself, its workspace lives there or
+/// it is a worker sent there: its agent starts on the node's login, never on
+/// an account of this computer.
 pub fn movable(rt: &PaneRt, pane: &Pane) -> bool {
-    rt.agent == AgentId::Claude
+    rt.agent.kind().is_some_and(crate::accounts::movable_kind)
         && !rt.hosted
         && rt.link.node().is_none()
         && pane.login != Some(true)
@@ -1569,8 +1582,9 @@ pub fn movable(rt: &PaneRt, pane: &Pane) -> bool {
 /// folder > default), and whether it is logged in (`None` when it is not
 /// listed); nothing while the accounts are not known.
 pub fn wanted_account(m: &Model, ws: &Workspace, pane: &Pane) -> Option<(String, Option<bool>)> {
-    let accounts = m.live.accounts.accounts.as_deref()?;
-    let wanted = AccountLevels::of(m.state(), ws, Some(pane)).resolve(accounts);
+    let kind = pane.agent.kind()?;
+    let accounts = m.live.accounts.of(kind)?;
+    let wanted = AccountLevels::of_kind(m.state(), ws, Some(pane), kind).resolve(accounts);
     let logged_in = accounts
         .iter()
         .find(|account| account.id == wanted.id)
@@ -1717,8 +1731,11 @@ pub fn moved_in(rt: &mut PaneRt, account: Option<String>) {
 
 /// What a pane moved to another account says as it starts there: the
 /// account core started it on, and whether its conversation came along.
-fn moved_note(m: &Model, account: Option<&str>, resumed: bool) -> String {
-    let accounts = m.live.accounts.accounts.as_deref().unwrap_or(&[]);
+fn moved_note(m: &Model, agent: AgentId, account: Option<&str>, resumed: bool) -> String {
+    let accounts = agent
+        .kind()
+        .and_then(|kind| m.live.accounts.of(kind))
+        .unwrap_or(&[]);
     let id = account.unwrap_or(crate::accounts::MAIN_ACCOUNT);
     let name = crate::accounts::account_label(accounts, id);
     let key = if resumed {
@@ -2139,12 +2156,12 @@ mod tests {
         let tr = Translator::new(Locale::En);
         let said = |key| tr.t_with(key, &args!("name" => "Perso")).into_owned();
         assert_eq!(
-            moved_note(&h.model, rt.account.as_deref(), true),
+            moved_note(&h.model, rt.agent, rt.account.as_deref(), true),
             said(Key::AccountsMovedNote)
         );
         // Its transcript is not found, or it never had a conversation.
         assert_eq!(
-            moved_note(&h.model, rt.account.as_deref(), false),
+            moved_note(&h.model, rt.agent, rt.account.as_deref(), false),
             said(Key::AccountsMovedNoteFresh)
         );
         assert_ne!(

@@ -7,6 +7,8 @@
 //!
 //! When the value names an account that no longer exists, a plain note says
 //! the default applies; picking anything replaces the dead id.
+//!
+//! It lists one kind's accounts: the dialog has one per agent it offers.
 
 use std::fmt;
 
@@ -17,10 +19,10 @@ use iced::widget::{Space, column};
 
 use crate::ctx::Ctx;
 use crate::message::Message;
-use crate::workspace_dialog;
+use crate::state::types::AgentKind;
 
 use super::live;
-use super::model::{ClaudeAccount, DEFAULT_CHOICE, read_account_choice};
+use super::model::{Account, DEFAULT_CHOICE, read_account_choice};
 use super::switch::{account_name, default_label};
 
 /// One line of the select: the account it picks (`None`: no choice of its
@@ -37,25 +39,28 @@ impl fmt::Display for Choice {
     }
 }
 
-/// `value` is the workspace's own choice (`None`: none), `folder` the
-/// account it would read from its folder, if that names one.
+/// `value` is the workspace's own choice of `kind`'s account (`None`:
+/// none), `folder` the account it would read from its folder, if that names
+/// one; `pick` makes the message a choice sends.
 pub fn view<'a>(
     ctx: Ctx<'a>,
+    kind: AgentKind,
     value: Option<&'a str>,
     folder: Option<&'a str>,
+    pick: fn(Option<String>) -> Message,
 ) -> Element<'a, Message> {
-    let Some(accounts) = live(ctx).accounts.as_deref() else {
+    let Some(accounts) = live(ctx).of(kind) else {
         return Space::new().width(0).height(0).into();
     };
-    let options = choices(ctx, accounts, folder);
+    let options = choices(ctx, kind, accounts, folder);
     let chosen = read_account_choice(value);
     let missing = chosen
         .clone()
         .filter(|id| id != DEFAULT_CHOICE && !accounts.iter().any(|account| account.id == *id));
     let selected = selected(&options, chosen.as_deref().filter(|_| missing.is_none()));
 
-    let select = input::select(ctx.theme, options, selected, |choice: Choice| {
-        Message::WorkspaceDialog(workspace_dialog::Msg::Account(choice.id))
+    let select = input::select(ctx.theme, options, selected, move |choice: Choice| {
+        pick(choice.id)
     });
     let mut field = column![select].spacing(4);
     if let Some(id) = missing {
@@ -71,12 +76,17 @@ pub fn view<'a>(
 
 /// The lines of the select: « Folder default (Pro) » when `folder` names an
 /// account that exists, then « Default (Perso) », then each account.
-fn choices(ctx: Ctx<'_>, accounts: &[ClaudeAccount], folder: Option<&str>) -> Vec<Choice> {
+fn choices(
+    ctx: Ctx<'_>,
+    kind: AgentKind,
+    accounts: &[Account],
+    folder: Option<&str>,
+) -> Vec<Choice> {
     let unknown = ctx.t(Key::AccountsPickerUnknown);
     let folder = folder.filter(|id| accounts.iter().any(|account| account.id == *id));
     let default = default_label(
         accounts,
-        ctx.model.settings().claude_account.as_deref(),
+        ctx.model.settings().account(kind),
         &ctx.t(Key::AccountsPickerDefault),
         &unknown,
     );
@@ -143,7 +153,7 @@ mod tests {
     fn in_a_folder_that_names_an_account_its_line_comes_first_and_default_is_a_choice() {
         let h = Harness::new(Locale::En, "graphite");
         let accounts = live(h.ctx()).accounts.clone().unwrap_or_default();
-        let options = choices(h.ctx(), &accounts, Some("perso"));
+        let options = choices(h.ctx(), AgentKind::Claude, &accounts, Some("perso"));
         assert_eq!(
             shown(&options),
             [
@@ -169,7 +179,7 @@ mod tests {
         let accounts = live(h.ctx()).accounts.clone().unwrap_or_default();
         // No folder, or one naming an account that is gone.
         for folder in [None, Some("gone")] {
-            let options = choices(h.ctx(), &accounts, folder);
+            let options = choices(h.ctx(), AgentKind::Claude, &accounts, folder);
             assert_eq!(shown(&options)[0], ("Default (Principal)", None));
             assert_eq!(options.len(), accounts.len() + 1);
             let label = |chosen| selected(&options, chosen).map(|choice| choice.label);
