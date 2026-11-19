@@ -1,0 +1,161 @@
+{
+  "workspaces": [
+    {
+      "id": "5d1e7a20-8c3b-4f19-a2d6-9e0b4c7f1a01",
+      "name": "shop",
+      "cwd": "/home/dev/code/shop",
+      "extraRoots": [],
+      "panes": [
+        {
+          "id": "6e2f8b31-9d4c-4a2a-b3e7-0f1c5d8a2b12",
+          "name": "Ava",
+          "agent": "claude",
+          "sessionId": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+          "cwd": null,
+          "shellId": null,
+          "title": null,
+          "role": "orchestrator",
+          "model": "opus",
+          "claudeAccount": "pro"
+        },
+        {
+          "id": "7f309c42-ae5d-4b3b-84f8-1a2d6e9b3c23",
+          "name": "Bob",
+          "agent": "codex",
+          "sessionId": "0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b",
+          "cwd": "/home/dev/code/shop/.worktrees/cart",
+          "shellId": null,
+          "title": null,
+          "role": "worker",
+          "taskId": "t-7",
+          "model": "gpt-5.5",
+          "portBase": 4200,
+          "codexAccount": "team"
+        }
+      ],
+      "themeId": null,
+      "shellId": null,
+      "tree": {
+        "type": "split",
+        "dir": "row",
+        "ratio": 0.5,
+        "a": { "type": "pane", "id": "6e2f8b31-9d4c-4a2a-b3e7-0f1c5d8a2b12" },
+        "b": { "type": "pane", "id": "7f309c42-ae5d-4b3b-84f8-1a2d6e9b3c23" }
+      },
+      "savedCommands": [],
+      "folderId": "f-work",
+      "orchestration": {
+        "autoMerge": true,
+        "checkCommand": "pnpm test",
+        "orchestratorModel": "opus",
+        "workerModel": "sonnet",
+        "reviewerModel": "sonnet",
+        "branch": null,
+        "permissionMode": "acceptEdits",
+        "orchestratorAgent": "claude",
+        "workerAgent": "codex",
+        "reviewerAgent": "codex",
+        "codexModels": { "worker": "gpt-5.5", "reviewer": "gpt-5.5", "planner": "o9" }
+      },
+      "claudeAccount": "@default",
+      "codexAccount": "team"
+    },
+    {
+      "id": "8a41ad53-bf6e-4c4c-95a9-2b3e7fac4d34",
+      "name": "lab",
+      "cwd": "/home/dev/code/lab",
+      "extraRoots": [],
+      "panes": [
+        {
+          "id": "9b52be64-c07f-4d5d-a6ba-3c4f8abd5e45",
+          "name": "Cy",
+          "agent": "codex",
+          "sessionId": null,
+          "cwd": null,
+          "shellId": null,
+          "title": null,
+          "role": "orchestrator",
+          "codexAccount": null
+        }
+      ],
+      "themeId": null,
+      "shellId": null,
+      "tree": { "type": "pane", "id": "9b52be64-c07f-4d5d-a6ba-3c4f8abd5e45" },
+      "savedCommands": [],
+      "folderId": null,
+      "orchestration": {
+        "autoMerge": false,
+        "checkCommand": null,
+        "orchestratorModel": "opus",
+        "workerModel": "sonnet",
+        "reviewerModel": "sonnet",
+        "branch": null,
+        "permissionMode": null,
+        "orchestratorAgent": "gemini",
+        "workerAgent": null,
+        "codexModels": { "worker": 5 }
+      }
+    }
+  ],
+  "folders": [
+    { "id": "f-work", "name": "Work", "collapsed": false, "claudeAccount": "pro", "codexAccount": "perso" }
+  ],
+  "activeWorkspaceId": "5d1e7a20-8c3b-4f19-a2d6-9e0b4c7f1a01",
+  "settings": {
+    "themeId": "graphite",
+    "locale": "fr",
+    "shellId": null,
+    "fontFamily": "\"Cascadia Code\", \"JetBrains Mono\", Consolas, \"Courier New\", monospace",
+    "fontSize": 14,
+    "lineHeight": 1.3,
+    "letterSpacing": 0,
+    "cursorStyle": "bar",
+    "cursorBlink": true,
+    "scrollback": 10000,
+    "padding": 10,
+    "agentCommands": { "claude": "claude --verbose", "codex": "codex --search" },
+    "autoResume": true,
+    "hibernateIdle": true,
+    "hibernateAfterMin": 15,
+    "claudeBridge": true,
+    "codexAttach": false,
+    "launchDelayMs": 700,
+    "notifyOnIdle": true,
+    "notifyIdleMs": 3000,
+    "notifyOnlyWhenAway": true,
+    "keybindings": { "pane.split": ["Mod+D"], "view.stats": [], "some.futureCommand": ["Ctrl+Q"] },
+    "savedCommands": [
+      { "id": "c-status", "label": "", "command": "git status", "autoRun": true, "broadcast": true }
+    ],
+    "voiceEnabled": false,
+    "voiceEngine": "local",
+    "voiceModel": "whisper-small-q5_1",
+    "voiceCloudModel": "whisper-large-v3-turbo",
+    "voiceLanguage": "",
+    "voiceCleanup": false,
+    "voiceCleanupModel": "",
+    "voiceCleanupHint": "",
+    "voiceSubmit": false,
+    "discordPresence": false,
+    "discordShowWorkspace": true,
+    "discordShowAgents": true,
+    "discordAppId": "",
+    "boardDockOpen": true,
+    "boardDockWidth": 420,
+    "modelPanelWidth": 440,
+    "navigatorOpen": true,
+    "inspectorOpen": true,
+    "inspectorWidth": 296,
+    "inspectorCollapsed": ["files"],
+    "uiScale": 100,
+    "agentPaneControl": true,
+    "claudeAccount": "main",
+    "codexAccount": "team",
+    "defaultOrchestratorAgent": "codex",
+    "defaultWorkerAgent": "claude",
+    "defaultReviewerAgent": "aider",
+    "experiments": ["kits-gallery"],
+    "kitsEverywhere": [{ "id": "hangar.notes", "granted": [] }],
+    "projectsFolder": "/home/dev/code"
+  }
+}

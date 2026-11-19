@@ -14,7 +14,7 @@
 use crate::state::roles::{
     ORCHESTRATION_PERMISSION_MODES, orchestration_defaults, orchestration_of,
 };
-use crate::state::types::{OrchestrationSettings, Workspace};
+use crate::state::types::{AgentKind, CodexModels, OrchestrationSettings, Workspace};
 
 /// Offered under the model fields; Claude Code takes a full model id as well.
 pub const MODEL_SUGGESTIONS: [&str; 3] = ["opus", "sonnet", "haiku"];
@@ -39,6 +39,13 @@ pub struct Draft {
     pub permission_mode: String,
     /// Carried through as it is: the panel has no field for it yet.
     pub batch_size: Option<u32>,
+    /// Carried through as they are, like `batch_size`: the panel has no
+    /// fields for the agents and Codex's models yet (docs/native/agents.md
+    /// T23, T24b).
+    pub orchestrator_agent: Option<AgentKind>,
+    pub worker_agent: Option<AgentKind>,
+    pub reviewer_agent: Option<AgentKind>,
+    pub codex_models: CodexModels,
 }
 
 /// A field of the draft that can be refused.
@@ -87,6 +94,10 @@ pub fn draft_of(ws: &Workspace) -> Draft {
         branch: settings.branch.unwrap_or_default(),
         permission_mode: settings.permission_mode.unwrap_or_default(),
         batch_size: settings.batch_size,
+        orchestrator_agent: settings.orchestrator_agent,
+        worker_agent: settings.worker_agent,
+        reviewer_agent: settings.reviewer_agent,
+        codex_models: settings.codex_models,
     }
 }
 
@@ -185,6 +196,10 @@ pub fn normalize_draft(draft: &Draft) -> OrchestrationSettings {
             .contains(&draft.permission_mode.as_str())
             .then(|| draft.permission_mode.clone()),
         batch_size: draft.batch_size,
+        orchestrator_agent: draft.orchestrator_agent,
+        worker_agent: draft.worker_agent,
+        reviewer_agent: draft.reviewer_agent,
+        codex_models: draft.codex_models.clone(),
     }
 }
 
@@ -229,6 +244,36 @@ mod tests {
         assert_eq!(normalize_draft(&draft_of(&ws)).batch_size, Some(2));
     }
 
+    /// The agents and Codex's models, which the panel does not edit yet, are
+    /// saved as they were rather than put back to their defaults.
+    #[test]
+    fn the_agents_and_codex_s_models_survive_a_save() {
+        let saved = OrchestrationSettings {
+            orchestrator_agent: Some(AgentKind::Codex),
+            worker_agent: Some(AgentKind::Claude),
+            reviewer_agent: Some(AgentKind::Codex),
+            codex_models: CodexModels {
+                worker: Some("gpt-5.5".into()),
+                ..CodexModels::default()
+            },
+            ..orchestration_defaults()
+        };
+        let ws = Workspace {
+            orchestration: Some(saved.clone()),
+            ..Workspace::default()
+        };
+        let mut opened = draft_of(&ws);
+        opened.worker_model = "haiku".into();
+        let next = normalize_draft(&opened);
+        assert_eq!(
+            next,
+            OrchestrationSettings {
+                worker_model: "haiku".into(),
+                ..saved
+            }
+        );
+    }
+
     #[test]
     fn the_default_model_names_are_the_stores_defaults() {
         let base = orchestration_defaults();
@@ -252,6 +297,10 @@ mod tests {
                 branch: String::new(),
                 permission_mode: String::new(),
                 batch_size: None,
+                orchestrator_agent: None,
+                worker_agent: None,
+                reviewer_agent: None,
+                codex_models: CodexModels::default(),
             }
         );
     }

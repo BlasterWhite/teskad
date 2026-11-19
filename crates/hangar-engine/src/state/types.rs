@@ -9,6 +9,9 @@
 //! - `T | null` fields are `Option<T>` written as `null`, and `?` fields are
 //!   `Option<T>` left out when absent (`kits` and `claudeAccount` are absent
 //!   on purpose rather than empty);
+//! - a field this version added is written only when it holds something
+//!   other than its default, so a file that never used it is written back as
+//!   it was, and an older Hangar reads it as before;
 //! - every struct the TS spread (`{...ws, ...patch}`) keeps the keys it does
 //!   not know in `extra`, so a file written by a newer version, or edited by
 //!   hand, loses nothing when this one saves it;
@@ -19,6 +22,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
+pub use hangar_core::agent::AgentKind;
 use hangar_i18n::Locale;
 
 /// The theme new settings name: hangar-theme's default (`hangar_theme::DEFAULT_ID`,
@@ -54,26 +58,26 @@ pub struct AppState {
     pub extra: Extra,
 }
 
-/// What a pane runs (`AgentId`): Claude Code, or a plain shell.
+/// What a pane runs (`AgentId`): one of the agents Hangar runs, Claude Code
+/// or Codex (its [`kind`](AgentId::kind), whose capabilities the features
+/// read), or a plain shell.
 ///
-/// Claude Code is the only agent Hangar runs (owner's decision, 2026-11-03).
-/// The old app also offered `codex`, `gemini` and `opencode`; a pane saved
-/// with one of them opens as a shell (`RETIRED_AGENTS`, lenient.rs).
+/// The old app also offered `gemini` and `opencode`; a pane saved with one
+/// of them opens as a shell (`RETIRED_AGENTS`, lenient.rs). Codex, which 2.0
+/// dropped too, is run again (docs/native/agents.md): a pane 1.x saved as
+/// `codex` reads as Codex.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AgentId {
     #[default]
     Shell,
     Claude,
+    Codex,
 }
 
 /// The agents the old app could run and this one no longer does, by the id
 /// `state.json` holds, with the name a pane's note gives them.
-pub const RETIRED_AGENTS: [(&str, &str); 3] = [
-    ("codex", "Codex"),
-    ("gemini", "Gemini CLI"),
-    ("opencode", "OpenCode"),
-];
+pub const RETIRED_AGENTS: [(&str, &str); 2] = [("gemini", "Gemini CLI"), ("opencode", "OpenCode")];
 
 /// One row of `AGENTS`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,7 +88,12 @@ pub struct AgentInfo {
     pub resumable: bool,
 }
 
-/// `AGENTS`, in the order the pickers list them.
+/// `AGENTS`, in the order the pickers list them, and the agents a request
+/// may name (`control::run::agent_arg`).
+///
+/// Codex is not among them yet: the pickers and the pane tools offer it once
+/// they can start it and say why when they cannot (docs/native/agents.md
+/// T16b, T22, T24b). Until then a pane is Codex only as the file says so.
 pub const AGENTS: [AgentInfo; 2] = [
     AgentInfo {
         id: AgentId::Shell,
@@ -98,8 +107,20 @@ pub const AGENTS: [AgentInfo; 2] = [
     },
 ];
 
+/// Codex's row, out of `AGENTS` until the pickers offer it. Not resumable
+/// here yet: Hangar starts it again on its session once its launch does
+/// (docs/native/agents.md T14a, T15).
+const CODEX: AgentInfo = AgentInfo {
+    id: AgentId::Codex,
+    label: "Codex",
+    resumable: false,
+};
+
 impl AgentId {
     pub fn info(self) -> &'static AgentInfo {
+        if self == AgentId::Codex {
+            return &CODEX;
+        }
         AGENTS
             .iter()
             .find(|agent| agent.id == self)
@@ -111,7 +132,37 @@ impl AgentId {
         match self {
             AgentId::Shell => "shell",
             AgentId::Claude => "claude",
+            AgentId::Codex => "codex",
         }
+    }
+
+    /// The agent it runs, whose capabilities the features read
+    /// (`hangar_core::agent`); none for a shell.
+    pub fn kind(self) -> Option<AgentKind> {
+        match self {
+            AgentId::Shell => None,
+            AgentId::Claude => Some(AgentKind::Claude),
+            AgentId::Codex => Some(AgentKind::Codex),
+        }
+    }
+}
+
+impl From<AgentKind> for AgentId {
+    fn from(kind: AgentKind) -> AgentId {
+        match kind {
+            AgentKind::Claude => AgentId::Claude,
+            AgentKind::Codex => AgentId::Codex,
+        }
+    }
+}
+
+/// `claude` or `codex`, whichever `kind` is: what reads a field kept once
+/// per kind (an account, a launch command), so that nothing else matches on
+/// the kind.
+fn per_kind<T>(kind: AgentKind, claude: T, codex: T) -> T {
+    match kind {
+        AgentKind::Claude => claude,
+        AgentKind::Codex => codex,
     }
 }
 
@@ -160,6 +211,10 @@ pub struct Pane {
     /// The Claude account over its workspace's.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub claude_account: Option<String>,
+    /// The Codex account over its workspace's: one field per kind, as for
+    /// the workspace (docs/native/agents.md §6.1).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub codex_account: Option<String>,
     /// A Claude Code pane opened to log an account in.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub login: Option<bool>,
@@ -171,6 +226,17 @@ pub struct Pane {
     pub retired_agent: Option<&'static str>,
     #[serde(flatten)]
     pub extra: Extra,
+}
+
+impl Pane {
+    /// Its own choice of account for `kind`'s agent, as written.
+    pub fn account(&self, kind: AgentKind) -> Option<&str> {
+        per_kind(kind, &self.claude_account, &self.codex_account).as_deref()
+    }
+
+    pub fn account_mut(&mut self, kind: AgentKind) -> &mut Option<String> {
+        per_kind(kind, &mut self.claude_account, &mut self.codex_account)
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -250,6 +316,11 @@ pub struct Workspace {
     /// its folder's.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub claude_account: Option<String>,
+    /// The Codex account it chose, read as `claude_account` is: one field per
+    /// kind, so that its orchestrator and its workers may run on accounts of
+    /// either (docs/native/agents.md §6.1).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub codex_account: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub worktree_hooks: Option<WorktreeHooks>,
     /// Shown as the chat view rather than its grid, while the `chat-view`
@@ -440,6 +511,15 @@ impl Workspace {
         self.hosted == Some(true)
     }
 
+    /// Its own choice of account for `kind`'s agent, as written.
+    pub fn account(&self, kind: AgentKind) -> Option<&str> {
+        per_kind(kind, &self.claude_account, &self.codex_account).as_deref()
+    }
+
+    pub fn account_mut(&mut self, kind: AgentKind) -> &mut Option<String> {
+        per_kind(kind, &mut self.claude_account, &mut self.codex_account)
+    }
+
     /// A terminal or a view of this workspace's grid.
     pub fn has_leaf(&self, id: &str) -> bool {
         self.panes.iter().any(|pane| pane.id == id) || self.has_view(id)
@@ -499,6 +579,92 @@ pub struct OrchestrationSettings {
     /// unset, so a file that never set it stays as it was.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub batch_size: Option<u32>,
+    /// The agent its orchestrator runs (D20); none: the settings' default,
+    /// else the one installed, Claude Code when both are
+    /// (`Settings::agent_for`). An agent this version does not know is set
+    /// aside and written back (lenient.rs). Like every field below, written
+    /// only when set: a file that never set it stays as it was, and an older
+    /// Hangar reads it as before.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub orchestrator_agent: Option<AgentKind>,
+    /// The agent its workers run; none: the settings' default, else the
+    /// orchestrator's.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub worker_agent: Option<AgentKind>,
+    /// The agent that reviews its deliveries (D11); none: the settings'
+    /// default, else the orchestrator's.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reviewer_agent: Option<AgentKind>,
+    /// Codex's models, beside Claude Code's: `orchestratorModel`,
+    /// `workerModel` and `reviewerModel` stay Claude Code's, so that files of
+    /// 1.x and 2.x read as before (docs/native/agents.md §6.6).
+    #[serde(skip_serializing_if = "CodexModels::is_empty")]
+    pub codex_models: CodexModels,
+}
+
+/// What a workspace's orchestration gives an agent to do, each with an agent
+/// and a model of its own (`OrchestrationSettings::agent`, `::model`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum OrchestrationRole {
+    Orchestrator,
+    Worker,
+    Reviewer,
+}
+
+/// The models a workspace's Codex agents start with (`codexModels`), each
+/// absent meaning Codex's own default. Keys of a newer version are kept.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CodexModels {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub orchestrator: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub worker: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reviewer: Option<String>,
+    #[serde(flatten)]
+    pub extra: Extra,
+}
+
+impl CodexModels {
+    /// Nothing chosen: not written.
+    pub fn is_empty(&self) -> bool {
+        self.orchestrator.is_none()
+            && self.worker.is_none()
+            && self.reviewer.is_none()
+            && self.extra.is_empty()
+    }
+}
+
+impl OrchestrationSettings {
+    /// The agent this workspace chose for `role`, if it chose one.
+    pub fn agent(&self, role: OrchestrationRole) -> Option<AgentKind> {
+        match role {
+            OrchestrationRole::Orchestrator => self.orchestrator_agent,
+            OrchestrationRole::Worker => self.worker_agent,
+            OrchestrationRole::Reviewer => self.reviewer_agent,
+        }
+    }
+
+    /// The model `role` starts `kind`'s agent with, trimmed: Claude Code's
+    /// from `orchestratorModel`…, Codex's from `codexModels`. None: the
+    /// agent's own default. Read on what `roles::orchestration_of` gives,
+    /// which puts a blank Claude Code name back to Hangar's default.
+    pub fn model(&self, role: OrchestrationRole, kind: AgentKind) -> Option<&str> {
+        let claude = match role {
+            OrchestrationRole::Orchestrator => &self.orchestrator_model,
+            OrchestrationRole::Worker => &self.worker_model,
+            OrchestrationRole::Reviewer => &self.reviewer_model,
+        };
+        let codex = match role {
+            OrchestrationRole::Orchestrator => &self.codex_models.orchestrator,
+            OrchestrationRole::Worker => &self.codex_models.worker,
+            OrchestrationRole::Reviewer => &self.codex_models.reviewer,
+        };
+        per_kind(kind, Some(claude.as_str()), codex.as_deref())
+            .map(str::trim)
+            .filter(|model| !model.is_empty())
+    }
 }
 
 impl Default for OrchestrationSettings {
@@ -513,6 +679,10 @@ impl Default for OrchestrationSettings {
             permission_mode: None,
             shared_build_cache: false,
             batch_size: None,
+            orchestrator_agent: None,
+            worker_agent: None,
+            reviewer_agent: None,
+            codex_models: CodexModels::default(),
         }
     }
 }
@@ -562,8 +732,23 @@ pub struct WorkspaceFolder {
     /// was.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub claude_account: Option<String>,
+    /// The Codex account of the same workspaces, read the same way. Written
+    /// only when set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub codex_account: Option<String>,
     #[serde(flatten)]
     pub extra: Extra,
+}
+
+impl WorkspaceFolder {
+    /// The account it names for `kind`'s agent, as written.
+    pub fn account(&self, kind: AgentKind) -> Option<&str> {
+        per_kind(kind, &self.claude_account, &self.codex_account).as_deref()
+    }
+
+    pub fn account_mut(&mut self, kind: AgentKind) -> &mut Option<String> {
+        per_kind(kind, &mut self.claude_account, &mut self.codex_account)
+    }
 }
 
 /// `row` places its children side by side, `col` stacks them.
@@ -618,10 +803,10 @@ pub enum VoiceEngine {
     Groq,
 }
 
-/// What a pane types to start Claude Code where it differs from the plain
-/// `claude` (`agentCommands`, by agent id). The old app kept one for each of
-/// its agents; this version runs Claude Code only, so it reads Claude Code's
-/// and the others' are left out of the file at the next save. A value that is
+/// What a pane types to start its agent where it differs from the plain
+/// `claude` or `codex` (`agentCommands`, by agent id). The old app kept one
+/// for each of its agents; this version reads Claude Code's and Codex's, and
+/// the others' are left out of the file at the next save. A value that is
 /// not text reads as not customised.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -631,11 +816,27 @@ pub struct AgentCommands {
         deserialize_with = "text_or_none"
     )]
     pub claude: Option<String>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "text_or_none"
+    )]
+    pub codex: Option<String>,
+}
+
+impl AgentCommands {
+    /// The command set for `kind`'s agent, as written.
+    pub fn of(&self, kind: AgentKind) -> Option<&str> {
+        per_kind(kind, &self.claude, &self.codex).as_deref()
+    }
 }
 
 /// A window opacity that leaves the window as it always was.
 fn is_opaque(opacity: &f64) -> bool {
     *opacity == 1.0
+}
+
+fn is_on(on: &bool) -> bool {
+    *on
 }
 
 fn text_or_none<'de, D: serde::Deserializer<'de>>(
@@ -665,13 +866,20 @@ pub struct Settings {
     pub cursor_blink: bool,
     pub scrollback: u64,
     pub padding: f64,
-    /// What a pane types to start Claude Code, where it differs.
+    /// What a pane types to start its agent, where it differs.
     pub agent_commands: AgentCommands,
     pub auto_resume: bool,
     pub hibernate_idle: bool,
     /// Read as `max(1, value)` minutes.
     pub hibernate_after_min: f64,
     pub claude_bridge: bool,
+    /// « Attach Hangar to Codex »: Hangar starts each Codex pane's
+    /// app-server and follows it as a second client (D5, on by default, the
+    /// person's decision); off, the pane runs Codex's plain TUI, read from
+    /// its output and its files (D6). Written only when off, so a file from
+    /// before stays as it was.
+    #[serde(skip_serializing_if = "is_on")]
+    pub codex_attach: bool,
     pub launch_delay_ms: u64,
     pub notify_on_idle: bool,
     pub notify_idle_ms: u64,
@@ -722,6 +930,25 @@ pub struct Settings {
     pub agent_pane_control: bool,
     /// `"main"` by default; `null` is kept as the person wrote it.
     pub claude_account: Option<String>,
+    /// The default Codex account; none is main, the person's own Codex home
+    /// (docs/native/agents.md §6.1). Written only when set, so a file from
+    /// before stays as it was.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub codex_account: Option<String>,
+    /// The agent the orchestrators of new workspaces run; none is
+    /// « Automatic »: the one installed, Claude Code when both are (D20).
+    /// Like the two below, written only when set, and an agent this version
+    /// does not know is set aside and written back (lenient.rs).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_orchestrator_agent: Option<AgentKind>,
+    /// The agent workers run where their workspace chose none; none is
+    /// « Same as the orchestrator ».
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_worker_agent: Option<AgentKind>,
+    /// The agent that reviews deliveries where their workspace chose none;
+    /// none is « Same as the orchestrator » (D11).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_reviewer_agent: Option<AgentKind>,
     /// Ask « restart the running agents now? » when an account is chosen,
     /// as before. Off, each agent moves to the new account by itself, on its
     /// conversation, once Hangar knows it has nothing to lose: its turn over
@@ -892,6 +1119,7 @@ impl Default for Settings {
             hibernate_idle: true,
             hibernate_after_min: 10.0,
             claude_bridge: true,
+            codex_attach: true,
             launch_delay_ms: 700,
             notify_on_idle: true,
             notify_idle_ms: 3000,
@@ -925,6 +1153,10 @@ impl Default for Settings {
             account_switch_ask: false,
             agent_pane_control: true,
             claude_account: Some("main".into()),
+            codex_account: None,
+            default_orchestrator_agent: None,
+            default_worker_agent: None,
+            default_reviewer_agent: None,
             experiments: Vec::new(),
             kits_everywhere: None,
             projects_folder: None,
@@ -946,6 +1178,65 @@ impl Settings {
             100.0
         };
         (percent / 100.0) as f32
+    }
+
+    /// The default choice of account for `kind`'s agent, as written.
+    pub fn account(&self, kind: AgentKind) -> Option<&str> {
+        per_kind(kind, &self.claude_account, &self.codex_account).as_deref()
+    }
+
+    pub fn account_mut(&mut self, kind: AgentKind) -> &mut Option<String> {
+        per_kind(kind, &mut self.claude_account, &mut self.codex_account)
+    }
+
+    /// The agent the settings give `role` where a workspace chose none.
+    pub fn default_agent(&self, role: OrchestrationRole) -> Option<AgentKind> {
+        match role {
+            OrchestrationRole::Orchestrator => self.default_orchestrator_agent,
+            OrchestrationRole::Worker => self.default_worker_agent,
+            OrchestrationRole::Reviewer => self.default_reviewer_agent,
+        }
+    }
+
+    /// The agent `role` runs for a workspace whose orchestration is
+    /// `orchestration` (D11, D20): the workspace's choice, else the
+    /// settings' default. With neither, an orchestrator runs
+    /// [`automatic_agent`], and a worker or a reviewer runs what the
+    /// orchestrator runs — `orchestrator`, the agent of the pane pinned as
+    /// such when there is one, else the orchestrator's own rule — or, when
+    /// that one is not installed, one that is.
+    ///
+    /// A choice is kept even when its agent is not installed: what then is
+    /// the caller's to say. `installed` is `hangar_core::agent::detect::installed`
+    /// outside the tests.
+    pub fn agent_for(
+        &self,
+        role: OrchestrationRole,
+        orchestration: Option<&OrchestrationSettings>,
+        orchestrator: Option<AgentKind>,
+        installed: impl Fn(AgentKind) -> bool,
+    ) -> AgentKind {
+        let chosen = |role: OrchestrationRole| {
+            orchestration
+                .and_then(|orchestration| orchestration.agent(role))
+                .or(self.default_agent(role))
+        };
+        if let Some(chosen) = chosen(role) {
+            return chosen;
+        }
+        if role == OrchestrationRole::Orchestrator {
+            return automatic_agent(installed);
+        }
+        let same = orchestrator
+            .or_else(|| chosen(OrchestrationRole::Orchestrator))
+            .unwrap_or_else(|| automatic_agent(&installed));
+        if installed(same) {
+            return same;
+        }
+        AgentKind::ALL
+            .into_iter()
+            .find(|kind| installed(*kind))
+            .unwrap_or(same)
     }
 
     /// The style chosen for account `id`. A tone this version does not know,
@@ -999,5 +1290,168 @@ impl Settings {
     }
 }
 
+/// The agent of a part nobody chose (D20): Claude Code when it is
+/// installed, as it has always been, Codex when it alone is. With neither,
+/// Claude Code, which the setup offers first.
+pub fn automatic_agent(installed: impl Fn(AgentKind) -> bool) -> AgentKind {
+    if !installed(AgentKind::Claude) && installed(AgentKind::Codex) {
+        AgentKind::Codex
+    } else {
+        AgentKind::Claude
+    }
+}
+
 /// A shell discovered on this machine.
 pub type ShellInfo = hangar_core::shells::ShellInfo;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use AgentKind::{Claude, Codex};
+    use OrchestrationRole::{Orchestrator, Reviewer, Worker};
+
+    /// Which agents a machine has, for `installed`.
+    fn has(kinds: &[AgentKind]) -> impl Fn(AgentKind) -> bool + '_ {
+        move |kind| kinds.contains(&kind)
+    }
+
+    #[test]
+    fn a_pane_s_agent_has_a_kind_and_a_shell_has_none() {
+        assert_eq!(AgentId::Shell.kind(), None);
+        assert_eq!(AgentId::Claude.kind(), Some(Claude));
+        assert_eq!(AgentId::Codex.kind(), Some(Codex));
+        for kind in AgentKind::ALL {
+            let id = AgentId::from(kind);
+            assert_eq!(id.kind(), Some(kind));
+            assert_eq!(id.as_str(), kind.id(), "one id for both");
+            let read: AgentId = serde_json::from_value(Value::from(kind.id())).unwrap();
+            assert_eq!(read, id);
+        }
+        assert_eq!(AgentId::Codex.info().label, "Codex");
+        assert_eq!(AgentId::Codex.info().id, AgentId::Codex);
+        assert!(
+            AGENTS.iter().all(|agent| agent.id != AgentId::Codex),
+            "not offered by the pickers yet"
+        );
+        assert!(RETIRED_AGENTS.iter().all(|(id, _)| *id != "codex"));
+    }
+
+    /// D20: nobody chose, so Claude Code when it is there, Codex when it
+    /// alone is.
+    #[test]
+    fn the_automatic_agent_is_claude_code_unless_codex_alone_is_installed() {
+        assert_eq!(automatic_agent(has(&[Claude, Codex])), Claude);
+        assert_eq!(automatic_agent(has(&[Claude])), Claude);
+        assert_eq!(automatic_agent(has(&[Codex])), Codex);
+        assert_eq!(automatic_agent(has(&[])), Claude);
+    }
+
+    /// The workspace's choice, else the settings' default, else the rule.
+    #[test]
+    fn an_orchestrator_runs_the_workspace_s_choice_then_the_default_then_the_rule() {
+        let mut settings = Settings::default();
+        let both = has(&[Claude, Codex]);
+        assert_eq!(settings.agent_for(Orchestrator, None, None, &both), Claude);
+        assert_eq!(
+            settings.agent_for(Orchestrator, None, None, has(&[Codex])),
+            Codex
+        );
+        settings.default_orchestrator_agent = Some(Codex);
+        assert_eq!(settings.agent_for(Orchestrator, None, None, &both), Codex);
+        let chose_claude = OrchestrationSettings {
+            orchestrator_agent: Some(Claude),
+            ..OrchestrationSettings::default()
+        };
+        assert_eq!(
+            settings.agent_for(Orchestrator, Some(&chose_claude), None, &both),
+            Claude
+        );
+        // A choice stands, installed or not: the caller says why it cannot.
+        assert_eq!(
+            settings.agent_for(Orchestrator, Some(&chose_claude), None, has(&[Codex])),
+            Claude
+        );
+    }
+
+    /// D11 and « Same as the orchestrator »: a worker and a reviewer follow
+    /// the orchestrator, the one running when there is one, unless chosen.
+    #[test]
+    fn workers_and_reviewers_follow_the_orchestrator_unless_chosen() {
+        let mut settings = Settings::default();
+        let both = has(&[Claude, Codex]);
+        let codex_led = OrchestrationSettings {
+            orchestrator_agent: Some(Codex),
+            ..OrchestrationSettings::default()
+        };
+        for role in [Worker, Reviewer] {
+            assert_eq!(settings.agent_for(role, None, None, &both), Claude);
+            assert_eq!(
+                settings.agent_for(role, Some(&codex_led), None, &both),
+                Codex
+            );
+            // The pane pinned as orchestrator is what it follows.
+            assert_eq!(
+                settings.agent_for(role, Some(&codex_led), Some(Claude), &both),
+                Claude
+            );
+            // One that is not installed falls back to one that is.
+            assert_eq!(
+                settings.agent_for(role, None, Some(Claude), has(&[Codex])),
+                Codex
+            );
+            assert_eq!(settings.agent_for(role, None, Some(Codex), has(&[])), Codex);
+        }
+        settings.default_reviewer_agent = Some(Claude);
+        assert_eq!(
+            settings.agent_for(Reviewer, Some(&codex_led), None, &both),
+            Claude
+        );
+        assert_eq!(
+            settings.agent_for(Worker, Some(&codex_led), None, &both),
+            Codex
+        );
+        let chose = OrchestrationSettings {
+            worker_agent: Some(Claude),
+            reviewer_agent: Some(Codex),
+            ..codex_led
+        };
+        assert_eq!(
+            settings.agent_for(Worker, Some(&chose), None, &both),
+            Claude
+        );
+        assert_eq!(
+            settings.agent_for(Reviewer, Some(&chose), None, &both),
+            Codex
+        );
+    }
+
+    #[test]
+    fn each_kind_reads_its_own_account_command_and_model() {
+        let pane = Pane {
+            claude_account: Some("pro".into()),
+            codex_account: Some("team".into()),
+            ..Pane::default()
+        };
+        assert_eq!(pane.account(Claude), Some("pro"));
+        assert_eq!(pane.account(Codex), Some("team"));
+        let mut folder = WorkspaceFolder::default();
+        *folder.account_mut(Codex) = Some("perso".into());
+        assert_eq!(folder.codex_account.as_deref(), Some("perso"));
+        assert_eq!(folder.account(Claude), None);
+        let settings = Settings::default();
+        assert_eq!(settings.account(Claude), Some("main"));
+        assert_eq!(settings.account(Codex), None, "main, unwritten");
+
+        let mut orchestration = OrchestrationSettings::default();
+        assert_eq!(orchestration.model(Worker, Claude), Some("sonnet"));
+        assert_eq!(orchestration.model(Worker, Codex), None);
+        orchestration.codex_models.reviewer = Some(" gpt-5.5 ".into());
+        orchestration.codex_models.worker = Some("   ".into());
+        assert_eq!(orchestration.model(Reviewer, Codex), Some("gpt-5.5"));
+        assert_eq!(
+            orchestration.model(Worker, Codex),
+            None,
+            "blank: the default"
+        );
+    }
+}
