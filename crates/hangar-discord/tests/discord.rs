@@ -74,15 +74,20 @@ impl Terminals for Shells {
 mod fake;
 use fake::Discord;
 
-/// Waits up to twenty seconds for `found` (a loaded machine is slow).
+/// Waits up to a minute for `found` (a loaded machine is slow, a Windows
+/// runner most of all). Timed by the clock, not by a count of sleeps: a
+/// 10 ms sleep lasts about 15 ms on Windows.
 async fn eventually<T>(what: &str, mut found: impl FnMut() -> Option<T>) -> T {
-    for _ in 0..2_000 {
+    let deadline = std::time::Instant::now() + Duration::from_secs(60);
+    loop {
         if let Some(found) = found() {
             return found;
         }
+        if std::time::Instant::now() >= deadline {
+            panic!("never happened: {what}");
+        }
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
-    panic!("never happened: {what}");
 }
 
 fn pane(id: &str, name: &str, role: Option<PaneRole>) -> Pane {

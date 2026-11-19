@@ -318,7 +318,7 @@ fn start(runtime: &tokio::runtime::Handle, ctx: Ctx, connector: Connector) -> Jo
 }
 
 /// Ends once `stop` says so, or its sender is gone.
-async fn stopped(stop: &mut watch::Receiver<bool>) {
+pub(crate) async fn stopped(stop: &mut watch::Receiver<bool>) {
     while !*stop.borrow_and_update() {
         if stop.changed().await.is_err() {
             return;
@@ -1210,13 +1210,7 @@ impl<'a> Follower<'a> {
                 }));
             }
         }
-        let mut detail = Map::new();
-        detail.insert("tool".into(), json!(asked.tool));
-        detail.insert("input".into(), asked.input.clone());
-        detail.insert("askId".into(), json!(ask));
-        if let Some(item) = &asked.tool_use_id {
-            detail.insert("toolUseId".into(), json!(item));
-        }
+        let detail = ask_detail(&asked, &ask);
         self.held.insert(
             key,
             Held {
@@ -1377,7 +1371,7 @@ impl<'a> Follower<'a> {
 }
 
 /// Codex's request ids as one text, whatever their shape.
-fn key_of(id: &RequestId) -> String {
+pub(crate) fn key_of(id: &RequestId) -> String {
     serde_json::to_string(id).unwrap_or_default()
 }
 
@@ -1439,7 +1433,8 @@ fn patch_summary(changes: &[FileUpdateChange]) -> Value {
     )
 }
 
-fn absolute(cwd: &str, path: &str) -> String {
+/// `path` as Codex gave it, against the folder it works in.
+pub(crate) fn absolute(cwd: &str, path: &str) -> String {
     if Path::new(path).is_absolute() || cwd.is_empty() {
         path.to_string()
     } else {
@@ -1605,13 +1600,17 @@ fn limit_of(window: &RateLimitWindow, fallback: &str) -> Value {
 
 // ---------------------------------------------------------------------------
 // Codex's requests, held for the person
+//
+// Shared with the headless children of `delegate` (delegate/codex.rs), whose
+// asks are held the same way under the child's id instead of a pane's
+// (docs/native/agents.md §4.3, §5.2).
 // ---------------------------------------------------------------------------
 
 /// How a request is answered once the person chose.
 // Not boxed: one per request, moved once into the task that waits for its
 // answer; the variants differ by what Codex sends with each.
 #[allow(clippy::large_enum_variant)]
-enum Answerer {
+pub(crate) enum Answerer {
     Command {
         pending: Pending<server_requests::ItemCommandExecutionRequestApproval>,
         /// A managed checkpoint: only accept, decline and cancel are valid.
@@ -1636,17 +1635,33 @@ enum Answerer {
 }
 
 /// A request, as an ask reports it.
-struct Asked {
-    thread: String,
-    turn: Option<String>,
-    tool: String,
-    input: Value,
-    tool_use_id: Option<String>,
-    question: bool,
-    answerer: Answerer,
+pub(crate) struct Asked {
+    pub(crate) thread: String,
+    pub(crate) turn: Option<String>,
+    pub(crate) tool: String,
+    pub(crate) input: Value,
+    pub(crate) tool_use_id: Option<String>,
+    pub(crate) question: bool,
+    pub(crate) answerer: Answerer,
 }
 
-fn describe(incoming: Incoming, patches: &HashMap<String, Vec<FileUpdateChange>>) -> Option<Asked> {
+/// What a `permission` report says of ask `ask` besides that it waits: what
+/// asks and about what, as `bridge::note_report` holds it.
+pub(crate) fn ask_detail(asked: &Asked, ask: &str) -> Map<String, Value> {
+    let mut detail = Map::new();
+    detail.insert("tool".into(), json!(asked.tool));
+    detail.insert("input".into(), asked.input.clone());
+    detail.insert("askId".into(), json!(ask));
+    if let Some(item) = &asked.tool_use_id {
+        detail.insert("toolUseId".into(), json!(item));
+    }
+    detail
+}
+
+pub(crate) fn describe(
+    incoming: Incoming,
+    patches: &HashMap<String, Vec<FileUpdateChange>>,
+) -> Option<Asked> {
     Some(match incoming {
         Incoming::CommandExecutionApproval(pending) => {
             let params = pending.params();
@@ -1827,21 +1842,31 @@ fn describe(incoming: Incoming, patches: &HashMap<String, Vec<FileUpdateChange>>
 /// with the ask when it ends otherwise (the TUI answered, the turn ended, the
 /// pane went), leaving the request unanswered by Hangar.
 async fn wait_for_answer(ctx: Ctx, client: Arc<Client>, ask: String, asked: Asked) {
+    if let Err(why) = answer_when_decided(&ctx.pane, &client, &ask, asked).await {
+        ctx.say(&why);
+    }
+}
+
+/// Waits for the person's answer to ask `ask`, held under `holder` (a pane's
+/// id, or a headless child's), and gives it to Codex over `client`; ends with
+/// the ask when it ends otherwise, leaving the request unanswered by Hangar.
+/// What could not be done, as a sentence for the log.
+pub(crate) async fn answer_when_decided(
+    holder: &str,
+    client: &Client,
+    ask: &str,
+    asked: Asked,
+) -> Result<(), String> {
     let wait = Duration::from_millis(bridge::ASK_WAIT_MAX_MS);
     let decision = loop {
-        match bridge::await_decision(&ctx.pane, &ask, wait).await {
+        match bridge::await_decision(holder, ask, wait).await {
             AskPoll::Decision(decision) => break decision,
             AskPoll::Pending => {}
-            AskPoll::Gone => return,
+            AskPoll::Gone => return Ok(()),
         }
     };
-    let interrupt = match answer(asked.answerer, &decision) {
-        Ok(interrupt) => interrupt,
-        Err(why) => {
-            ctx.say(&format!("could not give an answer to Codex: {why}"));
-            return;
-        }
-    };
+    let interrupt = answer(asked.answerer, &decision)
+        .map_err(|why| format!("could not give an answer to Codex: {why}"))?;
     // The person said no and to stop, where Codex's answer cannot say both.
     if let (true, Some(turn)) = (interrupt, asked.turn) {
         let params = TurnInterruptParams {
@@ -1849,9 +1874,10 @@ async fn wait_for_answer(ctx: Ctx, client: Arc<Client>, ask: String, asked: Aske
             turn_id: turn,
         };
         if let Err(error) = client.request::<requests::TurnInterrupt>(params).await {
-            ctx.say(&format!("could not stop the turn: {error}"));
+            return Err(format!("could not stop the turn: {error}"));
         }
     }
+    Ok(())
 }
 
 /// What the person chose, from Hangar's decision (bridge.rs, `answer_ask`).
@@ -1879,7 +1905,7 @@ fn choice(decision: &Value) -> Option<Choice> {
 /// request is not sent: the TUI's dialog stays, as the mod leaves Claude
 /// Code's. A "no" carries no reason to Codex: its answers have no room for
 /// one.
-fn answer(answerer: Answerer, decision: &Value) -> Result<bool, String> {
+pub(crate) fn answer(answerer: Answerer, decision: &Value) -> Result<bool, String> {
     let unfit = || "an answer that does not fit the question".to_string();
     let sent = match answerer {
         Answerer::Command { pending, human } => {

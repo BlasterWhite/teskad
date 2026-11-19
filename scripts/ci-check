@@ -67,6 +67,9 @@ if [ "$conclusion" = "success" ]; then
   exit 0
 fi
 echo "ci-check: $conclusion ($url)" >&2
+log=$(gh run view "$run" --log-failed 2>/dev/null | sed -E 's/^[^\t]*\t[^\t]*\t[^ ]* //' || true)
+echo "---- what failed ----" >&2
+printf '%s\n' "$log" | grep -E -A6 "panicked at|^error(\[|:)|test .* FAILED|^---- .* stdout ----|Diff in " | head -n 120 >&2 || true
 echo "---- failed steps (log tail) ----" >&2
-gh run view "$run" --log-failed 2>/dev/null | tail -n 150 >&2 || true
+printf '%s\n' "$log" | tail -n 40 >&2
 exit 1
