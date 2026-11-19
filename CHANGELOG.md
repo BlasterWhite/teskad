@@ -10,6 +10,10 @@ Every release, with its installers, is on the
 
 ## [Unreleased]
 
+### Changed
+
+- Hangar's address is now hangarai.dev: the website at https://hangarai.dev and the optional Hangar account's server at https://account.hangarai.dev. The old addresses (hangar.simnjs.fr, hangar-account.simnjs.fr) keep working and lead to the new ones.
+
 ## [2.4.3] - 2026-11-18
 
 ### Added
