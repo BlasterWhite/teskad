@@ -4670,8 +4670,10 @@ pub enum Key {
     ZoomTag,
 }
 
-/// How many keys there are.
-pub const KEY_COUNT: usize = 2327;
+/// How many keys there are: the last one's index plus one. Counted rather
+/// than written as a number, so two branches that each add keys do not both
+/// change this line and merge without a conflict.
+pub const KEY_COUNT: usize = Key::ZoomTag as usize + 1;
 
 impl Key {
     /// Every key, in the order of their ids.
