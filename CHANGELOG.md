@@ -10,6 +10,13 @@ Every release, with its installers, is on the
 
 ## [Unreleased]
 
+## [2.5.1] - 2026-11-19
+
+### Fixed
+- Codex: the reviewer set for a workspace (Settings › Agents, or the workspace's own choice) now reviews its deliveries, with an account of its own agent; it was always Claude Code.
+- Codex: accounts follow the agent everywhere. A Codex pane, reviewer or new workspace picks among Codex accounts, and the new-workspace dialog's account picker follows the orchestrator you choose.
+- Codex panes: the context gauge, the restart after an MCP change and Hangar Mobile's chat of a node's pane work for Codex too; a cloned repository gets your default orchestrator agent; the Discord presence no longer names Claude Code alone.
+
 ## [2.5.0] - 2026-11-19
 
 ### Added
@@ -883,6 +890,7 @@ statistics, workspace sleep and per-workspace MCP servers.
 - Automatic updates from signed GitHub releases.
 - An interface in English and French (0.1.1).
 
+[2.5.1]: https://github.com/simnJS/hangar-ai/releases/tag/v2.5.1
 [2.5.0]: https://github.com/simnJS/hangar-ai/releases/tag/v2.5.0
 [2.4.6]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.6
 [2.4.5]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.5
