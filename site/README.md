@@ -37,10 +37,11 @@ the visitor's system and one link per OS, the chat view), the chat view, the
 orchestrator with its workers and deliveries (checked in batches, their stage
 on the worker's pane, the orchestrator woken for what matters), Hangar Mobile,
 kits and previews, the experiments (nodes, pane scopes), performance, "Also in
-the box" (Claude Code set up for you, the viewers, Discord, the optional
-account), downloads (macOS on 2.2.0, NixOS), questions (the account and the Mac
-among them). Hangar runs Claude Code only since 2.0, and the page names no
-other agent.
+the box" (Claude Code and Codex, delegate and images, the agents set up for
+you, the viewers, Discord, the optional account), downloads (macOS on 2.2.0,
+NixOS), questions (the account, the Mac and Codex's beta among them). Hangar
+runs Claude Code and Codex: the page names both, Codex always marked beta, and
+no other agent.
 
 Every claim on it comes from the code, `CHANGELOG.md` or the English strings.
 When a feature changes, check the copy against `crates/hangar-i18n/dict/en.json`

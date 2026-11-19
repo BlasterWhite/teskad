@@ -23,8 +23,9 @@ installs it in one click. A Hangar 1.x install offers 2.0 the same way.
 > and choose **Open**. On macOS 15 and later, go to **System Settings → Privacy &
 > Security** and click **Open Anyway**.
 
-Hangar runs [Claude Code](https://code.claude.com/docs/en/overview) in its panes. If it is
-not installed, Hangar offers to install it the first time it opens (see below).
+Hangar runs coding agents in its panes: [Claude Code](https://code.claude.com/docs/en/overview),
+[Codex](https://learn.chatgpt.com/docs/codex/cli) (beta), or both; either one is enough. If
+neither is installed, Hangar offers to install them the first time it opens (see below).
 
 **Coming from 1.x.** Accept the update, or install 2.0 over 1.x: it uses the same folders
 and the same `state.json`, so your workspaces, boards, memory, settings, shortcuts, kits and
@@ -61,9 +62,10 @@ Hangar then appears in your launcher. It does not update itself on Nix: `nix fla
 hangar` and rebuild for a new version. The MCP configs and the login item it writes name the
 `hangar-ai` on your `PATH` (`/run/current-system/sw/bin`, your profile's `bin`), not the
 store path, so they keep working across upgrades and garbage collections. Claude Code
-itself comes from nixpkgs (`claude-code`) or its own installer.
+itself comes from nixpkgs (`claude-code`) or its own installer; Codex's official installer
+drops a binary that starts on NixOS as it is.
 
-On NixOS, the **Set up Claude Code** sheet points to nixpkgs instead of Anthropic's installer,
+On NixOS, the setup sheet's Claude Code card points to nixpkgs instead of Anthropic's installer,
 whose `claude` does not start there without nix-ld. It shows, to copy, the line for your
 configuration (`environment.systemPackages = [ pkgs.claude-code ];`, or `home.packages` with
 Home Manager) and a command that installs it in your profile right away
@@ -77,34 +79,39 @@ the flake yet: the package does not carry the `hangar-node` binaries a node is s
 
 ## Getting started
 
-0. **Claude Code.** When Hangar cannot find Claude Code on this machine, it opens a
-   **Set up Claude Code** sheet at start, and again before a new workspace is made.
+0. **Your agents.** When Hangar finds neither Claude Code nor Codex on this machine, it
+   opens a **Set up your coding agents** sheet at start, with a card per agent (Codex
+   marked beta); it stands in the way only until one of them is installed.
    **Install Claude Code** runs Anthropic's official installer, exactly as
    [Claude Code's docs](https://code.claude.com/docs/en/setup) give it —
    `curl -fsSL https://claude.ai/install.sh | bash` on macOS and Linux,
-   `irm https://claude.ai/install.ps1 | iex` in PowerShell on Windows — for your user only,
-   with no administrator password, and shows what it prints as it runs. If it fails, the
-   sheet says why, shows the installer's output, and links to the install guide. Once
-   Claude Code is found, **Sign in** opens it in a pane, where it asks for your Claude
-   account the first time; the sheet notices when you are signed in. **Use Hangar with
-   shells only** sets Claude Code aside: Hangar stops asking, and new workspaces start with
-   a shell. Turn it back off in **Settings → General → Shells only, without Claude Code**.
+   `irm https://claude.ai/install.ps1 | iex` in PowerShell on Windows. **Install Codex**
+   runs OpenAI's — `curl -fsSL https://chatgpt.com/codex/install.sh | sh`, or
+   `irm https://chatgpt.com/codex/install.ps1 | iex` ([Codex (beta)](codex.md)). Either
+   installs for your user only, with no administrator password, and the sheet shows what
+   it prints as it runs. If it fails, the sheet says why, shows the installer's output, and
+   links to the install guide. Once an agent is found, **Sign in** opens it in a pane,
+   where it asks for your account the first time (Claude, or ChatGPT or an OpenAI API key
+   for Codex); the sheet notices when you are signed in. **Use Hangar with shells only**
+   sets the agents aside: Hangar stops asking, and new workspaces start with a shell. Turn
+   it back off in **Settings → General → Shells only, without Claude Code**.
 1. **Create a workspace** with `Ctrl`/`Cmd`+`Shift`+`N` and pick a project folder. The
-   workspace starts with one Claude Code pane, its orchestrator: tell it what you want.
-   Outside a git repository its workers share the folder (`git init` gives each one a
-   worktree). **More options** has the other setups: several panes, a layout, shells and
-   agents of your choice. With **shells only** chosen, the dialog says Claude Code is not
-   installed and the workspace starts with a shell.
-2. **Connect Claude Code to Hangar.** Open the MCP panel (`Ctrl`/`Cmd`+`Alt`+`M`; `Alt` is
-   `Option` on a Mac) and click
-   **Configure**. The panel can also write a short playbook into the project's `CLAUDE.md`,
-   telling agents to claim tasks before they start. Restart the agents so they load the
-   server.
+   workspace starts with one agent pane, its orchestrator: tell it what you want. *Starts
+   with* offers Claude Code or Codex, Claude Code by default when both are installed (or the
+   one in **Settings → General → Default agents**). Outside a git repository its workers
+   share the folder (`git init` gives each one a worktree). **More options** has the other
+   setups: the workers' agent, several panes, a layout, shells and agents of your choice.
+   With no agent installed, the dialog says so and the workspace starts with a shell.
+2. **Connect your agents to Hangar.** Codex panes get Hangar's MCP server at every launch,
+   with nothing to set up. For Claude Code, open the MCP panel (`Ctrl`/`Cmd`+`Alt`+`M`;
+   `Alt` is `Option` on a Mac) and click **Configure**. The panel can also write a short
+   playbook into the project's `CLAUDE.md`, telling agents to claim tasks before they
+   start. Restart the agents so they load the server.
 3. **Give them work.** Add tasks on the board (`Ctrl`/`Cmd`+`Alt`+`B`), or ask an agent to
    split a goal into tasks. Other agents pick tasks up with `board_next_task`.
 4. **Orchestration.** A new workspace has its orchestrator already; in another one, run
    **New orchestrator** from the command palette (`Ctrl`/`Cmd`+`Shift`+`P`), or pin an
-   existing Claude Code pane from its **…** menu. Then describe the goal to it.
+   existing Claude Code or Codex pane from its **…** menu. Then describe the goal to it.
    **Orchestration…** in the same menu opens the workspace's settings: models,
    permissions, check command and automatic merging.
 
