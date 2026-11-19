@@ -204,3 +204,32 @@ fn the_window_opacity_row_can_be_laid_out_and_found() {
         );
     }
 }
+
+#[test]
+fn the_agent_rows_can_be_laid_out_and_found_with_everything_set() {
+    use crate::state::types::AgentKind;
+    for (locale, query) in [
+        (hangar_i18n::Locale::En, "codex"),
+        (hangar_i18n::Locale::Fr, "bêta"),
+        (hangar_i18n::Locale::En, "reviewer"),
+        (hangar_i18n::Locale::Fr, "relecteur"),
+    ] {
+        let mut model = model();
+        let mut state = model.state().clone();
+        state.settings.codex_attach = false;
+        state.settings.agent_commands.claude = Some("claude --verbose".into());
+        state.settings.agent_commands.codex = Some("codex --profile work".into());
+        state.settings.default_orchestrator_agent = Some(AgentKind::Codex);
+        state.settings.default_worker_agent = Some(AgentKind::Claude);
+        state.settings.default_reviewer_agent = Some(AgentKind::Codex);
+        model.hydrate(state);
+        sheet_of(
+            model,
+            SettingsCategory::General,
+            locale,
+            "graphite",
+            query,
+            MAIN,
+        );
+    }
+}
