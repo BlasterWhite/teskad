@@ -3302,6 +3302,12 @@ mod tests {
         assert_eq!(clients(&link), Some(1));
         drop(tui);
         drop(accepted);
+        // The kernel drops a socket from its table with the last copy of it: a
+        // process another test forks meanwhile holds one until its `exec`.
+        let deadline = Instant::now() + PATIENCE;
+        while clients(&link) != Some(0) && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+        }
         assert_eq!(clients(&link), Some(0));
         assert_eq!(clients(&folder.join("nothing.sock")), None);
     }
