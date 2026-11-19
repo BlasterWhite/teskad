@@ -256,8 +256,8 @@ pub fn name_early_calls(digest: &mut Digest) {
 mod tests {
     use super::super::read_into;
     use super::*;
+    use crate::agent::AgentKind;
     use crate::sessions::codex::tests::{LEGACY, LEGACY_ID, PAGINATED, PAGINATED_ID, SUBAGENT};
-    use crate::sessions::AgentKind;
 
     fn read(text: &str) -> Digest {
         let mut digest = Digest::new(AgentKind::Codex, false);

@@ -22,7 +22,8 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use serde::Serialize;
 
-use crate::sessions::{codex, AgentKind};
+use crate::agent::AgentKind;
+use crate::sessions::codex;
 
 /// What the last exchange of a transcript says about the context. The window
 /// it fills is not in Claude Code's transcript: the frontend knows it by

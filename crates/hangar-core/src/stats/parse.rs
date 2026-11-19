@@ -19,7 +19,7 @@ use serde::de::{self, Deserializer, SeqAccess, Visitor};
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 
-use crate::sessions::AgentKind;
+use crate::agent::AgentKind;
 
 mod codex;
 

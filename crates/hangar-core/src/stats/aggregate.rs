@@ -11,8 +11,8 @@ use std::collections::{HashMap, HashSet};
 use serde::Serialize;
 
 use super::parse::Digest;
+use crate::agent::AgentKind;
 use crate::pricing::{self, CallTokens};
-use crate::sessions::AgentKind;
 
 /// The longest a silence inside a session counts for, in active time.
 ///
