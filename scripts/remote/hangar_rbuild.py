@@ -223,13 +223,27 @@ def make_label(state):
     return f"{LABEL} {int(time.time())} {state}"
 
 
+FAMILY = "hangar-rbuild"  # every build machine of this tool, trial labels ("hangar-rbuild-trial-…") included
+
+
 def parse_label(text):
-    m = re.match(rf"^{LABEL} (\d+) (boot|busy|idle)\b", (text or "").strip())
+    m = re.match(rf"^{FAMILY}(?:-[A-Za-z0-9_.-]+)? (\d+) (boot|busy|idle)\b", (text or "").strip())
     return {"epoch": int(m.group(1)), "state": m.group(2)} if m else None
+
+
+def in_family(label):
+    label = (label or "").strip()
+    return label == FAMILY or label.startswith(FAMILY + " ") or label.startswith(FAMILY + "-")
 
 
 def ours():
     return [i for i in vast("show", "instances") if (i.get("label") or "").startswith(LABEL + " ") or (i.get("label") or "") == LABEL]
+
+
+def family():
+    """Every machine of this tool, whatever its label: the reapers judge them all, so a trial machine (another
+    HANGAR_RBUILD_LABEL) left behind goes too, and a new machine is not rented beside one."""
+    return [i for i in vast("show", "instances") if in_family(i.get("label"))]
 
 
 def set_label(iid, state, current=None):
@@ -501,6 +515,10 @@ def hello(m):
 
 
 def create_fresh():
+    other = [i for i in family() if not ((i.get("label") or "").startswith(LABEL + " ") or (i.get("label") or "") == LABEL)]
+    if other:
+        raise Unavailable(f"another build machine ({other[0].get('label')}, instance {other[0]['id']}) is up: one machine "
+                          f"at a time. Destroy it (rbuild reap, or vastai destroy instance {other[0]['id']}) or use it")
     offers = search_offers()
     if not offers:
         raise Unavailable(f"no Vast offer in Europe with {MIN_THREADS}+ threads, {MIN_RAM_GB}+ GB, {DISK_GB} GB of disk under "
@@ -938,12 +956,12 @@ def reap_reason(inst, grace_min=0.0):
 
 
 def reap(grace_min=0.0, refresh_seed=True, quiet=False, lock=True):
-    """Destroys this tool's instances unused for IDLE_MIN (+ grace) minutes, stopped or broken ones, and those whose
+    """Destroys this tool's instances (every label of the family, trial ones included) unused for IDLE_MIN (+ grace) minutes, stopped or broken ones, and those whose
     "busy" label is too old to be a live run. Never touches another label (aps5's "aps5 …") or an unlabelled one.
     The mirror is refreshed first, outside the lock that calls take: a call that comes meanwhile refreshes the label,
     and the instance, looked at again under the lock, is then kept."""
     kept = []
-    for inst in ours():
+    for inst in family():
         reason = reap_reason(inst, grace_min)
         if not reason:
             kept.append(inst)
@@ -955,7 +973,7 @@ def reap(grace_min=0.0, refresh_seed=True, quiet=False, lock=True):
         if refresh_seed and inst.get("actual_status") == "running":
             try_refresh_seed(machine(inst))
         with (Flock("instance.lock", "a call starting the machine") if lock else _NoLock()):
-            now = next((i for i in ours() if i["id"] == inst["id"]), None)
+            now = next((i for i in family() if i["id"] == inst["id"]), None)
             reason = reap_reason(now, grace_min) if now else None
             if reason:
                 destroy(now, reason)
@@ -1010,7 +1028,7 @@ def reap_watch():
 
 # ------------------------------------------------------------------------------------------------ commands
 def cmd_status():
-    live = ours()
+    live = family()
     reconcile(live)
     usd, hours, traffic = spend_today()
     if not live:
