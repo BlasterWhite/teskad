@@ -245,6 +245,9 @@ pub enum Msg {
     Paste(PaneId, Option<String>),
     /// A press in a pane.
     Focus(WsId, PaneId),
+    /// A press in a pane that a field of it took (its terminal's search
+    /// bar): the pane becomes the focused one, the field keeps the keyboard.
+    Select(WsId, PaneId),
     Hover(Option<PaneId>),
     OpenPicker(PaneId, Picker),
     ClosePicker,
@@ -453,6 +456,16 @@ fn handle(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Messag
                 terminal: true,
             }),
         ]),
+        Msg::Select(ws, pane) => Task::batch([
+            logic(Logic::Typed {
+                workspace: ws.clone(),
+            }),
+            intent(Intent::FocusPane {
+                ws,
+                pane,
+                terminal: false,
+            }),
+        ]),
         Msg::Hover(pane) => {
             st.hovered = pane;
             Task::none()
@@ -566,19 +579,22 @@ fn handle(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Messag
             }
             Task::none()
         }
-        Msg::Search(pane, search_msg) => {
-            let Some(rt) = st.panes.get_mut(&pane) else {
-                return Task::none();
-            };
-            let mut terminal = rt.link.lock();
-            let (task, closed) = search::update(&mut rt.search, &mut terminal, search_msg);
-            drop(terminal);
-            if let Some(query) = closed {
-                rt.last_query = query;
-            }
-            task
-        }
+        Msg::Search(pane, search_msg) => search_step(st, &pane, search_msg),
     }
+}
+
+/// A message of a pane's search bar.
+fn search_step(st: &mut State, pane: &PaneId, msg: SearchMsg) -> Task<Message> {
+    let Some(rt) = st.panes.get_mut(pane) else {
+        return Task::none();
+    };
+    let mut terminal = rt.link.lock();
+    let (task, closed) = search::update(&mut rt.search, &mut terminal, msg);
+    drop(terminal);
+    if let Some(query) = closed {
+        rt.last_query = query;
+    }
+    task
 }
 
 /// Zooms onto `target`, which takes the focus and the keyboard, or with
@@ -1372,8 +1388,12 @@ fn signature(st: &State, m: &Model) -> u64 {
     m.ui.view.hash(&mut hash);
     m.ui.overlays.len().hash(&mut hash);
     std::mem::discriminant(&m.ui.focus).hash(&mut hash);
-    if let Some(Focus::Region(region)) = m.ui.focus {
-        region.hash(&mut hash);
+    match &m.ui.focus {
+        Some(Focus::Region(region)) => region.hash(&mut hash),
+        // A field taking the keyboard from another: the one before is
+        // blurred (`keymap::reconcile`).
+        Some(Focus::Widget(id)) => id.hash(&mut hash),
+        _ => {}
     }
     m.state().active_workspace_id.hash(&mut hash);
     // The windows in no order of their own: summed, each hashed apart.
@@ -1507,6 +1527,33 @@ fn keyboard_goes_to(m: &Model, ws: &Workspace, id: &str) -> bool {
     keyboard_free(m) && visible(m, ws, id) && focused_pane(m, ws).as_deref() == Some(id)
 }
 
+/// Gives the keyboard to the one terminal that should have it and takes it
+/// from every other, from what the model's focus says; and from a text field
+/// the model no longer says has it (`keymap::reconcile`). A text field that
+/// takes the keyboard moves that focus off the panes (`keymap::guard`), so no
+/// terminal types what is meant for the field; a pane clicked or picked by a
+/// shortcut moves it back, and the field is blurred.
+fn give_keyboard(st: &mut State, m: &mut Model) -> Task<Message> {
+    for (id, rt) in st.panes.iter_mut() {
+        let Some(ws) = m.workspace(&rt.ws) else {
+            continue;
+        };
+        // Its search bar has the keyboard, over the terminal.
+        let typing = rt.search.as_ref().is_some_and(|search| search.typing);
+        let wants = !typing && keyboard_goes_to(m, ws, id);
+        if wants != rt.focused {
+            rt.focused = wants;
+            let events = rt.link.lock().set_focused(wants);
+            for event in events {
+                if let TermEvent::Write(bytes) = event {
+                    rt.link.write(bytes);
+                }
+            }
+        }
+    }
+    crate::keymap::reconcile(m)
+}
+
 /// Brings the panes in line with the model: starts the panes that appeared
 /// in an opened workspace and stops those that went (a workspace that leaves
 /// `opened_ids`, which is how a sleep unmounts it, takes its terminals with
@@ -1602,21 +1649,11 @@ fn sync(st: &mut State, m: &mut Model, sv: &Services) -> Task<Message> {
             drop(terminal);
             rt.look = look;
         }
-        let typing = rt.search.as_ref().is_some_and(|search| search.typing);
-        let wants = !typing && keyboard_goes_to(m, ws, id);
-        if wants != rt.focused {
-            rt.focused = wants;
-            let events = rt.link.lock().set_focused(wants);
-            for event in events {
-                if let TermEvent::Write(bytes) = event {
-                    rt.link.write(bytes);
-                }
-            }
-        }
         tasks.push(controller::role_check(rt, m, locale));
         let look = controller::account_follow(rt, m, now, crate::accounts::Job::Unasked);
         looks.push((id.clone(), look));
     }
+    tasks.push(give_keyboard(st, m));
     // Every pane was looked at: what the headers say about a move to come
     // is said again from scratch.
     m.live.accounts.moving.clear();
@@ -1833,6 +1870,9 @@ fn pane_width(
         .get(pane)
         .map_or(size.width, |rect| rect.width as f32 * size.width)
 }
+
+#[cfg(test)]
+mod focus_tests;
 
 #[cfg(test)]
 mod output_tests;

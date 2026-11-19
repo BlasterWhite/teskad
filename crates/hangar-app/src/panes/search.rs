@@ -144,7 +144,12 @@ pub fn update(
             search.run(terminal);
             return (widget::operation::focus(search.input.clone()), None);
         }
-        SearchMsg::Focused => search.typing = true,
+        // The field takes the keyboard, wherever on the bar the press was:
+        // its keys are the field's own (`keys::on_field_key`).
+        SearchMsg::Focused => {
+            search.typing = true;
+            return (widget::operation::focus(search.input.clone()), None);
+        }
         SearchMsg::Close => {
             let query = search.query.clone();
             terminal.clear_search();
@@ -214,32 +219,31 @@ pub fn view<'a>(
     // shortcuts listened before any field: Mod+Shift+Enter splits the pane
     // and types nothing here, and a person who bound Alt+C to a command gets
     // the command. What the field owns (characters, Enter, Escape, copy and
-    // paste) the keymap leaves to it.
-    let input: Element<'a, Message> = if search.typing {
-        crate::keymap::guard(
-            ctx,
-            keys::on_key(input, move |key, modifiers| match key {
-                KeyCode::Named(Named::Enter) => Some(wrap(
-                    pane,
-                    SearchMsg::Step(if modifiers.shift() {
-                        SearchDirection::Forward
-                    } else {
-                        SearchDirection::Backward
-                    }),
-                )),
-                KeyCode::Named(Named::Escape) => Some(wrap(pane, SearchMsg::Close)),
-                KeyCode::Character(c) if modifiers.alt() && c.eq_ignore_ascii_case("c") => {
-                    Some(wrap(pane, SearchMsg::ToggleCase))
-                }
-                KeyCode::Character(c) if modifiers.alt() && c.eq_ignore_ascii_case("r") => {
-                    Some(wrap(pane, SearchMsg::ToggleRegex))
-                }
-                _ => None,
-            }),
-        )
-    } else {
-        input.into()
-    };
+    // paste) the keymap leaves to it. The field is wrapped the same whether
+    // it has the keyboard or not: drawn bare while the terminal had it, it
+    // was a new widget to iced once a click gave it back (its own state, the
+    // keyboard with it, started again), and the click was lost.
+    let input = crate::keymap::guard(
+        ctx,
+        keys::on_field_key(input, move |key, modifiers| match key {
+            KeyCode::Named(Named::Enter) => Some(wrap(
+                pane,
+                SearchMsg::Step(if modifiers.shift() {
+                    SearchDirection::Forward
+                } else {
+                    SearchDirection::Backward
+                }),
+            )),
+            KeyCode::Named(Named::Escape) => Some(wrap(pane, SearchMsg::Close)),
+            KeyCode::Character(c) if modifiers.alt() && c.eq_ignore_ascii_case("c") => {
+                Some(wrap(pane, SearchMsg::ToggleCase))
+            }
+            KeyCode::Character(c) if modifiers.alt() && c.eq_ignore_ascii_case("r") => {
+                Some(wrap(pane, SearchMsg::ToggleRegex))
+            }
+            _ => None,
+        }),
+    );
 
     let counter = container(
         text(count)

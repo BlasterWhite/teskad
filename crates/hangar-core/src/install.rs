@@ -1,10 +1,12 @@
-//! One-click MCP registration for Claude Code.
+//! One-click MCP registration for Claude Code, and (agent.rs) where each
+//! agent CLI is on this machine and how to install it.
 //!
 //! Claude Code reads a project's servers from `.mcp.json`, keyed by
 //! `mcpServers`; the file is patched in place, preserving whatever the user
-//! already had. Claude Code is the only agent Hangar runs (owner's decision,
-//! 2026-11-03), so it is the only target: the Codex, Gemini CLI, Cursor and
+//! already had. It is the only target: the Codex, Gemini CLI, Cursor and
 //! VS Code configurations earlier versions also wrote are left as they are.
+
+pub mod agent;
 
 use std::fs;
 use std::path::{Path, PathBuf};
