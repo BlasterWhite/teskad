@@ -14,6 +14,8 @@ use crate::dictionary::{Message, Text};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(u16)]
 pub enum Key {
+    /// `accounts.agentBeta`
+    AccountsAgentBeta,
     /// `accounts.badge.folderTitle`
     AccountsBadgeFolderTitle,
     /// `accounts.badge.title`
@@ -58,6 +60,10 @@ pub enum Key {
     AccountsPickerMissing,
     /// `accounts.picker.unknown`
     AccountsPickerUnknown,
+    /// `accounts.plan.agentAccount`
+    AccountsPlanAgentAccount,
+    /// `accounts.plan.hint`
+    AccountsPlanHint,
     /// `accounts.settings.add`
     AccountsSettingsAdd,
     /// `accounts.settings.addHint`
@@ -68,6 +74,8 @@ pub enum Key {
     AccountsSettingsAddPlaceholder,
     /// `accounts.settings.addTitle`
     AccountsSettingsAddTitle,
+    /// `accounts.settings.apiKey`
+    AccountsSettingsApiKey,
     /// `accounts.settings.askSwitch`
     AccountsSettingsAskSwitch,
     /// `accounts.settings.askSwitchHint`
@@ -108,6 +116,10 @@ pub enum Key {
     AccountsSettingsIconWorkspace,
     /// `accounts.settings.intro`
     AccountsSettingsIntro,
+    /// `accounts.settings.kindIntro`
+    AccountsSettingsKindIntro,
+    /// `accounts.settings.kindTitle`
+    AccountsSettingsKindTitle,
     /// `accounts.settings.listLabel`
     AccountsSettingsListLabel,
     /// `accounts.settings.logIn`
@@ -4541,11 +4553,12 @@ pub enum Key {
 }
 
 /// How many keys there are.
-pub const KEY_COUNT: usize = 2262;
+pub const KEY_COUNT: usize = 2268;
 
 impl Key {
     /// Every key, in the order of their ids.
     pub const ALL: [Key; KEY_COUNT] = [
+        Key::AccountsAgentBeta,
         Key::AccountsBadgeFolderTitle,
         Key::AccountsBadgeTitle,
         Key::AccountsMenuFolderTitle,
@@ -4568,11 +4581,14 @@ impl Key {
         Key::AccountsPickerLabel,
         Key::AccountsPickerMissing,
         Key::AccountsPickerUnknown,
+        Key::AccountsPlanAgentAccount,
+        Key::AccountsPlanHint,
         Key::AccountsSettingsAdd,
         Key::AccountsSettingsAddHint,
         Key::AccountsSettingsAddName,
         Key::AccountsSettingsAddPlaceholder,
         Key::AccountsSettingsAddTitle,
+        Key::AccountsSettingsApiKey,
         Key::AccountsSettingsAskSwitch,
         Key::AccountsSettingsAskSwitchHint,
         Key::AccountsSettingsBadge,
@@ -4593,6 +4609,8 @@ impl Key {
         Key::AccountsSettingsIconTerminal,
         Key::AccountsSettingsIconWorkspace,
         Key::AccountsSettingsIntro,
+        Key::AccountsSettingsKindIntro,
+        Key::AccountsSettingsKindTitle,
         Key::AccountsSettingsListLabel,
         Key::AccountsSettingsLogIn,
         Key::AccountsSettingsLoggedIn,
@@ -6813,10 +6831,11 @@ impl Key {
 
 /// The messages, sorted by id (byte order), one per `Key`.
 pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
-    Message { id: "accounts.badge.folderTitle", en: Text::plain("Claude account: {name}, from the {folder} folder"), fr: Text::plain("Compte Claude\u{202f}: {name}, celui du dossier {folder}") },
-    Message { id: "accounts.badge.title", en: Text::plain("Claude account: {name}"), fr: Text::plain("Compte Claude\u{202f}: {name}") },
-    Message { id: "accounts.menu.folderTitle", en: Text::plain("Claude account for this folder"), fr: Text::plain("Compte Claude de ce dossier") },
-    Message { id: "accounts.menu.title", en: Text::plain("Claude account"), fr: Text::plain("Compte Claude") },
+    Message { id: "accounts.agentBeta", en: Text::plain("{agent} (beta)"), fr: Text::plain("{agent} (bêta)") },
+    Message { id: "accounts.badge.folderTitle", en: Text::plain("{agent} account: {name}, from the {folder} folder"), fr: Text::plain("Compte {agent}\u{202f}: {name}, celui du dossier {folder}") },
+    Message { id: "accounts.badge.title", en: Text::plain("{agent} account: {name}"), fr: Text::plain("Compte {agent}\u{202f}: {name}") },
+    Message { id: "accounts.menu.folderTitle", en: Text::plain("{agent} account for this folder"), fr: Text::plain("Compte {agent} de ce dossier") },
+    Message { id: "accounts.menu.title", en: Text::plain("{agent} account"), fr: Text::plain("Compte {agent}") },
     Message { id: "accounts.movedNote", en: Text::plain("Now on {name}, same conversation."), fr: Text::plain("Maintenant sur {name}, même conversation.") },
     Message { id: "accounts.movedNoteFresh", en: Text::plain("Now on {name}, on a new conversation."), fr: Text::plain("Maintenant sur {name}, sur une nouvelle conversation.") },
     Message { id: "accounts.moving", en: Text::plain("→ {name}"), fr: Text::plain("→ {name}") },
@@ -6827,21 +6846,24 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "accounts.movingTitle", en: Text::plain("Moves to {name}, on the same conversation, once Hangar has checked that no command of its own still runs"), fr: Text::plain("Passe sur {name}, sur la même conversation, dès que Hangar a vérifié qu’aucune commande à lui ne tourne encore") },
     Message { id: "accounts.movingTurnTitle", en: Text::plain("Moves to {name}, on the same conversation, once its turn is over"), fr: Text::plain("Passe sur {name}, sur la même conversation, dès que son tour est fini") },
     Message { id: "accounts.movingUnreadableTitle", en: Text::plain("Moves to {name} once Hangar can tell that no command of its own runs: its processes could not be read"), fr: Text::plain("Passe sur {name} dès que Hangar peut voir qu’aucune commande à lui ne tourne\u{202f}: ses processus n’ont pas pu être lus") },
-    Message { id: "accounts.movingUnreportedTitle", en: Text::plain("Moves to {name} once its turn is known to be over: the hangar-bridge mod has not reported it (not loaded, or nothing said yet)"), fr: Text::plain("Passe sur {name} dès que la fin de son tour est connue\u{202f}: le mod hangar-bridge ne l’a pas signalée (pas chargé, ou rien dit encore)") },
+    Message { id: "accounts.movingUnreportedTitle", en: Text::plain("Moves to {name} once its turn is known to be over: its agent has not reported it (no hangar-bridge mod, a Codex Hangar could not attach to, or nothing said yet)"), fr: Text::plain("Passe sur {name} dès que la fin de son tour est connue\u{202f}: son agent ne l’a pas signalée (pas de mod hangar-bridge, un Codex auquel Hangar n’a pas pu s’attacher, ou rien dit encore)") },
     Message { id: "accounts.pane.badgeTitle", en: Text::plain("This agent runs on the “{name}” account, not its workspace’s"), fr: Text::plain("Cet agent tourne sur le compte «\u{202f}{name}\u{202f}», pas celui de son workspace") },
-    Message { id: "accounts.pane.menuHeading", en: Text::plain("Claude account for this pane"), fr: Text::plain("Compte Claude de ce volet") },
+    Message { id: "accounts.pane.menuHeading", en: Text::plain("{agent} account for this pane"), fr: Text::plain("Compte {agent} de ce volet") },
     Message { id: "accounts.picker.default", en: Text::plain("Default ({name})"), fr: Text::plain("Par défaut ({name})") },
     Message { id: "accounts.picker.folderDefault", en: Text::plain("Folder default ({name})"), fr: Text::plain("Défaut du dossier ({name})") },
     Message { id: "accounts.picker.label", en: Text::plain("Claude account"), fr: Text::plain("Compte Claude") },
     Message { id: "accounts.picker.missing", en: Text::plain("The account “{id}” no longer exists: the default applies."), fr: Text::plain("Le compte «\u{202f}{id}\u{202f}» n’existe plus\u{202f}: le compte par défaut s’applique.") },
     Message { id: "accounts.picker.unknown", en: Text::plain("unknown"), fr: Text::plain("inconnu") },
+    Message { id: "accounts.plan.agentAccount", en: Text::plain("{agent} · {name}"), fr: Text::plain("{agent} · {name}") },
+    Message { id: "accounts.plan.hint", en: Text::plain("Plan usage of each account, Claude Code’s and Codex’s, from the last report of its panes"), fr: Text::plain("Consommation du forfait de chaque compte, Claude Code ou Codex, d’après le dernier relevé de ses volets") },
     Message { id: "accounts.settings.add", en: Text::plain("Add and log in"), fr: Text::plain("Ajouter et se connecter") },
-    Message { id: "accounts.settings.addHint", en: Text::plain("A pane opens so you can log in through your browser."), fr: Text::plain("Un volet s’ouvre pour te connecter depuis ton navigateur.") },
+    Message { id: "accounts.settings.addHint", en: Text::plain("A pane opens and runs {command} on the account: log in through your browser."), fr: Text::plain("Un volet s’ouvre et lance {command} sur le compte\u{202f}: connecte-toi depuis ton navigateur.") },
     Message { id: "accounts.settings.addName", en: Text::plain("Name"), fr: Text::plain("Nom") },
     Message { id: "accounts.settings.addPlaceholder", en: Text::plain("Work, Personal…"), fr: Text::plain("Travail, Perso…") },
     Message { id: "accounts.settings.addTitle", en: Text::plain("Add an account"), fr: Text::plain("Ajouter un compte") },
+    Message { id: "accounts.settings.apiKey", en: Text::plain("API key"), fr: Text::plain("Clé d’API") },
     Message { id: "accounts.settings.askSwitch", en: Text::plain("Ask before moving running agents"), fr: Text::plain("Demander avant de déplacer les agents en cours") },
-    Message { id: "accounts.settings.askSwitchHint", en: Text::plain("Off, a running agent moves to its new account by itself, restarting on the same conversation, once Hangar knows it has nothing to lose: its turn over as the hangar-bridge mod reports it, nothing typed in it and not sent, no command of its own still running (a build, a watch). Until then its header reads “→ account”; without the mod, it waits. On, you are asked, and the agents restart at once."), fr: Text::plain("Désactivé, un agent en cours passe tout seul sur son nouveau compte, en redémarrant sur la même conversation, dès que Hangar sait qu’il n’a rien à perdre\u{202f}: son tour fini d’après le mod hangar-bridge, rien de tapé dedans sans être envoyé, plus aucune commande à lui en cours (un build, une surveillance). D’ici là, son en-tête affiche «\u{202f}→ compte\u{202f}»\u{202f}; sans le mod, il attend. Activé, la question est posée et les agents redémarrent tout de suite.") },
+    Message { id: "accounts.settings.askSwitchHint", en: Text::plain("Off, a running agent moves to its new account by itself, restarting on the same conversation, once Hangar knows it has nothing to lose: its turn over as the agent reports it (the hangar-bridge mod, or Hangar attached to Codex), nothing typed in it and not sent, no command of its own still running (a build, a watch). Until then its header reads “→ account”; while its turns are not reported, it waits. On, you are asked, and the agents restart at once."), fr: Text::plain("Désactivé, un agent en cours passe tout seul sur son nouveau compte, en redémarrant sur la même conversation, dès que Hangar sait qu’il n’a rien à perdre\u{202f}: son tour fini d’après l’agent (le mod hangar-bridge, ou Hangar attaché à Codex), rien de tapé dedans sans être envoyé, plus aucune commande à lui en cours (un build, une surveillance). D’ici là, son en-tête affiche «\u{202f}→ compte\u{202f}»\u{202f}; tant que ses tours ne sont pas signalés, il attend. Activé, la question est posée et les agents redémarrent tout de suite.") },
     Message { id: "accounts.settings.badge", en: Text::plain("Badge, where the account is named"), fr: Text::plain("Badge, là où le compte est nommé") },
     Message { id: "accounts.settings.badges", en: Text::plain("Colour the account badges"), fr: Text::plain("Colorer les badges des comptes") },
     Message { id: "accounts.settings.badgesHint", en: Text::plain("Give each account a colour and an icon, to tell them apart at a glance. The toolbar's account button and its menu show them for every account, the default one included; the navigator and pane headers name only an account other than the default. Off, accounts keep their plain labels."), fr: Text::plain("Donne à chaque compte une couleur et une icône, pour les distinguer d'un coup d'œil. Le bouton du compte dans la barre d'outils et son menu les montrent pour chaque compte, celui par défaut compris\u{202f}; le navigateur et les en-têtes de volet ne nomment qu'un compte autre que celui par défaut. Désactivé, les comptes gardent leur libellé simple.") },
@@ -6859,12 +6881,14 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "accounts.settings.iconNone", en: Text::plain("No icon"), fr: Text::plain("Sans icône") },
     Message { id: "accounts.settings.iconTerminal", en: Text::plain("Terminal"), fr: Text::plain("Terminal") },
     Message { id: "accounts.settings.iconWorkspace", en: Text::plain("Workspace"), fr: Text::plain("Workspace") },
-    Message { id: "accounts.settings.intro", en: Text::plain("Each account is a separate Claude subscription. Choose one per workspace; Hangar never switches on its own when a limit is reached."), fr: Text::plain("Chaque compte est un abonnement Claude distinct. Choisis-en un par workspace\u{202f}; Hangar ne bascule jamais tout seul quand une limite est atteinte.") },
+    Message { id: "accounts.settings.intro", en: Text::plain("Each account is a separate subscription of an agent, Claude Code or Codex. Choose one per workspace; Hangar never switches on its own when a limit is reached."), fr: Text::plain("Chaque compte est un abonnement distinct d’un agent, Claude Code ou Codex. Choisis-en un par workspace\u{202f}; Hangar ne bascule jamais tout seul quand une limite est atteinte.") },
+    Message { id: "accounts.settings.kindIntro", en: Text::plain("Each {agent} account is a configuration folder of its own ({var}): its login is its own, everything else (settings, conversations, tools) is the main account’s. Hangar reads who it is logged in as from it, never its tokens."), fr: Text::plain("Chaque compte {agent} est un dossier de configuration à lui ({var})\u{202f}: sa connexion lui est propre, tout le reste (réglages, conversations, outils) est celui du compte principal. Hangar y lit avec qui il est connecté, jamais ses jetons.") },
+    Message { id: "accounts.settings.kindTitle", en: Text::plain("{agent} accounts"), fr: Text::plain("Comptes {agent}") },
     Message { id: "accounts.settings.listLabel", en: Text::plain("Accounts"), fr: Text::plain("Comptes") },
     Message { id: "accounts.settings.logIn", en: Text::plain("Log in"), fr: Text::plain("Se connecter") },
     Message { id: "accounts.settings.loggedIn", en: Text::plain("Logged in"), fr: Text::plain("Connecté") },
     Message { id: "accounts.settings.loggedOut", en: Text::plain("Not logged in"), fr: Text::plain("Non connecté") },
-    Message { id: "accounts.settings.mainFixed", en: Text::plain("The main account is Claude Code’s own configuration: it cannot be removed."), fr: Text::plain("Le compte principal est la configuration propre de Claude Code\u{202f}: il ne peut pas être retiré.") },
+    Message { id: "accounts.settings.mainFixed", en: Text::plain("The main account is {agent}’s own configuration: it cannot be removed."), fr: Text::plain("Le compte principal est la configuration propre de {agent}\u{202f}: il ne peut pas être retiré.") },
     Message { id: "accounts.settings.nameEmpty", en: Text::plain("Give the account a name."), fr: Text::plain("Donne un nom au compte.") },
     Message { id: "accounts.settings.nameTaken", en: Text::plain("Another account already has this name."), fr: Text::plain("Un autre compte porte déjà ce nom.") },
     Message { id: "accounts.settings.noPane", en: Text::plain("No room for the login pane. Close a pane in the open workspace, then choose “Log in” on the account."), fr: Text::plain("Pas de place pour le volet de connexion. Ferme un volet du workspace ouvert, puis choisis «\u{202f}Se connecter\u{202f}» sur le compte.") },
@@ -6876,7 +6900,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "accounts.settings.renameLabel", en: Text::plain("New name for {name}"), fr: Text::plain("Nouveau nom de {name}") },
     Message { id: "accounts.settings.save", en: Text::plain("Save"), fr: Text::plain("Enregistrer") },
     Message { id: "accounts.settings.setDefault", en: Text::plain("Make default"), fr: Text::plain("Définir par défaut") },
-    Message { id: "accounts.settings.title", en: Text::plain("Claude accounts"), fr: Text::plain("Comptes Claude") },
+    Message { id: "accounts.settings.title", en: Text::plain("Accounts"), fr: Text::plain("Comptes") },
     Message { id: "accounts.settings.toneAccent", en: Text::plain("Accent"), fr: Text::plain("Accent") },
     Message { id: "accounts.settings.toneDanger", en: Text::plain("Red"), fr: Text::plain("Rouge") },
     Message { id: "accounts.settings.toneNone", en: Text::plain("Plain"), fr: Text::plain("Sans couleur") },
@@ -6889,7 +6913,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "accounts.switcher.askEverywhere", en: Text::plain("Make {name} the default for every workspace"), fr: Text::plain("Faire de {name} le compte par défaut de tous les workspaces") },
     Message { id: "accounts.switcher.askHere", en: Text::plain("Switch this workspace to {name}"), fr: Text::plain("Passer ce workspace sur {name}") },
     Message { id: "accounts.switcher.back", en: Text::plain("Back"), fr: Text::plain("Retour") },
-    Message { id: "accounts.switcher.button", en: Text::plain("Claude account: {name}"), fr: Text::plain("Compte Claude\u{202f}: {name}") },
+    Message { id: "accounts.switcher.button", en: Text::plain("{agent} account: {name}"), fr: Text::plain("Compte {agent}\u{202f}: {name}") },
     Message { id: "accounts.switcher.five", en: Text::plain("5\u{a0}h"), fr: Text::plain("5\u{a0}h") },
     Message { id: "accounts.switcher.heading", en: Text::plain("This workspace uses"), fr: Text::plain("Ce workspace utilise") },
     Message { id: "accounts.switcher.menu", en: Text::plain("Claude accounts"), fr: Text::plain("Comptes Claude") },
