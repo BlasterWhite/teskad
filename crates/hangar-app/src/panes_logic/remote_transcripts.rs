@@ -1,10 +1,9 @@
 //! The conversations of an agent pane of a remote workspace, which are on
-//! its node: the session hunt's listing (of the pane's agent: Claude Code's
-//! transcripts, Codex's rollouts) and the context gauge's reading (Claude
-//! Code's, as a local pane's), asked of the node (`nodes::remote::{sessions,
-//! context}`) where a local pane reads this machine's disk. Same cadence,
-//! same answers: a hunt round that fails finds nothing, as a local listing
-//! that fails does.
+//! its node: the session hunt's listing and the context gauge's reading, of
+//! the pane's agent (Claude Code's transcripts, Codex's rollouts), asked of
+//! the node (`nodes::remote::{sessions, context}`) where a local pane reads
+//! this machine's disk. Same cadence, same answers: a hunt round that fails
+//! finds nothing, as a local listing that fails does.
 //!
 //! The panes' controller follows the sessions of local panes only (it lists
 //! the known ones before the launch from this machine's disk): a remote
@@ -14,7 +13,7 @@
 use std::collections::HashSet;
 
 use hangar_core::agent::AgentKind;
-use hangar_core::context::ContextUsage;
+use hangar_core::context::AgentContextUsage;
 use hangar_core::sessions::AgentSession;
 
 use crate::nodes::remote;
@@ -39,15 +38,22 @@ pub async fn known_session_ids(node: String, kind: AgentKind, cwd: String) -> Ha
         .collect()
 }
 
-/// The context of Claude Code session `session` in `cwd`, read on node
-/// `node`, as a local pane's is read (`context::context_usage`). `Err` when
-/// the node did not answer: the gauge keeps its last reading rather than
-/// drop to nothing while the tunnel comes back.
+/// The context of agent `kind`'s session `session` in `cwd`, read on node
+/// `node`, as a local pane's is read (`context::agent_context_usage`). The
+/// node's answer carries no window (`nodes::remote::context`): the gauge
+/// finds it by the model, and shows nothing for a model it does not know.
+/// `Err` when the node did not answer: the gauge keeps its last reading
+/// rather than drop to nothing while the tunnel comes back.
 pub async fn context_usage(
     node: String,
+    kind: AgentKind,
     session: String,
     cwd: String,
-) -> Result<Option<ContextUsage>, String> {
+) -> Result<Option<AgentContextUsage>, String> {
     let client = remote::client_of(&node)?;
-    remote::context(&client, AgentKind::Claude, &session, &cwd).await
+    let usage = remote::context(&client, kind, &session, &cwd).await?;
+    Ok(usage.map(|usage| AgentContextUsage {
+        usage,
+        context_window: None,
+    }))
 }

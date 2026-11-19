@@ -1,5 +1,5 @@
-//! A Claude Code pane of a workspace on a node, against a fake node: its
-//! session hunt and its context gauge read the node's transcripts.
+//! An agent pane of a workspace on a node, against a fake node: its session
+//! hunt and its context gauge read the node's transcripts, of its agent.
 
 use hangar_core::agent::AgentKind;
 use iced::futures::StreamExt as _;
@@ -210,7 +210,49 @@ async fn the_hunt_and_the_gauge_of_a_remote_pane_ask_its_node() {
         Message::PanesLogic(Msg::Context { usage, .. }) => Some(usage.clone()),
         _ => None,
     });
-    assert_eq!(usage.flatten().map(|usage| usage.used_tokens), Some(50000));
+    assert_eq!(
+        usage.flatten().map(|reading| reading.usage.used_tokens),
+        Some(50000)
+    );
+    remote::publish(node, None);
+}
+
+/// A Codex pane of a remote workspace has its context read on the node as
+/// Codex's, from its rollout. The node's answer names no window: the gauge
+/// knows none for a Codex model, and shows nothing rather than a guess.
+#[tokio::test]
+async fn the_gauge_of_a_remote_codex_pane_asks_its_node_for_codex_s() {
+    let (listener, client) = listen().await;
+    let node = "node-gauge-codex";
+    remote::publish(node, Some(client));
+    let mut m = model_running(Some(node), AgentId::Codex);
+    let mut st = State {
+        last_branch_poll: NOW,
+        ..State::default()
+    };
+    let fake = serve(
+        listener,
+        vec![
+            r#"{"usage":{"usedTokens":68000,"model":"gpt-5.5-codex","contextWindow":272000}}"#
+                .into(),
+        ],
+    );
+    let messages = outputs(slow(&mut st, &mut m, NOW)).await;
+    assert_eq!(
+        fake.await.unwrap(),
+        ["GET /node/context?session=s-old&cwd=%2Fhome%2Fhangar%2Fdemo&kind=codex HTTP/1.1"]
+    );
+    let Some((kind, usage)) = messages.iter().find_map(|message| match message {
+        Message::PanesLogic(Msg::Context { kind, usage, .. }) => Some((*kind, usage.clone())),
+        _ => None,
+    }) else {
+        panic!("a Context, got {messages:?}");
+    };
+    assert_eq!(kind, AgentKind::Codex);
+    let usage = usage.expect("the node's reading");
+    assert_eq!(usage.usage.used_tokens, 68000);
+    context_read(&mut m, "p1", kind, Some(usage));
+    assert_eq!(m.live.panes_logic.insight("p1").context, None);
     remote::publish(node, None);
 }
 
@@ -224,7 +266,7 @@ async fn a_node_away_keeps_the_gauge_and_finds_no_session() {
             .is_none()
     );
     assert!(
-        remote_transcripts::context_usage(node.into(), "s".into(), "/w".into())
+        remote_transcripts::context_usage(node.into(), AgentKind::Claude, "s".into(), "/w".into())
             .await
             .is_err()
     );

@@ -94,8 +94,11 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 
+use hangar_core::agent::{AgentKind, SessionId, UsageSource};
+use hangar_core::context::AgentContextUsage;
 use hangar_core::git::RepoInfo;
 use hangar_core::sessions::AgentSession;
+use hangar_engine::live::{SideChannel, live_caps};
 use hangar_i18n::{Key, Translator, args};
 use iced::{Subscription, Task, window};
 
@@ -138,7 +141,10 @@ use self::session_watch::SessionWatch;
 use crate::message::{Intent, Message};
 use crate::services::{CoreEvent, Services};
 use crate::shell::{Focus, Notice, Notification, View, WindowKind};
-use crate::state::live::{AgentActivity, BridgeEvent, GlyphState, PaneStatus, QueuedPrompt};
+use crate::state::live::{
+    AgentActivity, BridgeEvent, ContextGauge, GlyphState, PaneStatus, QueuedPrompt,
+};
+use crate::state::roles::side_channel_on;
 use crate::state::types::{AgentId, AppState, Pane, PaneId, Workspace, WsId};
 use crate::state::{Model, Patch, Snapshot, StoreAction};
 
@@ -246,10 +252,12 @@ pub enum Msg {
         pane: PaneId,
         sessions: Option<Vec<AgentSession>>,
     },
-    /// The transcript's reading of a pane's context.
+    /// The reading of a pane's context in the history its agent `kind`
+    /// writes (Claude Code's transcript, Codex's rollout).
     Context {
         pane: PaneId,
-        usage: Option<hangar_core::context::ContextUsage>,
+        kind: AgentKind,
+        usage: Option<AgentContextUsage>,
     },
     /// git's answer for a folder.
     Branch {
@@ -1099,16 +1107,8 @@ pub fn update(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Me
                 None => Task::none(),
             }
         }
-        Msg::Context { pane, usage } => {
-            // A pane switched to a shell since the read has no gauge.
-            let claude = m
-                .find_pane(&pane)
-                .is_some_and(|(_, found)| found.agent == AgentId::Claude);
-            let gauge = usage
-                .filter(|_| claude)
-                .and_then(|usage| compute_context_gauge(&usage));
-            m.live.panes_logic.set_transcript_context(&pane, gauge);
-            bump(m);
+        Msg::Context { pane, kind, usage } => {
+            context_read(m, &pane, kind, usage);
             Task::none()
         }
         Msg::Branch { folder, info } => {
@@ -1159,14 +1159,84 @@ fn launched(m: &mut Model, pane: &str, resumed: Option<&str>, now: EpochMs) {
     let Some((info, _)) = inputs(m, pane, now) else {
         return;
     };
-    // A Claude Code with the mod says it all in its hello, with the id it
-    // really landed on; a plain shell launched nothing.
-    let says_itself = info.agent == AgentId::Claude && m.settings().claude_bridge;
-    if says_itself || info.agent == AgentId::Shell {
+    // An agent whose side channel names its session says it all in its
+    // hello, with the id it really landed on; a plain shell launched nothing.
+    if says_itself(m, &info) || info.agent == AgentId::Shell {
         return;
     }
     m.live.panes_logic.launched(&info, resumed, now);
     bump(m);
+}
+
+/// Whether the agent of pane `info` names its session itself as it starts,
+/// in the hello of its side channel: its kind's side channel reports the id
+/// (`caps.sessions.id`), the settings let that channel run (the
+/// hangar-bridge mod of a Claude Code, Hangar attached to a Codex:
+/// `roles::side_channel_on`), and the pane's launch did not end on the
+/// floor (a Codex whose server could not start has no client of Hangar's to
+/// say it). Any other agent's session is dated here, when its command is
+/// typed.
+fn says_itself(m: &Model, info: &PaneInfo) -> bool {
+    let Some(kind) = info.agent.kind() else {
+        return false;
+    };
+    let floor = matches!(
+        m.live.panes_logic.side_channel(&info.id),
+        Some(SideChannel::Floor { .. })
+    );
+    kind.info().caps.sessions.id == SessionId::Reported
+        && side_channel_on(m.settings(), kind)
+        && !floor
+}
+
+/// A reading of the history agent `kind` writes for pane `pane`, as the
+/// context poll asked for it: the gauge it makes, or none. A pane switched to
+/// a shell, or to another agent, since the read has no gauge from it.
+fn context_read(m: &mut Model, pane: &str, kind: AgentKind, usage: Option<AgentContextUsage>) {
+    let same = m
+        .find_pane(pane)
+        .is_some_and(|(_, found)| found.agent.kind() == Some(kind));
+    let gauge = usage
+        .filter(|_| same && history_tells_context(kind))
+        .and_then(|reading| gauge_of(&reading));
+    m.live.panes_logic.set_transcript_context(pane, gauge);
+    bump(m);
+}
+
+/// Whether the history agent `kind` writes tells where it stands in its
+/// context window, without its side channel: the level its context gauge
+/// drops to on the floor (`live_caps`), read from that history
+/// (`UsageSource::Transcript`). The poll reads it only for a pane whose side
+/// channel is silent; a kind whose history says nothing gets no gauge from
+/// it rather than a made-up one.
+fn history_tells_context(kind: AgentKind) -> bool {
+    live_caps(&kind.info().caps, false).usage.context == UsageSource::Transcript
+}
+
+/// What the gauge shows of a reading of a pane's history: against the window
+/// the agent wrote down with it (Codex's rollout names it), else against the
+/// window of the model it names (`compute_context_gauge`: Claude Code's
+/// transcript names none). `None` when neither is known, or nothing is used
+/// yet: no bar rather than a made-up percentage.
+fn gauge_of(reading: &AgentContextUsage) -> Option<ContextGauge> {
+    let Some(window) = reading.context_window.filter(|window| *window > 0) else {
+        return compute_context_gauge(&reading.usage);
+    };
+    let used = reading.usage.used_tokens;
+    if used == 0 {
+        return None;
+    }
+    // Clamped as the table's gauge is: right after a compaction the numbers
+    // fall, and the bar never leaves its box.
+    let pct = (used as f64 / window as f64 * 100.0)
+        .round()
+        .clamp(0.0, 100.0);
+    Some(ContextGauge {
+        pct,
+        used_tokens: used,
+        window,
+        model: reading.usage.model.clone(),
+    })
 }
 
 /// Gives a pane's inputs to a machine step and runs what it asks.
@@ -1318,8 +1388,9 @@ fn slow(st: &mut State, m: &mut Model, now: EpochMs) -> Task<Message> {
         for ws in &m.state().workspaces {
             for pane in &ws.panes {
                 match context_job(m, ws, pane) {
-                    Some(ContextJob::Read(session)) => reads.push((
+                    Some(ContextJob::Read(kind, session)) => reads.push((
                         pane.id.clone(),
+                        kind,
                         session,
                         folder_of(ws, pane),
                         crate::nodes::away::node_of(ws, pane),
@@ -1332,16 +1403,17 @@ fn slow(st: &mut State, m: &mut Model, now: EpochMs) -> Task<Message> {
         for pane in clears {
             m.live.panes_logic.set_transcript_context(&pane, None);
         }
-        for (pane, session, cwd, node) in reads {
+        for (pane, kind, session, cwd, node) in reads {
             let read = async move {
                 match node {
-                    Some(node) => remote_transcripts::context_usage(node, session, cwd).await,
-                    None => Ok(hangar_core::context::context_usage(session, cwd).await),
+                    Some(node) => remote_transcripts::context_usage(node, kind, session, cwd).await,
+                    None => Ok(hangar_core::context::agent_context_usage(kind, session, cwd).await),
                 }
             };
             tasks.push(Task::perform(read, move |usage| match usage {
                 Ok(usage) => Message::PanesLogic(Msg::Context {
                     pane: pane.clone(),
+                    kind,
                     usage,
                 }),
                 // The node did not answer: the last reading stands.
@@ -1370,8 +1442,8 @@ fn slow(st: &mut State, m: &mut Model, now: EpochMs) -> Task<Message> {
 
 /// What the context poll has to do for a pane.
 enum ContextJob {
-    /// Read the gauge from this session's transcript.
-    Read(String),
+    /// Read the gauge from this session's history, as its agent writes it.
+    Read(AgentKind, String),
     /// Take away a gauge read before.
     Clear,
 }
@@ -1387,12 +1459,17 @@ fn context_job(m: &Model, ws: &Workspace, pane: &Pane) -> Option<ContextJob> {
         return None;
     }
     let session = pane.session_id.clone().filter(|id| !id.is_empty());
-    match session {
-        Some(session) if is_resumable(pane.agent) => (attended_workspace(m, ws)
+    let kind = pane
+        .agent
+        .kind()
+        .filter(|kind| is_resumable(pane.agent) && history_tells_context(*kind));
+    match (session, kind) {
+        (Some(session), Some(kind)) => (attended_workspace(m, ws)
             && live.pane_status(&pane.id) == Some(PaneStatus::Running))
-        .then_some(ContextJob::Read(session)),
-        // A shell keeps no transcript, and before a session is captured
-        // there is nothing to read: no gauge beats a made-up zero.
+        .then_some(ContextJob::Read(kind, session)),
+        // A shell keeps no transcript, an agent whose history says nothing
+        // of its context has none to read, and before a session is
+        // captured there is nothing to read: no gauge beats a made-up zero.
         _ => live
             .has_transcript_context(&pane.id)
             .then_some(ContextJob::Clear),

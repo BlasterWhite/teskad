@@ -17,6 +17,7 @@ use std::time::Duration;
 
 use tokio::sync::Notify;
 
+use hangar_core::agent::AgentKind;
 use hangar_core::board::Task;
 use hangar_core::chat::ChatPage;
 use hangar_core::git::{ChangedFile, Changes, FileDiff};
@@ -477,7 +478,12 @@ impl Sources for LiveSources {
         node: &str,
         read: &ChatRead,
     ) -> BoxFuture<Result<Option<serde_json::Value>, String>> {
-        Box::pin(node_chat(node.to_string(), read.clone()))
+        let state = self.0.services.snapshot().state.clone();
+        match session_kind(&state, &read.session_id) {
+            Some(kind) => Box::pin(node_chat(node.to_string(), kind, read.clone())),
+            // No agent pane holds the session: no history to ask for.
+            None => Box::pin(std::future::ready(Ok(None))),
+        }
     }
 
     fn chat(&self, read: ChatRead) -> BoxFuture<Result<Option<ChatPage>, String>> {
@@ -553,14 +559,30 @@ impl Sources for LiveSources {
     }
 }
 
-/// A page of the Claude Code transcript of a pane on node `node` (what
-/// `Sources::chat` reads here), read there over its connection (`GET
-/// /node/chat`).
-pub async fn node_chat(node: String, read: ChatRead) -> Result<Option<serde_json::Value>, String> {
+/// The agent of the pane whose session is `session`, which writes its
+/// history in its own format (Claude Code's transcript, Codex's rollout):
+/// what a node is asked for by kind. `None` when no agent pane holds it.
+fn session_kind(state: &AppState, session: &str) -> Option<AgentKind> {
+    state
+        .workspaces
+        .iter()
+        .flat_map(|ws| &ws.panes)
+        .find(|pane| pane.session_id.as_deref() == Some(session))
+        .and_then(|pane| pane.agent.kind())
+}
+
+/// A page of the history agent `kind` writes for a pane on node `node`
+/// (what `Sources::chat` reads here), read there over its connection (`GET
+/// /node/chat`, which takes the kind).
+pub async fn node_chat(
+    node: String,
+    kind: AgentKind,
+    read: ChatRead,
+) -> Result<Option<serde_json::Value>, String> {
     let client = crate::nodes::remote::client_of(&node)?;
     crate::nodes::remote::chat(
         &client,
-        hangar_core::agent::AgentKind::Claude,
+        kind,
         &read.session_id,
         &read.cwd,
         read.before.as_deref(),
@@ -596,10 +618,10 @@ mod tests {
             before: before.map(str::to_owned),
             limit: Some(30),
         };
-        let first = node_chat(node_id.into(), read(None)).await;
+        let first = node_chat(node_id.into(), AgentKind::Claude, read(None)).await;
         assert_eq!(first, Ok(Some(serde_json::json!({ "items": [] }))));
         assert_eq!(
-            node_chat(node_id.into(), read(Some("4096"))).await,
+            node_chat(node_id.into(), AgentKind::Claude, read(Some("4096"))).await,
             Ok(None)
         );
         assert_eq!(
@@ -610,8 +632,63 @@ mod tests {
             ]
         );
         assert_eq!(
-            node_chat("live-test-gone".into(), read(None)).await,
+            node_chat("live-test-gone".into(), AgentKind::Claude, read(None)).await,
             Err("node live-test-gone is not connected".into())
+        );
+        crate::nodes::remote::publish(node_id, None);
+    }
+
+    /// A Codex pane on a node: its rollout's pages are asked of the node as
+    /// Codex's, the kind its pane runs.
+    #[tokio::test]
+    async fn a_node_codex_pane_s_history_is_asked_of_its_node_as_codex_s() {
+        use crate::nodes::testing::{answer, listen, read_request};
+        use crate::state::types::{AgentId, Pane, Workspace};
+        let (listener, client) = listen().await;
+        let node = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let line = read_request(&mut stream).await.line().to_owned();
+            answer(&mut stream, 200, r#"{"page":{"items":[]}}"#).await;
+            line
+        });
+        let state = AppState {
+            workspaces: vec![Workspace {
+                id: "w1".into(),
+                panes: vec![
+                    Pane {
+                        id: "p1".into(),
+                        agent: AgentId::Codex,
+                        session_id: Some("0199a5c4".into()),
+                        ..Pane::default()
+                    },
+                    Pane {
+                        id: "p2".into(),
+                        agent: AgentId::Claude,
+                        session_id: Some("s-claude".into()),
+                        ..Pane::default()
+                    },
+                ],
+                ..Workspace::default()
+            }],
+            ..AppState::default()
+        };
+        assert_eq!(session_kind(&state, "0199a5c4"), Some(AgentKind::Codex));
+        assert_eq!(session_kind(&state, "s-claude"), Some(AgentKind::Claude));
+        assert_eq!(session_kind(&state, "nobody's"), None);
+
+        let node_id = "live-test-node-codex";
+        crate::nodes::remote::publish(node_id, Some(client));
+        let read = ChatRead {
+            session_id: "0199a5c4".into(),
+            cwd: "/w".into(),
+            before: None,
+            limit: Some(30),
+        };
+        let page = node_chat(node_id.into(), AgentKind::Codex, read).await;
+        assert_eq!(page, Ok(Some(serde_json::json!({ "items": [] }))));
+        assert_eq!(
+            node.await.unwrap(),
+            "GET /node/chat?session=0199a5c4&cwd=%2Fw&limit=30&kind=codex HTTP/1.1"
         );
         crate::nodes::remote::publish(node_id, None);
     }

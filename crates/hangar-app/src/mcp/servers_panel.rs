@@ -1,13 +1,16 @@
-//! « Serveurs MCP »: which MCP servers a workspace's Claude Code panes start
-//! with (`McpServersPanel.tsx`, `scope.rs`).
+//! « Serveurs MCP »: which MCP servers a workspace's agent panes start with
+//! (`McpServersPanel.tsx`, `scope.rs`).
 //!
 //! Changes are saved as they are made, and reach the panes on their next
-//! launch: restarting a running agent interrupts it, so that stays a button of
-//! its own, and it only restarts the panes that run with something else.
+//! launch, whichever way their agent takes the servers (`caps.mcp`: a file,
+//! Claude Code's `--mcp-config`; overrides, Codex's `-c`): restarting a
+//! running agent interrupts it, so that stays a button of its own, and it
+//! only restarts the panes that run with something else.
 
 use iced::widget::{column, container, row, rule, space, text};
 use iced::{Alignment, Element, Length, Padding, Task};
 
+use hangar_core::agent::{AgentKind, McpInjection};
 use hangar_core::mcp_scope::{self, Discovery, ServerInfo, Status};
 use hangar_engine::accounts::{AccountLevels, MAIN_ACCOUNT};
 use hangar_i18n::{Key, args};
@@ -23,7 +26,7 @@ use super::{Msg, State};
 use crate::ctx::Ctx;
 use crate::message::{Intent, Message};
 use crate::services::Services;
-use crate::state::types::{AgentId, McpMode, Pane, PaneId, WorkspaceMcp, WsId};
+use crate::state::types::{McpMode, Pane, PaneId, WorkspaceMcp, WsId};
 use crate::state::{Model, Patch, StoreAction, Workspace};
 
 /// What the panel knows of the servers.
@@ -39,12 +42,20 @@ enum Found {
 pub struct Servers {
     ws: WsId,
     found: Found,
+    /// The servers an agent that takes them as overrides of its own
+    /// configuration (`McpInjection::Overrides`: Codex, `codex mcp list`)
+    /// has by itself, read when the workspace has such a pane: what its
+    /// launch is compared with. `None` until read, or without such a pane.
+    overrides: Option<Discovery>,
 }
 
 #[derive(Debug, Clone)]
 pub enum ServersMsg {
     /// `mcp_servers` answered for this workspace.
     Found(WsId, Result<Discovery, String>),
+    /// The configuration of the agent its override panes run answered
+    /// (`Servers::overrides`).
+    FoundOverrides(WsId, Discovery),
     /// « Claude Code's » (`Inherit`) or « Chosen here ».
     Mode(McpMode),
     /// The « All » preset.
@@ -57,7 +68,8 @@ pub enum ServersMsg {
 }
 
 /// Opens the panel on a workspace and reads Claude Code's configuration for
-/// its folder, off the UI thread.
+/// its folder, off the UI thread, and the configuration of the agent its
+/// override panes run when it has any ([`overrides_kind`]).
 pub fn open(st: &mut State, m: &Model, ws_id: &str) -> Task<Message> {
     let Some(ws) = m.workspace(ws_id) else {
         st.servers = None;
@@ -66,12 +78,13 @@ pub fn open(st: &mut State, m: &Model, ws_id: &str) -> Task<Message> {
     st.servers = Some(Servers {
         ws: ws.id.clone(),
         found: Found::Loading,
+        overrides: None,
     });
     // The account its Claude Code panes start on: its own, its folder's or
     // the default, as a launch resolves it.
     let levels = AccountLevels::of(m.state(), ws, None);
     let (id, cwd) = (ws.id.clone(), ws.cwd.clone());
-    Task::perform(
+    let file = Task::perform(
         async move {
             let at = id.clone();
             let found = tokio::task::spawn_blocking(move || {
@@ -82,11 +95,94 @@ pub fn open(st: &mut State, m: &Model, ws_id: &str) -> Task<Message> {
             .map_err(|error| error.to_string());
             ServersMsg::Found(at, found)
         },
-        |message| Message::Mcp(Msg::Servers(message)),
-    )
+        msg,
+    );
+    let Some(kind) = overrides_kind(ws) else {
+        return file;
+    };
+    // The account that agent's panes start on, as for the file's.
+    let levels = AccountLevels::of_kind(m.state(), ws, None, kind);
+    let (id, cwd) = (ws.id.clone(), ws.cwd.clone());
+    let overrides = Task::perform(
+        async move {
+            let at = id.clone();
+            let found = tokio::task::spawn_blocking(move || {
+                let account = levels.launch_of(kind).id;
+                mcp_scope::codex_mcp_servers(cwd, (account != MAIN_ACCOUNT).then_some(account))
+            })
+            .await
+            // Its list could not be had: nothing is known of its servers, as
+            // when `codex mcp list` fails.
+            .unwrap_or_else(|error| Discovery {
+                servers: Vec::new(),
+                unreadable: vec![error.to_string()],
+            });
+            ServersMsg::FoundOverrides(at, found)
+        },
+        msg,
+    );
+    Task::batch([file, overrides])
 }
 
-/// What a pane's Claude Code was started with, if the launch said
+/// How pane `pane`'s agent takes the MCP servers at launch (`caps.mcp`):
+/// Hangar's own and the workspace's choice, in a file (Claude Code's
+/// `--mcp-config`) or as overrides of its own configuration (Codex's `-c`).
+/// Either way a change of the choice reaches it at its next launch only, so
+/// it is counted and restarted. `None` for a shell, which starts no agent.
+fn takes_servers(pane: &Pane) -> Option<McpInjection> {
+    pane.agent.kind().map(|kind| kind.info().caps.mcp.injection)
+}
+
+/// The agent of the first pane of `ws` that takes its servers as overrides
+/// of its own configuration, whose configuration the panel reads to compare
+/// its launches with; `None` when no pane does.
+fn overrides_kind(ws: &Workspace) -> Option<AgentKind> {
+    ws.panes
+        .iter()
+        .filter(|pane| takes_servers(pane) == Some(McpInjection::Overrides))
+        .find_map(|pane| pane.agent.kind())
+}
+
+/// What a pane's launch is compared with, by the way its agent takes the
+/// servers ([`takes_servers`]).
+#[derive(Debug, Clone, Copy, Default)]
+struct Defined<'a> {
+    /// The servers the panel lists: the configuration a file's servers are
+    /// copied from (Claude Code's).
+    file: &'a [ServerInfo],
+    /// The agent's own configuration that an override launch changes
+    /// (`Servers::overrides`); `None` while it is not read.
+    overrides: Option<&'a [ServerInfo]>,
+}
+
+impl<'a> Defined<'a> {
+    /// What `injection`'s launches are compared with, if it is known.
+    fn of(&self, injection: McpInjection) -> Option<&'a [ServerInfo]> {
+        match injection {
+            McpInjection::ConfigFile => Some(self.file),
+            McpInjection::Overrides => self.overrides,
+        }
+    }
+}
+
+/// What the panel compares the launches of workspace `ws`'s panes with, once
+/// it is all read: `None` while the file's servers, or those of the agent
+/// its override panes run, are not.
+fn defined<'a>(panel: &'a Servers, ws: &Workspace) -> Option<Defined<'a>> {
+    let Found::Ready(discovery) = &panel.found else {
+        return None;
+    };
+    let overrides = panel.overrides.as_ref().map(|d| d.servers.as_slice());
+    if overrides_kind(ws).is_some() && overrides.is_none() {
+        return None;
+    }
+    Some(Defined {
+        file: &discovery.servers,
+        overrides,
+    })
+}
+
+/// What a pane's agent was started with, if the launch said
 /// (`getPaneInsight(pane.id).mcp`): P4 keeps it with the rest of what the pane
 /// reported. A pane whose launch was never recorded (it has not started, or a
 /// launch that could not say) counts as out of date, which is the TS's rule.
@@ -99,8 +195,8 @@ fn running_mcp(m: &Model, pane: &Pane) -> Option<PaneMcp> {
         .map(PaneMcp::from)
 }
 
-/// The Claude Code panes of a workspace that run with something else than
-/// the choice, split by whether the restart may take them now.
+/// The agent panes of a workspace that run with something else than the
+/// choice, split by whether the restart may take them now.
 ///
 /// A restart interrupts the turn a pane is in. The TS listed such panes with
 /// a warning and restarted them with the rest; here the button leaves them
@@ -116,15 +212,16 @@ struct RestartPlan {
     /// Out of date and inside a turn (working, or waiting for an answer):
     /// left alone.
     held: Vec<PaneId>,
-    /// How many Claude Code panes the workspace has.
-    claude: usize,
+    /// How many panes of the workspace take its MCP servers: its agent
+    /// panes ([`takes_servers`]).
+    agents: usize,
 }
 
 impl RestartPlan {
-    /// Whether nothing is out of date at all: a workspace with no Claude Code
-    /// pane has nothing to be up to date.
+    /// Whether nothing is out of date at all: a workspace with no agent pane
+    /// has nothing to be up to date.
     fn up_to_date(&self) -> bool {
-        self.claude > 0 && self.now.is_empty() && self.held.is_empty()
+        self.agents > 0 && self.now.is_empty() && self.held.is_empty()
     }
 }
 
@@ -132,17 +229,17 @@ fn restart_plan(
     m: &Model,
     ws: &Workspace,
     mcp: &WorkspaceMcp,
-    servers: &[ServerInfo],
+    defined: Defined<'_>,
 ) -> RestartPlan {
     let mut plan = RestartPlan {
-        claude: ws
+        agents: ws
             .panes
             .iter()
-            .filter(|pane| pane.agent == AgentId::Claude)
+            .filter(|pane| takes_servers(pane).is_some())
             .count(),
         ..RestartPlan::default()
     };
-    for pane in stale_panes(m, ws, mcp, servers) {
+    for pane in stale_panes(m, ws, mcp, defined) {
         if m.live.panes_logic.is_mid_turn(&pane.id) {
             plan.held.push(pane.id.clone());
         } else {
@@ -164,6 +261,12 @@ pub fn update(st: &mut State, m: &mut Model, sv: &Services, msg: ServersMsg) -> 
                     Ok(discovery) => Found::Ready(discovery),
                     Err(error) => Found::Failed(error),
                 };
+            }
+            Task::none()
+        }
+        ServersMsg::FoundOverrides(ws, found) => {
+            if ws == panel.ws {
+                panel.overrides = Some(found);
             }
             Task::none()
         }
@@ -201,10 +304,10 @@ pub fn update(st: &mut State, m: &mut Model, sv: &Services, msg: ServersMsg) -> 
             save(m, sv, &panel.ws, next)
         }
         ServersMsg::Restart => {
-            let Found::Ready(discovery) = &panel.found else {
+            let Some(defined) = m.workspace(&panel.ws).and_then(|ws| defined(panel, ws)) else {
                 return Task::none();
             };
-            match restart_request(m, &panel.ws, &discovery.servers) {
+            match restart_request(m, &panel.ws, defined) {
                 Some(restart) => Task::batch([
                     Task::done(Message::Intent(restart)),
                     Task::done(Message::Intent(Intent::CloseOverlay)),
@@ -219,9 +322,9 @@ pub fn update(st: &mut State, m: &mut Model, sv: &Services, msg: ServersMsg) -> 
 /// something else and are between turns. Read when the button is pressed, not
 /// when it was drawn, since a turn may have begun meanwhile. `None` when there
 /// is nothing to restart.
-fn restart_request(m: &Model, ws_id: &WsId, servers: &[ServerInfo]) -> Option<Intent> {
+fn restart_request(m: &Model, ws_id: &WsId, defined: Defined<'_>) -> Option<Intent> {
     let ws = m.workspace(ws_id)?;
-    let plan = restart_plan(m, ws, &workspace_mcp(Some(ws)), servers);
+    let plan = restart_plan(m, ws, &workspace_mcp(Some(ws)), defined);
     (!plan.now.is_empty()).then(|| Intent::RestartPanes {
         ws: ws_id.clone(),
         panes: plan.now,
@@ -253,17 +356,22 @@ fn save(m: &mut Model, sv: &Services, ws_id: &WsId, next: WorkspaceMcp) -> Task<
     )
 }
 
-/// The Claude Code panes that run with something else than the choice.
+/// The agent panes that run with something else than the choice: each
+/// launch compared with what its agent's way of taking the servers gives
+/// ([`Defined`]). One whose comparison is not known counts as out of date,
+/// as a launch that never said does.
 fn stale_panes<'a>(
     m: &'a Model,
     ws: &'a Workspace,
     mcp: &'a WorkspaceMcp,
-    servers: &'a [ServerInfo],
+    defined: Defined<'a>,
 ) -> impl Iterator<Item = &'a Pane> {
-    ws.panes
-        .iter()
-        .filter(|pane| pane.agent == AgentId::Claude)
-        .filter(move |pane| needs_restart(running_mcp(m, pane).as_ref(), mcp, servers))
+    ws.panes.iter().filter(move |pane| {
+        takes_servers(pane).is_some_and(|injection| match defined.of(injection) {
+            Some(servers) => needs_restart(running_mcp(m, pane).as_ref(), mcp, servers),
+            None => true,
+        })
+    })
 }
 
 fn msg(message: ServersMsg) -> Message {
@@ -330,11 +438,11 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, ws_id: &'a WsId) -> Element<'a, Mes
         body = body.push(stats(ctx, ws, &mcp, servers));
     }
 
-    // The footer: what the choice reaches, and the restart that makes it so.
-    let plan = if discovery.is_some() {
-        restart_plan(ctx.model, ws, &mcp, servers)
-    } else {
-        RestartPlan::default()
+    // The footer: what the choice reaches, and the restart that makes it so,
+    // once every launch can be compared.
+    let plan = match defined(panel, ws) {
+        Some(defined) => restart_plan(ctx.model, ws, &mcp, defined),
+        None => RestartPlan::default(),
     };
     let mut note = if plan.up_to_date() {
         ctx.t(Key::McpScopeUpToDate).into_owned()
@@ -623,7 +731,7 @@ fn stats<'a>(
     let sessions = ws
         .panes
         .iter()
-        .filter(|pane| pane.agent == AgentId::Claude)
+        .filter(|pane| takes_servers(pane).is_some())
         .count();
     let total = per_session * sessions;
     // What Claude Code's own configuration would start, to compare with.

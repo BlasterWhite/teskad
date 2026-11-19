@@ -20,8 +20,9 @@ use crate::message::{Intent, Message};
 use crate::services::Services;
 use crate::services::inbox::Answer;
 use crate::state::roles::orchestrator_of;
-use crate::state::types::PaneRole;
+use crate::state::types::{AgentKind, PaneRole, automatic_agent};
 use crate::state::{AgentId, AppState, Model, Pane, Patch, StoreAction, Workspace, WorkspaceDraft};
+use crate::workspace_dialog::folder::Installed;
 
 use super::Msg;
 use super::clone::{
@@ -233,19 +234,37 @@ fn new_workspace_levels(state: &AppState, folder: Option<&str>) -> AccountLevels
 
 // ── on the UI thread: what the flow asked of the model ────────────────
 
-/// The workspace with a single Claude Code pane, which is its orchestrator
-/// from the start, so that it launches with Hangar's server.
+/// The agent the clone's orchestrator runs (D20), as the new-workspace
+/// dialog's runs when the person picks none
+/// (`workspace_dialog::folder::orchestrator_of`): the settings' default for
+/// orchestrators when it is installed, else Claude Code when it is and Codex
+/// when it alone is. With no agent installed, the rule's own
+/// (`automatic_agent`): the one the setup offers first.
+fn clone_orchestrator(m: &Model) -> AgentKind {
+    let installed = Installed::of(
+        AgentKind::ALL
+            .into_iter()
+            .filter(|kind| crate::shell::setup::installed(m, *kind)),
+    );
+    crate::workspace_dialog::folder::orchestrator_of(None, m.settings(), &installed)
+        .unwrap_or_else(|| automatic_agent(|kind| installed.has(kind)))
+}
+
+/// The workspace with a single agent pane, the default orchestrator agent's
+/// ([`clone_orchestrator`]), which is its orchestrator from the start, so
+/// that it launches with Hangar's server.
 pub(super) fn create_workspace(
     m: &mut Model,
     draft: NewWorkspace,
     folder: Option<String>,
 ) -> Result<Created, String> {
     let before = m.state().active_workspace_id.clone();
+    let agent = AgentId::from(clone_orchestrator(m));
     let made = m.apply(StoreAction::AddWorkspace(WorkspaceDraft {
         name: draft.name,
         cwd: draft.cwd,
         layout: 1,
-        agents: vec![AgentId::Claude],
+        agents: vec![agent],
         shell_id: None,
         folder_id: folder,
         ..WorkspaceDraft::default()
@@ -405,5 +424,46 @@ mod tests {
         // A folder removed while the clone ran files it nowhere.
         let created = create_workspace(&mut m, shop(), Some("gone".into())).unwrap();
         assert_eq!(m.workspace(&created.workspace.id).unwrap().folder_id, None);
+    }
+
+    /// The agent the clone's orchestrator pane runs.
+    fn orchestrator_agent(m: &mut Model) -> AgentId {
+        let created = create_workspace(m, shop(), None).unwrap();
+        let ws = m.workspace(&created.workspace.id).unwrap();
+        let pane = ws
+            .panes
+            .iter()
+            .find(|pane| pane.id == created.orchestrator.id)
+            .unwrap();
+        assert_eq!(pane.role, Some(PaneRole::Orchestrator));
+        pane.agent
+    }
+
+    /// The clone's orchestrator runs the agent one nobody chose runs (D20):
+    /// Claude Code when it is installed, Codex when it alone is, the
+    /// settings' default for orchestrators when it is installed.
+    #[test]
+    fn the_clones_orchestrator_runs_the_default_orchestrator_agent() {
+        let mut m = model_with_games(None);
+        // Nothing found yet: the agent the setup offers first.
+        assert_eq!(orchestrator_agent(&mut m), AgentId::Claude);
+        m.ui.claude_installed = true;
+        assert_eq!(orchestrator_agent(&mut m), AgentId::Claude);
+
+        // Codex alone on this machine.
+        m.ui.claude_installed = false;
+        m.ui.codex_installed = true;
+        assert_eq!(orchestrator_agent(&mut m), AgentId::Codex);
+
+        // Both, the settings naming Codex for orchestrators.
+        m.ui.claude_installed = true;
+        let mut state = m.state().clone();
+        state.settings.default_orchestrator_agent = Some(AgentKind::Codex);
+        m.hydrate(state);
+        assert_eq!(orchestrator_agent(&mut m), AgentId::Codex);
+
+        // A default that is not installed gives way to the rule.
+        m.ui.codex_installed = false;
+        assert_eq!(orchestrator_agent(&mut m), AgentId::Claude);
     }
 }
