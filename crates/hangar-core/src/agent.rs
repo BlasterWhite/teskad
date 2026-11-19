@@ -21,6 +21,7 @@
 pub mod caps;
 mod claude;
 pub mod codex;
+pub mod codex_attach;
 pub mod detect;
 pub mod launch;
 

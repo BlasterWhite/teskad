@@ -656,9 +656,8 @@ async fn delete_memory(
 // the pane id Hangar put in its environment (see bridge.rs).
 // ---------------------------------------------------------------------------
 
-/// One report from a pane's mod, relayed to the window as is. The window owns
-/// the meaning of each `kind`; only an edit is also remembered here, because
-/// the conflict question is asked of the API, not of the window.
+/// One report from a pane's mod, relayed to the window as is
+/// (`bridge::report`, the way a Codex pane's client reports in process too).
 async fn bridge_event(
     State(state): State<Arc<ApiState>>,
     headers: HeaderMap,
@@ -673,18 +672,7 @@ async fn bridge_event(
     if kind.is_empty() {
         return Err(bad(StatusCode::BAD_REQUEST, "an event needs a kind"));
     }
-    if kind == "edit" {
-        if let Some(file) = event.get("file").and_then(|v| v.as_str()) {
-            let name = event.get("name").and_then(|v| v.as_str()).unwrap_or(&pane);
-            crate::bridge::record_edit(&pane, name, file);
-        }
-    }
-    // An ask the mod holds open for an answer from here, or its end.
-    crate::bridge::note_report(&pane, &event);
-    let _ = state.host.emit(Event::BridgeEvent {
-        pane_id: pane,
-        event,
-    });
+    crate::bridge::report(&state.host, &pane, event);
     Ok(Json(json!({ "ok": true })))
 }
 
