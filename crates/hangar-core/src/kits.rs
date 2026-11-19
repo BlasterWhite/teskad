@@ -4,8 +4,10 @@
 //! A kit is a folder with a `hangar-kit.json` at its root (manifest.rs). It
 //! may hold a Claude Code plugin — skills, commands, agents, MCP servers —
 //! that every Claude Code pane of a workspace the kit is enabled on loads, by
-//! way of `CLAUDE_CODE_PLUGIN_DIRS`; tabs of its own; and setup commands the
-//! person approves and runs once per machine.
+//! way of `CLAUDE_CODE_PLUGIN_DIRS`, and whose parts Codex can take reach a
+//! Codex pane when the manifest's `agents` names Codex (plugin.rs); tabs of
+//! its own; and setup commands the person approves and runs once per
+//! machine.
 //!
 //! Kits come from a local folder, linked in place, or from a GitHub link,
 //! cloned shallow into `~/.hangar/kits/<id>` (store.rs, source.rs); the library
@@ -37,6 +39,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use serde::Serialize;
 use serde_json::Value;
 
+use crate::agent::AgentKind;
 use crate::host::{Event, Host};
 
 // Named here for the app, which reads what the commands answer with.
@@ -44,7 +47,9 @@ pub use hooks::Hook;
 pub use manifest::{
     CommandArg, CommandRun, DeclaredCommand, Manifest, SetupRun, SetupStep, Tab, TabKind, TabParam,
 };
-pub use plugin::{Inspection, PluginInfo, RunKind, Running, SetupCommand};
+pub use plugin::{
+    AgentParts, Inspection, LeftOut, Part, PluginInfo, RunKind, Running, SetupCommand, Why,
+};
 pub use setup::StepStatus;
 pub use source::GitSource;
 use store::Store;
@@ -202,7 +207,11 @@ fn launch_from(store: &Store, ids: &[String]) -> Launch {
     let (kits, mut issues) = usable(store, ids);
     let separator = if cfg!(windows) { ';' } else { ':' };
     let mut plugins = Vec::new();
-    for kit in kits {
+    // `CLAUDE_CODE_PLUGIN_DIRS`: the plugins meant for Claude Code (`agents`).
+    for kit in kits
+        .into_iter()
+        .filter(|kit| kit.manifest.meant_for(AgentKind::Claude))
+    {
         let Some(dir) = kit.plugin_dir() else {
             continue;
         };
@@ -267,6 +276,19 @@ pub fn mcp_servers(ids: &[String]) -> Vec<(String, Value)> {
         return Vec::new();
     };
     plugin::scoped_servers(&usable(&store, ids).0)
+}
+
+/// The MCP servers of the kits `ids` meant for Codex, named and written in
+/// Codex's own keys for its launch (`-c mcp_servers`, plugin.rs, D18). Kits
+/// that cannot be used bring none; the pane's launch reports them.
+pub fn codex_mcp_servers(ids: &[String]) -> Vec<(String, Value)> {
+    if ids.is_empty() {
+        return Vec::new();
+    }
+    let Ok(store) = open() else {
+        return Vec::new();
+    };
+    plugin::codex_servers(&usable(&store, ids).0)
 }
 
 // ---------------------------------------------------------------------------

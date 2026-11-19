@@ -21,6 +21,8 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use serde_json::{Map, Value};
 
+use crate::agent::AgentKind;
+
 pub const FILE: &str = "hangar-kit.json";
 
 /// The newest schema this Hangar reads; a higher one needs a newer Hangar.
@@ -154,10 +156,23 @@ pub struct Manifest {
     /// The folder holding the kit's Claude Code plugin, `.` for the root.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub plugin: Option<String>,
+    /// The kinds of agent the kit's plugin is meant for, as `agents` names
+    /// them (docs/native/agents.md §6.4, D18): its parts reach those alone,
+    /// each the way it can (plugin.rs, `AgentParts`). Absent, Claude Code
+    /// alone, the one agent kits were written for before Codex. Its tabs and
+    /// setup steps are Hangar's own, and work whatever the agent.
+    pub agents: Vec<AgentKind>,
     pub tabs: Vec<Tab>,
     pub setup: Vec<SetupStep>,
     /// What a tab may run, by name: nothing else, and never through a shell.
     pub commands: BTreeMap<String, DeclaredCommand>,
+}
+
+impl Manifest {
+    /// Whether the kit's plugin is meant for `kind` (`agents`).
+    pub fn meant_for(&self, kind: AgentKind) -> bool {
+        self.agents.contains(&kind)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -615,6 +630,7 @@ impl Check<'_> {
             }
         }
         let plugin = self.plugin(object);
+        let agents = self.agents(object);
         // Before the tabs, whose permissions may name these.
         let commands = self.commands(object);
         let tabs = self.tabs(object);
@@ -631,10 +647,40 @@ impl Check<'_> {
             icon,
             hangar,
             plugin,
+            agents,
             tabs,
             setup,
             commands,
         }
+    }
+
+    /// `agents`, a list of agent ids (`claude`, `codex`); absent, Claude Code
+    /// alone. An id this Hangar does not know — an agent a newer one runs — is
+    /// left out rather than refused, as a field it does not know is left
+    /// alone, so the kit still opens here; a list naming no agent at all says
+    /// nothing, and is refused.
+    fn agents(&mut self, object: &Map<String, Value>) -> Vec<AgentKind> {
+        if object.get("agents").is_none_or(Value::is_null) {
+            return vec![AgentKind::Claude];
+        }
+        let items = self.list(object, "agents");
+        if matches!(object.get("agents"), Some(Value::Array(list)) if list.is_empty()) {
+            self.problem("agents", "names no agent");
+        }
+        let mut kinds = Vec::new();
+        for (index, item) in items.iter().enumerate() {
+            match item {
+                Value::String(id) => {
+                    if let Some(kind) = AgentKind::from_id(id.trim()) {
+                        if !kinds.contains(&kind) {
+                            kinds.push(kind);
+                        }
+                    }
+                }
+                _ => self.problem(&format!("agents[{index}]"), "must be a string"),
+            }
+        }
+        kinds
     }
 
     /// Named, or `.` when the root holds a `.claude-plugin` folder.
@@ -1676,6 +1722,62 @@ mod tests {
         assert!(parse(&text, &empty.root)
             .unwrap_err()
             .starts_with("tabs[0].entry: not found"));
+    }
+
+    /// `agents` says which agents the plugin is for; absent, Claude Code
+    /// alone, as before kits knew of another.
+    #[test]
+    fn agents_name_the_kinds_the_plugin_is_for() {
+        let kit = Folder::new("agents");
+        let read = |patch: Value| kit.parse(&with(minimal(), patch));
+        let absent = kit.parse(&minimal()).unwrap();
+        assert_eq!(absent.agents, vec![AgentKind::Claude]);
+        assert!(absent.meant_for(AgentKind::Claude));
+        assert!(!absent.meant_for(AgentKind::Codex));
+        assert_eq!(
+            read(json!({ "agents": null })).unwrap().agents,
+            vec![AgentKind::Claude]
+        );
+        let both = read(json!({ "agents": ["codex", "claude", "codex"] })).unwrap();
+        assert_eq!(both.agents, vec![AgentKind::Codex, AgentKind::Claude]);
+        assert!(both.meant_for(AgentKind::Codex) && both.meant_for(AgentKind::Claude));
+        let codex = read(json!({ "agents": ["codex"] })).unwrap();
+        assert!(!codex.meant_for(AgentKind::Claude));
+        assert_eq!(
+            serde_json::to_value(&codex).unwrap()["agents"],
+            json!(["codex"])
+        );
+    }
+
+    /// An agent a newer Hangar runs is left out, not refused: the kit still
+    /// opens here. A list that names nothing, or something that is not a
+    /// list of ids, is.
+    #[test]
+    fn an_unknown_agent_is_left_out_and_a_wrong_list_refused() {
+        let kit = Folder::new("agents-wrong");
+        let read = |patch: Value| kit.parse(&with(minimal(), patch));
+        assert_eq!(
+            read(json!({ "agents": ["claude", "gemini"] }))
+                .unwrap()
+                .agents,
+            vec![AgentKind::Claude]
+        );
+        assert!(read(json!({ "agents": ["gemini"] }))
+            .unwrap()
+            .agents
+            .is_empty());
+        assert_eq!(
+            problems(read(json!({ "agents": [] }))),
+            "agents: names no agent"
+        );
+        assert_eq!(
+            problems(read(json!({ "agents": "codex" }))),
+            "agents: must be a list"
+        );
+        assert_eq!(
+            problems(read(json!({ "agents": ["codex", 1] }))),
+            "agents[1]: must be a string"
+        );
     }
 
     #[test]

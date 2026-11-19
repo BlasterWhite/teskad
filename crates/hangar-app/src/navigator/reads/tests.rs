@@ -109,6 +109,7 @@ fn kit(id: &str, name: &str, tabs: Vec<Tab>) -> KitInfo {
             icon: None,
             hangar: None,
             plugin: None,
+            agents: vec![hangar_core::agent::AgentKind::Claude],
             tabs,
             setup: Vec::new(),
             commands: BTreeMap::new(),

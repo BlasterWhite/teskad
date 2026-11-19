@@ -20,13 +20,13 @@
 //! `tui/src/config_update.rs`) and the features.
 //!
 //! **The floor** (no socket, D6). The plain `codex`, every setting on its
-//! line. What is long or holds a path — Hangar's executable, the role, the
-//! writable roots, the trusted folders — travels in a `HANGAR_CODEX_*`
-//! variable the pane's shell starts with and expands, as `$HANGAR_MCP_CONFIG`
-//! does for Claude Code: the line names the variable, never the value. A
-//! shell that cannot hand the program a variable's value whole (PowerShell
-//! and cmd, for a value holding a double quote) goes without that setting
-//! rather than with a broken one.
+//! line. What is long or holds a path — Hangar's executable, the other MCP
+//! servers, the role, the writable roots, the trusted folders — travels in a
+//! `HANGAR_CODEX_*` variable the pane's shell starts with and expands, as
+//! `$HANGAR_MCP_CONFIG` does for Claude Code: the line names the variable,
+//! never the value. A shell that cannot hand the program a variable's value
+//! whole (PowerShell and cmd, for a value holding a double quote) goes
+//! without that setting rather than with a broken one.
 //!
 //! The person's `~/.codex/config.toml` is never written: `-c` is a layer of
 //! its own, above the person's files, merged into what Codex reads and never
@@ -95,6 +95,15 @@ const IMAGE_GENERATION: &str = "features.image_generation";
 /// Hangar's MCP server, `[mcp_servers.hangar]` (`RawMcpServerConfig`,
 /// `config/src/mcp_types.rs`), given whole as one inline table.
 const HANGAR_SERVER: &str = "mcp_servers.hangar";
+/// The launch's other MCP servers (`LaunchRequest::mcp_overrides`), one
+/// inline table of them by name. It goes before [`HANGAR_SERVER`]: `-c`
+/// builds its layer in the order given, and a whole table set at
+/// `mcp_servers` replaces what an earlier `-c` put under it, where a dotted
+/// key set later only adds its entry (`config/src/overrides.rs`,
+/// `apply_toml_override`). The layer is then merged into the person's
+/// configuration table by table (`config/src/merge.rs`), so an entry that
+/// only says `enabled = false` keeps the rest of the person's definition.
+const MCP_SERVERS: &str = "mcp_servers";
 
 // Values.
 
@@ -150,6 +159,8 @@ const HANGAR_TOOLS_RULES: [&str; 2] = ["mcp__hangar", "mcp__hangar__*"];
 
 /// Hangar's MCP server: its executable's path holds the person's name.
 pub const MCP_VAR: &str = "HANGAR_CODEX_MCP";
+/// The other MCP servers: a kit's folder, its servers' variables.
+pub const SERVERS_VAR: &str = "HANGAR_CODEX_SERVERS";
 /// The role: a long text.
 pub const ROLE_VAR: &str = "HANGAR_CODEX_ROLE";
 /// The writable roots: paths.
@@ -157,7 +168,7 @@ pub const ROOTS_VAR: &str = "HANGAR_CODEX_ROOTS";
 /// The trusted folders: paths.
 pub const TRUST_VAR: &str = "HANGAR_CODEX_TRUST";
 /// Every one, in the order the line types them.
-const VARIABLES: [&str; 4] = [MCP_VAR, ROLE_VAR, ROOTS_VAR, TRUST_VAR];
+const VARIABLES: [&str; 5] = [SERVERS_VAR, MCP_VAR, ROLE_VAR, ROOTS_VAR, TRUST_VAR];
 
 /// One `-c` of a launch.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -265,6 +276,13 @@ fn remote(request: &LaunchRequest) -> Option<String> {
 /// Every setting of the launch, in the order they are given.
 fn settings(request: &LaunchRequest) -> Vec<Setting> {
     let mut settings = Vec::new();
+    // Before Hangar's own, which it would replace otherwise (`MCP_SERVERS`).
+    if let Some(servers) = other_servers(request) {
+        settings.push(Setting {
+            arg: format!("{MCP_SERVERS}={servers}"),
+            typed: Typed::Variable(SERVERS_VAR),
+        });
+    }
     if let Some(server) = hangar_server(request) {
         settings.push(Setting {
             arg: format!("{HANGAR_SERVER}={server}"),
@@ -387,6 +405,80 @@ fn hangar_server(request: &LaunchRequest) -> Option<String> {
         ));
     }
     Some(format!("{{{}}}", fields.join(",")))
+}
+
+/// The launch's other servers (`LaunchRequest::mcp_overrides`) as one TOML
+/// inline table by name, each its own table; `None` without any. Hangar's
+/// own name is left to [`hangar_server`], and a name given twice keeps its
+/// first entry: a key twice in one table is not TOML.
+fn other_servers(request: &LaunchRequest) -> Option<String> {
+    let mut seen = HashSet::new();
+    let servers: Vec<String> = request
+        .mcp_overrides
+        .iter()
+        .filter(|(name, _)| !name.is_empty() && name != HANGAR_NAME)
+        .filter(|(_, entry)| entry.is_object())
+        .filter(|(name, _)| seen.insert(name.as_str()))
+        .filter_map(|(name, entry)| Some(format!("{}={}", toml_key(name), toml_value(entry)?)))
+        .collect();
+    (!servers.is_empty()).then(|| format!("{{{}}}", servers.join(",")))
+}
+
+/// Hangar's own server's name, the last part of [`HANGAR_SERVER`].
+const HANGAR_NAME: &str = "hangar";
+
+/// A JSON value as TOML: strings as [`toml_string`] writes them, objects as
+/// inline tables, arrays with their items. `None` for a `null`, which TOML
+/// has no word for: a key holding one is left out of its table, an item out
+/// of its array.
+fn toml_value(value: &serde_json::Value) -> Option<String> {
+    use serde_json::Value;
+    Some(match value {
+        Value::Null => return None,
+        Value::Bool(flag) => flag.to_string(),
+        // A TOML integer is signed on 64 bits: a larger one is written as the
+        // float it is closest to. `{:?}` writes a float as TOML reads one:
+        // `120.0`, `1e300`.
+        Value::Number(number) => match number.as_i64() {
+            Some(int) => int.to_string(),
+            None => format!("{:?}", number.as_f64()?),
+        },
+        Value::String(text) => toml_string(text),
+        Value::Array(items) => format!(
+            "[{}]",
+            items
+                .iter()
+                .filter_map(toml_value)
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+        Value::Object(fields) => format!(
+            "{{{}}}",
+            fields
+                .iter()
+                .filter_map(|(key, value)| Some(format!(
+                    "{}={}",
+                    toml_key(key),
+                    toml_value(value)?
+                )))
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+    })
+}
+
+/// A key of an inline table: bare when TOML takes it so (letters, digits,
+/// `_` and `-`), a string otherwise.
+fn toml_key(key: &str) -> String {
+    if !key.is_empty()
+        && key
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+    {
+        key.to_string()
+    } else {
+        toml_string(key)
+    }
 }
 
 /// The variables of the pane's shell: Hangar's own, each set when the line
@@ -1009,6 +1101,142 @@ mod tests {
         assert!(!line(&floor).contains(MCP_VAR));
     }
 
+    /// A kit's server and one of the person's turned off, as
+    /// `mcp_scope::codex_mcp_scope` hands them over. Keys in name order, so
+    /// the JSON maps read the same with serde_json's `preserve_order` or
+    /// without it.
+    fn overrides() -> Vec<(String, serde_json::Value)> {
+        vec![
+            (
+                "roblox_studio".into(),
+                serde_json::json!({
+                    "args": ["--stdio", "C:\\Users\\Ann Lee\\kits\\roblox"],
+                    "command": "/home/Ann Lee/.hangar/kits/roblox/bin/studio",
+                    "env": { "STUDIO_PORT": "7777" },
+                    "env_vars": ["ROBLOX_KEY"],
+                    "tool_timeout_sec": 30.5,
+                }),
+            ),
+            (
+                "github".into(),
+                serde_json::json!({ "command": "npx", "enabled": false }),
+            ),
+        ]
+    }
+
+    const OTHER_SERVERS: &str =
+        "mcp_servers={roblox_studio={args=['--stdio','C:\\Users\\Ann Lee\\kits\\roblox'],\
+         command='/home/Ann Lee/.hangar/kits/roblox/bin/studio',env={STUDIO_PORT='7777'},\
+         env_vars=['ROBLOX_KEY'],tool_timeout_sec=30.5},github={command='npx',enabled=false}}";
+
+    /// The other servers are one table, given before Hangar's own: set
+    /// after it, the table would replace it in the `-c` layer.
+    #[test]
+    fn the_other_servers_are_one_table_before_hangars_own() {
+        let server = launch_server(&LaunchRequest {
+            mcp_overrides: overrides(),
+            ..attached(Some(ShellSyntax::Posix))
+        })
+        .unwrap();
+        assert_eq!(server.args[3..5], strings(&["-c", OTHER_SERVERS])[..]);
+        assert_eq!(server.args[5], "-c");
+        assert!(server.args[6].starts_with("mcp_servers.hangar={"));
+        assert_eq!(server.args[7..], with_flags(&worker_settings()[1..])[..]);
+    }
+
+    /// On the floor they travel in a variable of their own, typed first, so
+    /// a shell that cannot hand them over whole drops them and keeps
+    /// Hangar's server.
+    #[test]
+    fn the_floor_hands_the_other_servers_over_in_their_own_variable() {
+        let posix = build(&LaunchRequest {
+            mcp_overrides: overrides(),
+            ..worker(Some(ShellSyntax::Posix))
+        })
+        .unwrap();
+        assert!(posix
+            .command_line()
+            .starts_with("codex -c \"$HANGAR_CODEX_SERVERS\" -c \"$HANGAR_CODEX_MCP\" "));
+        assert_eq!(
+            variable(&posix, SERVERS_VAR),
+            Some(&OsString::from(OTHER_SERVERS))
+        );
+        assert!(!posix.command_line().contains("Ann Lee"));
+
+        let quoted = vec![(
+            "ci".to_string(),
+            serde_json::json!({ "args": ["say \"hi\""], "command": "node" }),
+        )];
+        let cmd = build(&LaunchRequest {
+            mcp_overrides: quoted,
+            ..worker(Some(ShellSyntax::Cmd))
+        })
+        .unwrap();
+        assert_eq!(variable(&cmd, SERVERS_VAR), None);
+        assert!(variable(&cmd, MCP_VAR).is_some());
+    }
+
+    /// Without other servers the launch is T4a's: no table, no variable.
+    #[test]
+    fn without_other_servers_nothing_more_is_given() {
+        let server = launch_server(&attached(Some(ShellSyntax::Posix))).unwrap();
+        assert!(!server
+            .args
+            .iter()
+            .any(|arg| arg.starts_with("mcp_servers={")));
+        let floor = build(&worker(Some(ShellSyntax::Posix))).unwrap();
+        assert!(!floor.command_line().contains(SERVERS_VAR));
+        assert_eq!(variable(&floor, SERVERS_VAR), None);
+    }
+
+    /// Hangar's own name, a name given twice, an entry that is not a table
+    /// and an empty name are left out; a name TOML does not take bare is
+    /// quoted.
+    #[test]
+    fn the_other_servers_keep_one_table_per_name_and_never_hangars() {
+        let request = LaunchRequest {
+            mcp_overrides: vec![
+                ("hangar".into(), serde_json::json!({ "command": "evil" })),
+                (
+                    "my server".into(),
+                    serde_json::json!({ "url": "https://mcp.example.com/" }),
+                ),
+                (
+                    "my server".into(),
+                    serde_json::json!({ "url": "https://other.example.com/" }),
+                ),
+                ("not-a-table".into(), serde_json::json!("x")),
+                (String::new(), serde_json::json!({ "command": "x" })),
+            ],
+            ..attached(Some(ShellSyntax::Posix))
+        };
+        assert_eq!(
+            other_servers(&request).as_deref(),
+            Some("{'my server'={url='https://mcp.example.com/'}}")
+        );
+        assert_eq!(other_servers(&LaunchRequest::default()), None);
+    }
+
+    /// JSON as TOML: what has no TOML word (`null`) is left out, numbers keep
+    /// their kind, nested tables and arrays stay inline.
+    #[test]
+    fn json_values_are_written_as_toml() {
+        let value = serde_json::json!({
+            "a": null,
+            "f": 120.0,
+            "list": [1, null, "it's", true],
+            "n": -3,
+            "nested": { "x.y": "z" },
+        });
+        assert_eq!(
+            toml_value(&value).as_deref(),
+            Some("{f=120.0,list=[1,\"it's\",true],n=-3,nested={'x.y'='z'}}")
+        );
+        assert_eq!(toml_value(&serde_json::Value::Null), None);
+        assert_eq!(toml_key("plain_key-1"), "plain_key-1");
+        assert_eq!(toml_key(""), "''");
+    }
+
     /// The role's text reaches Codex exactly, whatever it holds.
     #[test]
     fn the_role_is_a_toml_string_holding_it_exactly() {
@@ -1148,6 +1376,7 @@ mod tests {
             main.env,
             [
                 (MCP_CONFIG_VAR.to_string(), None),
+                (SERVERS_VAR.to_string(), None),
                 (MCP_VAR.to_string(), None),
                 (ROLE_VAR.to_string(), None),
                 (ROOTS_VAR.to_string(), None),
@@ -1170,7 +1399,7 @@ mod tests {
         assert!(account.iter().any(
             |(name, value)| name == "CODEX_HOME" && value.as_deref() == Some(home.as_os_str())
         ));
-        assert_eq!(spec.env[5..], account[..]);
+        assert_eq!(spec.env[6..], account[..]);
     }
 
     /// The person's configuration file is a layer below `-c`, never named:
