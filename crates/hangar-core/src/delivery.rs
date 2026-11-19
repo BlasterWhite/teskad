@@ -1243,11 +1243,14 @@ impl Verdict {
     }
 }
 
-/// Reads a delivery and decides. The real one is a Claude Code run; the tests
-/// hand in their own.
+/// Reads a delivery and decides. The real ones are a Claude Code run
+/// ([`Claude`]) and a Codex run (review_codex.rs), the workspace's reviewer
+/// setting choosing (review_agent.rs); the tests hand in their own.
 ///
-/// `account` is the Claude account of the workspace the delivery is for
-/// (`None`: the default one): the review spends that account, as its panes do.
+/// `model` and `account` are the workspace's Claude reviewer model and Claude
+/// account (`Delivery::reviewer_model`, `Delivery::claude_account`; `None`:
+/// the default account): a Claude review spends that account, as its panes
+/// do. A reviewer of another agent brings its own ([`ReviewerChoice`]).
 pub trait Reviewer {
     fn review(
         &self,
@@ -1256,7 +1259,18 @@ pub trait Reviewer {
         prompt: &str,
         account: Option<&str>,
     ) -> Result<Verdict, String>;
+
+    /// How the prompt tells the reviewer to read the code around the change:
+    /// with the tools it has. Claude Code's by default.
+    fn reading(&self) -> &'static str {
+        CLAUDE_READING
+    }
 }
+
+/// How a Claude Code reviewer reads: the tools `REVIEW_TOOLS` gives it.
+const CLAUDE_READING: &str = "You can read any file here with Read, and search with Grep and Glob when you have \
+them, to check the change in its context. You cannot run anything or change anything, and you need not: judge \
+from the code.";
 
 /// `claude -p` with a fresh context, in the temporary worktree, able to read
 /// and nothing else: no shell, no edits, no MCP server, no question asked.
@@ -1330,13 +1344,19 @@ fn review_command(
     let mut command = Command::new(program);
     command.args(review_args(model)).current_dir(dir);
     scrub(&mut command);
+    on_account(&mut command, account_env);
+    command
+}
+
+/// Puts a reviewer on the workspace's account: `account_env` is what
+/// accounts.rs gives a pane of its agent on it (`env_for`).
+fn on_account(command: &mut Command, account_env: &[(&'static str, Option<PathBuf>)]) {
     for (name, value) in account_env {
         match value {
             Some(value) => command.env(name, value),
             None => command.env_remove(name),
         };
     }
-    command
 }
 
 /// A usage limit of the account, as Claude Code words it (« You've hit your
@@ -1371,11 +1391,14 @@ fn account_label(id: &str) -> String {
 }
 
 /// What the person reads when the account behind the review is out of quota:
-/// the work is fine, the review is waiting for the account.
-fn limit_message(account: &str, said: &str) -> String {
+/// the work is fine, the review is waiting for the account. `whose` is the
+/// agent the account is of (« Claude », « Codex »), `who` the one that said
+/// so. The engine tells this outcome by « has reached its usage limit »
+/// (`delivery_text::USAGE_LIMIT`), whichever agent reviewed.
+fn limit_message(whose: &str, who: &str, account: &str, said: &str) -> String {
     format!(
-        "the Claude account \"{account}\" has reached its usage limit, so the review could not run \
-(Claude Code said: {said}). Nothing is wrong with the delivery: submit it again once the limit resets"
+        "the {whose} account \"{account}\" has reached its usage limit, so the review could not run \
+({who} said: {said}). Nothing is wrong with the delivery: submit it again once the limit resets"
     )
 }
 
@@ -1419,7 +1442,7 @@ impl Reviewer for Claude {
                 if let Some(limit) =
                     usage_limit(&finished.out).or_else(|| usage_limit(&finished.err))
                 {
-                    return limit_message(&account_name, &limit);
+                    return limit_message("Claude", "Claude Code", &account_name, &limit);
                 }
                 let said = tail(finished.err.trim());
                 if said.is_empty() {
@@ -1470,6 +1493,9 @@ fn verdict_of(output: &str) -> Result<Verdict, String> {
     serde_json::from_str(fenced).map_err(|_| "the reviewer answered without a verdict".to_string())
 }
 
+/// The prompt every reviewer gets, whatever its agent: the task, what to
+/// decide, the change. `reading` is how this reviewer reads the code around
+/// it (`Reviewer::reading`).
 fn review_prompt(
     request: &Delivery,
     base: &str,
@@ -1477,6 +1503,7 @@ fn review_prompt(
     changed: &[String],
     outside: &[String],
     diff: &str,
+    reading: &str,
 ) -> String {
     let task = &request.task;
     let mut prompt = format!(
@@ -1539,10 +1566,9 @@ unrelated work that should not land with it, and block only in the second case.\
             outside.join(", ")
         ));
     }
+    prompt.push_str(reading);
     prompt.push_str(
-        "You can read any file here with Read, and search with Grep and Glob when you have them, to check the \
-change in its context. You cannot run anything or change anything, and you need not: judge from the code.\n\n\
-Write the blocking items and the notes in English: the worker that fixes them reads them.\n\n",
+        "\n\nWrite the blocking items and the notes in English: the worker that fixes them reads them.\n\n",
     );
 
     prompt.push_str(&format!(
@@ -1568,6 +1594,14 @@ not reach yourself before deciding.\n",
     }
     prompt
 }
+
+/// Which agent reviews: the workspace's reviewer setting, or else one that is
+/// installed.
+mod review_agent;
+/// A review by Codex: `codex exec`, read-only.
+mod review_codex;
+
+pub use review_agent::ReviewerChoice;
 
 /* ── A delivery ────────────────────────────────────────────────── */
 
@@ -2116,7 +2150,15 @@ together, say so in a comment on your task and stop.",
         &["diff", "--no-color", "--no-ext-diff", "-M", &base, &merge],
     )
     .unwrap_or_default();
-    let prompt = review_prompt(request, &base, &merge, &changed, &outside, &diff);
+    let prompt = review_prompt(
+        request,
+        &base,
+        &merge,
+        &changed,
+        &outside,
+        &diff,
+        reviewer.reading(),
+    );
     let verdict = match reviewer.review(
         &dir,
         &request.reviewer_model,
@@ -2805,17 +2847,21 @@ pub async fn delivery_preflight(
 }
 
 /// Takes as long as the delivery does — the check and the review are minutes —
-/// on a thread of its own, never the window's.
+/// on a thread of its own, never the window's. Reviewed by the default
+/// reviewer: Claude Code when it is installed, else Codex
+/// ([`delivery_run_with`]).
 pub async fn delivery_run(delivery: Delivery) -> Outcome {
+    delivery_run_with(delivery, ReviewerChoice::default()).await
+}
+
+/// [`delivery_run`], reviewed by the agent the workspace's reviewer setting
+/// names (`choice`), or by one installed when that one is not
+/// (docs/native/agents.md §4.4, D11).
+pub async fn delivery_run_with(delivery: Delivery, choice: ReviewerChoice) -> Outcome {
     let task_id = delivery.task.id.clone();
     let outcome = tokio::task::spawn_blocking(move || {
-        deliver(
-            &delivery,
-            &Claude {
-                limit: REVIEW_TIMEOUT,
-            },
-            &Limits::default(),
-        )
+        let reviewer = review_agent::reviewer(&choice, REVIEW_TIMEOUT);
+        deliver(&delivery, reviewer.as_ref(), &Limits::default())
     })
     .await
     .unwrap_or_else(|err| Outcome::error(format!("the delivery stopped unexpectedly: {err}")));
@@ -2853,6 +2899,10 @@ mod tests {
 
     /// The merge queue: deliveries checked together.
     mod batches;
+
+    /// Deliveries reviewed by a fake `codex` on PATH.
+    #[cfg(unix)]
+    mod codex;
 
     /// Each stage change and the end are told on the watcher's bus, with
     /// where every delivery stands, in the order they joined.
@@ -4351,7 +4401,9 @@ mod tests {
         let out = r#"{"type":"result","is_error":true,"result":"You've hit your weekly limit · resets Nov 3, 1pm"}"#;
         let said = usage_limit(out).expect("a limit");
         assert!(said.contains("weekly limit · resets Nov 3, 1pm"), "{said}");
-        let message = limit_message("Work", &said);
+        let message = limit_message("Claude", "Claude Code", "Work", &said);
+        assert!(message.starts_with("the Claude account \"Work\" has reached its usage limit"));
+        assert!(message.contains("(Claude Code said: "));
         assert!(message.contains("\"Work\""));
         assert!(message.contains("usage limit"));
         assert!(message.contains("Nothing is wrong with the delivery"));
