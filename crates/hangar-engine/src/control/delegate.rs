@@ -12,9 +12,10 @@
 //!   pane's own token, never one the model names: the pane the event goes
 //!   to. An agent Hangar did not start has no pane to hear back in.
 //! - **The child's agent** is the one asked for, else the caller's own. One
-//!   whose capabilities leave no way to run it with no terminal here
-//!   ([`takes_a_delegation`]), or to make the images asked for, is refused
-//!   with the reason, never replaced by another.
+//!   whose capabilities leave no way to run it with no terminal here (neither
+//!   a protocol server nor a one-shot run: [`takes_a_delegation`]), or to
+//!   make the images asked for, is refused with the reason, never replaced by
+//!   another.
 //! - **What it runs under**: the folder of the caller's pane (a worker's
 //!   worktree), the workspace's orchestration policy, the account the
 //!   workspace runs that agent on, the settings' launch command.
@@ -178,10 +179,11 @@ fn kind_arg(value: Option<&Value>) -> Result<Option<AgentKind>, String> {
 
 /// Whether an agent that can do `caps` takes a delegation here: core runs a
 /// child as a thread of a protocol server Hangar is the client of
-/// (`Headless::app_server`). A one-shot child (`Headless::one_shot`) waits
-/// for its runner (T11b).
+/// (`Headless::app_server`), or as one prompt run to its answer
+/// (`Headless::one_shot`: Claude Code's `claude -p`). By what the agent can
+/// do, as core's `start` picks the runner, never by its name.
 pub fn takes_a_delegation(caps: &Capabilities) -> bool {
-    caps.headless.app_server
+    caps.headless.app_server || caps.headless.one_shot
 }
 
 /// Why an agent called `label`, that can do `caps`, cannot take this
@@ -189,7 +191,7 @@ pub fn takes_a_delegation(caps: &Capabilities) -> bool {
 pub fn child_refusal(label: &str, caps: &Capabilities, images: bool) -> Option<String> {
     if !takes_a_delegation(caps) {
         return Some(format!(
-            "Hangar cannot run a delegation on {label} yet: it runs one with no terminal, as a thread of the agent's own server, and {label} has none. Agents that take one here: {}. Pass agent as one of them, or give the work to a worker.",
+            "Hangar cannot run a delegation on {label}: it runs one with no terminal, as a thread of the agent's own server or as a one-shot run of its prompt, and {label} offers neither. Agents that take one here: {}. Pass agent as one of them, or give the work to a worker.",
             able(takes_a_delegation)
         ));
     }
@@ -563,7 +565,8 @@ mod tests {
     }
 
     /// By what each agent can do, never by its name: every agent without a
-    /// way to run with no terminal here is refused, every other one taken.
+    /// way to run with no terminal here (a protocol server or a one-shot
+    /// run) is refused, every other one taken.
     #[test]
     fn an_agent_that_cannot_run_without_a_terminal_here_is_refused_with_the_reason() {
         let state = lab("/srv/lab");
@@ -581,7 +584,7 @@ mod tests {
                 let refusal = asked.unwrap_err();
                 assert!(
                     refusal.starts_with(&format!(
-                        "Hangar cannot run a delegation on {} yet:",
+                        "Hangar cannot run a delegation on {}:",
                         kind.info().label
                     )),
                     "{refusal}"
@@ -590,16 +593,51 @@ mod tests {
         }
     }
 
-    /// Claude Code's children wait for their runner (T11b): an orchestrator
-    /// of that agent asking with no agent is told so, and what it can ask.
+    /// Claude Code's children run one-shot (core's runner for an agent with
+    /// no server of its own): its orchestrator asking with no agent, or a
+    /// Codex worker naming it, is taken, launched by the settings' command.
     #[test]
-    fn a_caller_whose_own_agent_cannot_take_one_is_told_which_can() {
-        let state = lab("/srv/lab");
+    fn a_claude_code_child_is_accepted_whoever_asks_for_it() {
+        let mut state = lab("/srv/lab");
+        state.settings.agent_commands.claude = Some("/opt/claude/bin/claude".into());
         let ivy = pane_of(&state, "t17-ivy");
+        let mine = request(&state, lab_ws(&state), ivy, &json!({ "prompt": "x" })).unwrap();
+        assert_eq!(mine.kind, AgentKind::Claude);
+        assert_eq!(mine.parent, "t17-ivy");
+        assert_eq!(mine.command.as_deref(), Some("/opt/claude/bin/claude"));
+        assert!(!mine.images);
+        let max = pane_of(&state, "t17-max");
+        let named = request(
+            &state,
+            lab_ws(&state),
+            max,
+            &json!({ "prompt": "x", "agent": "claude" }),
+        )
+        .unwrap();
+        assert_eq!(named.kind, AgentKind::Claude);
+        assert_eq!(named.parent, "t17-max");
+    }
+
+    /// A kind with neither a protocol server nor a one-shot run is refused
+    /// with the reason; either one alone is enough, as core's `start` picks
+    /// the runner.
+    #[test]
+    fn a_kind_with_neither_way_to_run_without_a_terminal_is_refused_with_the_reason() {
+        let mut caps = AgentKind::Claude.info().caps;
+        caps.headless.one_shot = false;
+        caps.headless.app_server = false;
+        assert!(!takes_a_delegation(&caps));
         assert_eq!(
-            request(&state, lab_ws(&state), ivy, &json!({ "prompt": "x" })).unwrap_err(),
-            "Hangar cannot run a delegation on Claude Code yet: it runs one with no terminal, as a thread of the agent's own server, and Claude Code has none. Agents that take one here: codex (Codex). Pass agent as one of them, or give the work to a worker."
+            child_refusal("Painter", &caps, false).unwrap(),
+            "Hangar cannot run a delegation on Painter: it runs one with no terminal, as a thread of the agent's own server or as a one-shot run of its prompt, and Painter offers neither. Agents that take one here: claude (Claude Code), codex (Codex). Pass agent as one of them, or give the work to a worker."
         );
+        caps.headless.one_shot = true;
+        assert!(takes_a_delegation(&caps));
+        assert_eq!(child_refusal("Painter", &caps, false), None);
+        caps.headless.one_shot = false;
+        caps.headless.app_server = true;
+        assert!(takes_a_delegation(&caps));
+        assert_eq!(child_refusal("Painter", &caps, false), None);
     }
 
     #[test]
@@ -613,6 +651,31 @@ mod tests {
             "Painter does not make images, so images: true cannot be given to it. Agents that make them here: codex (Codex)."
         );
         assert_eq!(child_refusal("Painter", &caps, false), None);
+    }
+
+    /// Claude Code takes a delegation now, but makes no images: asking it for
+    /// some is still refused, whoever asks.
+    #[test]
+    fn images_are_still_refused_to_claude_code() {
+        let claude = AgentKind::Claude.info();
+        assert_eq!(child_refusal(claude.label, &claude.caps, false), None);
+        let refusal = "Claude Code does not make images, so images: true cannot be given to it. Agents that make them here: codex (Codex).";
+        assert_eq!(
+            child_refusal(claude.label, &claude.caps, true).unwrap(),
+            refusal
+        );
+        let state = lab("/srv/lab");
+        let ivy = pane_of(&state, "t17-ivy");
+        assert_eq!(
+            request(
+                &state,
+                lab_ws(&state),
+                ivy,
+                &json!({ "prompt": "x", "images": true })
+            )
+            .unwrap_err(),
+            refusal
+        );
     }
 
     #[test]
@@ -806,5 +869,66 @@ mod tests {
             assert_eq!(cancelled["status"], "failed", "{cancelled}");
             assert_eq!(cancelled["note"], ALREADY_OVER);
         }
+    }
+
+    /// A Claude Code child starts on core's registry, as a one-shot run, the
+    /// same way: its command cannot be started here (as the test above for a
+    /// Codex child), so it is accepted and registered, then fails, and its
+    /// orchestrator hears of it.
+    #[tokio::test]
+    async fn a_claude_code_child_is_started_on_core_s_registry() {
+        let root = tempfile::tempdir().unwrap();
+        let cwd = root.path().to_string_lossy().into_owned();
+        let mut state = lab(&cwd);
+        let missing = root.path().join("no-such-agent").join("claude");
+        state.settings.agent_commands.claude = Some(missing.to_string_lossy().into_owned());
+        let host = hangar_core::Host::with_paths(hangar_core::paths::Paths::rooted(root.path()));
+
+        let ws = lab_ws(&state).clone();
+        let ivy = pane_of(&state, "t17-ivy").clone();
+        let asked = request(
+            &state,
+            &ws,
+            &ivy,
+            &json!({ "prompt": "Review the diff of the last commit." }),
+        )
+        .unwrap();
+        let started = delegate(&host, &state, &ws, asked).await.unwrap();
+        let id = started["id"].as_str().unwrap().to_string();
+        assert!(id.starts_with("d-"), "{started}");
+        assert_eq!(started["agent"], "claude");
+        assert_eq!(started["parent"], "Ivy");
+        assert_eq!(started["status"], "running");
+        assert_eq!(started["title"], "Review the diff of the last commit.");
+        assert_eq!(started["isolation"], "shared");
+        assert_eq!(started["cwd"], json!(cwd));
+        assert_eq!(started["note"], STARTED);
+
+        let fake = Fake::with_state(state.clone());
+        let polled = op(
+            "delegation_status",
+            with(from("t17-ivy"), json!({ "id": id, "wait": 30 })),
+            &fake,
+        )
+        .await
+        .unwrap();
+        assert_eq!(polled["status"], "failed", "{polled}");
+        assert!(
+            polled["error"]
+                .as_str()
+                .is_some_and(|error| !error.is_empty())
+        );
+        assert!(polled.get("waitedOut").is_none(), "{polled}");
+
+        let heard = hangar_core::bridge::bridge_queue("t17-ivy".into());
+        let event = heard
+            .iter()
+            .find(|queued| {
+                queued
+                    .text
+                    .starts_with(&format!("Delegation {id} (claude) failed:"))
+            })
+            .unwrap_or_else(|| panic!("nothing about {id} in {heard:?}"));
+        assert_eq!(event.from.as_deref(), Some("hangar"));
     }
 }
