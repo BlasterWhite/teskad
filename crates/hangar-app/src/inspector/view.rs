@@ -2,8 +2,11 @@
 //! focused pane, with the grip on its left edge; or, with no pane in focus,
 //! a quiet note.
 
+use std::borrow::Cow;
+
 use super::files_model::Indexed;
-use hangar_i18n::Key;
+use hangar_core::agent::IdleInject;
+use hangar_i18n::{Key, args};
 use hangar_theme::tokens::{BORDER_WIDTH, font_size};
 use hangar_theme::{AgentState, fonts, style};
 use hangar_ui::Icon;
@@ -64,9 +67,12 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
 pub(super) struct Data<'a> {
     pub insight: &'a PaneInsight,
     pub state: AgentState,
-    /// The state comes from the hangar-bridge mod rather than from a guess.
+    /// The state comes from the pane's side channel (the hangar-bridge mod,
+    /// Hangar attached to a Codex) rather than from a guess.
     pub bridged: bool,
-    pub limits: Option<&'a [RateLimit]>,
+    /// The plan's windows as they stand for the pane's agent
+    /// (`sources::plan_for`).
+    pub limits: Option<Cow<'a, [RateLimit]>>,
     pub task: Option<TaskCard>,
     /// A shell pane's shell.
     pub shell: Option<String>,
@@ -94,7 +100,7 @@ fn pane_panel<'a>(
             .map(|activity| crate::state::live::agent_state(activity.activity))
             .unwrap_or(AgentState::Idle),
         bridged: activity.is_some_and(|activity| activity.bridged),
-        limits: sources::plan_limits(m).map(|plan| plan.limits.as_slice()),
+        limits: sources::plan_for(m, pane),
         task: sources::task_for_pane(m, ws, &pane.id),
         shell: crate::panes_logic::shells::resolve_shell(
             &m.ui.shells,
@@ -133,18 +139,27 @@ pub(super) fn column_of<'a>(scene: &Scene<'a>, data: Data<'a>) -> Element<'a, Me
     let insight = data.insight;
     let agent = pane.agent.info();
     let is_shell = pane.agent == AgentId::Shell;
-    let claude = pane.agent == AgentId::Claude;
+    // What the pane's agent can do (D3): the sections read this, never its
+    // name. None for a shell.
+    let caps = pane.agent.kind().map(|kind| kind.info().caps);
     let folder: &str = pane.cwd.as_deref().unwrap_or(&ws.cwd);
 
-    // Read for Claude Code only: a shell gets the activity section once
-    // something happened in it, so never empty.
-    let nothing_yet = tr
-        .t(if data.bridged {
-            Key::InspectorActivityQuiet
-        } else {
-            Key::InspectorActivityEmpty
-        })
-        .into_owned();
+    // Read for an agent only: a shell gets the activity section once
+    // something happened in it, so never empty. Until its side channel
+    // speaks, the words say which one it waits for: Hangar attached to an
+    // agent it reaches through a server of its own (`headless.app_server`,
+    // as `roles::side_channel_on` reads it), the hangar-bridge mod otherwise.
+    let nothing_yet = if data.bridged {
+        tr.t(Key::InspectorActivityQuiet).into_owned()
+    } else if caps.is_some_and(|caps| caps.headless.app_server) {
+        tr.t_with(
+            Key::InspectorActivityEmptyAttached,
+            &args!("agent" => agent.label),
+        )
+        .into_owned()
+    } else {
+        tr.t(Key::InspectorActivityEmpty).into_owned()
+    };
 
     let mut sections = Vec::new();
     sections.push(if is_shell {
@@ -153,12 +168,20 @@ pub(super) fn column_of<'a>(scene: &Scene<'a>, data: Data<'a>) -> Element<'a, Me
         sections::session(scene, insight, folder)
     });
     if !is_shell {
-        sections.push(sections::context(scene, insight, agent.label, data.limits));
+        sections.push(sections::context(
+            scene,
+            insight,
+            agent.label,
+            data.limits.as_deref(),
+            caps.as_ref(),
+        ));
     }
     sections.push(sections::task(scene, data.task.as_ref()));
-    // Prompts are queued through the hangar-bridge mod, which Claude Code
-    // loads; a shell only shows a queue it has.
-    if claude || !insight.queue.is_empty() {
+    // Prompts wait in a queue the agent's side channel takes them from
+    // (`inject.idle`: submitted, nothing typed); a shell only shows a queue
+    // it has.
+    let queues = caps.is_some_and(|caps| caps.inject.idle == IdleInject::Submit);
+    if queues || !insight.queue.is_empty() {
         sections.push(sections::queue(scene, &insight.queue));
     }
     sections.push(files::section(scene, insight, folder, data.changes));

@@ -23,6 +23,14 @@ pub struct Capabilities {
     pub turns: TurnSignal,
     /// How Hangar's events reach the session.
     pub inject: Inject,
+    /// The agent's own slash commands (`/model`, `/effort`, `/plan`) run
+    /// from what its side channel submits, as they do from its prompt:
+    /// Claude Code's mod submits the text as typed. Codex's side channel
+    /// starts a turn with it, where a command would be words to the model,
+    /// so it refuses the person's (`codex_attach.rs`): they are typed in
+    /// its own window. Read with the side channel speaking; the floor types
+    /// into the prompt, where either agent runs them.
+    pub submits_commands: bool,
     /// How a role and the workspace's state are handed to it.
     pub briefing: Briefing,
     /// Who answers the agent's permission requests, and from where.

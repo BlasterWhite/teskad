@@ -156,7 +156,10 @@ pub struct LandRequest {
 }
 
 /// The panes whose agent is in a dialog, asking for a permission or an answer
-/// (`paneGlyphState` is `waiting`).
+/// (`paneGlyphState` is `waiting`), whichever agent it is: its side channel
+/// reports the ask it holds (the hangar-bridge mod of a Claude Code, Hangar
+/// attached to a Codex), or, without one, its screen shows the dialog. Read
+/// from the pane's activity alone, never from its agent's name.
 fn waiting_panes(m: &Model) -> HashSet<String> {
     m.state()
         .workspaces

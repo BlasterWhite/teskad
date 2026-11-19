@@ -1,11 +1,16 @@
-//! The plan's rate-limit windows, as the last Claude Code session to report
-//! saw them (`NavigatorPlan.tsx`): one account behind every pane, so one block
-//! for all of them. Nothing shows until a pane with the hangar-bridge mod has
-//! reported.
+//! The plan's rate-limit windows, as the last session to report saw them
+//! (`NavigatorPlan.tsx`): one account behind every pane, so one block for all
+//! of them. Nothing shows until a pane's side channel has reported: the
+//! hangar-bridge mod in a Claude Code, Hangar attached to a Codex — either
+//! agent's windows read the same (`five_hour`, `seven_day`, a gateway's).
+//! Whose they are is said by the agents that report them (`usage.limits`),
+//! never by a name written here; with several agents' accounts the per-account
+//! block (`accounts::plan`) takes over.
 
 use iced::widget::{Space, column, container, progress_bar, row, text, tooltip};
 use iced::{Alignment, Background, Border, Element, Length, Padding};
 
+use hangar_core::agent::UsageSource;
 use hangar_i18n::{Key, Locale, Translator, args};
 use hangar_theme::tokens::{font_size, space};
 use hangar_theme::{Theme, fonts, style};
@@ -14,7 +19,9 @@ use crate::ctx::Ctx;
 use crate::inspector::format::{format_percent, reset_when, resets_at_ms};
 use crate::message::Message;
 use crate::panes_logic::wall_clock_ms;
+use crate::state::Model;
 use crate::state::live::{PlanLimits, RateLimit};
+use crate::state::types::AgentKind;
 
 /// Past these, a window is close enough to its limit to say so in colour.
 pub const WARN_AT: u8 = 70;
@@ -80,10 +87,30 @@ pub fn reset_text(tr: Translator, at: i64, now: i64) -> String {
     reset_when(at, now, tr.locale()).text(tr)
 }
 
+/// The agents whose sessions report the plan's windows (`usage.limits`),
+/// among the panes open, each once, in the order the panes come: whom the
+/// block's figures can be from.
+pub fn reporters(m: &Model) -> Vec<AgentKind> {
+    let mut kinds: Vec<AgentKind> = Vec::new();
+    let panes = m.state().workspaces.iter().flat_map(|ws| ws.panes.iter());
+    for kind in panes.filter_map(|pane| pane.agent.kind()) {
+        if kind.info().caps.usage.limits != UsageSource::None && !kinds.contains(&kind) {
+            kinds.push(kind);
+        }
+    }
+    kinds
+}
+
 /// The tooltip: what the block is, then one line per window that says when it
-/// resets.
-pub fn hint(tr: Translator, limits: &[RateLimit], now: i64) -> String {
-    let mut lines = vec![tr.t(Key::SidebarPlanHint).into_owned()];
+/// resets. The figures are whichever session reported last: named after its
+/// agent when only one agent among `reporters` could have, said plainly
+/// otherwise.
+pub fn hint(tr: Translator, reporters: &[AgentKind], limits: &[RateLimit], now: i64) -> String {
+    let head = match reporters {
+        [one] => tr.t_with(Key::SidebarPlanHint, &args!("agent" => one.info().label)),
+        _ => tr.t(Key::SidebarPlanHintAny),
+    };
+    let mut lines = vec![head.into_owned()];
     for limit in limits {
         let Some(at) = resets_at_ms(limit) else {
             continue;
@@ -156,7 +183,7 @@ pub fn view<'a>(plan: Option<&'a PlanLimits>, ctx: Ctx<'a>) -> Option<Element<'a
         bottom: 10.0,
         left: 16.0,
     });
-    let words = hint(tr, &plan.limits, now);
+    let words = hint(tr, &reporters(ctx.model), &plan.limits, now);
     Some(
         column![
             rule(t),
