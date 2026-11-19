@@ -1,4 +1,4 @@
-# Draws the Hangar.AI mark.
+# Draws the HangarAI mark.
 #
 # The mark is the app itself in miniature: a workspace cut into panes, one of
 # them active. Three rectangles on a 24-unit grid, no curves — the same squared
@@ -83,7 +83,7 @@ $hex = {
 }
 
 $svg = @"
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 $size $size" width="$size" height="$size" role="img" aria-label="Hangar.AI">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 $size $size" width="$size" height="$size" role="img" aria-label="HangarAI">
   <defs>
     <linearGradient id="tile" x1="0" y1="0" x2="0.42" y2="1">
       <stop offset="0" stop-color="$(& $hex $bgTop)" />

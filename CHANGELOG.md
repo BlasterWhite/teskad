@@ -10,6 +10,10 @@ Every release, with its installers, is on the
 
 ## [Unreleased]
 
+### Changed
+
+- HangarAI: the new name, with hangarai.dev in the title bar.
+
 ## [2.4.4] - 2026-11-19
 
 ### Changed

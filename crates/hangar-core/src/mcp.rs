@@ -101,7 +101,7 @@ impl Api {
             Some(pair) => pair,
             None => {
                 let endpoint = crate::endpoint::read()
-                    .ok_or("Hangar.AI is not running (no endpoint file found)")?;
+                    .ok_or("HangarAI is not running (no endpoint file found)")?;
                 (
                     format!("http://127.0.0.1:{}", endpoint.port),
                     endpoint.token,
@@ -460,7 +460,7 @@ fn base_tool_definitions() -> Value {
         },
         {
             "name": "workspace_list",
-            "description": "List the workspaces open in Hangar.AI — name, folder, number of panes — and which one you are in. The pane tools act on your own workspace unless you name another one.",
+            "description": "List the workspaces open in HangarAI — name, folder, number of panes — and which one you are in. The pane tools act on your own workspace unless you name another one.",
             "inputSchema": { "type": "object", "properties": {} }
         },
         {

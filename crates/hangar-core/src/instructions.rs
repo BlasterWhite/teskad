@@ -67,9 +67,9 @@ fn playbook() -> String {
     format!(
         r#"{START}
 
-## Shared task board (Hangar.AI)
+## Shared task board (HangarAI)
 
-This project is driven from Hangar.AI. Several agents work **in parallel** in separate
+This project is driven from HangarAI. Several agents work **in parallel** in separate
 terminals on this same directory. A shared kanban board is the source of truth for
 who is doing what. Reach it through the MCP tools prefixed `board_`.
 
@@ -129,7 +129,7 @@ rather than editing the same files at the same time.
 
 ### Talking to the agent next door
 
-Claude Code sessions in Hangar.AI are named after their pane and its workspace, for
+Claude Code sessions in HangarAI are named after their pane and its workspace, for
 example `Ava (Shop)`. A pane's first name is unique across every workspace, so `Ava` is
 one agent and the workspace in brackets tells you which project it works on. When another
 agent needs to know something now (you changed a file it is working on, you answered its
@@ -319,7 +319,7 @@ fn update_gitignore(root: &Path) -> InstructionReport {
     if !updated.is_empty() {
         updated.push('\n');
     }
-    updated.push_str("# Hangar.AI — tableau de tâches local\n.hangar/\n");
+    updated.push_str("# HangarAI — tableau de tâches local\n.hangar/\n");
 
     match write_atomic(&path, updated.as_bytes(), Access::AsBefore) {
         Ok(()) => InstructionReport {

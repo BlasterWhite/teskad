@@ -261,7 +261,7 @@ const en = {
   "install.dismiss": "Got it",
 
   "push.title": "Notifications on this phone",
-  "push.body": "Know when something waits for you or an agent sends you a file, even with Hangar closed.",
+  "push.body": "Know when something waits for you or an agent sends you a file, even with HangarAI closed.",
   "push.turnOn": "Turn on notifications",
   "push.turnOnShort": "Turn on",
   "push.turningOn": "Turning on…",
@@ -270,17 +270,17 @@ const en = {
   "push.on": "On for this phone",
   "push.off": "Off",
   "push.blocked": "Blocked in the phone's settings",
-  "push.needsInstall": "Add Hangar to the Home Screen first",
+  "push.needsInstall": "Add HangarAI to the Home Screen first",
   "push.needsUpdate": "Need iOS 16.4 or later",
   "push.notHere": "Not available in this browser",
   "push.turnOff": "Turn off",
   "push.why": "Learn more",
-  "push.installTitle": "First, add Hangar to your Home Screen",
+  "push.installTitle": "First, add HangarAI to your Home Screen",
   "push.install":
-    "On an iPhone, only apps on the Home Screen get notifications, from iOS 16.4. In Safari, tap Share, then “Add to Home Screen”. Open Hangar from there: it runs full screen, like an app, and you can turn them on.",
+    "On an iPhone, only apps on the Home Screen get notifications, from iOS 16.4. In Safari, tap Share, then “Add to Home Screen”. Open HangarAI from there: it runs full screen, like an app, and you can turn them on.",
   "push.oldIos": "Notifications need iOS 16.4 or later. Update the iPhone in Settings, then turn them on here.",
-  "push.unsupported": "This browser cannot receive notifications. Open Hangar in Safari, Chrome, Edge or Firefox.",
-  "push.denied": "Notifications are blocked for Hangar. Allow them in the phone's settings, then come back here.",
+  "push.unsupported": "This browser cannot receive notifications. Open HangarAI in Safari, Chrome, Edge or Firefox.",
+  "push.denied": "Notifications are blocked for HangarAI. Allow them in the phone's settings, then come back here.",
   "push.failed": "Notifications could not be turned on. {reason}",
   "push.browserFailed": "The phone's browser could not subscribe: try again in a moment.",
 
@@ -696,7 +696,7 @@ const fr: Record<Key, string> = {
   "install.dismiss": "Compris",
 
   "push.title": "Notifications sur ce téléphone",
-  "push.body": "Sachez quand quelque chose vous attend ou qu'un agent vous envoie un fichier, même Hangar fermé.",
+  "push.body": "Sachez quand quelque chose vous attend ou qu'un agent vous envoie un fichier, même HangarAI fermé.",
   "push.turnOn": "Activer les notifications",
   "push.turnOnShort": "Activer",
   "push.turningOn": "Activation…",
@@ -705,20 +705,20 @@ const fr: Record<Key, string> = {
   "push.on": "Activées sur ce téléphone",
   "push.off": "Désactivées",
   "push.blocked": "Bloquées dans les réglages du téléphone",
-  "push.needsInstall": "Ajoutez d'abord Hangar à l'écran d'accueil",
+  "push.needsInstall": "Ajoutez d'abord HangarAI à l'écran d'accueil",
   "push.needsUpdate": "iOS 16.4 ou plus récent requis",
   "push.notHere": "Indisponibles dans ce navigateur",
   "push.turnOff": "Désactiver",
   "push.why": "En savoir plus",
-  "push.installTitle": "D'abord, ajoutez Hangar à l'écran d'accueil",
+  "push.installTitle": "D'abord, ajoutez HangarAI à l'écran d'accueil",
   "push.install":
-    "Sur iPhone, seules les apps de l'écran d'accueil reçoivent des notifications, à partir d'iOS 16.4. Dans Safari, touchez Partager, puis « Sur l'écran d'accueil ». Ouvrez Hangar depuis l'écran d'accueil : il s'ouvre en plein écran, comme une app, et vous pourrez les activer.",
+    "Sur iPhone, seules les apps de l'écran d'accueil reçoivent des notifications, à partir d'iOS 16.4. Dans Safari, touchez Partager, puis « Sur l'écran d'accueil ». Ouvrez HangarAI depuis l'écran d'accueil : il s'ouvre en plein écran, comme une app, et vous pourrez les activer.",
   "push.oldIos":
     "Les notifications demandent iOS 16.4 ou plus récent. Mettez l'iPhone à jour dans les Réglages, puis activez-les ici.",
   "push.unsupported":
-    "Ce navigateur ne peut pas recevoir de notifications. Ouvrez Hangar dans Safari, Chrome, Edge ou Firefox.",
+    "Ce navigateur ne peut pas recevoir de notifications. Ouvrez HangarAI dans Safari, Chrome, Edge ou Firefox.",
   "push.denied":
-    "Les notifications sont bloquées pour Hangar. Autorisez-les dans les réglages du téléphone, puis revenez ici.",
+    "Les notifications sont bloquées pour HangarAI. Autorisez-les dans les réglages du téléphone, puis revenez ici.",
   "push.failed": "Impossible d'activer les notifications. {reason}",
   "push.browserFailed": "Le navigateur du téléphone n'a pas pu s'abonner : réessayez dans un instant.",
 

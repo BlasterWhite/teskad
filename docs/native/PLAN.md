@@ -1,6 +1,6 @@
 # Hangar, native — the plan
 
-This branch (`feat/native-rust`) rewrites Hangar.AI as a native Rust application.
+This branch (`feat/native-rust`) rewrites HangarAI as a native Rust application.
 This file is the map: what is being built, why it is built this way, in what
 order, and how to pick the work up with no other context. Read it first, then
 [STATUS.md](STATUS.md) for where things stand today.
@@ -39,7 +39,7 @@ House rules that apply to every commit on this branch:
 
 ## 2. What Hangar is (for someone who has never seen it)
 
-Hangar.AI is a desktop app (Windows, macOS, Linux) that runs Claude Code
+HangarAI is a desktop app (Windows, macOS, Linux) that runs Claude Code
 sessions and plain shells side by side, each in a real terminal pane, up to 16
 per workspace. Claude Code is the only agent: the owner decided on 2026-11-03
 that "Hangar va devenir exclusivement Claude Code", so the native app drops

@@ -804,6 +804,8 @@ pub fn outline<'a>(ctx: Ctx<'a>, frame: Element<'a, Message>) -> Element<'a, Mes
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::workspace_dialog::testing::{Harness, messages};
+    use hangar_i18n::Locale;
 
     #[test]
     fn the_desktops_layout_puts_its_buttons_on_its_side() {
@@ -889,5 +891,89 @@ mod tests {
         assert!(!is_double(Some((a, then)), a, late));
         assert!(!is_double(Some((a, then)), b, soon));
         assert!(!is_double(None, a, soon));
+    }
+
+    #[test]
+    fn with_the_systems_title_bar_the_window_title_carries_the_domain() {
+        assert_eq!(window_title(None, true), "HangarAI — hangarai.dev");
+        assert_eq!(
+            window_title(Some("shop"), true),
+            "shop — HangarAI — hangarai.dev"
+        );
+        // Hangar's own band shows the domain: the window's title is the name.
+        assert_eq!(window_title(None, false), "HangarAI");
+        assert_eq!(window_title(Some("shop"), false), "shop — HangarAI");
+    }
+
+    #[test]
+    fn the_site_the_band_links_to_is_the_domain_it_shows() {
+        assert_eq!(SITE_URL, format!("https://{DOMAIN}"));
+    }
+
+    #[test]
+    fn the_version_goes_first_then_the_domain_and_the_name_never() {
+        let both = Brand {
+            domain: true,
+            version: true,
+        };
+        let neither = Brand {
+            domain: false,
+            version: false,
+        };
+        assert_eq!(Brand::fit(400.0, "2.4.4"), both);
+        assert_eq!(
+            Brand::fit(150.0, "2.4.4"),
+            Brand {
+                domain: true,
+                version: false
+            }
+        );
+        assert_eq!(
+            Brand::fit(120.0, "2.4.4"),
+            Brand {
+                domain: false,
+                version: true
+            }
+        );
+        assert_eq!(Brand::fit(80.0, "2.4.4"), neither);
+        assert_eq!(Brand::fit(0.0, "2.4.4"), neither);
+    }
+
+    #[test]
+    fn the_domain_fits_the_navigators_top_beside_the_name() {
+        // What the navigator leaves the brand: its width, less the row's
+        // padding (16 and 10), the mark (15), the hide button (up to 28) and
+        // the two gaps (7) between the three.
+        let room = tokens::size::SIDEBAR_WIDTH - 26.0 - 15.0 - 28.0 - 14.0;
+        assert!(Brand::fit(room, env!("CARGO_PKG_VERSION")).domain);
+    }
+
+    #[test]
+    fn the_title_bar_shows_the_name_the_domain_and_the_version() {
+        let h = Harness::new(Locale::En, "graphite");
+        let mut ui = h.show(container(brand(h.ctx())).width(400));
+        assert!(ui.find(NAME).is_ok());
+        assert!(ui.find(DOMAIN).is_ok());
+        assert!(ui.find(env!("CARGO_PKG_VERSION")).is_ok());
+    }
+
+    #[test]
+    fn a_press_on_the_domain_asks_for_the_site() {
+        let h = Harness::new(Locale::En, "graphite");
+        let mut ui = h.show(container(brand(h.ctx())).width(400));
+        ui.click(DOMAIN).expect("the domain is drawn");
+        assert!(
+            messages(ui)
+                .iter()
+                .any(|message| matches!(message, Message::Shell(Action::TitleBar(_, Press::Site))))
+        );
+    }
+
+    #[test]
+    fn with_no_room_left_the_name_stays_and_the_domain_goes() {
+        let h = Harness::new(Locale::En, "graphite");
+        let mut ui = h.show(container(brand(h.ctx())).width(80));
+        assert!(ui.find(NAME).is_ok());
+        assert!(ui.find(DOMAIN).is_err());
     }
 }

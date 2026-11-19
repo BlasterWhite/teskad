@@ -36,7 +36,7 @@ use crate::api::{error, Shared};
 /// What an agent of the node is told when no desktop drives the node.
 pub const UNAVAILABLE: &str = "Unavailable: the desktop driving this node is not connected. \
 Orchestration on a node (workers, panes, deliveries) runs through the desktop Hangar that drives it: \
-ask the person to open Hangar.AI on their computer and connect this node (Settings › Nodes), then try again.";
+ask the person to open HangarAI on their computer and connect this node (Settings › Nodes), then try again.";
 
 /// Longer than core waits for any operation (35 minutes for a
 /// `workspace_create`): a request still booked after that was dropped by

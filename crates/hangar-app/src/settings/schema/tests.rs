@@ -268,7 +268,7 @@ fn voice_has_every_row_of_the_old_schema_with_a_local_engine() {
             "voiceApiKey: custom VoiceKey",
             "voiceCleanup: toggle VoiceCleanup = false",
             r#"voiceCleanupModel: input VoiceCleanupModel = "" ("llama-3.1-8b-instant")"#,
-            r#"voiceCleanupHint: input VoiceCleanupHint = "" ("Hangar.AI, pnpm, Tauri, simnJS")"#,
+            r#"voiceCleanupHint: input VoiceCleanupHint = "" ("HangarAI, pnpm, Tauri, simnJS")"#,
         ]
     );
 }
@@ -342,7 +342,7 @@ fn about_shows_the_name_the_version_and_a_two_step_reset() {
             "reset: action ResetSettings (confirm) (danger)",
         ]
     );
-    assert_eq!(find(&built, "appName").label.as_deref(), Some("Hangar.AI"));
+    assert_eq!(find(&built, "appName").label.as_deref(), Some("HangarAI"));
 }
 
 #[test]

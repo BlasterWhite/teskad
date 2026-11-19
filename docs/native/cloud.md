@@ -445,7 +445,7 @@ the consent page names the organization).
 
 | Field | Value |
 |---|---|
-| Application name | `Hangar.AI` |
+| Application name | `HangarAI` |
 | Homepage URL | `https://hangarai.dev` |
 | Authorization callback URL | `https://account.hangarai.dev/v1/auth/callback/github` |
 | Enable Device Flow | off |

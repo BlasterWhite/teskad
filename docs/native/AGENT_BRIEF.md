@@ -1,6 +1,6 @@
 # Brief for an agent porting one package of Hangar
 
-You are porting one package of the Hangar.AI desktop app from React to native
+You are porting one package of the HangarAI desktop app from React to native
 Rust (iced 0.14), on branch `feat/native-rust`. Many agents work in parallel,
 each on one package, each in its own git worktree. Read this page whole before
 you start; it is the same for every package.

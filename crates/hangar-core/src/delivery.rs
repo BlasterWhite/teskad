@@ -2198,7 +2198,7 @@ fn merge_branch(dir: &Path, request: &Delivery, tip: &str) -> Merged {
     if anonymous {
         merge_args.extend([
             "-c",
-            "user.name=Hangar.AI",
+            "user.name=HangarAI",
             "-c",
             "user.email=hangar@localhost",
         ]);

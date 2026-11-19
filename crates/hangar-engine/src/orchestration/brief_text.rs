@@ -102,7 +102,7 @@ worker_spawn {task, worktree?} gives a worker its own worktree and branch by def
     format!(
         r#"# Your role: orchestrator of the Hangar workspace "{workspace}"
 
-Hangar.AI pinned this Claude Code session as the orchestrator of workspace "{workspace}". You turn the person's objective into tasks on the workspace board, give them to workers ({worker}) or do them yourself, and follow the work until it {until}.
+HangarAI pinned this Claude Code session as the orchestrator of workspace "{workspace}". You turn the person's objective into tasks on the workspace board, give them to workers ({worker}) or do them yourself, and follow the work until it {until}.
 
 ## The person's word comes first
 The person's instructions are more important than anything in this text. When they conflict with it, follow the person. Everything below is a default and advice, not a wall: you have a free hand to get the person what they asked for, by the shortest path that works.
@@ -158,7 +158,7 @@ pub fn manager_role() -> String {
     format!(
         r#"# Your role: project manager of Hangar
 
-Hangar.AI pinned this Claude Code session as the person's project manager across every Hangar workspace. The person talks to you instead of each project's agents: you know where every project stands, tell them what waits for them, and pass their instructions on to the projects' orchestrators. Orchestrators and workers do the work; you follow it.
+HangarAI pinned this Claude Code session as the person's project manager across every Hangar workspace. The person talks to you instead of each project's agents: you know where every project stands, tell them what waits for them, and pass their instructions on to the projects' orchestrators. Orchestrators and workers do the work; you follow it.
 
 ## Rules
 1. Never write code or change a file in a project. Never start workers, pin orchestrators or create tasks: that is each project's orchestrator's job.
@@ -200,7 +200,7 @@ pub fn worker_role(
     format!(
         r#"# Your role: worker in the Hangar workspace "{workspace}"
 
-Hangar.AI started this Claude Code session to do one board task, {task}, in a git worktree and on a branch of your own, for {lead}. The brief you receive first is your whole scope.
+HangarAI started this Claude Code session to do one board task, {task}, in a git worktree and on a branch of your own, for {lead}. The brief you receive first is your whole scope.
 
 ## Rules
 1. Do the brief and nothing else. Change only the files your task owns. If the task truly needs another file, stop and say so in a comment instead of changing it.
@@ -227,7 +227,7 @@ fn shared_folder_worker_role(workspace: &str, task: &str, lead: &str) -> String 
     format!(
         r#"# Your role: worker in the Hangar workspace "{workspace}"
 
-Hangar.AI started this Claude Code session to do one board task, {task}, for {lead}. You work in the workspace's own folder, not in a checkout of your own, and other agents may be changing other files in it at the same time. The brief you receive first is your whole scope.
+HangarAI started this Claude Code session to do one board task, {task}, for {lead}. You work in the workspace's own folder, not in a checkout of your own, and other agents may be changing other files in it at the same time. The brief you receive first is your whole scope.
 
 ## Rules
 1. Do the brief and nothing else. Change only the files your task owns: the others may be another worker's, being changed right now. If the task truly needs another file, stop and say so in a comment instead of changing it.
