@@ -5,7 +5,8 @@
 //! name, its command, the instructions file it reads, and its
 //! [`Capabilities`], each a level (caps.rs). [`info`] is the row; [`detect`]
 //! says which agents are on this machine; [`launch`] builds the command each
-//! kind is started with.
+//! kind is started with, from its own file's spellings (`claude.rs`,
+//! [`codex`]).
 //!
 //! **The rule (D3): features read capabilities, never the agent kind.** Only
 //! the agent modules (this one and the kind's own driver files) and the state
@@ -19,6 +20,7 @@
 
 pub mod caps;
 mod claude;
+pub mod codex;
 pub mod detect;
 pub mod launch;
 

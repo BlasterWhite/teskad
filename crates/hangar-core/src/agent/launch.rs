@@ -4,9 +4,10 @@
 //! session, with which model, account, permissions and MCP servers — in words
 //! no agent owns; [`build`] turns it into a [`LaunchSpec`]: the command the
 //! pane's shell types, and the variables the shell starts with for that
-//! agent. Each kind's spellings live in its own file (`claude.rs`, and
-//! `codex.rs` from task T4a); [`build`] is the one place that picks the file
-//! by kind.
+//! agent; [`server`] says which process Hangar starts for the pane first, for
+//! a kind that runs attached to a server of its own (Codex, D5). Each kind's
+//! spellings live in its own file (`claude.rs`, `codex.rs`); [`build`] and
+//! [`server`] are the one place that picks the file by kind.
 //!
 //! What a pane gets whatever runs in it stays with the PTY (`pty.rs`): its
 //! identity and API token, the hangar-bridge mod and the kits' plugin
@@ -19,7 +20,8 @@ use std::ffi::OsString;
 use std::fmt;
 use std::path::PathBuf;
 
-use super::{claude, AgentKind, PermissionMode};
+use super::{claude, codex, AgentKind, PermissionMode};
+use crate::shells::ShellInfo;
 
 /// The variable a pane's shell holds its MCP config file's path in: the line
 /// typed names the variable instead of the path, which lies in Hangar's data
@@ -69,6 +71,167 @@ pub struct LaunchRequest {
     /// Claude Code gets it from the mod, at the end of its system prompt, so
     /// its line carries none.
     pub role: Option<String>,
+    /// How the pane's shell reads the line typed into it, for a kind whose
+    /// line carries values the builder quotes itself (Codex). Absent, not
+    /// known: the line carries only words every shell reads as they are.
+    pub shell: Option<ShellSyntax>,
+    /// The socket of the server Hangar starts for the pane, for a kind that
+    /// runs attached to one (Codex, D5): [`server`] says how to start it, and
+    /// the typed line points the pane's program at it. Absent, the kind runs
+    /// on its own (Codex's plain TUI, the floor: D6).
+    pub server_socket: Option<String>,
+    /// The executable of Hangar's own MCP server (`<it> --mcp`), for a kind
+    /// that takes its servers as configuration overrides
+    /// (`McpInjection::Overrides`): every Codex pane gets Hangar's server
+    /// this way (D8). Claude Code reads it from its configuration files, so
+    /// its line ignores this.
+    pub hangar_mcp: Option<String>,
+    /// Folders the agent is to trust for this launch only, for a kind that
+    /// asks before working in a folder it does not trust (Codex): a worker's
+    /// worktree, when its workspace's own folder is trusted in the person's
+    /// configuration — which Hangar reads and never writes (§4.2.1).
+    pub trusted: Vec<String>,
+}
+
+/// How a shell reads the line typed into it: the quotes it takes, and how it
+/// names a variable of its environment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShellSyntax {
+    /// bash, zsh, sh, dash, ksh, and the bash of Git for Windows, MSYS2 and
+    /// Cygwin.
+    Posix,
+    Fish,
+    /// PowerShell 7 (`pwsh`) and Windows PowerShell.
+    PowerShell,
+    Cmd,
+}
+
+impl ShellSyntax {
+    /// The syntax of a shell by the id `shells.rs` gives it, else by its
+    /// program's name; `None` for one Hangar does not type for (Nushell, a
+    /// WSL pane) or does not know.
+    pub fn of(shell: &ShellInfo) -> Option<ShellSyntax> {
+        ShellSyntax::by_name(&shell.id).or_else(|| {
+            let program = shell
+                .program
+                .rsplit(['\\', '/'])
+                .next()
+                .unwrap_or_default()
+                .to_lowercase();
+            ShellSyntax::by_name(program.strip_suffix(".exe").unwrap_or(&program))
+        })
+    }
+
+    fn by_name(name: &str) -> Option<ShellSyntax> {
+        Some(match name {
+            "bash" | "zsh" | "sh" | "dash" | "ksh" | "git-bash" | "msys2" | "cygwin" => {
+                ShellSyntax::Posix
+            }
+            "fish" => ShellSyntax::Fish,
+            "pwsh" | "powershell" => ShellSyntax::PowerShell,
+            "cmd" => ShellSyntax::Cmd,
+            _ => return None,
+        })
+    }
+
+    /// `value` as one word this shell hands the program exactly as it is;
+    /// `None` when it cannot be typed so.
+    ///
+    /// - The POSIX shells take single quotes literally; a quote inside is
+    ///   closed, escaped and reopened.
+    /// - fish's single quotes still read `\\` and `\'`.
+    /// - PowerShell's single quotes are literal, a quote inside doubled — and
+    ///   the typographic single quotes are quotes to it too. A double quote is
+    ///   refused: Windows PowerShell and PowerShell 7 pass one to a native
+    ///   program differently (`$PSNativeCommandArgumentPassing`), and so is a
+    ///   trailing backslash, which the double quotes Windows PowerShell wraps
+    ///   a word with would read as escaping the closing one.
+    /// - cmd only has double quotes, which cannot hold one, and expands
+    ///   `%VAR%` even between them; a trailing backslash would escape the
+    ///   closing quote for the C runtime that splits the program's line.
+    ///
+    /// No shell is typed a control character: a line typed into a terminal
+    /// stays one line, and a Ctrl-C or a Tab would be read as keys.
+    pub fn quote(self, value: &str) -> Option<String> {
+        if value.is_empty() || value.chars().any(char::is_control) {
+            return None;
+        }
+        match self {
+            ShellSyntax::Posix => Some(format!("'{}'", value.replace('\'', "'\\''"))),
+            ShellSyntax::Fish => Some(format!(
+                "'{}'",
+                value.replace('\\', "\\\\").replace('\'', "\\'")
+            )),
+            ShellSyntax::PowerShell => {
+                if !windows_native_arg(value) {
+                    return None;
+                }
+                let mut quoted = String::from("'");
+                for c in value.chars() {
+                    if POWERSHELL_SINGLE_QUOTES.contains(&c) {
+                        quoted.push(c);
+                    }
+                    quoted.push(c);
+                }
+                quoted.push('\'');
+                Some(quoted)
+            }
+            ShellSyntax::Cmd => {
+                (windows_native_arg(value) && !value.contains('%')).then(|| format!("\"{value}\""))
+            }
+        }
+    }
+
+    /// The variable `name` of the shell's environment as one word, which the
+    /// shell replaces with the variable's value: what a line types instead of
+    /// a value it should not show (a path holding the person's name, a long
+    /// text). See [`carries`](Self::carries) for the values that arrive
+    /// whole.
+    pub fn variable(self, name: &str) -> String {
+        match self {
+            ShellSyntax::Posix | ShellSyntax::Fish => format!("\"${name}\""),
+            ShellSyntax::PowerShell => format!("$env:{name}"),
+            // Expanded once, before the line is read: what it holds is not
+            // expanded again, `%` included.
+            ShellSyntax::Cmd => format!("\"%{name}%\""),
+        }
+    }
+
+    /// Whether a variable holding `value`, typed as
+    /// [`variable`](Self::variable), reaches the program as `value`. The
+    /// POSIX shells and fish pass it whole; PowerShell and cmd hand it to the
+    /// program through a command line, with the same limits as
+    /// [`quote`](Self::quote), less cmd's `%`.
+    pub fn carries(self, value: &str) -> bool {
+        match self {
+            ShellSyntax::Posix | ShellSyntax::Fish => true,
+            ShellSyntax::PowerShell | ShellSyntax::Cmd => {
+                !value.chars().any(char::is_control) && windows_native_arg(value)
+            }
+        }
+    }
+}
+
+/// What PowerShell reads as a single quote: `'` and the typographic ones.
+const POWERSHELL_SINGLE_QUOTES: [char; 5] = ['\'', '\u{2018}', '\u{2019}', '\u{201a}', '\u{201b}'];
+
+/// A value a Windows shell can hand a native program whole: not empty (an
+/// empty word is dropped), no double quote, no trailing backslash.
+fn windows_native_arg(value: &str) -> bool {
+    !value.is_empty() && !value.contains('"') && !value.ends_with('\\')
+}
+
+/// `value` as one word `shell` hands the program exactly as it is, the shell
+/// known or not: an unknown one gets single quotes, which every shell above
+/// but cmd reads literally as long as they hold no quote and no backslash.
+pub(super) fn quote(shell: Option<ShellSyntax>, value: &str) -> Option<String> {
+    match shell {
+        Some(shell) => shell.quote(value),
+        None => (!value.is_empty()
+            && !value.chars().any(char::is_control)
+            && !value.contains(['\'', '\\']))
+        .then(|| format!("'{value}'")),
+    }
 }
 
 /// The MCP servers a launch starts with, as Hangar chose them for the pane
@@ -121,6 +284,23 @@ impl LaunchSpec {
     }
 }
 
+/// A process Hangar starts for a pane before typing the pane's line: the
+/// server the pane's program is attached to (Codex's `app-server`, D5). It
+/// runs with the pane's environment and the variables of the pane's
+/// [`LaunchSpec::env`], and lives and dies with the pane (task T4b).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerSpec {
+    /// The kind's command, the very one the pane types (the settings' one,
+    /// else the kind's program), so the server and the pane's program are
+    /// the same release. Started as one executable, never through a shell.
+    pub program: String,
+    /// Its arguments, each exactly as the program receives it: no shell
+    /// reads them, so nothing is quoted, and nothing is ever on screen.
+    pub args: Vec<String>,
+    /// The folder it starts in: the pane's.
+    pub cwd: String,
+}
+
 /// Why a request could not be made into a launch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LaunchError {
@@ -144,10 +324,18 @@ impl std::error::Error for LaunchError {}
 pub fn build(request: &LaunchRequest) -> Result<LaunchSpec, LaunchError> {
     match request.kind {
         AgentKind::Claude => Ok(claude::spec(request)),
-        // Task T4a: `codex::spec` — the pane's app-server with its `-c`
-        // settings, and the `codex --remote` line typed into the pane
-        // (§4.2.1).
-        AgentKind::Codex => Err(LaunchError::Unsupported(AgentKind::Codex)),
+        AgentKind::Codex => Ok(codex::spec(request)),
+    }
+}
+
+/// The server Hangar starts for the pane before typing [`build`]'s line, for
+/// a kind that runs attached to one; `None` when the pane's program runs on
+/// its own. The line [`build`] gives points at this server exactly when
+/// there is one.
+pub fn server(request: &LaunchRequest) -> Option<ServerSpec> {
+    match request.kind {
+        AgentKind::Claude => None,
+        AgentKind::Codex => codex::server(request),
     }
 }
 
@@ -236,17 +424,210 @@ mod tests {
         assert_eq!(program(AgentKind::Codex, Some("")), "codex");
     }
 
-    /// Until task T4a writes Codex's launch, asking for one says so instead
-    /// of typing anything.
+    /// Both kinds start; a kind Hangar could not start would say so by name.
     #[test]
-    fn a_kind_without_a_launch_is_refused_with_its_name() {
-        let request = LaunchRequest {
-            kind: AgentKind::Codex,
-            ..Default::default()
-        };
-        let error = build(&request).unwrap_err();
-        assert_eq!(error, LaunchError::Unsupported(AgentKind::Codex));
-        assert_eq!(error.to_string(), "Hangar cannot start Codex yet");
+    fn every_kind_has_a_launch_and_a_refusal_names_the_kind() {
+        for kind in AgentKind::ALL {
+            let request = LaunchRequest {
+                kind,
+                ..Default::default()
+            };
+            assert_eq!(build(&request).unwrap().program, kind.info().program);
+        }
+        assert_eq!(
+            LaunchError::Unsupported(AgentKind::Codex).to_string(),
+            "Hangar cannot start Codex yet"
+        );
+    }
+
+    /// Only a kind that runs attached, and only when given a socket, has a
+    /// server.
+    #[test]
+    fn a_server_is_started_only_for_an_attached_kind_given_a_socket() {
+        let socket = Some("/run/hangar/p1.sock".to_string());
+        for (kind, socket, expected) in [
+            (AgentKind::Claude, socket.clone(), false),
+            (AgentKind::Codex, socket, true),
+            (AgentKind::Codex, None, false),
+        ] {
+            let request = LaunchRequest {
+                kind,
+                server_socket: socket,
+                shell: Some(ShellSyntax::Posix),
+                ..Default::default()
+            };
+            assert_eq!(server(&request).is_some(), expected, "{kind:?}");
+        }
+    }
+
+    fn shell(id: &str, program: &str) -> ShellInfo {
+        ShellInfo {
+            id: id.into(),
+            label: id.into(),
+            program: program.into(),
+            args: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn a_shell_is_known_by_its_id_else_by_its_program() {
+        for (id, program, syntax) in [
+            ("bash", "/bin/bash", Some(ShellSyntax::Posix)),
+            ("zsh", "/bin/zsh", Some(ShellSyntax::Posix)),
+            (
+                "git-bash",
+                "C:\\Program Files\\Git\\bin\\bash.exe",
+                Some(ShellSyntax::Posix),
+            ),
+            ("fish", "/usr/bin/fish", Some(ShellSyntax::Fish)),
+            (
+                "pwsh",
+                "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+                Some(ShellSyntax::PowerShell),
+            ),
+            (
+                "powershell",
+                "powershell.exe",
+                Some(ShellSyntax::PowerShell),
+            ),
+            (
+                "cmd",
+                "C:\\Windows\\System32\\cmd.exe",
+                Some(ShellSyntax::Cmd),
+            ),
+            ("custom", "/usr/local/bin/ZSH", Some(ShellSyntax::Posix)),
+            (
+                "custom",
+                "C:\\tools\\PWSH.EXE",
+                Some(ShellSyntax::PowerShell),
+            ),
+            ("nu", "/usr/bin/nu", None),
+            ("wsl", "C:\\Windows\\System32\\wsl.exe", None),
+            ("custom", "/opt/xonsh", None),
+        ] {
+            assert_eq!(
+                ShellSyntax::of(&shell(id, program)),
+                syntax,
+                "{id} {program}"
+            );
+        }
+    }
+
+    // Quoting, shell by shell.
+
+    #[test]
+    fn bash_and_zsh_take_anything_in_single_quotes() {
+        let posix = ShellSyntax::of(&shell("zsh", "/bin/zsh")).unwrap();
+        assert_eq!(posix, ShellSyntax::of(&shell("bash", "/bin/bash")).unwrap());
+        assert_eq!(posix.quote("a b"), Some("'a b'".into()));
+        assert_eq!(posix.quote("it's"), Some("'it'\\''s'".into()));
+        assert_eq!(
+            posix.quote("$HOME `x` \"y\" \\z !1 %P%"),
+            Some("'$HOME `x` \"y\" \\z !1 %P%'".into())
+        );
+        assert_eq!(posix.variable("HANGAR_X"), "\"$HANGAR_X\"");
+        assert!(posix.carries("x=\"a\nb\"\\"));
+    }
+
+    #[test]
+    fn fish_escapes_backslashes_and_quotes_in_single_quotes() {
+        let fish = ShellSyntax::Fish;
+        assert_eq!(fish.quote("a b"), Some("'a b'".into()));
+        assert_eq!(fish.quote("it's"), Some("'it\\'s'".into()));
+        assert_eq!(fish.quote("C:\\x\\\\y"), Some("'C:\\\\x\\\\\\\\y'".into()));
+        assert_eq!(fish.quote("$HOME \"y\""), Some("'$HOME \"y\"'".into()));
+        assert_eq!(fish.variable("HANGAR_X"), "\"$HANGAR_X\"");
+        assert!(fish.carries("x=\"a\nb\"\\"));
+    }
+
+    #[test]
+    fn powershell_doubles_its_single_quotes_and_refuses_double_ones() {
+        let pwsh = ShellSyntax::PowerShell;
+        assert_eq!(pwsh.quote("a b"), Some("'a b'".into()));
+        assert_eq!(pwsh.quote("it's"), Some("'it''s'".into()));
+        assert_eq!(
+            pwsh.quote("l\u{2019}été"),
+            Some("'l\u{2019}\u{2019}été'".into())
+        );
+        assert_eq!(
+            pwsh.quote("$env:HOME C:\\x"),
+            Some("'$env:HOME C:\\x'".into())
+        );
+        assert_eq!(pwsh.quote("a \"b\""), None);
+        assert_eq!(pwsh.quote("C:\\dir\\"), None);
+        assert_eq!(pwsh.variable("HANGAR_X"), "$env:HANGAR_X");
+        assert!(pwsh.carries("x='C:\\a b'"));
+        assert!(!pwsh.carries("x=\"a\""));
+        assert!(!pwsh.carries("x='a\nb'"));
+    }
+
+    #[test]
+    fn cmd_takes_double_quotes_without_a_quote_or_a_percent_inside() {
+        let cmd = ShellSyntax::Cmd;
+        assert_eq!(cmd.quote("a b & c"), Some("\"a b & c\"".into()));
+        assert_eq!(
+            cmd.quote("C:\\Users\\it's"),
+            Some("\"C:\\Users\\it's\"".into())
+        );
+        assert_eq!(cmd.quote("a \"b\""), None);
+        assert_eq!(cmd.quote("100%"), None);
+        assert_eq!(cmd.quote("C:\\dir\\"), None);
+        assert_eq!(cmd.variable("HANGAR_X"), "\"%HANGAR_X%\"");
+        // Expanded once: a `%` in the value stays as it is.
+        assert!(cmd.carries("x='C:\\100%'"));
+        assert!(!cmd.carries("x=\"a\""));
+        assert!(!cmd.carries("x='a\rb'"));
+    }
+
+    /// A shell whose syntax is not known gets single quotes, holding neither
+    /// a quote nor a backslash.
+    #[test]
+    fn an_unknown_shell_gets_plain_single_quotes_or_nothing() {
+        assert_eq!(quote(None, "a b"), Some("'a b'".into()));
+        assert_eq!(quote(None, "it's"), None);
+        assert_eq!(quote(None, "C:\\x"), None);
+    }
+
+    /// No shell is typed an empty word or a control character: Enter,
+    /// Ctrl-C or Tab would be keys.
+    #[test]
+    fn no_shell_is_typed_a_control_character() {
+        for syntax in [
+            Some(ShellSyntax::Posix),
+            Some(ShellSyntax::Fish),
+            Some(ShellSyntax::PowerShell),
+            Some(ShellSyntax::Cmd),
+            None,
+        ] {
+            for value in ["", "a\nb", "a\rb", "a\tb", "a\u{3}b", "a\u{1b}[2J"] {
+                assert_eq!(quote(syntax, value), None, "{syntax:?} {value:?}");
+            }
+        }
+    }
+
+    /// The POSIX quoting, read back by a real shell.
+    #[cfg(unix)]
+    #[test]
+    fn sh_reads_a_quoted_word_back_as_it_was() {
+        let values = [
+            "plain",
+            "a b",
+            "it's",
+            "''",
+            "$HOME `id` $(id) \"q\" \\ \\\\ * ? [a] ~ ! # ; & | < > { } %P%",
+            "C:\\Users\\Ann Lee\\",
+            "l’été ünïcode",
+        ];
+        for value in values {
+            let word = ShellSyntax::Posix.quote(value).unwrap();
+            let output = std::process::Command::new("sh")
+                .arg("-c")
+                .arg(format!("printf '%s' {word}"))
+                .output()
+                .expect("sh runs");
+            assert!(output.status.success(), "{value:?}: {output:?}");
+            assert_eq!(String::from_utf8(output.stdout).unwrap(), value, "{word}");
+        }
     }
 
     #[test]
