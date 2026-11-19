@@ -33,7 +33,8 @@ use iced::advanced::mouse::{self, Click};
 use iced::advanced::overlay;
 use iced::advanced::renderer::{self, Quad};
 use iced::advanced::text::{self as core_text, Paragraph as _, Renderer as _, Text};
-use iced::advanced::widget::{Operation, Tree, tree};
+use iced::advanced::widget::operation::Focusable;
+use iced::advanced::widget::{Id, Operation, Tree, tree};
 use iced::advanced::{Clipboard, Renderer as _, Shell, Widget};
 use iced::keyboard::key::{Named, Physical};
 use iced::keyboard::{self, Key, Modifiers};
@@ -182,6 +183,32 @@ impl<'a> Grid<'a> {
     fn publish(&self, shell: &mut Shell<'_, Message>, msg: Msg) {
         shell.publish(Message::Panes(msg));
     }
+}
+
+/// Whether a field in a pane's element has the keyboard.
+fn field_focused(
+    element: &mut Element<'_, Message>,
+    tree: &mut Tree,
+    layout: Layout<'_>,
+    renderer: &iced::Renderer,
+) -> bool {
+    struct AnyFocused(bool);
+
+    impl Operation for AnyFocused {
+        fn traverse(&mut self, operate: &mut dyn FnMut(&mut dyn Operation)) {
+            operate(self);
+        }
+
+        fn focusable(&mut self, _id: Option<&Id>, _bounds: Rectangle, state: &mut dyn Focusable) {
+            self.0 |= state.is_focused();
+        }
+    }
+
+    let mut found = AnyFocused(false);
+    element
+        .as_widget_mut()
+        .operate(tree, layout, renderer, &mut found);
+    found.0
 }
 
 /// A boundary being dragged.
@@ -957,7 +984,25 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
             // The pane the workspace remembers is not always the one with the
             // keyboard: after a click in the sidebar it keeps the arrows.
             if self.focused != Some(pane) || self.keyboard_elsewhere {
-                self.publish(shell, Msg::Focus(self.ws.clone(), pane.clone()));
+                // A field of the pane that took the press (the terminal's
+                // search bar) keeps the keyboard: the pane becomes the
+                // focused one, and its terminal does not take what is typed
+                // in the field.
+                let in_field = match layout.children().nth(index) {
+                    Some(child_layout) => field_focused(
+                        &mut self.children[index],
+                        &mut tree.children[index],
+                        child_layout,
+                        renderer,
+                    ),
+                    None => false,
+                };
+                let msg = if in_field {
+                    Msg::Select(self.ws.clone(), pane.clone())
+                } else {
+                    Msg::Focus(self.ws.clone(), pane.clone())
+                };
+                self.publish(shell, msg);
             }
             let slot = layout.children().nth(index).map(|child| child.bounds());
             let on_header =
