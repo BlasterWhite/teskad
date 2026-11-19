@@ -1,12 +1,20 @@
 //! The conversation of the chat view, the left, main region: the person's
-//! chat with the workspace's orchestrator, a Claude Code pane that goes on
-//! running hidden behind the view.
+//! chat with the workspace's orchestrator, a Claude Code or Codex pane that
+//! goes on running hidden behind the view.
 //!
 //! Everything goes through Hangar Mobile's typed calls (`mobile::desk`),
 //! the phone's own path with its guards: `chat` reads a page of the pane's
-//! transcript merged with what its mod reports (the question or permission it
-//! waits on, the call it runs), `send_text` types a message, `answer` and
-//! `permit` answer its dialogs.
+//! history (Claude Code's transcript, Codex's thread items) merged with what
+//! its side channel reports (the question or permission it waits on, the
+//! call it runs), `send_text` sends a message, `answer` and `permit` answer
+//! its asks — through the ask its side channel holds open when it holds one,
+//! with keys checked on screen otherwise.
+//!
+//! What the region offers follows what the pane's agent can do now (its live
+//! capabilities, docs/native/agents.md D3), never its name: a conversation
+//! when it writes a history, the queue when its side channel delivers one,
+//! the model, effort and plan chips when that side channel runs the agent's
+//! own commands.
 //!
 //! - `thread`: what is held between reads — the newest page laid over the
 //!   end, older pages in front, the messages sent shown at once until the
@@ -15,8 +23,8 @@
 //! - `rich`: Claude's Markdown, its code coloured as the preview colours it;
 //! - `view`: the drawing.
 //!
-//! When it reads: as soon as the region is shown, whenever the pane's mod
-//! reports (`CoreEvent::Bridge`) or its queue changes, and on a slow tick
+//! When it reads: as soon as the region is shown, whenever the pane's side
+//! channel reports (`CoreEvent::Bridge`) or its queue changes, and on a slow tick
 //! that reads again only when the pane's activity changed, while it works
 //! (it prints then), or after `FALLBACK` otherwise. The core's chat reads
 //! only what was appended to the transcript since, nothing when it did not
@@ -51,8 +59,10 @@ use iced::widget::scrollable::Viewport;
 use iced::widget::text_editor;
 use iced::{Subscription, Task};
 
+use hangar_core::agent::{Capabilities, RunningInject};
 use hangar_core::chat::{Answer, Body, Question, Sender};
 use hangar_core::git::{self, Changes};
+use hangar_engine::live::live_caps;
 
 use crate::control::port::{BoxFuture, Port};
 use crate::message::{Intent, Message};
@@ -66,8 +76,8 @@ use crate::preview::markdown::highlight_blocks;
 use crate::services::{CoreEvent, Services};
 use crate::shell::Notice;
 use crate::state::live::QueuedPrompt;
-use crate::state::roles::orchestrator_of;
-use crate::state::{AgentActivity, AgentId, Model, Pane, PaneId, Workspace, WsId};
+use crate::state::roles::{orchestrator_of, side_channel_on};
+use crate::state::{AgentActivity, Model, Pane, PaneId, Workspace, WsId};
 
 pub use thread::{Sent, Thread};
 pub use view::view;
@@ -177,7 +187,7 @@ pub struct DeskState {
     pub ready: bool,
     /// An answer is typed into the pane (the phone's, or this window's).
     pub answering: bool,
-    /// The pane was woken and its Claude Code has not said hello yet.
+    /// The pane was woken and its agent has not said hello yet.
     pub resuming: bool,
 }
 
@@ -199,8 +209,8 @@ pub struct Chat {
     /// The pane's activity at the last tick.
     seen: Option<AgentActivity>,
     desk: DeskState,
-    /// Claude's messages parsed, by item id, with the words they were parsed
-    /// from.
+    /// The agent's messages parsed, by item id, with the words they were
+    /// parsed from.
     prose: HashMap<String, (String, markdown::Content)>,
     /// The colours of the code blocks, by `block_key`.
     code: HashMap<u64, Arc<Lines>>,
@@ -277,8 +287,8 @@ impl Chat {
 }
 
 /// The person's choices on the question the pane waits on, one question at
-/// a time as Claude Code's own dialog asks them: `step` is the question
-/// shown, the last one with the recap and Send.
+/// a time as the agents' own dialogs ask them: `step` is the question shown,
+/// the last one with the recap and Send.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Form {
     tool_use_id: String,
@@ -491,10 +501,11 @@ pub enum Msg {
 pub enum Blocked {
     /// Hangar Mobile's runtime is not up yet.
     Loading,
-    NotClaude,
+    /// The pane runs no agent whose conversation Hangar reads (`converses`).
+    NoConversation,
     /// An answer is being typed into the pane.
     Answering,
-    /// The pane's Claude Code is resuming.
+    /// The pane's agent is resuming.
     Resuming,
     /// A question waits: what is typed would land in its dialog.
     Question,
@@ -502,10 +513,32 @@ pub enum Blocked {
     Permission,
 }
 
+/// Whether the pane's agent writes a history its conversation is read from
+/// (`transcript`): what the region shows and talks to. A shell does not.
+pub fn converses(pane: &Pane) -> bool {
+    pane.agent
+        .kind()
+        .is_some_and(|kind| kind.info().caps.transcript.is_some())
+}
+
+/// What the pane's agent can do now: its kind's levels while its side
+/// channel speaks, the floor otherwise (`live_caps`); `None` for a pane that
+/// runs no agent.
+pub(super) fn caps_of(m: &Model, pane: &Pane) -> Option<Capabilities> {
+    let kind = pane.agent.kind()?;
+    Some(live_caps(&kind.info().caps, spoke(m, pane)))
+}
+
+/// The pane's side channel spoke: the hangar-bridge mod in its Claude Code,
+/// Hangar's client of its Codex server.
+fn spoke(m: &Model, pane: &Pane) -> bool {
+    m.live.panes_logic.bridged_count([&pane.id]) == 1
+}
+
 /// Why the chat's input is disabled, if it is.
 pub fn blocked(chat: &Chat, pane: &Pane) -> Option<Blocked> {
-    if pane.agent != AgentId::Claude {
-        return Some(Blocked::NotClaude);
+    if !converses(pane) {
+        return Some(Blocked::NoConversation);
     }
     if !chat.desk.ready {
         return Some(Blocked::Loading);
@@ -684,12 +717,12 @@ fn read(st: &mut State, m: &Model, ws: &str, pane: &str, before: Option<String>)
     )
 }
 
-/// Parses Claude's new messages, forgets those no longer held, and colours
-/// the code blocks not coloured yet, off the UI thread.
+/// Parses the agent's new messages, forgets those no longer held, and
+/// colours the code blocks not coloured yet, off the UI thread.
 fn sync_prose(chat: &mut Chat, ws: &str, folder: &str) -> Task<Message> {
     let mut held = HashSet::new();
     let mut blocks = Vec::new();
-    // The files Claude names, linked to the workspace's (`paths`).
+    // The files the agent names, linked to the workspace's (`paths`).
     let parse = |source: &str| {
         rich::parse(&paths::link_files(source, ws, &|path| {
             paths::is_file_in(folder, path)
@@ -714,7 +747,7 @@ fn sync_prose(chat: &mut Chat, ws: &str, folder: &str) -> Task<Message> {
             chat.prose.insert(item.id.clone(), (text.clone(), content));
         }
     }
-    // The plan the pane presents, read as Claude's messages are.
+    // The plan the pane presents, read as the agent's messages are.
     if let Some(ChatPending::Permission {
         plan: Some(plan),
         prompt,
@@ -813,7 +846,7 @@ pub(super) fn changes_key(range: &Range) -> String {
     format!("changes:{}..{}", range.from, range.to)
 }
 
-/// Where the plan a prompt presents is kept with Claude's messages.
+/// Where the plan a prompt presents is kept with the agent's messages.
 pub(super) fn plan_key(prompt: &str) -> String {
     format!("plan:{prompt}")
 }
@@ -1126,7 +1159,7 @@ fn route(st: &mut State, m: &mut Model, msg_: Msg) -> Task<Message> {
         }
         Msg::Start(ws) => Task::done(Message::Intent(Intent::CreateOrchestrator(ws))),
         Msg::Link(url) if url.starts_with(paths::SCHEME) => {
-            // A file Claude named: in the workspace's preview, beside the
+            // A file the agent named: in the workspace's preview, beside the
             // conversation.
             let Some(file) = paths::file_of(&url) else {
                 return Task::none();
@@ -1383,11 +1416,22 @@ fn plan(st: &mut State, m: &Model, ws: &str, approve: bool) -> Task<Message> {
 }
 
 /// Whether the person's words for this orchestrator wait in its queue: it
-/// works, its Claude Code runs the mod, and the queue is this window's.
+/// works, and its queue reaches it (`delivers`).
 pub(super) fn queueing(m: &Model, pane: &Pane) -> bool {
-    m.live.panes_logic.activity_or_idle(&pane.id) == AgentActivity::Working
-        && m.live.panes_logic.bridged_count([&pane.id]) == 1
-        && m.settings().claude_bridge
+    m.live.panes_logic.activity_or_idle(&pane.id) == AgentActivity::Working && delivers(m, pane)
+}
+
+/// Whether the queue this window keeps for the orchestrator reaches it: its
+/// side channel spoke and the settings let it run (the hangar-bridge mod of
+/// a Claude Code, Hangar attached to a Codex: `side_channel_on`), it reaches
+/// a running turn or its end, and the queue is this window's, not a node's.
+fn delivers(m: &Model, pane: &Pane) -> bool {
+    let (Some(kind), Some(caps)) = (pane.agent.kind(), caps_of(m, pane)) else {
+        return false;
+    };
+    spoke(m, pane)
+        && side_channel_on(m.settings(), kind)
+        && caps.inject.running != RunningInject::None
         && crate::nodes::away::pane_node(pane).is_none()
 }
 
@@ -1404,12 +1448,12 @@ pub(super) fn waiting<'a>(m: &'a Model, chat: &'a Chat) -> impl Iterator<Item = 
 }
 
 /// Whether the orchestrator's model, effort and mode can be set from the
-/// input: its Claude Code runs the mod, which runs the commands that set
-/// them, and the queue they go through is this window's.
+/// input: the commands that set them go through its queue (`delivers`), and
+/// its side channel runs them as its prompt would (`submits_commands`: the
+/// hangar-bridge mod does; Codex's runs its commands in its own window, so a
+/// Codex orchestrator is not offered them).
 pub(super) fn tunable(m: &Model, pane: &Pane) -> bool {
-    m.live.panes_logic.bridged_count([&pane.id]) == 1
-        && m.settings().claude_bridge
-        && crate::nodes::away::pane_node(pane).is_none()
+    delivers(m, pane) && caps_of(m, pane).is_some_and(|caps| caps.submits_commands)
 }
 
 /// Sends the command that sets a setting through the queue: run at once

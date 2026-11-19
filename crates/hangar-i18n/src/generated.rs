@@ -1304,6 +1304,8 @@ pub enum Key {
     HibernateNoticeNoAgent,
     /// `inspector.activityEmpty`
     InspectorActivityEmpty,
+    /// `inspector.activityEmptyAttached`
+    InspectorActivityEmptyAttached,
     /// `inspector.activityOther`
     InspectorActivityOther,
     /// `inspector.activityQuiet`
@@ -1374,6 +1376,10 @@ pub enum Key {
     InspectorNoPaneBody,
     /// `inspector.plan`
     InspectorPlan,
+    /// `inspector.plan.claude`
+    InspectorPlanClaude,
+    /// `inspector.plan.codex`
+    InspectorPlanCodex,
     /// `inspector.planFiveHour`
     InspectorPlanFiveHour,
     /// `inspector.planHint`
@@ -3972,6 +3978,8 @@ pub enum Key {
     SidebarPlanFiveHour,
     /// `sidebar.planHint`
     SidebarPlanHint,
+    /// `sidebar.planHintAny`
+    SidebarPlanHintAny,
     /// `sidebar.planNoFigures`
     SidebarPlanNoFigures,
     /// `sidebar.planResetDate`
@@ -5395,6 +5403,7 @@ impl Key {
         Key::HibernateNoticeMany,
         Key::HibernateNoticeNoAgent,
         Key::InspectorActivityEmpty,
+        Key::InspectorActivityEmptyAttached,
         Key::InspectorActivityOther,
         Key::InspectorActivityQuiet,
         Key::InspectorClose,
@@ -5430,6 +5439,8 @@ impl Key {
         Key::InspectorNoPane,
         Key::InspectorNoPaneBody,
         Key::InspectorPlan,
+        Key::InspectorPlanClaude,
+        Key::InspectorPlanCodex,
         Key::InspectorPlanFiveHour,
         Key::InspectorPlanHint,
         Key::InspectorPlanHintResets,
@@ -6729,6 +6740,7 @@ impl Key {
         Key::SidebarPlanAccountsHint,
         Key::SidebarPlanFiveHour,
         Key::SidebarPlanHint,
+        Key::SidebarPlanHintAny,
         Key::SidebarPlanNoFigures,
         Key::SidebarPlanResetDate,
         Key::SidebarPlanResetDay,
@@ -7330,11 +7342,11 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "chatConv.context", en: Text::plain("{pct}% context"), fr: Text::plain("contexte {pct}\u{202f}%") },
     Message { id: "chatConv.disabled.answering", en: Text::plain("An answer is being typed into {name}: wait for it."), fr: Text::plain("Une réponse est en cours de saisie dans {name}\u{202f}: attendez qu’elle finisse.") },
     Message { id: "chatConv.disabled.loading", en: Text::plain("Hangar is starting: wait a moment."), fr: Text::plain("Hangar démarre\u{202f}: patientez un instant.") },
-    Message { id: "chatConv.disabled.notClaude", en: Text::plain("{name} is not a Claude Code pane."), fr: Text::plain("{name} n’est pas un panneau Claude Code.") },
+    Message { id: "chatConv.disabled.notClaude", en: Text::plain("{name} runs no agent whose conversation Hangar reads."), fr: Text::plain("{name} ne fait tourner aucun agent dont Hangar lit la conversation.") },
     Message { id: "chatConv.disabled.permission", en: Text::plain("Allow or deny the request above first."), fr: Text::plain("Autorisez ou refusez d’abord la demande ci-dessus.") },
     Message { id: "chatConv.disabled.question", en: Text::plain("Answer the question above first."), fr: Text::plain("Répondez d’abord à la question ci-dessus.") },
-    Message { id: "chatConv.disabled.resuming", en: Text::plain("{name} is resuming: wait for Claude Code to start."), fr: Text::plain("{name} reprend\u{202f}: attendez que Claude Code démarre.") },
-    Message { id: "chatConv.empty.body", en: Text::plain("The orchestrator is the Claude Code pane that plans the work on the board, starts the workers and lands what they deliver. Your conversation with it shows here."), fr: Text::plain("L’orchestrateur est le panneau Claude Code qui planifie le travail sur le tableau, lance les workers et intègre ce qu’ils livrent. Votre conversation avec lui s’affiche ici.") },
+    Message { id: "chatConv.disabled.resuming", en: Text::plain("{name} is resuming: wait for {agent} to start."), fr: Text::plain("{name} reprend\u{202f}: attendez que {agent} démarre.") },
+    Message { id: "chatConv.empty.body", en: Text::plain("The orchestrator is the {agent} pane that plans the work on the board, starts the workers and lands what they deliver. Your conversation with it shows here."), fr: Text::plain("L’orchestrateur est le panneau {agent} qui planifie le travail sur le tableau, lance les workers et intègre ce qu’ils livrent. Votre conversation avec lui s’affiche ici.") },
     Message { id: "chatConv.empty.cannot", en: Text::plain("This workspace cannot have an orchestrator."), fr: Text::plain("Cet espace ne peut pas avoir d’orchestrateur.") },
     Message { id: "chatConv.empty.start", en: Text::plain("Start the orchestrator"), fr: Text::plain("Lancer l’orchestrateur") },
     Message { id: "chatConv.empty.title", en: Text::plain("No orchestrator in this workspace"), fr: Text::plain("Pas d’orchestrateur dans cet espace") },
@@ -7395,11 +7407,11 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "chatConv.queue.sendNow", en: Text::plain("Send now"), fr: Text::plain("Envoyer maintenant") },
     Message { id: "chatConv.queue.sendNowHint", en: Text::plain("Stops the turn: the first message goes at once"), fr: Text::plain("Arrête le tour en cours\u{202f}: le premier message part tout de suite") },
     Message { id: "chatConv.queue.title", en: Text::plain("Waiting for {name} to finish"), fr: Text::plain("En attente\u{202f}: partira quand {name} aura fini") },
-    Message { id: "chatConv.queued", en: Text::plain("Queued: {name} gets it once Claude Code is up"), fr: Text::plain("En file\u{202f}: {name} le recevra dès que Claude Code sera prêt") },
+    Message { id: "chatConv.queued", en: Text::plain("Queued: {name} gets it once {agent} is up"), fr: Text::plain("En file\u{202f}: {name} le recevra dès que {agent} sera prêt") },
     Message { id: "chatConv.readFailed", en: Text::plain("Could not read the conversation: {error}"), fr: Text::plain("Impossible de lire la conversation\u{202f}: {error}") },
     Message { id: "chatConv.reason.noSession", en: Text::plain("No conversation with {name} yet. Write below to start one."), fr: Text::plain("Pas encore de conversation avec {name}. Écrivez ci-dessous pour en commencer une.") },
     Message { id: "chatConv.reason.noTranscript", en: Text::plain("{name}’s conversation has not been written yet."), fr: Text::plain("La conversation de {name} n’est pas encore écrite.") },
-    Message { id: "chatConv.reason.notClaude", en: Text::plain("{name} is not a Claude Code pane: it has no conversation to show."), fr: Text::plain("{name} n’est pas un panneau Claude Code\u{202f}: il n’a pas de conversation à afficher.") },
+    Message { id: "chatConv.reason.notClaude", en: Text::plain("{name} runs no agent whose conversation Hangar reads: there is nothing to show."), fr: Text::plain("{name} ne fait tourner aucun agent dont Hangar lit la conversation\u{202f}: rien à afficher.") },
     Message { id: "chatConv.refused", en: Text::plain("Not done: {error}"), fr: Text::plain("Non fait\u{202f}: {error}") },
     Message { id: "chatConv.send", en: Text::plain("Send"), fr: Text::plain("Envoyer") },
     Message { id: "chatConv.sending", en: Text::plain("Sending…"), fr: Text::plain("Envoi…") },
@@ -7763,6 +7775,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "hibernate.noticeMany", en: Text::plain("{count} workspaces put to sleep ({n} agents stopped)"), fr: Text::plain("{count} workspaces mis en veille ({n} agents arrêtés)") },
     Message { id: "hibernate.noticeNoAgent", en: Text::plain("{name} put to sleep (no agent to stop)"), fr: Text::plain("{name} mis en veille (aucun agent à arrêter)") },
     Message { id: "inspector.activityEmpty", en: Text::plain("Nothing yet. Prompts, permissions and edits show up here once Claude Code loads the hangar-bridge mod."), fr: Text::plain("Rien pour l'instant. Prompts, permissions et modifications s'affichent ici dès que Claude Code charge le mod hangar-bridge.") },
+    Message { id: "inspector.activityEmptyAttached", en: Text::plain("Nothing yet. Prompts, permissions and edits show up here once Hangar is attached to {agent}."), fr: Text::plain("Rien pour l'instant. Prompts, permissions et modifications s'affichent ici dès que Hangar est attaché à {agent}.") },
     Message { id: "inspector.activityOther", en: Text::plain("{agent} does not report what it does. Only Claude Code does, through the hangar-bridge mod."), fr: Text::plain("{agent} ne raconte pas ce qu'il fait. Seul Claude Code le fait, via le mod hangar-bridge.") },
     Message { id: "inspector.activityQuiet", en: Text::plain("Nothing yet."), fr: Text::plain("Rien pour l'instant.") },
     Message { id: "inspector.close", en: Text::plain("Hide the inspector"), fr: Text::plain("Masquer l'inspecteur") },
@@ -7791,13 +7804,15 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "inspector.label", en: Text::plain("Inspector"), fr: Text::plain("Inspecteur") },
     Message { id: "inspector.mcp", en: Text::plain("MCP"), fr: Text::plain("MCP") },
     Message { id: "inspector.mcpChange", en: Text::plain("Change…"), fr: Text::plain("Modifier…") },
-    Message { id: "inspector.mcpChangeHint", en: Text::plain("Choose the MCP servers of this workspace's Claude Code panes"), fr: Text::plain("Choisir les serveurs MCP des panneaux Claude Code de ce workspace") },
-    Message { id: "inspector.mcpInherit", en: Text::plain("Claude Code's own"), fr: Text::plain("ceux de Claude Code") },
+    Message { id: "inspector.mcpChangeHint", en: Text::plain("Choose the MCP servers of this workspace's {agent} panes"), fr: Text::plain("Choisir les serveurs MCP des panneaux {agent} de ce workspace") },
+    Message { id: "inspector.mcpInherit", en: Text::plain("{agent}'s own"), fr: Text::plain("ceux de {agent}") },
     Message { id: "inspector.minutesAgo", en: Text::plain("{n}\u{a0}min ago"), fr: Text::plain("il y a {n}\u{a0}min") },
     Message { id: "inspector.model", en: Text::plain("Model"), fr: Text::plain("Modèle") },
     Message { id: "inspector.noPane", en: Text::plain("No pane in focus"), fr: Text::plain("Aucun panneau actif") },
     Message { id: "inspector.noPaneBody", en: Text::plain("Click a pane to see its session, context and changes here."), fr: Text::plain("Clique sur un panneau pour voir ici sa session, son contexte et ses modifications.") },
-    Message { id: "inspector.plan", en: Text::plain("Claude plan"), fr: Text::plain("Forfait Claude") },
+    Message { id: "inspector.plan", en: Text::plain("Plan"), fr: Text::plain("Forfait") },
+    Message { id: "inspector.plan.claude", en: Text::plain("Claude plan"), fr: Text::plain("Forfait Claude") },
+    Message { id: "inspector.plan.codex", en: Text::plain("ChatGPT plan"), fr: Text::plain("Forfait ChatGPT") },
     Message { id: "inspector.planFiveHour", en: Text::plain("5\u{a0}h"), fr: Text::plain("5\u{a0}h") },
     Message { id: "inspector.planHint", en: Text::plain("{window}: {pct}% used"), fr: Text::plain("{window}\u{202f}: {pct}\u{202f}% utilisés") },
     Message { id: "inspector.planHintResets", en: Text::plain("{window}: {pct}% used, {reset}"), fr: Text::plain("{window}\u{202f}: {pct}\u{202f}% utilisés, {reset}") },
@@ -9096,7 +9111,8 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "sidebar.plan", en: Text::plain("Plan"), fr: Text::plain("Forfait") },
     Message { id: "sidebar.planAccountsHint", en: Text::plain("Plan usage of each Claude account, as its panes last reported it"), fr: Text::plain("Consommation du forfait de chaque compte Claude, d'après le dernier relevé de ses volets") },
     Message { id: "sidebar.planFiveHour", en: Text::plain("5\u{a0}h"), fr: Text::plain("5\u{a0}h") },
-    Message { id: "sidebar.planHint", en: Text::plain("Plan usage, as Claude Code last reported it"), fr: Text::plain("Consommation du forfait, d'après le dernier relevé de Claude Code") },
+    Message { id: "sidebar.planHint", en: Text::plain("Plan usage, as {agent} last reported it"), fr: Text::plain("Consommation du forfait, d'après le dernier relevé de {agent}") },
+    Message { id: "sidebar.planHintAny", en: Text::plain("Plan usage, as the last agent to report it saw it"), fr: Text::plain("Consommation du forfait, d'après le dernier agent à l'avoir relevée") },
     Message { id: "sidebar.planNoFigures", en: Text::plain("No figures yet"), fr: Text::plain("Pas encore de relevé") },
     Message { id: "sidebar.planResetDate", en: Text::plain("resets {date} at {time}"), fr: Text::plain("remise à zéro le {date} à {time}") },
     Message { id: "sidebar.planResetDay", en: Text::plain("resets {day} at {time}"), fr: Text::plain("remise à zéro {day} à {time}") },

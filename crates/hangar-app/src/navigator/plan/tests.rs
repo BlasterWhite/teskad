@@ -104,6 +104,7 @@ fn the_tooltip_says_what_the_block_is_then_when_each_window_resets() {
     let iso = (soon + chrono::Duration::hours(2)).to_rfc3339();
     let words = hint(
         EN,
+        &[AgentKind::Claude],
         &[
             limit("five_hour", 10.0, Some(&iso)),
             limit("seven_day", 5.0, None),
@@ -115,4 +116,50 @@ fn the_tooltip_says_what_the_block_is_then_when_each_window_resets() {
     assert!(lines[1].starts_with("5\u{a0}h: resets at "), "{}", lines[1]);
     // A window with no reset has no line.
     assert_eq!(lines.len(), 2);
+}
+
+/// The figures are the last session's: named after its agent when it can
+/// only be one agent's, plainly when several agents report theirs.
+#[test]
+fn the_tooltip_names_whose_figures_they_are_when_it_can_only_be_one_agent() {
+    let now = at(3, 9, 0);
+    let windows = [limit("five_hour", 10.0, None)];
+    let first = |agents: &[AgentKind]| hint(EN, agents, &windows, now);
+    assert_eq!(
+        first(&[AgentKind::Codex]),
+        "Plan usage, as Codex last reported it"
+    );
+    assert_eq!(
+        first(&[AgentKind::Claude, AgentKind::Codex]),
+        "Plan usage, as the last agent to report it saw it"
+    );
+    assert_eq!(
+        hint(FR, &[AgentKind::Codex], &windows, now),
+        "Consommation du forfait, d'après le dernier relevé de Codex"
+    );
+}
+
+/// Whom the figures can be from: the agents of the panes open that report
+/// their plan's windows, each once; a shell reports none.
+#[test]
+fn the_reporters_are_the_agents_at_work_that_report_their_plan() {
+    use crate::navigator::testing::{model_of, pane, workspace};
+    use crate::state::types::{AgentId, AppState};
+    let of = |agents: &[AgentId]| {
+        let panes = agents
+            .iter()
+            .enumerate()
+            .map(|(at, agent)| pane(&format!("p{at}"), &format!("P{at}"), *agent))
+            .collect();
+        reporters(&model_of(AppState {
+            workspaces: vec![workspace("w", "w", None, panes)],
+            ..AppState::default()
+        }))
+    };
+    assert!(of(&[AgentId::Shell]).is_empty());
+    assert_eq!(of(&[AgentId::Codex, AgentId::Shell]), [AgentKind::Codex]);
+    assert_eq!(
+        of(&[AgentId::Claude, AgentId::Codex, AgentId::Claude]),
+        [AgentKind::Claude, AgentKind::Codex]
+    );
 }

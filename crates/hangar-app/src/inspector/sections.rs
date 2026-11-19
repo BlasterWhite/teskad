@@ -6,6 +6,7 @@
 //! the workspace, the clock, the language — so the column is a pure
 //! function of the model and a snapshot test can draw it.
 
+use hangar_core::agent::{Capabilities, UsageSource};
 use hangar_core::bridge::Queued;
 use hangar_i18n::{Key, Locale, Translator, args};
 use hangar_theme::tokens::{font_size, radius, space};
@@ -190,10 +191,12 @@ pub(super) fn session<'a>(
     let (t, tr) = (s.theme(), s.tr());
     let c = &t.colors;
     let agent = s.pane.agent.info();
+    let kind = s.pane.agent.kind();
     let ws = s.ws.id.clone();
     let mut rows: Vec<Element<'a, Message>> = Vec::new();
 
-    if agent.resumable {
+    // The session it resumes, for an agent that resumes one (`sessions`).
+    if kind.is_some_and(|kind| kind.info().caps.sessions.resume) {
         let id: Element<'a, Message> = match &s.pane.session_id {
             Some(id) => s.tip(mono_cut(id.clone(), c.fg), id.clone()),
             None => ink(
@@ -232,14 +235,16 @@ pub(super) fn session<'a>(
         ));
     }
 
-    // The MCP servers its Claude Code started with; only Claude Code has them.
-    if s.pane.agent == AgentId::Claude
+    // The MCP servers its agent was started with, as its launch recorded
+    // them (`PaneMcp`); a shell has none.
+    if kind.is_some()
         && let Some(servers) = insight.mcp.as_ref().map(mcp_servers)
     {
+        let label = args!("agent" => agent.label);
         let value: Element<'a, Message> = match servers {
             Some(list) => s.tip(mono_cut(list.clone(), c.fg), list),
             None => ink(
-                tr.t(Key::InspectorMcpInherit),
+                tr.t_with(Key::InspectorMcpInherit, &label).into_owned(),
                 font_size::CAPTION_LG,
                 c.fg_subtle,
             )
@@ -249,7 +254,7 @@ pub(super) fn session<'a>(
         let change = link(
             t,
             tr.t(Key::InspectorMcpChange),
-            tr.t(Key::InspectorMcpChangeHint),
+            tr.t_with(Key::InspectorMcpChangeHint, &label),
             false,
             Msg::OpenMcpServers(ws),
         );
@@ -262,7 +267,7 @@ pub(super) fn session<'a>(
 }
 
 /// The servers a custom launch named, joined; `None` when the pane inherits
-/// Claude Code's own (`PaneMcp`).
+/// its agent's own (`PaneMcp`).
 pub(super) fn mcp_servers(mcp: &PaneMcp) -> Option<String> {
     match &mcp.mode {
         PaneMcpMode::Inherit => None,
@@ -291,14 +296,21 @@ pub(super) fn terminal<'a>(
 
 // ---- Context and cost ---------------------------------------------------------------------
 
+/// What the agent's context holds and what its session costs, and the plan's
+/// windows (`limits`, as they stand for its agent). Each reads what the
+/// agent can tell (`caps`, its kind's levels): the plan for one whose usage
+/// reports its windows, the ring for one that measures its context. What it
+/// cannot tell is left out rather than shown empty.
 pub(super) fn context<'a>(
     s: &Scene<'a>,
     insight: &'a PaneInsight,
     agent_label: &'a str,
-    limits: Option<&'a [RateLimit]>,
+    limits: Option<&[RateLimit]>,
+    caps: Option<&Capabilities>,
 ) -> Section<'a, Message> {
     let (t, tr) = (s.theme(), s.tr());
-    let show_plan = s.pane.agent == AgentId::Claude;
+    let show_plan = caps.is_some_and(|caps| caps.usage.limits != UsageSource::None);
+    let measures = caps.is_some_and(|caps| caps.usage.context != UsageSource::None);
     let five_hour = limits
         .filter(|_| show_plan)
         .and_then(|limits| format::plan_usage(limits, "five_hour"));
@@ -311,10 +323,11 @@ pub(super) fn context<'a>(
     let stats = insight.cost_usd.is_some() || has_plan;
 
     let mut body: Vec<Element<'a, Message>> = Vec::new();
-    body.push(match &insight.context {
-        Some(gauge) => gauge_row(s, gauge),
-        None => empty_note(t, tr.t(Key::InspectorContextEmpty)),
-    });
+    match &insight.context {
+        Some(gauge) => body.push(gauge_row(s, gauge)),
+        None if measures => body.push(empty_note(t, tr.t(Key::InspectorContextEmpty))),
+        None => {}
+    }
 
     if stats {
         let cost = cost_tile(s, insight, agent_label);
@@ -466,7 +479,19 @@ fn plan_tile<'a>(
     } else {
         unknown(s, tr.t(Key::InspectorPlanUnknown).into_owned())
     };
-    tile(s, tr.t(Key::InspectorPlan).into_owned(), body)
+    tile(s, plan_name(tr, s.pane), body)
+}
+
+/// The name of the plan whose windows a pane's agent spends: its maker's
+/// (`inspector.plan.<kind>`: Claude's for Claude Code, ChatGPT's for Codex),
+/// else plainly « Plan » for an agent no name was written for.
+pub(super) fn plan_name(tr: Translator, pane: &Pane) -> String {
+    let key = pane
+        .agent
+        .kind()
+        .and_then(|kind| Key::from_id(&format!("inspector.plan.{}", kind.id())))
+        .unwrap_or(Key::InspectorPlan);
+    tr.t(key).into_owned()
 }
 
 /// One plan window: its name, a bar and the percentage used (`.insp-meter`),

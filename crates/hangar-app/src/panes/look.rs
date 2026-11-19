@@ -3,7 +3,6 @@
 //! §4/1.1–1.2). A change of either restyles the terminals in place, as the
 //! TS effect on `[theme, fontFamily, …]` did: nothing restarts.
 
-use hangar_core::agent::AgentKind;
 use hangar_term::{Config, CursorShape, Font, Osc52, Palette};
 use hangar_theme::Theme;
 
@@ -52,22 +51,12 @@ pub fn palette(theme: &Theme) -> Palette {
 
 /// What Shift+Enter sends in a pane running `agent`: what its prompt reads as
 /// "a new line, not sent" from a terminal that does not speak the kitty
-/// protocol (see [`config`]), in its kind's own spelling, as its launch
-/// flags are. `None` for a shell, which keeps it as Enter, since ESC would
-/// revert the line in PSReadLine or cmd.
-///
-/// - Claude Code: ESC+CR (Alt+Enter), what it reads as a newline.
-/// - Codex: LF, its Ctrl+J, the newline key its own footer offers when the
-///   terminal reports no enhanced keys (`codex-rs/tui`, `keymap.rs`:
-///   `editor.insert_newline`, and `footer.rs`, read at the pinned 0.170.0).
-///   Its Alt+Enter is a newline too, but an ESC that reaches it on its own
-///   is its Esc: the running turn interrupted, or the last message taken
-///   back to be edited.
+/// protocol (see [`config`]), as its kind's row spells it
+/// (`AgentInfo::newline`: Claude Code's Alt+Enter, Codex's Ctrl+J). `None`
+/// for a shell, which keeps it as Enter, since ESC would revert the line in
+/// PSReadLine or cmd.
 pub fn newline(agent: AgentId) -> Option<&'static [u8]> {
-    match agent.kind()? {
-        AgentKind::Claude => Some(b"\x1b\r"),
-        AgentKind::Codex => Some(b"\n"),
-    }
+    agent.kind().map(|kind| kind.info().newline)
 }
 
 /// The behaviour of a pane's terminal.

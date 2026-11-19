@@ -986,6 +986,199 @@ mod drawn {
         assert!(!draws(&m, own, &session));
     }
 
+    /// The thread a Codex pane works in, its session.
+    const THREAD: &str = "019aa0b1-6c2e-7d41-8f3a-1b2c3d4e5f60";
+
+    /// `model`, its pane `a` a Codex on a session, `b` a shell.
+    fn codex_model() -> Model {
+        let mut m = model();
+        let mut state = m.state().clone();
+        state.workspaces[0].panes[0].agent = AgentId::Codex;
+        state.workspaces[0].panes[0].session_id = Some(THREAD.into());
+        state.workspaces[0].panes[1].agent = AgentId::Shell;
+        m.hydrate(state);
+        m
+    }
+
+    /// What Hangar's client of `pane`'s Codex server reports, after its
+    /// hello: the mod's kinds, in the mod's shapes.
+    fn codex_reports(m: &mut Model, pane: &str, events: &[serde_json::Value]) {
+        let now = crate::control::types::now_ms();
+        panes_logic::mount_for_test(m, pane, "w", pane, now - 600_000);
+        let hello = serde_json::json!({
+            "kind": "hello", "sessionId": THREAD, "model": "gpt-5.1-codex", "version": "0.170.0"
+        });
+        for event in std::iter::once(&hello).chain(events) {
+            let event = crate::services::CoreEvent::Bridge {
+                pane: pane.into(),
+                event: event.clone(),
+            };
+            let _ = panes_logic::reduce_for_test(m, &event, now - 10_000);
+        }
+    }
+
+    fn en(key: hangar_i18n::Key) -> String {
+        hangar_i18n::Translator::new(hangar_i18n::Locale::En)
+            .t(key)
+            .into_owned()
+    }
+
+    #[test]
+    fn a_codex_pane_shows_its_session_and_its_queue_and_says_what_it_waits_for() {
+        let m = codex_model();
+        let w = main(&m);
+        // The session it resumes, which the picker changes: Codex resumes.
+        assert!(draws(&m, w, &en(hangar_i18n::Key::InspectorSectionSession)));
+        assert!(draws(&m, w, &en(hangar_i18n::Key::InspectorResume)));
+        // Its queue, which Hangar attached to it delivers.
+        assert!(draws(&m, w, &en(hangar_i18n::Key::InspectorSectionQueue)));
+        // Nothing reported yet: what it takes, in its own terms.
+        assert!(draws(
+            &m,
+            w,
+            "Nothing yet. Prompts, permissions and edits show up here once Hangar is attached \
+             to Codex."
+        ));
+    }
+
+    #[test]
+    fn a_codex_pane_shows_the_model_context_and_plan_its_side_channel_reports() {
+        let mut m = codex_model();
+        let w = main(&m);
+        codex_reports(
+            &mut m,
+            "a",
+            &[serde_json::json!({
+                "kind": "usage",
+                "context": {"tokens": 64000, "window": 272000},
+                "rateLimits": [
+                    {"kind": "five_hour", "percentUsed": 34.0, "resetsAt": null},
+                    {"kind": "seven_day", "percentUsed": 12.0, "resetsAt": null}
+                ]
+            })],
+        );
+        // The model as Codex names it: no Claude name is made up for it.
+        assert!(draws(&m, w, " · gpt-5.1-codex"));
+        assert!(draws(&m, w, "24% of context used"));
+        // Its plan is ChatGPT's, not Claude's.
+        assert!(draws(&m, w, "ChatGPT plan"));
+        assert!(!draws(&m, w, "Claude plan"));
+        // Attached: nothing is said to wait for it any more.
+        assert!(!draws(
+            &m,
+            w,
+            "Nothing yet. Prompts, permissions and edits show up here once Hangar is attached \
+             to Codex."
+        ));
+    }
+
+    #[test]
+    fn a_launch_on_codexs_own_servers_says_so() {
+        let mut m = codex_model();
+        let w = main(&m);
+        m.live.panes_logic.set_launch_mcp(
+            "a",
+            Some(PaneMcp {
+                mode: PaneMcpMode::Inherit,
+                hangar: Some(true),
+            }),
+        );
+        assert!(draws(&m, w, "MCP"));
+        assert!(draws(&m, w, "Codex's own"));
+        assert!(!draws(&m, w, "Claude Code's own"));
+    }
+
+    #[test]
+    fn a_claude_code_pane_reads_as_it_did() {
+        let m = claude_model();
+        let w = main(&m);
+        assert!(draws(
+            &m,
+            w,
+            "Nothing yet. Prompts, permissions and edits show up here once Claude Code loads \
+             the hangar-bridge mod."
+        ));
+        assert!(draws(&m, w, &en(hangar_i18n::Key::InspectorResume)));
+        assert!(draws(&m, w, &en(hangar_i18n::Key::InspectorSectionQueue)));
+        let t = hangar_i18n::Translator::new(hangar_i18n::Locale::En);
+        let pane = &m.state().workspaces[0].panes[0];
+        assert_eq!(sections::plan_name(t, pane), "Claude plan");
+    }
+
+    /// Each agent's plan is its maker's; a shell's falls back to the word.
+    #[test]
+    fn a_plan_is_named_after_whose_it_is() {
+        let t = hangar_i18n::Translator::new(hangar_i18n::Locale::Fr);
+        let named = |agent| {
+            let pane = Pane {
+                agent,
+                ..Pane::default()
+            };
+            sections::plan_name(t, &pane)
+        };
+        assert_eq!(named(AgentId::Claude), "Forfait Claude");
+        assert_eq!(named(AgentId::Codex), "Forfait ChatGPT");
+        assert_eq!(named(AgentId::Shell), "Forfait");
+    }
+
+    /// With one agent at work, the plan is whichever of its sessions
+    /// reported last; with two, each pane reads its own account's, which
+    /// the other agent's reports never overwrite.
+    #[test]
+    fn a_pane_reads_the_plan_of_its_own_agent() {
+        let mut m = codex_model();
+        codex_reports(
+            &mut m,
+            "a",
+            &[serde_json::json!({
+                "kind": "usage",
+                "context": {"tokens": 1000, "window": 272000},
+                "rateLimits": [{"kind": "five_hour", "percentUsed": 34.0, "resetsAt": null}]
+            })],
+        );
+        let pane = |m: &Model, id: &str| {
+            m.state().workspaces[0]
+                .panes
+                .iter()
+                .find(|pane| pane.id == id)
+                .cloned()
+                .unwrap()
+        };
+        let a = pane(&m, "a");
+        let alone = sources::plan_for(&m, &a).expect("its own report");
+        assert_eq!(alone[0].percent_used, 34.0);
+        // A shell has no plan.
+        assert!(sources::plan_for(&m, &pane(&m, "b")).is_none());
+
+        // A Claude Code beside it: the last report could be either's.
+        let mut state = m.state().clone();
+        state.workspaces[0].panes[1].agent = AgentId::Claude;
+        m.hydrate(state);
+        let a = pane(&m, "a");
+        assert!(
+            sources::plan_for(&m, &a).is_none(),
+            "no account known for it yet"
+        );
+        let _ = m.live.accounts.launched.note("a", Some("main"));
+        let _ = m.live.accounts.launched.note("b", Some("main"));
+        m.live.accounts.usage = serde_json::from_value(serde_json::json!({
+            "main": {"fiveHour": {"percentUsed": 90.0, "resetsAt": null, "at": 1}},
+            "codex:main": {
+                "fiveHour": {"percentUsed": 40.0, "resetsAt": null, "at": 2},
+                "weekly": {"percentUsed": 7.0, "resetsAt": "2099-01-01T00:00:00Z", "at": 2}
+            }
+        }))
+        .unwrap();
+        let codex = sources::plan_for(&m, &a).unwrap();
+        let read: Vec<(&str, f64)> = codex
+            .iter()
+            .map(|limit| (limit.kind.as_str(), limit.percent_used))
+            .collect();
+        assert_eq!(read, [("five_hour", 40.0), ("seven_day", 7.0)]);
+        let claude = sources::plan_for(&m, &pane(&m, "b")).unwrap();
+        assert_eq!(claude[0].percent_used, 90.0);
+    }
+
     #[test]
     fn the_column_is_told_the_window_s_room_for_its_grip() {
         // The grip carries the widest the window allows, read where the

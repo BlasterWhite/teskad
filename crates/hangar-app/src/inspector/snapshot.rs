@@ -257,7 +257,7 @@ fn draw(name: &str, agent: AgentId, theme_id: &str, locale: Locale, width: f64) 
         insight: &insight,
         state: AgentState::Working,
         bridged: true,
-        limits: Some(&limits),
+        limits: Some(Cow::Borrowed(limits.as_slice())),
         task: Some(TaskCard {
             id: "9d1f7a2e-5b3c-4e08-8a6d-1c2b3a4f5e60".into(),
             title: "Rework the checkout discount rules so that stacking coupons works".into(),
@@ -283,6 +283,14 @@ fn draw(name: &str, agent: AgentId, theme_id: &str, locale: Locale, width: f64) 
 fn an_agent_pane_with_everything_reported_is_drawn_in_both_languages() {
     for locale in [Locale::En, Locale::Fr] {
         draw("claude", AgentId::Claude, "graphite", locale, 296.0);
+    }
+}
+
+/// A Codex pane: the same sections, by what it can do.
+#[test]
+fn a_codex_pane_is_drawn_in_both_languages() {
+    for locale in [Locale::En, Locale::Fr] {
+        draw("codex", AgentId::Codex, "graphite", locale, 296.0);
     }
 }
 

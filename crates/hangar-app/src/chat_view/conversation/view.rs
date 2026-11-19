@@ -4,7 +4,7 @@
 //! on.
 //!
 //! Laid out as a chat reads: the person's messages in bubbles on the right,
-//! Claude's words open on the page, its calls quiet lines of the work log —
+//! the agent's words open on the page, its calls quiet lines of the work log —
 //! an icon for what they do, what they did, folded in runs — and, while it
 //! works, a line that says so at the bottom.
 
@@ -96,8 +96,16 @@ fn loading<'a>(t: &'a Theme, words: String) -> Element<'a, Message> {
 
 fn no_orchestrator<'a>(ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, Message> {
     let t = ctx.theme;
-    let state = empty::empty(t, Icon::Orchestrator, ctx.t(Key::ChatConvEmptyTitle))
-        .description(ctx.t(Key::ChatConvEmptyBody));
+    // The agent « Start the orchestrator » would start (D11, D20).
+    let agent = crate::orchestration_ui::agents::of(ctx.model, ws)
+        .orchestrator
+        .info()
+        .label;
+    let state = empty::empty(t, Icon::Orchestrator, ctx.t(Key::ChatConvEmptyTitle)).description(
+        ctx.i18n
+            .t_with(Key::ChatConvEmptyBody, &args!("agent" => agent))
+            .into_owned(),
+    );
     if can_create_orchestrator(ws) {
         state
             .action(
@@ -1269,7 +1277,10 @@ fn outgoing<'a>(ctx: Ctx<'a>, pane: &'a Pane, out: &'a Outgoing) -> Element<'a, 
         Sent::Queued => Some(
             text(
                 ctx.i18n
-                    .t_with(Key::ChatConvQueued, &args!("name" => pane.name.as_str()))
+                    .t_with(
+                        Key::ChatConvQueued,
+                        &args!("name" => pane.name.as_str(), "agent" => pane.agent.info().label),
+                    )
                     .into_owned(),
             )
             .size(tokens::font_size::MICRO)
@@ -1731,7 +1742,7 @@ pub fn blocked_words(ctx: Ctx<'_>, pane: &Pane, why: Blocked) -> String {
     let name = args!("name" => pane.name.as_str());
     match why {
         Blocked::Loading => ctx.t(Key::ChatConvDisabledLoading).into_owned(),
-        Blocked::NotClaude => ctx
+        Blocked::NoConversation => ctx
             .i18n
             .t_with(Key::ChatConvDisabledNotClaude, &name)
             .into_owned(),
@@ -1741,7 +1752,10 @@ pub fn blocked_words(ctx: Ctx<'_>, pane: &Pane, why: Blocked) -> String {
             .into_owned(),
         Blocked::Resuming => ctx
             .i18n
-            .t_with(Key::ChatConvDisabledResuming, &name)
+            .t_with(
+                Key::ChatConvDisabledResuming,
+                &args!("name" => pane.name.as_str(), "agent" => pane.agent.info().label),
+            )
             .into_owned(),
         Blocked::Question => ctx.t(Key::ChatConvDisabledQuestion).into_owned(),
         Blocked::Permission => ctx.t(Key::ChatConvDisabledPermission).into_owned(),
