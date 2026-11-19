@@ -23,7 +23,7 @@ pub struct Spawn {
     pub id: PaneId,
     pub cwd: String,
     pub name: String,
-    /// The pane's agent (`claude`, `shell`).
+    /// The pane's agent (`claude`, `codex`, `shell`).
     pub agent: String,
     /// The hangar-bridge mod is loaded into its Claude Code.
     pub bridge: bool,
@@ -31,6 +31,11 @@ pub struct Spawn {
     pub build_env: Vec<(String, String)>,
     /// The `--mcp-config` file, handed as `HANGAR_MCP_CONFIG`.
     pub mcp_config: Option<String>,
+    /// The account its agent runs on, of the agent's kind whatever the
+    /// field's name (Claude Code's alone had one when it was named): the PTY
+    /// reads it for `agent`, brings it level with main and names it in the
+    /// shell's environment (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`). None: a
+    /// shell.
     pub claude_account: Option<String>,
 }
 

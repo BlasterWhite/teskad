@@ -66,7 +66,9 @@ use crate::panes::pane_index::info_of;
 use crate::panes::{self, Ambient, Effect, EpochMs, PaneInfo, wall_clock_ms};
 use crate::state::hosted::HostedOp;
 use crate::state::persist::{SAVE_DEBOUNCE, Writer};
-use crate::state::types::{AppState, Pane, PaneId, Workspace, WsId};
+use crate::state::types::{
+    AgentId, AgentKind, AppState, OrchestrationRole, Pane, PaneId, Workspace, WsId,
+};
 use crate::state::{PanePatch, Snapshot, Store, StoreAction, StoreOutcome};
 
 pub use desk::HostSources;
@@ -516,11 +518,31 @@ impl EngineHost {
         outcome
     }
 
-    /// A workspace in folder `cwd` (absolute, existing) with one Claude Code
+    /// A workspace in folder `cwd` (absolute, existing) with one agent's
     /// pane, its orchestrator unless `orchestrator` is false: how a server's
     /// workspace is made, from its command line or a connector. An empty
     /// name is the folder's.
+    ///
+    /// The pane runs the agent of a new workspace's orchestrator (D20,
+    /// `Settings::agent_for`): the one the settings chose, else Claude Code
+    /// when it is installed, Codex when it alone is.
     pub fn add_workspace(&self, name: &str, cwd: &str, orchestrator: bool) -> Result<WsId, String> {
+        self.add_workspace_with(
+            name,
+            cwd,
+            orchestrator,
+            hangar_core::agent::detect::installed,
+        )
+    }
+
+    /// [`EngineHost::add_workspace`], told which agents this machine has.
+    pub(crate) fn add_workspace_with(
+        &self,
+        name: &str,
+        cwd: &str,
+        orchestrator: bool,
+        installed: impl Fn(AgentKind) -> bool,
+    ) -> Result<WsId, String> {
         let path = Path::new(cwd);
         if !path.is_absolute() {
             return Err(format!("{cwd}: a workspace's folder is an absolute path"));
@@ -537,17 +559,23 @@ impl EngineHost {
         };
         // The workspace and its orchestrator's role in one change: told of
         // the pane before its role, the panes would start it as a plain
-        // Claude Code, without Hangar's tools, and nothing here repairs a
-        // pane that runs.
+        // agent, without Hangar's tools, and nothing here repairs a pane
+        // that runs.
         let ws = {
             let mut model = locked(&self.0.model);
+            let agent = model.store.settings().agent_for(
+                OrchestrationRole::Orchestrator,
+                None,
+                None,
+                installed,
+            );
             let made = edited(
                 &mut model,
                 StoreAction::AddWorkspace(crate::state::WorkspaceDraft {
                     name,
                     cwd: cwd.to_string(),
                     layout: 1,
-                    agents: vec![crate::state::types::AgentId::Claude],
+                    agents: vec![AgentId::from(agent)],
                     ..Default::default()
                 }),
             );
@@ -956,9 +984,8 @@ impl EngineHost {
                 model.panes.claim_session(id);
             }
             // A Claude Code with the mod says it all in its hello.
-            let says_itself = info.agent == crate::state::types::AgentId::Claude
-                && model.store.settings().claude_bridge;
-            if !says_itself && info.agent != crate::state::types::AgentId::Shell {
+            let says_itself = info.agent == AgentId::Claude && model.store.settings().claude_bridge;
+            if !says_itself && info.agent != AgentId::Shell {
                 model.panes.launched(&info, resumed, now);
             }
         }
@@ -1215,5 +1242,120 @@ async fn tick_loop(host: EngineHost) {
             break;
         }
         host.tick();
+    }
+}
+
+/// The agent of a workspace made with no window (`add_workspace`).
+#[cfg(test)]
+mod workspace_agent_tests {
+    use super::*;
+    use crate::state::types::{PaneRole, Settings};
+    use crate::testdir::scratch;
+    use AgentKind::{Claude, Codex};
+
+    /// Shells nobody starts: the workspaces below are made, not run.
+    struct NoShells;
+
+    impl Terminals for NoShells {
+        fn spawn(&self, _: Spawn, _: TermSink) -> Result<(), String> {
+            Err("no shell is started here".into())
+        }
+        fn write(&self, _: &str, _: &str) -> Result<(), String> {
+            Ok(())
+        }
+        fn alive(&self, _: &str) -> bool {
+            false
+        }
+        fn kill(&self, _: &str) -> Result<(), String> {
+            Ok(())
+        }
+        fn lines(&self, _: &str, _: usize) -> Option<Vec<String>> {
+            None
+        }
+        fn screen(&self, _: &str) -> Option<Vec<String>> {
+            None
+        }
+        fn kill_all(&self) {}
+    }
+
+    fn host(settings: Settings) -> EngineHost {
+        let root = scratch("engine-host-agent");
+        let file = root.join("engine").join("state.json");
+        let state = AppState {
+            settings,
+            ..AppState::default()
+        };
+        write_state_file(&file, &serde_json::to_value(&state).unwrap()).unwrap();
+        EngineHost::load(Config {
+            core: hangar_core::Host::with_paths(hangar_core::paths::Paths::rooted(&root)),
+            terminals: Arc::new(NoShells),
+            state_file: file,
+        })
+        .unwrap()
+    }
+
+    /// The agent and the role of the one pane of a workspace made on a
+    /// machine that has `installed`.
+    fn made(
+        host: &EngineHost,
+        orchestrator: bool,
+        installed: &[AgentKind],
+    ) -> (AgentId, Option<PaneRole>) {
+        let folder = scratch("engine-host-agent-ws");
+        let ws = host
+            .add_workspace_with("Blog", folder.to_str().unwrap(), orchestrator, |kind| {
+                installed.contains(&kind)
+            })
+            .unwrap();
+        let snapshot = host.snapshot();
+        let made = snapshot.state.workspaces.iter().find(|w| w.id == ws);
+        let pane = &made.expect("the workspace").panes[0];
+        (pane.agent, pane.role)
+    }
+
+    /// Nothing chosen (« Automatic », D20): Claude Code when it is
+    /// installed, as always; Codex when it alone is; Claude Code, which the
+    /// setup offers first, with neither.
+    #[test]
+    fn its_orchestrator_runs_claude_code_unless_codex_alone_is_installed() {
+        let host = host(Settings::default());
+        let orchestrator = Some(PaneRole::Orchestrator);
+        assert_eq!(
+            made(&host, true, &[Claude, Codex]),
+            (AgentId::Claude, orchestrator)
+        );
+        assert_eq!(
+            made(&host, true, &[Claude]),
+            (AgentId::Claude, orchestrator)
+        );
+        assert_eq!(made(&host, true, &[Codex]), (AgentId::Codex, orchestrator));
+        assert_eq!(made(&host, true, &[]), (AgentId::Claude, orchestrator));
+    }
+
+    /// The settings' choice stands, installed or not: the pane says why it
+    /// cannot start, rather than starting another agent than the one chosen.
+    #[test]
+    fn its_orchestrator_runs_the_agent_the_settings_chose() {
+        let host = host(Settings {
+            default_orchestrator_agent: Some(Codex),
+            ..Settings::default()
+        });
+        let orchestrator = Some(PaneRole::Orchestrator);
+        assert_eq!(
+            made(&host, true, &[Claude, Codex]),
+            (AgentId::Codex, orchestrator)
+        );
+        assert_eq!(made(&host, true, &[Claude]), (AgentId::Codex, orchestrator));
+    }
+
+    /// A workspace made without its orchestrator: the same agent, no role.
+    #[test]
+    fn a_workspace_without_an_orchestrator_runs_the_same_agent() {
+        let host = host(Settings::default());
+        assert_eq!(made(&host, false, &[Codex]), (AgentId::Codex, None));
+        assert_eq!(
+            made(&host, false, &[Claude, Codex]),
+            (AgentId::Claude, None)
+        );
     }
 }
