@@ -252,7 +252,7 @@ bleeding off the bottom (`~/dev/bench/site-shots/og/og.html`).
 ## Releasing a new version
 
 The version is written into `index.html` by hand, so the download buttons point
-straight at the files. Replace the version (`2.4.3` now) everywhere in the page
+straight at the files. Replace the version (`2.4.5` now) everywhere in the page
 (the brand, the download heading, the hero's Windows and Linux links, the four
 asset links of the Windows and Linux cards and the JSON-LD; the share titles
 name the minor version). The asset names are the ones the release workflow
