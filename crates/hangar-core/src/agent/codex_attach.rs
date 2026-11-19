@@ -3088,9 +3088,11 @@ mod tests {
         )
         .await;
         let first = report_of(&mut events, pane, "edit").await;
+        // A relative path is joined to the folder with the platform's separator.
+        let joined = Path::new("/work/hangar").join("src/lib.rs");
         assert_eq!(
             first,
-            json!({ "kind": "edit", "file": "/work/hangar/src/lib.rs", "name": "Cody",
+            json!({ "kind": "edit", "file": joined.to_string_lossy(), "name": "Cody",
                     "overlap": "Zoe", "overlapPane": "p-attach-edit-other" })
         );
         let second = report_of(&mut events, pane, "edit").await;
@@ -3101,7 +3103,10 @@ mod tests {
         let steer = fake.expect("turn/steer").await;
         let said = steer["params"]["input"][0]["text"].as_str().unwrap();
         assert!(
-            said.starts_with("[Hangar] Event — not typed by the person.\n\nHangar: the agent in pane \"Zoe\" also edited /work/hangar/src/lib.rs"),
+            said.starts_with(&format!(
+                "[Hangar] Event — not typed by the person.\n\nHangar: the agent in pane \"Zoe\" also edited {}",
+                joined.to_string_lossy()
+            )),
             "{said}"
         );
         fake.reply(&steer, json!({ "turnId": "turn-1" })).await;

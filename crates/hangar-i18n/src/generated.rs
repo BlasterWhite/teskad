@@ -2858,6 +2858,8 @@ pub enum Key {
     NotifyTitle,
     /// `notify.trustFolder`
     NotifyTrustFolder,
+    /// `orch.agentNotInstalled`
+    OrchAgentNotInstalled,
     /// `orch.applies`
     OrchApplies,
     /// `orch.autoMerge`
@@ -2936,6 +2938,8 @@ pub enum Key {
     OrchIntro,
     /// `orch.modelInvalid`
     OrchModelInvalid,
+    /// `orch.modelsAsking`
+    OrchModelsAsking,
     /// `orch.modelsHint`
     OrchModelsHint,
     /// `orch.navMark`
@@ -2980,6 +2984,8 @@ pub enum Key {
     OrchSectionWorkers,
     /// `orch.settingsMenu`
     OrchSettingsMenu,
+    /// `orch.statusAgents`
+    OrchStatusAgents,
     /// `orch.statusNoWorker`
     OrchStatusNoWorker,
     /// `orch.statusNone`
@@ -3010,6 +3016,18 @@ pub enum Key {
     OrchUnpin,
     /// `orch.unpinned`
     OrchUnpinned,
+    /// `orch.workerAgent`
+    OrchWorkerAgent,
+    /// `orch.workerAgentHint`
+    OrchWorkerAgentHint,
+    /// `orch.workerAgentOff`
+    OrchWorkerAgentOff,
+    /// `orch.workerAgentSame`
+    OrchWorkerAgentSame,
+    /// `orch.workerAgentSettings`
+    OrchWorkerAgentSettings,
+    /// `orch.workerAgentUnable`
+    OrchWorkerAgentUnable,
     /// `orch.workerModel`
     OrchWorkerModel,
     /// `palette.anywhere`
@@ -3044,8 +3062,18 @@ pub enum Key {
     PaneActions,
     /// `pane.agent`
     PaneAgent,
+    /// `pane.agentBeta`
+    PaneAgentBeta,
+    /// `pane.agentBetaHint`
+    PaneAgentBetaHint,
     /// `pane.agentRetired`
     PaneAgentRetired,
+    /// `pane.attached`
+    PaneAttached,
+    /// `pane.attachedHint`
+    PaneAttachedHint,
+    /// `pane.attachedQuietHint`
+    PaneAttachedQuietHint,
     /// `pane.attention`
     PaneAttention,
     /// `pane.close`
@@ -3118,6 +3146,22 @@ pub enum Key {
     PaneEventTurnEnd,
     /// `pane.event.turnStart`
     PaneEventTurnStart,
+    /// `pane.floorDetail`
+    PaneFloorDetail,
+    /// `pane.floorExitCode`
+    PaneFloorExitCode,
+    /// `pane.floorExited`
+    PaneFloorExited,
+    /// `pane.floorFolder`
+    PaneFloorFolder,
+    /// `pane.floorNotStarted`
+    PaneFloorNotStarted,
+    /// `pane.floorTimeout`
+    PaneFloorTimeout,
+    /// `pane.floorUnsupported`
+    PaneFloorUnsupported,
+    /// `pane.floorUntypable`
+    PaneFloorUntypable,
     /// `pane.inherited`
     PaneInherited,
     /// `pane.jump`
@@ -3192,6 +3236,12 @@ pub enum Key {
     PaneStateYours,
     /// `pane.state.yoursShort`
     PaneStateYoursShort,
+    /// `pane.unattached`
+    PaneUnattached,
+    /// `pane.unattachedHint`
+    PaneUnattachedHint,
+    /// `pane.unattachedOffHint`
+    PaneUnattachedOffHint,
     /// `pane.unpin`
     PaneUnpin,
     /// `pane.zoomIn`
@@ -3204,6 +3254,16 @@ pub enum Key {
     PaneBranchDetached,
     /// `paneBranch.detachedMark`
     PaneBranchDetachedMark,
+    /// `paneMenu.model`
+    PaneMenuModel,
+    /// `paneMenu.modelDefault`
+    PaneMenuModelDefault,
+    /// `paneMenu.newAgentPane`
+    PaneMenuNewAgentPane,
+    /// `paneMenu.notInstalled`
+    PaneMenuNotInstalled,
+    /// `paneMenu.pinUnable`
+    PaneMenuPinUnable,
     /// `placeholder.body`
     PlaceholderBody,
     /// `placeholder.title`
@@ -6092,6 +6152,7 @@ impl Key {
         Key::NotifySettled,
         Key::NotifyTitle,
         Key::NotifyTrustFolder,
+        Key::OrchAgentNotInstalled,
         Key::OrchApplies,
         Key::OrchAutoMerge,
         Key::OrchAutoMergeHint,
@@ -6131,6 +6192,7 @@ impl Key {
         Key::OrchDefault,
         Key::OrchIntro,
         Key::OrchModelInvalid,
+        Key::OrchModelsAsking,
         Key::OrchModelsHint,
         Key::OrchNavMark,
         Key::OrchNavMarkWorkers,
@@ -6153,6 +6215,7 @@ impl Key {
         Key::OrchSectionModels,
         Key::OrchSectionWorkers,
         Key::OrchSettingsMenu,
+        Key::OrchStatusAgents,
         Key::OrchStatusNoWorker,
         Key::OrchStatusNone,
         Key::OrchStatusNoneHint,
@@ -6168,6 +6231,12 @@ impl Key {
         Key::OrchTitle,
         Key::OrchUnpin,
         Key::OrchUnpinned,
+        Key::OrchWorkerAgent,
+        Key::OrchWorkerAgentHint,
+        Key::OrchWorkerAgentOff,
+        Key::OrchWorkerAgentSame,
+        Key::OrchWorkerAgentSettings,
+        Key::OrchWorkerAgentUnable,
         Key::OrchWorkerModel,
         Key::PaletteAnywhere,
         Key::PaletteClose,
@@ -6185,7 +6254,12 @@ impl Key {
         Key::PaletteSuggestions,
         Key::PaneActions,
         Key::PaneAgent,
+        Key::PaneAgentBeta,
+        Key::PaneAgentBetaHint,
         Key::PaneAgentRetired,
+        Key::PaneAttached,
+        Key::PaneAttachedHint,
+        Key::PaneAttachedQuietHint,
         Key::PaneAttention,
         Key::PaneClose,
         Key::PaneCloseLast,
@@ -6222,6 +6296,14 @@ impl Key {
         Key::PaneEventResumed,
         Key::PaneEventTurnEnd,
         Key::PaneEventTurnStart,
+        Key::PaneFloorDetail,
+        Key::PaneFloorExitCode,
+        Key::PaneFloorExited,
+        Key::PaneFloorFolder,
+        Key::PaneFloorNotStarted,
+        Key::PaneFloorTimeout,
+        Key::PaneFloorUnsupported,
+        Key::PaneFloorUntypable,
         Key::PaneInherited,
         Key::PaneJump,
         Key::PaneLabel,
@@ -6259,12 +6341,20 @@ impl Key {
         Key::PaneStateWorking,
         Key::PaneStateYours,
         Key::PaneStateYoursShort,
+        Key::PaneUnattached,
+        Key::PaneUnattachedHint,
+        Key::PaneUnattachedOffHint,
         Key::PaneUnpin,
         Key::PaneZoomIn,
         Key::PaneBranchBranch,
         Key::PaneBranchBranchWorktree,
         Key::PaneBranchDetached,
         Key::PaneBranchDetachedMark,
+        Key::PaneMenuModel,
+        Key::PaneMenuModelDefault,
+        Key::PaneMenuNewAgentPane,
+        Key::PaneMenuNotInstalled,
+        Key::PaneMenuPinUnable,
         Key::PlaceholderBody,
         Key::PlaceholderTitle,
         Key::PreviewActualSize,
@@ -8420,6 +8510,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "notify.settled", en: Text::plain("Finished — waiting for you"), fr: Text::plain("A terminé — il t'attend") },
     Message { id: "notify.title", en: Text::plain("{name} · {agent}"), fr: Text::plain("{name} · {agent}") },
     Message { id: "notify.trustFolder", en: Text::plain("Waiting for you: Claude Code asks whether to trust this folder"), fr: Text::plain("Attend toi\u{202f}: Claude Code demande s'il doit faire confiance à ce dossier") },
+    Message { id: "orch.agentNotInstalled", en: Text::plain("{agent} is not installed on this computer: its workers would not start."), fr: Text::plain("{agent} n'est pas installé sur cet ordinateur\u{202f}: ses workers ne démarreraient pas.") },
     Message { id: "orch.applies", en: Text::plain("Applies to the next worker started and the next delivery"), fr: Text::plain("S'applique au prochain worker lancé et à la prochaine livraison") },
     Message { id: "orch.autoMerge", en: Text::plain("Merge by itself"), fr: Text::plain("Fusion automatique") },
     Message { id: "orch.autoMergeHint", en: Text::plain("A delivery that passes its check and its review lands on the branch. Off, it waits for you in “Needs you”. Nothing is ever pushed."), fr: Text::plain("Une livraison qui passe sa vérification et sa relecture arrive seule sur la branche. Désactivée, elle t'attend dans «\u{202f}Besoin de toi\u{202f}». Rien n'est jamais poussé.") },
@@ -8457,8 +8548,9 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "orch.codexReviewerModel", en: Text::plain("Reviewer, Codex (beta)"), fr: Text::plain("Relecteur, Codex (bêta)") },
     Message { id: "orch.codexWorkerModel", en: Text::plain("Workers, Codex (beta)"), fr: Text::plain("Workers, Codex (bêta)") },
     Message { id: "orch.default", en: Text::plain("default: {value}"), fr: Text::plain("par défaut\u{202f}: {value}") },
-    Message { id: "orch.intro", en: Text::plain("A Claude Code pane pinned as orchestrator plans the work on the board and hands each task to a worker of its own, in a worktree. It decides how many workers run at once and how many times a task is tried. What is set here, Hangar holds itself, whatever the prompt says."), fr: Text::plain("Un panneau Claude Code épinglé comme orchestrateur planifie le travail au tableau et confie chaque tâche à un worker à lui, dans un worktree. C'est lui qui décide combien de workers tournent en même temps et combien de fois une tâche est retentée. Ce qui est réglé ici, Hangar le tient lui-même, quoi que dise le prompt.") },
+    Message { id: "orch.intro", en: Text::plain("A Claude Code or Codex pane pinned as orchestrator plans the work on the board and hands each task to a worker of its own, in a worktree. It decides how many workers run at once and how many times a task is tried. What is set here, Hangar holds itself, whatever the prompt says."), fr: Text::plain("Un panneau Claude Code ou Codex épinglé comme orchestrateur planifie le travail au tableau et confie chaque tâche à un worker à lui, dans un worktree. C'est lui qui décide combien de workers tournent en même temps et combien de fois une tâche est retentée. Ce qui est réglé ici, Hangar le tient lui-même, quoi que dise le prompt.") },
     Message { id: "orch.modelInvalid", en: Text::plain("No spaces or quotes in a model name"), fr: Text::plain("Pas d'espace ni de guillemet dans un nom de modèle") },
+    Message { id: "orch.modelsAsking", en: Text::plain("Asking {agent} for its models…"), fr: Text::plain("Demande de ses modèles à {agent}…") },
     Message { id: "orch.modelsHint", en: Text::plain("An alias (opus, sonnet, haiku) or a full model id. The orchestrator's applies the next time it starts."), fr: Text::plain("Un alias (opus, sonnet, haiku) ou l'identifiant complet d'un modèle. Celui de l'orchestrateur s'applique à son prochain lancement.") },
     Message { id: "orch.navMark", en: Text::plain("Orchestrator: {name}"), fr: Text::plain("Orchestrateur\u{202f}: {name}") },
     Message { id: "orch.navMarkWorkers", en: Text::plural("Orchestrator: {name}, {n} worker running", "Orchestrator: {name}, {n} workers running"), fr: Text::plural("Orchestrateur\u{202f}: {name}, {n} worker en cours", "Orchestrateur\u{202f}: {name}, {n} workers en cours") },
@@ -8481,9 +8573,10 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "orch.sectionModels", en: Text::plain("Models"), fr: Text::plain("Modèles") },
     Message { id: "orch.sectionWorkers", en: Text::plain("Workers"), fr: Text::plain("Workers") },
     Message { id: "orch.settingsMenu", en: Text::plain("Orchestration…"), fr: Text::plain("Orchestration…") },
+    Message { id: "orch.statusAgents", en: Text::plain("Orchestrator: {orchestrator} · workers: {workers}"), fr: Text::plain("Orchestrateur\u{202f}: {orchestrator} · workers\u{202f}: {workers}") },
     Message { id: "orch.statusNoWorker", en: Text::plain("no worker running"), fr: Text::plain("aucun worker en cours") },
     Message { id: "orch.statusNone", en: Text::plain("No orchestrator yet"), fr: Text::plain("Pas encore d'orchestrateur") },
-    Message { id: "orch.statusNoneHint", en: Text::plain("Pin a Claude Code pane from its “…” menu, or start a new one here."), fr: Text::plain("Épingle un panneau Claude Code depuis son menu «\u{202f}…\u{202f}», ou crée-en un nouveau ici.") },
+    Message { id: "orch.statusNoneHint", en: Text::plain("Pin a Claude Code or Codex pane from its “…” menu, or start a new one here."), fr: Text::plain("Épingle un panneau Claude Code ou Codex depuis son menu «\u{202f}…\u{202f}», ou crée-en un nouveau ici.") },
     Message { id: "orch.statusPinned", en: Text::plain("{name} orchestrates"), fr: Text::plain("{name} orchestre") },
     Message { id: "orch.statusWorkers", en: Text::plural("{n} worker running", "{n} workers running"), fr: Text::plural("{n} worker en cours", "{n} workers en cours") },
     Message { id: "orch.stopBody", en: Text::plain("Their panes close and their tasks go back to To do. A worktree with commits not merged yet is kept."), fr: Text::plain("Leurs panneaux se ferment et leurs tâches reviennent dans À faire. Un worktree qui a des commits pas encore fusionnés est gardé.") },
@@ -8496,6 +8589,12 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "orch.title", en: Text::plain("Orchestration"), fr: Text::plain("Orchestration") },
     Message { id: "orch.unpin", en: Text::plain("Unpin the orchestrator"), fr: Text::plain("Désépingler l'orchestrateur") },
     Message { id: "orch.unpinned", en: Text::plain("{name} no longer orchestrates {workspace}"), fr: Text::plain("{name} n'orchestre plus {workspace}") },
+    Message { id: "orch.workerAgent", en: Text::plain("Workers' agent"), fr: Text::plain("Agent des workers") },
+    Message { id: "orch.workerAgentHint", en: Text::plain("The agent each new worker of this workspace runs. Workers already running keep theirs."), fr: Text::plain("L'agent que lance chaque nouveau worker de cet espace de travail. Les workers déjà lancés gardent le leur.") },
+    Message { id: "orch.workerAgentOff", en: Text::plain("“{switch}” is off in Settings › Sessions: Hangar could not hand its {agent} workers their brief."), fr: Text::plain("«\u{202f}{switch}\u{202f}» est désactivé dans Réglages › Sessions\u{202f}: Hangar ne pourrait pas transmettre leur brief à ses workers {agent}.") },
+    Message { id: "orch.workerAgentSame", en: Text::plain("Same as the orchestrator: {agent}"), fr: Text::plain("Comme l'orchestrateur\u{202f}: {agent}") },
+    Message { id: "orch.workerAgentSettings", en: Text::plain("As in the settings: {agent}"), fr: Text::plain("Comme dans les réglages\u{202f}: {agent}") },
+    Message { id: "orch.workerAgentUnable", en: Text::plain("Hangar cannot hand {agent} a worker's role: it could not brief it, message it or give it Hangar's tools."), fr: Text::plain("Hangar ne peut pas confier un rôle de worker à {agent}\u{202f}: il ne pourrait ni lui transmettre son brief, ni lui écrire, ni lui donner les outils Hangar.") },
     Message { id: "orch.workerModel", en: Text::plain("Workers"), fr: Text::plain("Workers") },
     Message { id: "palette.anywhere", en: Text::plain("{keys} opens it from anywhere"), fr: Text::plain("{keys} l'ouvre de partout") },
     Message { id: "palette.close", en: Text::plain("close"), fr: Text::plain("fermer") },
@@ -8513,7 +8612,12 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "palette.suggestions", en: Text::plain("Suggestions"), fr: Text::plain("Suggestions") },
     Message { id: "pane.actions", en: Text::plain("Actions of pane {name}"), fr: Text::plain("Actions du panneau {name}") },
     Message { id: "pane.agent", en: Text::plain("Agent running in this pane"), fr: Text::plain("Agent lancé dans ce panneau") },
+    Message { id: "pane.agentBeta", en: Text::plain("beta"), fr: Text::plain("bêta") },
+    Message { id: "pane.agentBetaHint", en: Text::plain("Support for {agent} is in beta"), fr: Text::plain("La prise en charge de {agent} est en bêta") },
     Message { id: "pane.agentRetired", en: Text::plain("{agent} is no longer supported: Hangar now runs Claude Code only, so this pane is a plain shell in the same folder."), fr: Text::plain("{agent} n'est plus pris en charge\u{202f}: Hangar ne lance plus que Claude Code, ce panneau est donc un simple shell dans le même dossier.") },
+    Message { id: "pane.attached", en: Text::plain("attached"), fr: Text::plain("attaché") },
+    Message { id: "pane.attachedHint", en: Text::plain("Hangar follows this {agent} through its own server: its states are reported, its approvals held until you answer, its usage exact."), fr: Text::plain("Hangar suit ce {agent} par son propre serveur\u{202f}: ses états sont rapportés, ses autorisations attendent ta réponse, son usage est exact.") },
+    Message { id: "pane.attachedQuietHint", en: Text::plain("Hangar started this {agent}'s own server and has not heard from it yet: until it does, its states are read from the terminal."), fr: Text::plain("Hangar a lancé le serveur de ce {agent} et ne l'a pas encore entendu\u{202f}: d'ici là, ses états sont lus dans le terminal.") },
     Message { id: "pane.attention", en: Text::plain("Finished while you were away"), fr: Text::plain("A terminé pendant ton absence") },
     Message { id: "pane.close", en: Text::plain("Close pane"), fr: Text::plain("Fermer le panneau") },
     Message { id: "pane.closeLast", en: Text::plain("The last pane cannot be closed"), fr: Text::plain("Le dernier panneau ne peut pas être fermé") },
@@ -8550,6 +8654,14 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "pane.event.resumed", en: Text::plain("Session {id} resumed"), fr: Text::plain("Session {id} reprise") },
     Message { id: "pane.event.turnEnd", en: Text::plain("Finished"), fr: Text::plain("Terminé") },
     Message { id: "pane.event.turnStart", en: Text::plain("Prompt received"), fr: Text::plain("Prompt reçu") },
+    Message { id: "pane.floorDetail", en: Text::plain("{reason}: {detail}"), fr: Text::plain("{reason}\u{202f}: {detail}") },
+    Message { id: "pane.floorExitCode", en: Text::plain("{reason} (exit {code})"), fr: Text::plain("{reason} (code {code})") },
+    Message { id: "pane.floorExited", en: Text::plain("its server stopped before it listened"), fr: Text::plain("son serveur s'est arrêté avant d'écouter") },
+    Message { id: "pane.floorFolder", en: Text::plain("its socket's folder is not usable"), fr: Text::plain("le dossier de son socket n'est pas utilisable") },
+    Message { id: "pane.floorNotStarted", en: Text::plain("“{program} app-server” could not start"), fr: Text::plain("«\u{202f}{program} app-server\u{202f}» n'a pas pu démarrer") },
+    Message { id: "pane.floorTimeout", en: Text::plain("its server did not listen within {seconds}\u{a0}s"), fr: Text::plain("son serveur n'a pas écouté dans les {seconds}\u{a0}s") },
+    Message { id: "pane.floorUnsupported", en: Text::plain("Hangar does not attach to it on this system yet"), fr: Text::plain("Hangar ne s'y attache pas encore sur ce système") },
+    Message { id: "pane.floorUntypable", en: Text::plain("this shell cannot type its socket's path"), fr: Text::plain("ce shell ne peut pas taper le chemin de son socket") },
     Message { id: "pane.inherited", en: Text::plain("{name} (inherited)"), fr: Text::plain("{name} (hérité)") },
     Message { id: "pane.jump", en: Text::plain("Focus with {keys}"), fr: Text::plain("Activer avec {keys}") },
     Message { id: "pane.label", en: Text::plain("Pane {name}"), fr: Text::plain("Panneau {name}") },
@@ -8587,12 +8699,20 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "pane.state.working", en: Text::plain("Working"), fr: Text::plain("Travaille") },
     Message { id: "pane.state.yours", en: Text::plain("Finished — your turn"), fr: Text::plain("Terminé — à toi") },
     Message { id: "pane.state.yoursShort", en: Text::plain("Your turn"), fr: Text::plain("À toi") },
+    Message { id: "pane.unattached", en: Text::plain("not attached"), fr: Text::plain("non attaché") },
+    Message { id: "pane.unattachedHint", en: Text::plain("Hangar could not attach to this {agent}: {reason}. It reads it from its terminal and its files instead."), fr: Text::plain("Hangar n'a pas pu s'attacher à ce {agent}\u{202f}: {reason}. Il le lit à la place dans son terminal et ses fichiers.") },
+    Message { id: "pane.unattachedOffHint", en: Text::plain("“{setting}” is off in the settings: Hangar reads this {agent} from its terminal and its files."), fr: Text::plain("«\u{202f}{setting}\u{202f}» est désactivé dans les réglages\u{202f}: Hangar lit ce {agent} dans son terminal et ses fichiers.") },
     Message { id: "pane.unpin", en: Text::plain("Unpin this pane"), fr: Text::plain("Désépingler ce panneau") },
     Message { id: "pane.zoomIn", en: Text::plain("Fill the grid with this pane"), fr: Text::plain("Afficher ce panneau sur toute la grille") },
     Message { id: "paneBranch.branch", en: Text::plain("Git branch {branch}"), fr: Text::plain("Branche git {branch}") },
     Message { id: "paneBranch.branchWorktree", en: Text::plain("Git branch {branch}, in a linked worktree"), fr: Text::plain("Branche git {branch}, dans un worktree lié") },
     Message { id: "paneBranch.detached", en: Text::plain("Detached HEAD on {head}"), fr: Text::plain("HEAD détachée sur {head}") },
     Message { id: "paneBranch.detachedMark", en: Text::plain("detached"), fr: Text::plain("détaché") },
+    Message { id: "paneMenu.model", en: Text::plain("Model · {agent}"), fr: Text::plain("Modèle · {agent}") },
+    Message { id: "paneMenu.modelDefault", en: Text::plain("{agent}'s default"), fr: Text::plain("Modèle par défaut de {agent}") },
+    Message { id: "paneMenu.newAgentPane", en: Text::plain("New {agent} pane"), fr: Text::plain("Nouveau panneau {agent}") },
+    Message { id: "paneMenu.notInstalled", en: Text::plain("{agent} is not installed on this computer"), fr: Text::plain("{agent} n'est pas installé sur cet ordinateur") },
+    Message { id: "paneMenu.pinUnable", en: Text::plain("Hangar cannot hand {agent} the orchestrator's role: it could not brief it, message it or give it Hangar's tools"), fr: Text::plain("Hangar ne peut pas confier le rôle d'orchestrateur à {agent}\u{202f}: il ne pourrait ni lui transmettre son brief, ni lui écrire, ni lui donner les outils Hangar") },
     Message { id: "placeholder.body", en: Text::plain("Create a workspace from the navigator: pick a project folder, then run Claude Code and shells in as many panes as you need — split, close and drag them around at any time."), fr: Text::plain("Crée un workspace depuis le navigateur\u{202f}: choisis un dossier de projet, puis lance Claude Code et des shells dans autant de panneaux que nécessaire — divise, ferme et déplace-les à tout moment.") },
     Message { id: "placeholder.title", en: Text::plain("No workspace open"), fr: Text::plain("Aucun workspace ouvert") },
     Message { id: "preview.actualSize", en: Text::plain("Actual size (100%)"), fr: Text::plain("Taille réelle (100\u{202f}%)") },

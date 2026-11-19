@@ -3,8 +3,9 @@
 //! Ports OrchestrationPanel.tsx, OrchestrationBadge.tsx,
 //! lib/{orchestrationForm,orchestrationActions}.ts. Read inventory-frontend.md
 //! §2.2 Orchestration and crates/hangar-app/PACKAGES.md. Files of this
-//! directory: `mod`, `panel`, `badge`, `form` (the draft and its rules) and
-//! `actions` (pin, unpin, create, the project manager).
+//! directory: `mod`, `panel`, `badge`, `form` (the draft and its rules),
+//! `actions` (pin, unpin, create, the project manager), `agents` (which agent
+//! each part runs) and `models` (the models offered for each agent).
 //!
 //! The shell's intents reach the actions here: `Intent::PinOrchestrator`,
 //! `CreateOrchestrator` and `OpenManager` are handled in `on_intent`, which
@@ -12,8 +13,10 @@
 //! workspace.
 
 pub mod actions;
+pub mod agents;
 mod badge;
 mod form;
+pub mod models;
 mod panel;
 
 use iced::{Element, Subscription, Task};
@@ -24,7 +27,7 @@ use crate::ctx::Ctx;
 use crate::message::{Intent, Message};
 use crate::services::{CoreEvent, Services};
 use crate::shell::{Notice, Overlay, View};
-use crate::state::types::PaneRole;
+use crate::state::types::{AgentKind, PaneRole};
 use crate::state::{Model, WsId};
 
 // For the pane header (P5), which knows its own width.
@@ -43,10 +46,15 @@ pub struct State {
 }
 
 /// The package's shared read-model, which other packages may read; lives in
-/// `Model.live.orchestration_ui`. Nothing is shared: what other packages need
-/// is a function (`actions`, `pane_badge`).
+/// `Model.live.orchestration_ui`. What other packages need of it is a
+/// function (`actions`, `agents`, `models`, `pane_badge`).
 #[derive(Debug, Default)]
-pub struct Live;
+pub struct Live {
+    /// The models each agent that lists its own was asked for, and what it
+    /// answered (`models`): the panel's model fields and the pane menu read
+    /// them.
+    pub models: models::Lists,
+}
 
 /// The package's messages, routed by the shell as `Message::OrchestrationUi(Msg)`.
 #[derive(Debug, Clone)]
@@ -58,6 +66,9 @@ pub enum Msg {
     CacheSize(WsId, u64),
     /// A workspace's build cache was emptied, or why not.
     CacheEmptied(WsId, Result<(), String>),
+    /// An agent's server answered which models it offers, or why it could
+    /// not (`models::ask`).
+    Models(AgentKind, Result<Vec<String>, String>),
 }
 
 pub fn update(st: &mut State, m: &mut Model, _sv: &Services, msg: Msg) -> Task<Message> {
@@ -68,6 +79,10 @@ pub fn update(st: &mut State, m: &mut Model, _sv: &Services, msg: Msg) -> Task<M
             Task::none()
         }
         Msg::CacheEmptied(ws, result) => panel::cache_emptied(st, m, &ws, result),
+        Msg::Models(kind, answer) => {
+            models::answered(m, kind, answer);
+            Task::none()
+        }
         Msg::FolderMade(folder) => {
             st.manager.end();
             let name = hq_name(m);
@@ -158,7 +173,8 @@ pub(crate) fn pin_orchestrator(
     ])
 }
 
-/// A new Claude Code pane, pinned from the start, brought forward.
+/// A new pane of the workspace's orchestrator agent, pinned from the start,
+/// brought forward.
 fn create_orchestrator(m: &mut Model, ws_id: &str) -> Task<Message> {
     let Some(ws) = m.workspace(ws_id) else {
         return Task::none();
@@ -269,11 +285,12 @@ pub fn on_intent(
 ) -> Option<Task<Message>> {
     match intent {
         // The shell pushes the overlay; the panel opens on what the workspace
-        // runs with now.
+        // runs with now, and the agents that list their own models are asked
+        // for them, for its model fields.
         Intent::OpenOrchestration(ws) | Intent::OpenOverlay(Overlay::Orchestration(ws)) => {
             st.panel = panel::Panel::open(m, ws);
             Some(if st.panel.is_some() {
-                panel::measure(ws)
+                Task::batch([panel::measure(ws), models::ask_every(m)])
             } else {
                 Task::none()
             })

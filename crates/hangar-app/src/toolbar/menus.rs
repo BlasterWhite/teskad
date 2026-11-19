@@ -124,6 +124,10 @@ pub fn more_entries(
 
     if crate::needs_you::model::is_orchestrated(ws) {
         entries.push(menu::separator());
+        // Which agent orchestrates and which its workers run, Codex with its
+        // « beta »: chosen in the panel the next line opens.
+        let agents = crate::orchestration_ui::agents::of(ctx.model, ws);
+        entries.push(menu::heading(agents.sentence(tr)));
         entries.push(
             menu::item(tr.t(Key::OrchSettingsMenu).into_owned())
                 .icon(Icon::Orchestrator)

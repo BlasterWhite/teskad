@@ -1,10 +1,12 @@
-//! The window's own way into what the phone does to a Claude Code pane
-//! (2.2's chat view): send it text, answer its questions, allow or deny its
-//! permission prompts, read its conversation. The same code as the
-//! `remote_*` operations, with their guards — nothing typed while an answer
-//! is (MOB-18), a pane not up yet held in the queue, a permission typed only
-//! on the prompt shown (MOB-02) — called with ids and typed values instead
-//! of the phone's JSON.
+//! The window's own way into what the phone does to an agent pane — Claude
+//! Code's or Codex's — (2.2's chat view): send it text, answer its
+//! questions, allow or deny its permission prompts, read its conversation.
+//! The same code as the `remote_*` operations, with their guards — nothing
+//! typed while an answer is (MOB-18), a pane not up yet held in the queue, a
+//! permission answered only on the prompt shown (MOB-02) — called with ids
+//! and typed values instead of the phone's JSON. What it can do for a pane
+//! follows its agent's capabilities, never its name (docs/native/agents.md
+//! D3): the history it writes, the asks its side channel holds.
 //!
 //! Every call takes the port (`control::State::port`) and the runtime's
 //! `Mobile` (`mobile::State::mobile`), cheap to clone into a
@@ -30,13 +32,14 @@ use hangar_core::chat::{
 
 use crate::control::port::{Port, activity_of};
 use crate::nodes as away;
-use crate::state::{AgentActivity, AgentId, Pane, Workspace};
+use crate::state::{AgentActivity, Pane, Workspace};
 
 use super::answer::{answer_pane, choices_from};
-use super::chat_live::{self, ChatLive, chat_pane};
+use super::chat_live::{self, ChatLive, chat_pane, history_page, transcript_of};
 use super::contract::{ChatPending, ChatReason, RemoteAnswered, RemoteChat, RemoteSent};
 use super::engine::{ChatRead, Mobile};
-use super::ops::{Input, permit_pane, plan_pane, type_into};
+use super::held::Permit;
+use super::ops::{Input, permit_as, permit_pane, plan_pane, type_into};
 
 /// A page of a pane's conversation, with what it waits on the person for
 /// (`ChatPending`) and the calls it runs now: what `remote_chat` answers.
@@ -151,6 +154,24 @@ pub async fn permit(
     permit_pane(port, mobile, &ws, &pane, allow, prompt).await
 }
 
+/// Answers the permission the pane waits on as the person chose — allowed
+/// once or for the session, or denied with what to do instead — unless what
+/// it asks is no longer `prompt` (`remote_permission`'s `forSession` and
+/// `message`). Through the ask its side channel holds, for either agent;
+/// with the keys of its agent's own dialog otherwise, Codex's checked on
+/// the screen.
+pub async fn permit_with(
+    port: &Port,
+    mobile: &Mobile,
+    ws: &str,
+    pane: &str,
+    permit: Permit,
+    prompt: Option<&str>,
+) -> Result<RemoteAnswered, String> {
+    let (ws, pane) = find(port, ws, pane)?;
+    permit_as(port, mobile, &ws, &pane, permit, prompt).await
+}
+
 /// Approves the plan the pane presents, or sends it back to keep planning
 /// with what to change (`feedback`), unless what it asks is no longer
 /// `prompt`, the plan the chat showed.
@@ -209,10 +230,10 @@ pub async fn chat(
 
 /* ── the transcript, here or on the pane's node ──────────────── */
 
-/// Why a pane's conversation is not read at all: not Claude Code, or no
-/// session yet.
+/// Why a pane's conversation is not read at all: no agent writing a history
+/// (the contract's `notClaude`), or no session yet.
 fn not_read(pane: &Pane) -> Option<ChatReason> {
-    if pane.agent != AgentId::Claude {
+    if transcript_of(pane).is_none() {
         return Some(ChatReason::NotClaude);
     }
     match &pane.session_id {
@@ -277,18 +298,23 @@ fn view_of(
     view
 }
 
-/// A page of pane `pane`'s transcript: on its node for a pane of a remote
-/// workspace or a worker sent to one, from this machine's disk otherwise.
-/// `None` while the session has none.
+/// A page of pane `pane`'s history: on its node for a pane of a remote
+/// workspace or a worker sent to one, from this machine's disk otherwise, in
+/// the format its agent writes (`chat_live::history_page`). `None` while the
+/// session has none, or its pane no agent.
+///
+/// A node reads Claude Code transcripts only, until its routes take the
+/// agent (docs/native/agents.md T29): it has no page for a Codex pane yet.
 pub async fn transcript_page(
     mobile: &Mobile,
     ws: &Workspace,
     pane: &Pane,
     read: ChatRead,
 ) -> Result<Option<ChatPage>, String> {
-    match away::node_of(ws, pane) {
-        Some(node) => node_page(mobile, &node, &read).await,
-        None => mobile.sources().chat(read).await,
+    match (away::node_of(ws, pane), transcript_of(pane)) {
+        (Some(node), _) => node_page(mobile, &node, &read).await,
+        (None, Some(format)) => history_page(mobile, format, read).await,
+        (None, None) => Ok(None),
     }
 }
 
@@ -302,7 +328,7 @@ async fn node_page(
     page.map(|page| page_of(&page)).transpose()
 }
 
-/// What a Claude Code pane waits on the person for now (`chat_live`'s
+/// What an agent pane waits on the person for now (`chat_live`'s
 /// `pending_now`), its transcript read on its node when it has one: what
 /// the guards check a click against.
 pub async fn pending_now(
@@ -489,6 +515,7 @@ mod tests {
     use super::*;
     use crate::control::port::BoxFuture;
     use crate::mobile::engine::Sources;
+    use crate::state::AgentId;
     fn pane(id: &str, name: &str, agent: crate::state::AgentId) -> Pane {
         Pane {
             id: id.into(),
@@ -776,6 +803,39 @@ mod tests {
             Ok(None)
         );
         assert_eq!(*disk.reads.lock().unwrap(), [read(None)]);
+    }
+
+    /// A Codex pane's history is its thread's rollout, read by core's
+    /// chat/codex.rs (T9): never a Claude Code transcript of the same id. A
+    /// thread made up here has no rollout: no page, and nothing else asked.
+    #[tokio::test]
+    async fn a_codex_pane_s_pages_come_from_its_rollout_not_from_claude_s_transcripts() {
+        let disk = Arc::new(Disk::default());
+        let mobile = Mobile::new(disk.clone());
+        let mut cody = pane("cody", "Cody", AgentId::Codex);
+        cody.session_id = Some("019a7c2e-5b1d-7f43-9a61-00000000d35c".into());
+        let ws = workspace("w", "W", None, vec![cody.clone()]);
+        let read = ChatRead {
+            session_id: cody.session_id.clone().unwrap(),
+            cwd: cwd_of(&ws, &cody),
+            before: None,
+            limit: None,
+        };
+        assert_eq!(not_read(&cody), None, "a Codex pane's chat is read");
+        assert_eq!(
+            transcript_page(&mobile, &ws, &cody, read.clone()).await,
+            Ok(None)
+        );
+        assert!(
+            disk.reads.lock().unwrap().is_empty(),
+            "no Claude Code transcript"
+        );
+
+        // A shell has no history at all.
+        let shell = pane("sh", "Shell", AgentId::Shell);
+        assert_eq!(transcript_page(&mobile, &ws, &shell, read).await, Ok(None));
+        assert!(disk.reads.lock().unwrap().is_empty());
+        assert_eq!(not_read(&shell), Some(ChatReason::NotClaude));
     }
 
     #[test]
