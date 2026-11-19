@@ -1,4 +1,4 @@
-//! The entries of a menu that choose a Claude account
+//! The entries of a menu that choose an account
 //! (`components/accounts/accountMenuItems.ts` and `PaneAccountItems.tsx`):
 //! « Default (Perso) » first, then one entry per account, the current choice
 //! checked. They sit at the end of the navigator's workspace menu and of a
@@ -6,6 +6,11 @@
 //! workspace filed in a folder that names an account gets « Folder default
 //! (Pro) » first: what it runs on without a choice of its own. A navigator
 //! folder's menu has the same lines, for the account of its workspaces.
+//!
+//! Each kind of agent has its own accounts: a pane's menu lists those of its
+//! agent's kind (a Codex pane picks among Codex accounts), a workspace's and
+//! a folder's menus one block per kind in use, Claude Code's as before, and
+//! another kind's once it has an account to choose besides its main one.
 
 use hangar_engine::accounts::{AccountLevels, DEFAULT_CHOICE};
 use hangar_i18n::{Key, Translator, args};
@@ -13,13 +18,12 @@ use hangar_i18n::{Key, Translator, args};
 use crate::ctx::Ctx;
 use crate::message::Message;
 use crate::shell::MenuEntry;
-use crate::state::folders;
-use crate::state::types::AgentId;
+use crate::state::types::AgentKind;
 use crate::state::{PaneId, WsId};
 
-use super::model::{ClaudeAccount, read_account_choice};
+use super::model::{Account, read_account_choice};
 use super::switch::{account_name, default_label};
-use super::{Msg, live};
+use super::{Live, Msg, live};
 
 /// One line, as plain data: what it says, whether it is the current choice,
 /// and what picking it chooses (`None`: follow the default).
@@ -36,7 +40,7 @@ pub struct AccountMenuItem {
 /// follows the default. Labels only, never emails.
 pub fn account_menu_items(
     t: Translator,
-    accounts: &[ClaudeAccount],
+    accounts: &[Account],
     default: Option<&str>,
     value: Option<&str>,
 ) -> Vec<AccountMenuItem> {
@@ -68,7 +72,7 @@ pub fn account_menu_items(
 /// folder's (`DEFAULT_CHOICE`). Without it, [`account_menu_items`].
 pub fn workspace_menu_items(
     t: Translator,
-    accounts: &[ClaudeAccount],
+    accounts: &[Account],
     default: Option<&str>,
     folder: Option<&str>,
     value: Option<&str>,
@@ -114,15 +118,32 @@ fn radio(item: AccountMenuItem, pick: impl Fn(Option<String>) -> Message) -> Men
     }
 }
 
-/// The account lines of a navigator folder's menu: « Default (Perso) » first
-/// (its workspaces follow the default), then one per account, the folder's
-/// choice checked. The workspaces filed in it that chose no account of their
-/// own run on it, those moved in later too. Nothing before the accounts are
-/// known, nor with a single account, where there is nothing to choose.
+/// The kinds a workspace's or a folder's menu has a block for: Claude
+/// Code's as before, once its accounts are known; another kind's once it has
+/// an account to choose besides its main one.
+fn menu_kinds(ctx: Ctx<'_>) -> impl Iterator<Item = (AgentKind, &[Account])> {
+    live(ctx)
+        .kinds()
+        .filter(|(kind, accounts)| *kind == AgentKind::default() || accounts.len() > 1)
+}
+
+/// A block's heading: `key` names the agent (`{agent}`), and a kind still
+/// in beta says so.
+fn heading(t: Translator, key: Key, kind: AgentKind) -> MenuEntry {
+    let agent = super::agent_label(t, kind);
+    MenuEntry::Heading(
+        t.t_with(key, &args!("agent" => agent.as_str()))
+            .into_owned(),
+    )
+}
+
+/// The account lines of a navigator folder's menu, one block per kind in
+/// use: « Default (Perso) » first (its workspaces follow the default), then
+/// one per account, the folder's choice checked. The workspaces filed in it
+/// that chose no account of their own run on it, those moved in later too.
+/// Nothing before the accounts are known, nor for a kind with a single
+/// account, where there is nothing to choose.
 pub fn folder_entries(ctx: Ctx<'_>, folder: &str) -> Vec<MenuEntry> {
-    let Some(accounts) = live(ctx).accounts.as_deref().filter(|all| all.len() > 1) else {
-        return Vec::new();
-    };
     let Some(entry) = ctx
         .model
         .state()
@@ -132,89 +153,96 @@ pub fn folder_entries(ctx: Ctx<'_>, folder: &str) -> Vec<MenuEntry> {
     else {
         return Vec::new();
     };
-    let items = account_menu_items(
-        ctx.i18n,
-        accounts,
-        ctx.model.settings().claude_account.as_deref(),
-        folders::folder_account(entry),
-    );
-    let mut entries = vec![
-        MenuEntry::Separator,
-        MenuEntry::Heading(ctx.t(Key::AccountsMenuFolderTitle).into_owned()),
-    ];
-    entries.extend(items.into_iter().map(|item| {
-        radio(item, |id| {
-            Message::Accounts(Msg::SetFolder {
-                folder: folder.to_string(),
-                id,
+    let mut entries = Vec::new();
+    for (kind, accounts) in live(ctx).kinds().filter(|(_, all)| all.len() > 1) {
+        let chosen = entry
+            .account(kind)
+            .map(str::trim)
+            .filter(|id| !id.is_empty());
+        let items = account_menu_items(
+            ctx.i18n,
+            accounts,
+            ctx.model.settings().account(kind),
+            chosen,
+        );
+        entries.push(MenuEntry::Separator);
+        entries.push(heading(ctx.i18n, Key::AccountsMenuFolderTitle, kind));
+        entries.extend(items.into_iter().map(|item| {
+            radio(item, |id| {
+                Message::Accounts(Msg::SetFolder {
+                    folder: folder.to_string(),
+                    kind,
+                    id,
+                })
             })
-        })
-    }));
+        }));
+    }
     entries
 }
 
 /// The account lines of the navigator's menu (`pane` `None`: the workspace's
-/// own choice) or of a pane's menu (that pane's own choice, over its
-/// workspace's). Nothing before the accounts are known, and nothing for a
-/// pane that does not run Claude Code, or that was opened to log in.
+/// own choices, one block per kind in use) or of a pane's menu (that pane's
+/// own choice among its agent's accounts, over its workspace's). Nothing
+/// before the accounts are known, and nothing for a pane that runs no agent,
+/// or that was opened to log in.
 pub fn menu_entries(ctx: Ctx<'_>, ws: &WsId, pane: Option<&PaneId>) -> Vec<MenuEntry> {
-    let Some(accounts) = live(ctx).accounts.as_deref() else {
-        return Vec::new();
-    };
     let Some(workspace) = ctx.model.workspace(ws) else {
         return Vec::new();
     };
-    let settings = ctx.model.settings().claude_account.as_deref();
+    let state = ctx.model.state();
     match pane {
         None => {
-            // The same as the toolbar's click: this workspace's own account,
-            // or its folder's.
-            let folder = folders::account_of(&ctx.model.state().folders, workspace)
-                .filter(|id| accounts.iter().any(|account| account.id == *id));
-            let items = workspace_menu_items(
-                ctx.i18n,
-                accounts,
-                settings,
-                folder,
-                workspace.claude_account.as_deref(),
-            );
-            let mut entries = vec![
-                MenuEntry::Separator,
-                MenuEntry::Heading(ctx.t(Key::AccountsMenuTitle).into_owned()),
-            ];
-            entries.extend(items.into_iter().map(|item| {
-                radio(item, |id| {
-                    Message::Accounts(Msg::SetWorkspace {
-                        ws: ws.clone(),
-                        id,
-                        restart: false,
+            let mut entries = Vec::new();
+            for (kind, accounts) in menu_kinds(ctx) {
+                // The same as the toolbar's click: this workspace's own
+                // account, or its folder's.
+                let levels = AccountLevels::of_kind(state, workspace, None, kind);
+                let folder = levels
+                    .folder
+                    .as_deref()
+                    .filter(|id| accounts.iter().any(|account| account.id == *id));
+                let items = workspace_menu_items(
+                    ctx.i18n,
+                    accounts,
+                    ctx.model.settings().account(kind),
+                    folder,
+                    workspace.account(kind),
+                );
+                entries.push(MenuEntry::Separator);
+                entries.push(heading(ctx.i18n, Key::AccountsMenuTitle, kind));
+                entries.extend(items.into_iter().map(|item| {
+                    radio(item, |id| {
+                        Message::Accounts(Msg::SetWorkspace {
+                            ws: ws.clone(),
+                            kind,
+                            id,
+                            restart: false,
+                        })
                     })
-                })
-            }));
+                }));
+            }
             entries
         }
         Some(pane_id) => {
             let Some(pane) = workspace.panes.iter().find(|pane| pane.id == *pane_id) else {
                 return Vec::new();
             };
-            if pane.agent != AgentId::Claude || pane.login == Some(true) {
+            let Some(kind) = Live::kind_of(pane) else {
                 return Vec::new();
-            }
+            };
+            let Some(accounts) = live(ctx).of(kind) else {
+                return Vec::new();
+            };
             // « Default » here means the pane follows its workspace, so the
             // label names the account the workspace is on: its own, its
             // folder's or the default.
-            let follows = AccountLevels::of(ctx.model.state(), workspace, None)
+            let follows = AccountLevels::of_kind(state, workspace, None, kind)
                 .resolve(accounts)
                 .id;
-            let items = account_menu_items(
-                ctx.i18n,
-                accounts,
-                Some(&follows),
-                pane.claude_account.as_deref(),
-            );
+            let items = account_menu_items(ctx.i18n, accounts, Some(&follows), pane.account(kind));
             let mut entries = vec![
                 MenuEntry::Separator,
-                MenuEntry::Heading(ctx.t(Key::AccountsPaneMenuHeading).into_owned()),
+                heading(ctx.i18n, Key::AccountsPaneMenuHeading, kind),
             ];
             entries.extend(items.into_iter().map(|item| {
                 radio(item, |id| {
@@ -236,9 +264,9 @@ mod tests {
 
     use super::*;
 
-    fn accounts() -> Vec<ClaudeAccount> {
+    fn accounts() -> Vec<Account> {
         vec![
-            ClaudeAccount {
+            Account {
                 id: "main".into(),
                 label: "Principal".into(),
                 is_main: true,
@@ -246,7 +274,7 @@ mod tests {
                 email: None,
                 plan: None,
             },
-            ClaudeAccount {
+            Account {
                 id: "perso".into(),
                 label: "Perso".into(),
                 is_main: false,

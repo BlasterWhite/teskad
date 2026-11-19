@@ -19,6 +19,10 @@ use crate::state::{AccountStyle, AccountTone};
 use crate::workspace_dialog::testing::{Harness, messages};
 
 use super::account_style::{self, Mark};
+use crate::state::types::AgentKind;
+
+/// Claude Code, whose accounts the harness lists.
+const C: AgentKind = AgentKind::Claude;
 use super::settings_page::Page;
 use super::switch::{AccountUsage, WindowUsage};
 use super::switcher::{Menu, SwitchScope};
@@ -125,7 +129,7 @@ fn the_list_has_a_row_per_account_with_its_figures_and_both_scopes() {
     ui.click("Perso").expect("the row is drawn");
     assert!(accounts_msg(&messages(ui), |msg| matches!(
         msg,
-        Msg::Choose { ws, id, scope: SwitchScope::Workspace } if ws == "w1" && id == "perso"
+        Msg::Choose { ws, kind: C, id, scope: SwitchScope::Workspace } if ws == "w1" && id == "perso"
     )));
 }
 
@@ -140,7 +144,7 @@ fn the_second_part_of_a_row_makes_the_account_the_default_of_every_workspace() {
     // The first row is the main account.
     assert!(accounts_msg(&messages(ui), |msg| matches!(
         msg,
-        Msg::Choose { id, scope: SwitchScope::Default, .. } if id == "main"
+        Msg::Choose { kind: C, id, scope: SwitchScope::Default, .. } if id == "main"
     )));
 }
 
@@ -151,6 +155,7 @@ fn with_agents_running_the_click_asks_before_it_restarts_them() {
     let mut st = State::default();
     st.switcher = Menu::Ask {
         ws: ws("w1"),
+        kind: C,
         id: "perso".into(),
         scope: SwitchScope::Workspace,
     };
@@ -193,6 +198,7 @@ fn the_question_for_the_default_counts_every_agent_that_follows_it() {
     let mut st = State::default();
     st.switcher = Menu::Ask {
         ws: ws("w1"),
+        kind: C,
         id: "perso".into(),
         scope: SwitchScope::Default,
     };
@@ -206,6 +212,7 @@ fn the_question_for_the_default_counts_every_agent_that_follows_it() {
 fn choose(scope: SwitchScope, id: &str) -> Msg {
     Msg::Choose {
         ws: ws("w1"),
+        kind: C,
         id: id.into(),
         scope,
     }
@@ -260,6 +267,7 @@ fn with_agents_running_a_click_asks_and_the_answer_decides_the_restart() {
         st.switcher,
         Menu::Ask {
             ws: ws("w1"),
+            kind: C,
             id: "perso".into(),
             scope: SwitchScope::Workspace
         }
@@ -297,21 +305,21 @@ fn a_switch_restarts_only_the_running_claude_panes_that_follow() {
     // p1 (Claude, follows) runs, p2 is a shell: only p1.
     h.model.live.accounts.launched.note("p1", Some("main"));
     assert_eq!(
-        set_workspace_account(&mut h.model, &ws("w1"), Some("perso".into()), true).units(),
+        set_workspace_account(&mut h.model, &ws("w1"), C, Some("perso".into()), true).units(),
         1
     );
     assert_eq!(
-        set_workspace_account(&mut h.model, &ws("w1"), Some("perso".into()), false).units(),
+        set_workspace_account(&mut h.model, &ws("w1"), C, Some("perso".into()), false).units(),
         0
     );
     // Nothing runs in w2 (p3 was never launched).
     assert_eq!(
-        set_workspace_account(&mut h.model, &ws("w2"), None, true).units(),
+        set_workspace_account(&mut h.model, &ws("w2"), C, None, true).units(),
         0
     );
     // A workspace that is gone.
     assert_eq!(
-        set_workspace_account(&mut h.model, &ws("gone"), None, true).units(),
+        set_workspace_account(&mut h.model, &ws("gone"), C, None, true).units(),
         0
     );
 }
@@ -323,7 +331,7 @@ fn a_pane_with_an_account_of_its_own_is_not_restarted_by_its_workspace() {
     });
     h.model.live.accounts.launched.note("p1", Some("pro"));
     assert_eq!(
-        set_workspace_account(&mut h.model, &ws("w1"), Some("perso".into()), true).units(),
+        set_workspace_account(&mut h.model, &ws("w1"), C, Some("perso".into()), true).units(),
         0
     );
 }
@@ -335,11 +343,11 @@ fn a_new_default_restarts_the_agents_of_the_workspaces_that_follow_it() {
     // w2 has an account of its own: its agent keeps running.
     h.model.live.accounts.launched.note("p3", Some("perso"));
     assert_eq!(
-        set_default_account(&mut h.model, "pro".into(), true).units(),
+        set_default_account(&mut h.model, C, "pro".into(), true).units(),
         1
     );
     assert_eq!(
-        set_default_account(&mut h.model, "pro".into(), false).units(),
+        set_default_account(&mut h.model, C, "pro".into(), false).units(),
         0
     );
 }
@@ -377,7 +385,7 @@ fn a_pane_opened_to_log_in_runs_no_agent_so_nothing_restarts() {
     });
     h.model.live.accounts.launched.note("p1", Some("pro"));
     assert_eq!(
-        set_workspace_account(&mut h.model, &ws("w1"), Some("perso".into()), true).units(),
+        set_workspace_account(&mut h.model, &ws("w1"), C, Some("perso".into()), true).units(),
         0
     );
 }
@@ -572,7 +580,7 @@ fn the_workspaces_menu_lists_the_default_and_every_account_with_the_choice_check
         labels(&menu_items(h.ctx(), &w, None)),
         [
             "---",
-            "# Claude account",
+            "# Claude Code account",
             "Default (Principal)",
             "Principal",
             "✓ Perso",
@@ -589,7 +597,7 @@ fn the_workspaces_menu_lists_the_default_and_every_account_with_the_choice_check
     };
     assert!(matches!(
         on_select,
-        Message::Accounts(Msg::SetWorkspace { ws, id: Some(id), restart: false })
+        Message::Accounts(Msg::SetWorkspace { ws, kind: C, id: Some(id), restart: false })
             if ws == "w1" && id == "perso"
     ));
 }
@@ -603,7 +611,7 @@ fn a_claude_panes_menu_names_what_its_workspace_follows() {
         labels(&menu_items(h.ctx(), &w, Some(&p))),
         [
             "---",
-            "# Claude account for this pane",
+            "# Claude Code account for this pane",
             "✓ Default (Perso)",
             "Principal",
             "Perso",
@@ -665,7 +673,7 @@ fn the_page_lists_every_account_with_who_uses_it_and_what_can_be_done() {
     let st = State::default();
     let mut ui = h.show(settings_page(&st, h.ctx()));
     for text in [
-        "Claude accounts",
+        "Accounts",
         "Principal",
         "Perso",
         "Travail",
@@ -684,7 +692,7 @@ fn the_page_lists_every_account_with_who_uses_it_and_what_can_be_done() {
         "The main account is Claude Code\u{2019}s own configuration: it cannot be removed.",
         "Add an account",
         "Add and log in",
-        "A pane opens so you can log in through your browser.",
+        "A pane opens and runs claude auth login on the account: log in through your browser.",
         "Ask before moving running agents",
     ] {
         assert!(ui.find(text).is_ok(), "{text} is on the page");
@@ -698,7 +706,7 @@ fn the_page_speaks_french_in_a_light_theme() {
     let st = State::default();
     let mut ui = h.show(settings_page(&st, h.ctx()));
     for text in [
-        "Comptes Claude",
+        "Comptes",
         "Non connecté",
         "Se connecter",
         "Ajouter un compte",
@@ -748,13 +756,13 @@ fn the_default_account_has_no_make_default_and_a_logged_in_one_no_log_in() {
     ui.click("Make default").expect("a button is drawn");
     assert!(accounts_msg(&messages(ui), |msg| matches!(
         msg,
-        Msg::MakeDefault(id) if id == "perso"
+        Msg::MakeDefault(C, id) if id == "perso"
     )));
     let mut ui = h.show(settings_page(&st, h.ctx()));
     ui.click("Log in").expect("a button is drawn");
     assert!(accounts_msg(&messages(ui), |msg| matches!(
         msg,
-        Msg::LogIn(id) if id == "pro"
+        Msg::LogIn(C, id) if id == "pro"
     )));
 }
 
@@ -763,7 +771,7 @@ fn renaming_opens_a_form_that_refuses_an_empty_or_taken_name() {
     let h = Harness::new(Locale::En, "graphite");
     let renaming = |typed: &str| {
         let mut st = State::default();
-        st.page.renaming = Some(("perso".into(), typed.into()));
+        st.page.renaming = Some((C, "perso".into(), typed.into()));
         st
     };
     let empty = renaming("");
@@ -799,7 +807,7 @@ fn renaming_opens_a_form_that_refuses_an_empty_or_taken_name() {
 fn removing_asks_first_and_the_main_account_cannot_be_removed() {
     let h = Harness::new(Locale::En, "graphite");
     let mut st = State::default();
-    st.page.removing = Some("perso".into());
+    st.page.removing = Some((C, "perso".into()));
     let mut ui = h.show(settings_page(&st, h.ctx()));
     for text in [
         "Remove \u{201c}Perso\u{201d}?",
@@ -812,7 +820,7 @@ fn removing_asks_first_and_the_main_account_cannot_be_removed() {
     ui.click("Remove the account").expect("the button is drawn");
     assert!(accounts_msg(&messages(ui), |msg| matches!(
         msg,
-        Msg::RemoveConfirm(id) if id == "perso"
+        Msg::RemoveConfirm(C, id) if id == "perso"
     )));
 }
 
@@ -836,13 +844,14 @@ fn the_add_form_shows_its_problem_only_after_a_first_try() {
     assert!(ui.find("Give the account a name.").is_err());
 
     let mut tried = State::default();
-    tried.page.touched = true;
+    tried.page.drafts.entry(C).or_default().touched = true;
     let mut ui = h.show(settings_page(&tried, h.ctx()));
     assert!(ui.find("Give the account a name.").is_ok());
 
     let mut taken = State::default();
-    taken.page.touched = true;
-    taken.page.name = "perso".into();
+    let draft = taken.page.drafts.entry(C).or_default();
+    draft.touched = true;
+    draft.name = "perso".into();
     let mut ui = h.show(settings_page(&taken, h.ctx()));
     assert!(ui.find("Another account already has this name.").is_ok());
 }
@@ -854,18 +863,18 @@ fn a_rename_starts_only_with_a_good_name_and_the_page_then_waits() {
     let h = Harness::new(Locale::En, "graphite");
     let mut page = Page::default();
     assert_eq!(begin_rename_for_test(&mut page, &h), None);
-    page.renaming = Some(("perso".into(), "  ".into()));
+    page.renaming = Some((C, "perso".into(), "  ".into()));
     assert_eq!(begin_rename_for_test(&mut page, &h), None);
     assert!(!page.busy);
-    page.renaming = Some(("perso".into(), " Personal ".into()));
+    page.renaming = Some((C, "perso".into(), " Personal ".into()));
     assert_eq!(
         begin_rename_for_test(&mut page, &h),
-        Some(("perso".to_string(), "Personal".to_string()))
+        Some((C, "perso".to_string(), "Personal".to_string()))
     );
     assert!(page.busy);
 }
 
-fn begin_rename_for_test(page: &mut Page, h: &Harness) -> Option<(String, String)> {
+fn begin_rename_for_test(page: &mut Page, h: &Harness) -> Option<(AgentKind, String, String)> {
     settings_page::begin_rename(page, &h.model)
 }
 
@@ -882,11 +891,11 @@ fn a_removal_never_starts_for_main() {
 fn an_add_starts_with_a_good_name_and_remembers_it_was_tried() {
     let h = Harness::new(Locale::En, "graphite");
     let mut page = Page::default();
-    assert_eq!(settings_page::begin_add(&mut page, &h.model), None);
-    assert!(page.touched);
-    page.name = " Work ".into();
+    assert_eq!(settings_page::begin_add(&mut page, &h.model, C), None);
+    assert!(page.draft(C).touched);
+    page.drafts.entry(C).or_default().name = " Work ".into();
     assert_eq!(
-        settings_page::begin_add(&mut page, &h.model),
+        settings_page::begin_add(&mut page, &h.model, C),
         Some("Work".to_string())
     );
     assert!(page.busy);
@@ -898,7 +907,7 @@ fn what_the_commands_answer_changes_the_page() {
     let mut page = Page::default();
 
     // A rename that worked closes its form; one that failed keeps it open.
-    page.renaming = Some(("perso".into(), "Personal".into()));
+    page.renaming = Some((C, "perso".into(), "Personal".into()));
     page.busy = true;
     let _ = settings_page::step(
         &mut page,
@@ -916,46 +925,49 @@ fn what_the_commands_answer_changes_the_page() {
     assert!(page.renaming.is_none());
 
     // A removal that failed keeps its question.
-    page.removing = Some("perso".into());
+    page.removing = Some((C, "perso".into()));
     page.busy = true;
     let _ = settings_page::step(
         &mut page,
         &mut h.model,
         Msg::Removed(
+            C,
             "perso".into(),
             Err("1 pane still runs on this account".into()),
         ),
     );
-    assert_eq!(page.removing.as_deref(), Some("perso"));
+    assert_eq!(page.removing, Some((C, "perso".to_string())));
     assert!(!page.busy);
     let _ = settings_page::step(
         &mut page,
         &mut h.model,
-        Msg::Removed("perso".into(), Ok(())),
+        Msg::Removed(C, "perso".into(), Ok(())),
     );
     assert!(page.removing.is_none());
 
     // An add that failed keeps the name to retry; one that worked clears it.
-    page.name = "Work".into();
-    page.touched = true;
-    let _ = settings_page::step(&mut page, &mut h.model, Msg::Added(Err("no".into())));
-    assert_eq!(page.name, "Work");
-    let _ = settings_page::step(&mut page, &mut h.model, Msg::Added(Ok("work".into())));
-    assert!(page.name.is_empty() && !page.touched);
+    *page.drafts.entry(C).or_default() = settings_page::Draft {
+        name: "Work".into(),
+        touched: true,
+    };
+    let _ = settings_page::step(&mut page, &mut h.model, Msg::Added(C, Err("no".into())));
+    assert_eq!(page.draft(C).name, "Work");
+    let _ = settings_page::step(&mut page, &mut h.model, Msg::Added(C, Ok("work".into())));
+    assert!(page.draft(C).name.is_empty() && !page.draft(C).touched);
 }
 
 #[test]
 fn the_rename_form_follows_what_is_typed_and_goes_on_cancel() {
     let mut h = Harness::new(Locale::En, "graphite");
     let mut page = Page::default();
-    let _ = settings_page::step(&mut page, &mut h.model, Msg::RenameStart("perso".into()));
-    assert_eq!(page.renaming, Some(("perso".into(), "Perso".into())));
+    let _ = settings_page::step(&mut page, &mut h.model, Msg::RenameStart(C, "perso".into()));
+    assert_eq!(page.renaming, Some((C, "perso".into(), "Perso".into())));
     let _ = settings_page::step(&mut page, &mut h.model, Msg::RenameInput("Personal".into()));
-    assert_eq!(page.renaming, Some(("perso".into(), "Personal".into())));
+    assert_eq!(page.renaming, Some((C, "perso".into(), "Personal".into())));
     let _ = settings_page::step(&mut page, &mut h.model, Msg::RenameCancel);
     assert!(page.renaming.is_none());
-    let _ = settings_page::step(&mut page, &mut h.model, Msg::RemoveAsk("pro".into()));
-    assert_eq!(page.removing.as_deref(), Some("pro"));
+    let _ = settings_page::step(&mut page, &mut h.model, Msg::RemoveAsk(C, "pro".into()));
+    assert_eq!(page.removing, Some((C, "pro".to_string())));
     let _ = settings_page::step(&mut page, &mut h.model, Msg::RemoveCancel);
     assert!(page.removing.is_none());
 }
@@ -1014,14 +1026,20 @@ fn what_fills_a_placeholder_is_never_touched() {
 fn an_agent_that_ended_is_not_asked_about_or_restarted() {
     let mut h = Harness::new(Locale::En, "graphite");
     h.model.live.accounts.launched.note("p1", Some("main"));
-    assert_eq!(running_in(&h.model, &ws("w1"), SwitchScope::Workspace), 1);
+    assert_eq!(
+        running_in(&h.model, &ws("w1"), C, SwitchScope::Workspace),
+        1
+    );
     // What P5 does when the pane's shell exits or the pane is closed.
     assert!(h.model.live.accounts.launched.note("p1", None));
-    assert_eq!(running_in(&h.model, &ws("w1"), SwitchScope::Workspace), 0);
-    assert_eq!(running_in(&h.model, &ws("w1"), SwitchScope::Default), 0);
+    assert_eq!(
+        running_in(&h.model, &ws("w1"), C, SwitchScope::Workspace),
+        0
+    );
+    assert_eq!(running_in(&h.model, &ws("w1"), C, SwitchScope::Default), 0);
     let workspace = h.model.workspace(&ws("w1")).expect("w1 exists");
     assert!(
-        switch_workspace(&h.model, workspace)
+        switch_workspace(&h.model, workspace, C)
             .panes
             .iter()
             .all(|pane| !pane.running)
@@ -1034,15 +1052,15 @@ fn an_agent_that_ended_is_not_asked_about_or_restarted() {
 fn a_second_enter_while_busy_sends_nothing() {
     let h = Harness::new(Locale::En, "graphite");
     let mut page = Page::default();
-    page.name = "Work".into();
+    page.drafts.entry(C).or_default().name = "Work".into();
     assert_eq!(
-        settings_page::begin_add(&mut page, &h.model),
+        settings_page::begin_add(&mut page, &h.model, C),
         Some("Work".to_string())
     );
     // The same Enter again, before `account_add` answered.
-    assert_eq!(settings_page::begin_add(&mut page, &h.model), None);
+    assert_eq!(settings_page::begin_add(&mut page, &h.model, C), None);
 
-    page.renaming = Some(("perso".into(), "Personal".into()));
+    page.renaming = Some((C, "perso".into(), "Personal".into()));
     assert_eq!(begin_rename_for_test(&mut page, &h), None);
     assert!(!settings_page::begin_remove(&mut page, "perso"));
 }
@@ -1064,8 +1082,17 @@ fn named(id: &str) -> ClaudeAccount {
 fn an_older_list_that_answers_last_does_not_win() {
     let mut h = Harness::new(Locale::En, "graphite");
     let mut st = State::default();
-    listed(&mut st, &mut h.model, 2, vec![named("main"), named("new")]);
-    listed(&mut st, &mut h.model, 1, vec![named("main")]);
+    let claude = |accounts| Listing {
+        lists: vec![(C, accounts)],
+        installed: Vec::new(),
+    };
+    listed(
+        &mut st,
+        &mut h.model,
+        2,
+        claude(vec![named("main"), named("new")]),
+    );
+    listed(&mut st, &mut h.model, 1, claude(vec![named("main")]));
     let ids: Vec<_> = h
         .model
         .live
@@ -1230,13 +1257,19 @@ fn a_pane_on_a_node_is_not_restarted_by_a_switch() {
         });
     });
     h.model.live.accounts.launched.note("far", Some("main"));
-    assert_eq!(running_in(&h.model, &ws("w1"), SwitchScope::Workspace), 0);
     assert_eq!(
-        set_workspace_account(&mut h.model, &ws("w1"), Some("perso".into()), true).units(),
+        running_in(&h.model, &ws("w1"), C, SwitchScope::Workspace),
+        0
+    );
+    assert_eq!(
+        set_workspace_account(&mut h.model, &ws("w1"), C, Some("perso".into()), true).units(),
         0
     );
     h.model.live.accounts.launched.note("p1", Some("main"));
-    assert_eq!(running_in(&h.model, &ws("w1"), SwitchScope::Workspace), 1);
+    assert_eq!(
+        running_in(&h.model, &ws("w1"), C, SwitchScope::Workspace),
+        1
+    );
 }
 
 // ── the badges' styles ─────────────────────────────────────────────────
@@ -1274,7 +1307,7 @@ fn a_styled_account_wears_its_badge_in_the_navigator() {
 
     let h = styled(Harness::new(Locale::En, "graphite"));
     assert_eq!(
-        account_style::of(h.ctx(), "perso"),
+        account_style::of(h.ctx(), C, "perso"),
         Mark {
             tone: Some(AccountTone::Success),
             icon: Some(hangar_ui::Icon::Gamepad),
@@ -1339,12 +1372,12 @@ fn the_page_offers_a_tone_and_an_icon_and_a_choice_is_kept() {
     let _ = settings_page::step(
         &mut page,
         &mut h.model,
-        Msg::SetTone("perso".into(), Some(AccountTone::Success)),
+        Msg::SetTone(C, "perso".into(), Some(AccountTone::Success)),
     );
     let _ = settings_page::step(
         &mut page,
         &mut h.model,
-        Msg::SetIcon("perso".into(), Some(hangar_ui::Icon::Gamepad)),
+        Msg::SetIcon(C, "perso".into(), Some(hangar_ui::Icon::Gamepad)),
     );
     assert_eq!(
         h.model.settings().account_style("perso"),
@@ -1359,8 +1392,16 @@ fn the_page_offers_a_tone_and_an_icon_and_a_choice_is_kept() {
     }
 
     // Taking both back leaves nothing in the file.
-    let _ = settings_page::step(&mut page, &mut h.model, Msg::SetTone("perso".into(), None));
-    let _ = settings_page::step(&mut page, &mut h.model, Msg::SetIcon("perso".into(), None));
+    let _ = settings_page::step(
+        &mut page,
+        &mut h.model,
+        Msg::SetTone(C, "perso".into(), None),
+    );
+    let _ = settings_page::step(
+        &mut page,
+        &mut h.model,
+        Msg::SetIcon(C, "perso".into(), None),
+    );
     assert!(h.model.settings().account_styles.is_empty());
 }
 
@@ -1373,8 +1414,8 @@ fn with_badges_off_every_account_keeps_its_plain_label() {
     assert!(h.model.settings().account_styles.contains_key("perso"));
     // ...but nothing draws them while they are off.
     assert!(!account_style::shown(h.ctx()));
-    assert!(account_style::of(h.ctx(), "perso").is_plain());
-    assert!(account_style::of(h.ctx(), "main").is_plain());
+    assert!(account_style::of(h.ctx(), C, "perso").is_plain());
+    assert!(account_style::of(h.ctx(), C, "main").is_plain());
 }
 
 /// With a single account no badge is drawn, so the switch is not offered,
@@ -1391,7 +1432,7 @@ fn a_single_account_is_offered_no_badge() {
         .take()
         .map(|all| all.into_iter().filter(|account| account.is_main).collect());
     assert!(!account_style::shown(h.ctx()));
-    assert!(account_style::of(h.ctx(), "main").is_plain());
+    assert!(account_style::of(h.ctx(), C, "main").is_plain());
     let t = hangar_i18n::Translator::new(Locale::En);
     let switch = t.t(hangar_i18n::Key::AccountsSettingsBadgesHint);
     let st = State::default();
@@ -1404,7 +1445,7 @@ fn a_single_account_is_offered_no_badge() {
 fn a_renamed_account_keeps_its_badge_and_a_removed_one_takes_it_along() {
     let mut h = styled(Harness::new(Locale::En, "graphite"));
     let mut page = Page::default();
-    page.renaming = Some(("perso".into(), "Personal".into()));
+    page.renaming = Some((C, "perso".into(), "Personal".into()));
     page.busy = true;
     let _ = settings_page::step(&mut page, &mut h.model, Msg::Renamed(Ok(())));
     assert!(h.model.settings().account_styles.contains_key("perso"));
@@ -1413,7 +1454,7 @@ fn a_renamed_account_keeps_its_badge_and_a_removed_one_takes_it_along() {
     let _ = settings_page::step(
         &mut page,
         &mut h.model,
-        Msg::Removed("perso".into(), Ok(())),
+        Msg::Removed(C, "perso".into(), Ok(())),
     );
     assert!(!h.model.settings().account_styles.contains_key("perso"));
     assert!(h.model.settings().account_styles.contains_key("main"));
@@ -1436,7 +1477,7 @@ fn a_folders_menu_offers_the_default_and_every_account_with_its_choice_checked()
         labels(&entries),
         [
             "---",
-            "# Claude account for this folder",
+            "# Claude Code account for this folder",
             "Default (Principal)",
             "Principal",
             "✓ Perso",
@@ -1455,7 +1496,7 @@ fn choosing_a_folders_account_keeps_it_and_restarts_nothing() {
             ..Default::default()
         }];
     });
-    set_folder_account(&mut h.model, "games".into(), Some("pro".into()));
+    set_folder_account(&mut h.model, "games".into(), C, Some("pro".into()));
     assert_eq!(
         h.model.state().folders[0].claude_account.as_deref(),
         Some("pro")
@@ -1485,7 +1526,7 @@ fn a_removed_account_is_forgotten_by_the_folders_that_named_it_too() {
     let _ = settings_page::step(
         &mut page,
         &mut h.model,
-        Msg::Removed("perso".into(), Ok(())),
+        Msg::Removed(C, "perso".into(), Ok(())),
     );
     let folders = &h.model.state().folders;
     assert_eq!(folders[0].claude_account, None);
@@ -1508,7 +1549,7 @@ fn a_workspace_on_its_folders_account_shows_it_in_its_menu_and_its_panes_follow_
         labels(&menu_items(h.ctx(), &w, None)),
         [
             "---",
-            "# Claude account",
+            "# Claude Code account",
             "✓ Folder default (Travail)",
             "Default (Principal)",
             "Principal",
@@ -1523,7 +1564,7 @@ fn a_workspace_on_its_folders_account_shows_it_in_its_menu_and_its_panes_follow_
     };
     assert!(matches!(
         on_select,
-        Message::Accounts(Msg::SetWorkspace { ws, id: Some(id), restart: false })
+        Message::Accounts(Msg::SetWorkspace { ws, kind: C, id: Some(id), restart: false })
             if ws == "w1" && id == DEFAULT_CHOICE
     ));
     // Its Claude pane's « Default » is what the workspace runs on.
@@ -1531,4 +1572,335 @@ fn a_workspace_on_its_folders_account_shows_it_in_its_menu_and_its_panes_follow_
         labels(&menu_items(h.ctx(), &w, Some(&"p1".to_string())))[2],
         "✓ Default (Travail)"
     );
+}
+
+// ── Codex's accounts (docs/native/agents.md §6.1) ─────────────────────
+
+/// Codex, whose accounts `with_codex` adds.
+const X: AgentKind = AgentKind::Codex;
+
+fn codex_account(id: &str, label: &str, email: Option<&str>, plan: Option<&str>) -> Account {
+    Account {
+        id: id.into(),
+        label: label.into(),
+        is_main: id == MAIN_ACCOUNT,
+        logged_in: plan.is_some(),
+        email: email.map(str::to_string),
+        plan: plan.map(str::to_string),
+    }
+}
+
+/// The harness with Codex installed and three Codex accounts — its main
+/// one (« Main », on ChatGPT Plus), « Team » and « CI » (an API key) — and
+/// a Codex pane « p4 » in « w1 ».
+fn with_codex(locale: Locale, theme: &str) -> Harness {
+    let mut h = Harness::new(locale, theme).edit(|state| {
+        state.workspaces[0].panes.push(crate::state::Pane {
+            id: "p4".into(),
+            name: "Cody".into(),
+            agent: crate::state::AgentId::Codex,
+            ..crate::state::Pane::default()
+        });
+    });
+    h.model.live.accounts.codex = Some(vec![
+        codex_account("main", "Main", Some("me@example.com"), Some("plus")),
+        codex_account("team", "Team", Some("me@team.example"), Some("team")),
+        codex_account("ci", "CI", None, Some("apikey")),
+    ]);
+    h.model.live.accounts.installed = vec![C, X];
+    h
+}
+
+/// What `update` does with a choice from a menu, which needs no service.
+fn update_for_test(h: &mut Harness, msg: Msg) -> iced::Task<Message> {
+    match msg {
+        Msg::SetPane { ws, pane, id } => set_pane_account(&mut h.model, &ws, &pane, id),
+        Msg::SetWorkspace {
+            ws,
+            kind,
+            id,
+            restart,
+        } => set_workspace_account(&mut h.model, &ws, kind, id, restart),
+        other => panic!("not a menu's choice: {other:?}"),
+    }
+}
+
+#[test]
+fn without_codex_the_page_and_the_menus_are_claude_codes_alone() {
+    let h = Harness::new(Locale::En, "graphite");
+    assert!(!live(h.ctx()).in_use(X));
+    let st = State::default();
+    let mut ui = h.show(settings_page(&st, h.ctx()));
+    assert!(ui.find("Codex (beta) accounts").is_err());
+    let blocks = labels(&menu_items(h.ctx(), &ws("w1"), None))
+        .into_iter()
+        .filter(|line| line.starts_with('#'))
+        .count();
+    assert_eq!(blocks, 1);
+}
+
+#[test]
+fn the_page_lists_codex_accounts_in_a_beta_section_with_who_each_one_is() {
+    let h = with_codex(Locale::En, "graphite");
+    let st = State::default();
+    let mut ui = h.show(settings_page(&st, h.ctx()));
+    for text in [
+        "Claude Code accounts",
+        "Codex (beta) accounts",
+        "Team",
+        "CI",
+        "me@team.example · team",
+        "API key",
+        "The main account is Codex\u{2019}s own configuration: it cannot be removed.",
+        "A pane opens and runs codex login on the account: log in through your browser.",
+    ] {
+        assert!(ui.find(text).is_ok(), "{text} is on the page");
+    }
+    h.shot(&mut ui, "accounts-page-codex-en-graphite");
+
+    let h = with_codex(Locale::Fr, "github-light");
+    let mut ui = h.show(settings_page(&st, h.ctx()));
+    for text in [
+        "Comptes Claude Code",
+        "Comptes Codex (bêta)",
+        "Clé d\u{2019}API",
+    ] {
+        assert!(ui.find(text).is_ok(), "{text} is on the page");
+    }
+}
+
+#[test]
+fn a_codex_account_is_added_and_logged_in_in_a_codex_pane_on_it() {
+    let mut h = with_codex(Locale::En, "graphite");
+    let mut page = Page::default();
+    page.drafts.entry(X).or_default().name = "Lab".into();
+    // The Claude form's name is its own.
+    assert_eq!(settings_page::begin_add(&mut page, &h.model, C), None);
+    page.busy = false;
+    assert_eq!(
+        settings_page::begin_add(&mut page, &h.model, X),
+        Some("Lab".to_string())
+    );
+    // A Codex name may be a Claude account's: labels are per kind.
+    let mut page = Page::default();
+    page.drafts.entry(X).or_default().name = "Perso".into();
+    assert_eq!(
+        settings_page::begin_add(&mut page, &h.model, X),
+        Some("Perso".to_string())
+    );
+
+    let before = h.model.workspace(&ws("w1")).expect("w1").panes.len();
+    let _ = settings_page::step(&mut page, &mut h.model, Msg::Added(X, Ok("lab".into())));
+    let workspace = h.model.workspace(&ws("w1")).expect("w1");
+    assert_eq!(workspace.panes.len(), before + 1);
+    let login = workspace
+        .panes
+        .iter()
+        .find(|pane| pane.login == Some(true))
+        .expect("the login pane");
+    assert_eq!(login.agent, crate::state::AgentId::Codex);
+    assert_eq!(login.codex_account.as_deref(), Some("lab"));
+    assert_eq!(login.claude_account, None);
+    assert_eq!(login_command(X), "codex login");
+}
+
+#[test]
+fn a_codex_panes_menu_picks_among_the_codex_accounts() {
+    let mut h = with_codex(Locale::En, "graphite");
+    let (w, p) = (ws("w1"), "p4".to_string());
+    assert_eq!(
+        labels(&menu_items(h.ctx(), &w, Some(&p))),
+        [
+            "---",
+            "# Codex (beta) account for this pane",
+            "✓ Default (Main)",
+            "Main",
+            "Team",
+            "CI"
+        ]
+    );
+    let _ = update_for_test(
+        &mut h,
+        Msg::SetPane {
+            ws: w.clone(),
+            pane: p.clone(),
+            id: Some("team".into()),
+        },
+    );
+    let pane = h.model.find_pane(&p).expect("p4").1;
+    assert_eq!(pane.codex_account.as_deref(), Some("team"));
+    assert_eq!(pane.claude_account, None);
+    // Its header names the Codex account, which is not its workspace's.
+    let mut ui = h.show(pane_badge(h.ctx(), &w, &p));
+    assert!(ui.find("Team").is_ok());
+}
+
+#[test]
+fn a_workspaces_menu_has_a_block_per_kind_and_each_sets_its_own_choice() {
+    let mut h = with_codex(Locale::En, "graphite");
+    let w = ws("w1");
+    let entries = menu_items(h.ctx(), &w, None);
+    assert_eq!(
+        labels(&entries),
+        [
+            "---",
+            "# Claude Code account",
+            "✓ Default (Principal)",
+            "Principal",
+            "Perso",
+            "Travail",
+            "---",
+            "# Codex (beta) account",
+            "✓ Default (Main)",
+            "Main",
+            "Team",
+            "CI",
+        ]
+    );
+    let MenuEntry::Item { on_select, .. } = &entries[10] else {
+        panic!("an item");
+    };
+    let Message::Accounts(msg) = on_select.clone() else {
+        panic!("an accounts message");
+    };
+    assert!(matches!(
+        &msg,
+        Msg::SetWorkspace { kind: X, id: Some(id), .. } if id == "team"
+    ));
+    let _ = update_for_test(&mut h, msg);
+    let workspace = h.model.workspace(&w).expect("w1");
+    assert_eq!(workspace.codex_account.as_deref(), Some("team"));
+    assert_eq!(workspace.claude_account, None);
+    // Its navigator row now names its Codex account.
+    let mut ui = h.show(badge(h.ctx(), &w));
+    assert!(ui.find("Team").is_ok());
+}
+
+#[test]
+fn a_switch_of_codex_accounts_restarts_the_codex_agents_only() {
+    let mut h = with_codex(Locale::En, "graphite");
+    h.model.live.accounts.launched.note("p1", Some("main"));
+    h.model.live.accounts.launched.note("p4", Some("main"));
+    assert_eq!(
+        running_in(&h.model, &ws("w1"), X, SwitchScope::Workspace),
+        1
+    );
+    assert_eq!(
+        running_in(&h.model, &ws("w1"), C, SwitchScope::Workspace),
+        1
+    );
+    let workspace = h.model.workspace(&ws("w1")).expect("w1");
+    let codex = switch_workspace(&h.model, workspace, X);
+    let restarted: Vec<_> = super::switch::panes_to_restart_on_workspace_change(&codex)
+        .into_iter()
+        .map(|pane| pane.id.as_str())
+        .collect();
+    assert_eq!(restarted, ["p4"]);
+}
+
+#[test]
+fn the_switcher_lists_codex_accounts_in_a_block_of_their_own() {
+    let h = with_codex(Locale::En, "graphite");
+    let mut st = State::default();
+    st.switcher = Menu::Open;
+    let mut ui = h.show(toolbar(switcher(&st, h.ctx())));
+    for text in [
+        "Principal · Main",
+        "Claude Code",
+        "Codex (beta)",
+        "Team",
+        "CI",
+    ] {
+        assert!(ui.find(text).is_ok(), "{text} is in the switcher");
+    }
+    ui.click("Team").expect("the row is drawn");
+    assert!(accounts_msg(&messages(ui), |msg| matches!(
+        msg,
+        Msg::Choose { kind: X, id, scope: SwitchScope::Workspace, .. } if id == "team"
+    )));
+}
+
+#[test]
+fn a_codex_usage_report_counts_for_the_codex_account_and_shows_in_the_plan_block() {
+    let mut h = with_codex(Locale::En, "graphite");
+    h.model.live.accounts.launched.note("p4", Some("main"));
+    assert!(record_usage(
+        &mut h.model,
+        &"p4".to_string(),
+        &usage_event(64.0),
+        100
+    ));
+    let usage = &h.model.live.accounts.usage;
+    // Under Codex's main, not Claude's.
+    assert!(!usage.contains_key("main"));
+    assert_eq!(
+        usage["codex:main"]
+            .five_hour
+            .as_ref()
+            .map(|w| w.percent_used),
+        Some(64.0)
+    );
+    let block = plan_block(h.ctx()).expect("a block per account");
+    let mut ui = h.show(container(block).width(260));
+    for text in ["Codex · Main", "64%", "Claude Code · Principal"] {
+        assert!(ui.find(text).is_ok(), "{text} is in the block");
+    }
+}
+
+#[test]
+fn a_codex_accounts_key_and_style_are_not_its_claude_namesakes() {
+    assert_eq!(key(C, "main"), "main");
+    assert_eq!(key(X, "main"), "codex:main");
+    assert_ne!(key(C, "main"), key(X, "main"));
+    let mut h = with_codex(Locale::En, "graphite");
+    h.model.apply(crate::state::StoreAction::UpdateSettings(
+        crate::state::Patch::new(|settings: &mut crate::state::Settings| {
+            settings.account_badges = true;
+        }),
+    ));
+    let _ = settings_page::step(
+        &mut Page::default(),
+        &mut h.model,
+        Msg::SetTone(X, "main".into(), Some(AccountTone::Danger)),
+    );
+    assert_eq!(
+        account_style::of(h.ctx(), X, "main").tone,
+        Some(AccountTone::Danger)
+    );
+    assert!(account_style::of(h.ctx(), C, "main").is_plain());
+}
+
+#[test]
+fn a_removed_codex_account_leaves_the_choices_of_codex_only() {
+    let mut h = with_codex(Locale::En, "graphite").edit(|state| {
+        state.workspaces[0].codex_account = Some("team".into());
+        state.settings.codex_account = Some("team".into());
+    });
+    h.model.live.accounts.codex = Some(vec![codex_account("main", "Main", None, Some("plus"))]);
+    let _ = settings_page::step(
+        &mut Page::default(),
+        &mut h.model,
+        Msg::Removed(X, "team".into(), Ok(())),
+    );
+    let workspace = h.model.workspace(&ws("w1")).expect("w1");
+    assert_eq!(workspace.codex_account, None);
+    assert_eq!(
+        h.model.settings().codex_account.as_deref(),
+        Some(MAIN_ACCOUNT)
+    );
+    // Claude's default was not it.
+    assert_eq!(
+        h.model.settings().claude_account,
+        Harness::new(Locale::En, "graphite")
+            .model
+            .settings()
+            .claude_account
+    );
+}
+
+#[test]
+fn only_a_kind_that_restarts_on_its_conversation_moves_between_accounts() {
+    for kind in AgentKind::ALL {
+        assert!(movable_kind(kind), "{kind:?}");
+    }
 }

@@ -1,7 +1,14 @@
-//! P8: Claude accounts.
+//! P8: « Comptes », the accounts of each agent (docs/native/agents.md §6.1).
 //!
 //! Ports components/accounts/*, lib/{accounts,accountSwitch}.ts. Read
 //! inventory-frontend.md §2.1/13 and crates/hangar-app/PACKAGES.md.
+//!
+//! Claude Code's accounts are profiles (`CLAUDE_CONFIG_DIR`), Codex's are
+//! shadow homes (`CODEX_HOME`); both are listed by core, by kind, and every
+//! choice is made per kind (`claude_account`, `codex_account` on the pane,
+//! the workspace, the folder and the settings). An account is named by its
+//! kind and its id: ids are unique across kinds but for `main`, which each
+//! kind has (`key`). Codex's accounts are marked « beta » (`BETA`).
 //!
 //! Files: `model` (reading a choice, resolving the account of a pane, the
 //! accounts panes were launched on), `switch` (restart sets, usage, labels),
@@ -17,12 +24,14 @@
 //! - the views: [`switcher`], [`pane_badge`], [`badge`], [`menu_items`],
 //!   [`workspace_picker`] and [`settings_page`], with the signatures the shell
 //!   fixed;
-//! - P5, when it launches a Claude Code pane: [`AccountLevels`] (pane,
-//!   workspace, the workspace's folder, default) to know the account to
-//!   start it on, then `m.live.accounts.launched.note(pane, Some(account))`;
-//!   and `note(pane, None)` when the pane ends. A pane's
-//!   usage counts against the account it was launched on, and "running" in
-//!   the switcher's question means "has noted an account".
+//! - P5, when it launches an agent pane: [`AccountLevels::of_kind`] (pane,
+//!   workspace, the workspace's folder, default, for the pane's kind) to know
+//!   the account to start it on, then
+//!   `m.live.accounts.launched.note(pane, Some(account))`; and
+//!   `note(pane, None)` when the pane ends. A pane's usage counts against
+//!   the account it was launched on, and "running" in the switcher's
+//!   question means "has noted an account". A pane opened to log an account
+//!   in types [`login_command`] of its kind.
 
 mod account_style;
 mod badge;
@@ -46,13 +55,16 @@ use crate::message::{Intent, Message};
 use crate::services::{CoreEvent, Services};
 use crate::shell::MenuEntry;
 use crate::state::live::BridgeEvent;
+use crate::state::types::{AgentKind, Pane};
 use crate::state::{Model, PaneId, Patch, Settings, StoreAction, Workspace, WsId};
 // Which account a pane runs on: hangar-engine's rules, named here as before.
 use hangar_engine::accounts as model;
 
+/// What a pane opened to log an account of a kind in types.
+pub use hangar_core::accounts::login_command;
 #[allow(unused_imports)]
 pub use model::{
-    AccountId, AccountLevels, AccountSource, ClaudeAccount, DEFAULT_CHOICE, LOGIN_COMMAND,
+    Account, AccountId, AccountLevels, AccountSource, ClaudeAccount, DEFAULT_CHOICE, LOGIN_COMMAND,
     Launched, MAIN_ACCOUNT, ResolvedAccount, launch_account, launch_account_with,
     read_account_choice, resolve_account,
 };
@@ -64,14 +76,59 @@ use switch::{
 };
 pub use switcher::SwitchScope;
 
+/// The kinds whose support is labelled « beta » wherever their accounts are
+/// shown, until real users confirm it (docs/native/agents.md §7, decision 5).
+pub const BETA: &[AgentKind] = &[AgentKind::Codex];
+
+/// A kind's name where its accounts are listed: « Codex (beta) » while it is
+/// in [`BETA`].
+pub fn agent_label(t: hangar_i18n::Translator, kind: AgentKind) -> String {
+    let label = kind.info().label;
+    if BETA.contains(&kind) {
+        t.t_with(
+            hangar_i18n::Key::AccountsAgentBeta,
+            &hangar_i18n::args!("agent" => label),
+        )
+        .into_owned()
+    } else {
+        label.to_string()
+    }
+}
+
+/// What names an account of `kind` where the kinds share one table (the
+/// usage file, the badges' styles): the id of the first kind, whose entries
+/// were written before there were others, and `kind:id` for the others. An
+/// id is `[a-z0-9-]`, so no key of one kind is another's; `main`, which
+/// every kind has, gets one per kind.
+pub fn key(kind: AgentKind, id: &str) -> String {
+    if kind == AgentKind::default() {
+        id.to_string()
+    } else {
+        format!("{}:{id}", kind.id())
+    }
+}
+
+/// Whether a running agent of `kind` can move to another of its accounts by
+/// restarting on its conversation: each account is a folder of its own
+/// named at launch, and its sessions resume by id (§3.2). Whether this pane
+/// can now is its own: its turns reported, nothing typed, no command
+/// running (`follow`).
+pub fn movable_kind(kind: AgentKind) -> bool {
+    let caps = &kind.info().caps;
+    matches!(
+        caps.accounts,
+        hangar_core::agent::caps::Accounts::ConfigDir { .. }
+    ) && caps.sessions.resume
+}
+
 /// The package's UI state; lives in `App.pkg.accounts`.
 #[derive(Debug, Default)]
 pub struct State {
     switcher: switcher::Menu,
     page: settings_page::Page,
     writes: usage::Writes,
-    /// The newest `accounts_list` applied (`LISTS`): an older read that
-    /// finishes last does not overwrite a newer one.
+    /// The newest listing applied (`LISTS`): an older read that finishes
+    /// last does not overwrite a newer one.
     listed: u64,
     /// The usage file has been read. A save before that would write only
     /// what this run has seen, over the other accounts' figures on disk.
@@ -80,7 +137,7 @@ pub struct State {
     save_after_read: bool,
 }
 
-/// Numbers every `accounts_list` asked for, in the order asked.
+/// Numbers every listing asked for, in the order asked.
 static LISTS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
 /// What logging in on a separate profile does on this machine.
@@ -91,22 +148,84 @@ pub struct Support {
     pub note: Option<String>,
 }
 
+/// What one reading of the accounts found: each kind's list, main first,
+/// and which agents are installed.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Listing {
+    pub lists: Vec<(AgentKind, Vec<Account>)>,
+    pub installed: Vec<AgentKind>,
+}
+
 /// The package's shared read-model, which other packages may read; lives in
 /// `Model.live.accounts`.
 #[derive(Debug, Default)]
 pub struct Live {
-    /// Every account, main included. `None` until the backend has answered:
-    /// the interface then has no accounts to show, as it had none without a
-    /// backend.
+    /// Claude Code's accounts, main included. `None` until the backend has
+    /// answered: the interface then has no accounts to show, as it had none
+    /// without a backend.
     pub accounts: Option<Vec<ClaudeAccount>>,
+    /// Codex's accounts, main (the person's own Codex home) included; `None`
+    /// likewise.
+    pub codex: Option<Vec<Account>>,
+    /// The agents found installed at the last reading.
+    pub installed: Vec<AgentKind>,
     pub support: Option<Support>,
-    /// The last usage each account reported.
+    /// The last usage each account reported, by [`key`].
     pub usage: Usage,
-    /// The account each running Claude Code pane was launched on (P5 keeps it).
+    /// The account each running agent pane was launched on (P5 keeps it).
     pub launched: Launched,
     /// The panes waiting to move to another account, and to which: their
     /// header says so until they do (P5 keeps it, `switch::follow`).
     pub moving: std::collections::HashMap<PaneId, Moving>,
+}
+
+impl Live {
+    /// The accounts of `kind`, main first; `None` until they are known.
+    pub fn of(&self, kind: AgentKind) -> Option<&[Account]> {
+        match kind {
+            AgentKind::Claude => self.accounts.as_deref(),
+            AgentKind::Codex => self.codex.as_deref(),
+        }
+    }
+
+    fn list_mut(&mut self, kind: AgentKind) -> &mut Option<Vec<Account>> {
+        match kind {
+            AgentKind::Claude => &mut self.accounts,
+            AgentKind::Codex => &mut self.codex,
+        }
+    }
+
+    /// Whether the person deals with `kind`'s accounts here: Claude Code's
+    /// always, as before there were others; another kind's once it is
+    /// installed, or one of its accounts is logged in or was added. A
+    /// machine without Codex is not shown a Codex section with nothing in
+    /// it.
+    pub fn in_use(&self, kind: AgentKind) -> bool {
+        if kind == AgentKind::default() {
+            return self.of(kind).is_some();
+        }
+        let Some(accounts) = self.of(kind) else {
+            return false;
+        };
+        self.installed.contains(&kind)
+            || accounts.len() > 1
+            || accounts.iter().any(|account| account.logged_in)
+    }
+
+    /// The kinds in use (`in_use`), in `AgentKind::ALL`'s order, with their
+    /// accounts.
+    pub fn kinds(&self) -> impl Iterator<Item = (AgentKind, &[Account])> {
+        AgentKind::ALL
+            .into_iter()
+            .filter(|kind| self.in_use(*kind))
+            .filter_map(|kind| Some((kind, self.of(kind)?)))
+    }
+
+    /// The kind of `pane`'s agent, when an account applies to it: an agent
+    /// pane, not one opened to log in.
+    pub fn kind_of(pane: &Pane) -> Option<AgentKind> {
+        pane.agent.kind().filter(|_| pane.login != Some(true))
+    }
 }
 
 /// A pane's move to another account, as its header shows it.
@@ -149,8 +268,8 @@ pub enum Hold {
 pub enum Msg {
     /// The app has started: read the accounts and the usage.
     Started,
-    /// An `accounts_list` answered, numbered as it was asked (`LISTS`).
-    Listed(u64, Vec<ClaudeAccount>),
+    /// A listing answered, numbered as it was asked (`LISTS`).
+    Listed(u64, Listing),
     SupportRead(Support),
     UsageRead(Usage),
     UsageSaved,
@@ -160,6 +279,7 @@ pub enum Msg {
     CloseMenu,
     Choose {
         ws: WsId,
+        kind: AgentKind,
         id: AccountId,
         scope: SwitchScope,
     },
@@ -171,16 +291,20 @@ pub enum Msg {
     /// move by itself once it has nothing to lose (`follow`).
     AskSwitch(bool),
 
-    // Choosing an account for something, from a menu or a picker.
+    // Choosing an account for something, from a menu or a picker: each
+    // choice is of one kind's accounts.
     SetWorkspace {
         ws: WsId,
+        kind: AgentKind,
         id: Option<AccountId>,
         restart: bool,
     },
     SetDefault {
+        kind: AgentKind,
         id: AccountId,
         restart: bool,
     },
+    /// The pane's own account, of its agent's kind.
     SetPane {
         ws: WsId,
         pane: PaneId,
@@ -190,31 +314,34 @@ pub enum Msg {
     /// their own; `None`: none, they follow the default.
     SetFolder {
         folder: String,
+        kind: AgentKind,
         id: Option<AccountId>,
     },
 
-    // Settings › Accounts.
-    RenameStart(AccountId),
+    // Settings › Accounts: an account is its kind and its id (`main` is
+    // every kind's).
+    RenameStart(AgentKind, AccountId),
     RenameInput(String),
     RenameSubmit,
     RenameCancel,
-    RemoveAsk(AccountId),
-    RemoveConfirm(AccountId),
+    RemoveAsk(AgentKind, AccountId),
+    RemoveConfirm(AgentKind, AccountId),
     RemoveCancel,
-    MakeDefault(AccountId),
+    MakeDefault(AgentKind, AccountId),
     /// Coloured badges turned on or off for every account.
     SetBadges(bool),
     /// The tone of an account's badge; `None` takes it back to plain.
-    SetTone(AccountId, Option<crate::state::AccountTone>),
+    SetTone(AgentKind, AccountId, Option<crate::state::AccountTone>),
     /// The icon of an account's badge; `None` takes it off.
-    SetIcon(AccountId, Option<hangar_ui::Icon>),
-    LogIn(AccountId),
-    AddInput(String),
-    AddSubmit,
-    /// `account_add` ended: the new account's id, or why not.
-    Added(Result<AccountId, String>),
+    SetIcon(AgentKind, AccountId, Option<hangar_ui::Icon>),
+    LogIn(AgentKind, AccountId),
+    /// The name typed in the add form of a kind's section.
+    AddInput(AgentKind, String),
+    AddSubmit(AgentKind),
+    /// `account_add_of` ended: the new account's id, or why not.
+    Added(AgentKind, Result<AccountId, String>),
     Renamed(Result<(), String>),
-    Removed(AccountId, Result<(), String>),
+    Removed(AgentKind, AccountId, Result<(), String>),
 }
 
 /// An account's label for a line written outside the views (a pane's note):
@@ -236,8 +363,8 @@ fn now_ms() -> u64 {
 pub fn update(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Message> {
     match msg {
         Msg::Started => Task::batch([refresh(), read_support(), read_usage(sv)]),
-        Msg::Listed(seq, accounts) => {
-            listed(st, m, seq, accounts);
+        Msg::Listed(seq, listing) => {
+            listed(st, m, seq, listing);
             Task::none()
         }
         Msg::SupportRead(support) => {
@@ -266,29 +393,34 @@ pub fn update(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Me
         | Msg::Back) => switcher_step(st, m, menu),
 
         Msg::AskSwitch(on) => set_ask_switch(m, on),
-        Msg::SetWorkspace { ws, id, restart } => set_workspace_account(m, &ws, id, restart),
-        Msg::SetDefault { id, restart } => set_default_account(m, id, restart),
+        Msg::SetWorkspace {
+            ws,
+            kind,
+            id,
+            restart,
+        } => set_workspace_account(m, &ws, kind, id, restart),
+        Msg::SetDefault { kind, id, restart } => set_default_account(m, kind, id, restart),
         Msg::SetPane { ws, pane, id } => set_pane_account(m, &ws, &pane, id),
-        Msg::SetFolder { folder, id } => {
-            set_folder_account(m, folder, id);
+        Msg::SetFolder { folder, kind, id } => {
+            set_folder_account(m, folder, kind, id);
             Task::none()
         }
 
-        page @ (Msg::RenameStart(_)
+        page @ (Msg::RenameStart(..)
         | Msg::RenameInput(_)
         | Msg::RenameSubmit
         | Msg::RenameCancel
-        | Msg::RemoveAsk(_)
-        | Msg::RemoveConfirm(_)
+        | Msg::RemoveAsk(..)
+        | Msg::RemoveConfirm(..)
         | Msg::RemoveCancel
-        | Msg::MakeDefault(_)
+        | Msg::MakeDefault(..)
         | Msg::SetBadges(_)
         | Msg::SetTone(..)
         | Msg::SetIcon(..)
-        | Msg::LogIn(_)
-        | Msg::AddInput(_)
-        | Msg::AddSubmit
-        | Msg::Added(_)
+        | Msg::LogIn(..)
+        | Msg::AddInput(..)
+        | Msg::AddSubmit(_)
+        | Msg::Added(..)
         | Msg::Renamed(_)
         | Msg::Removed(..)) => settings_page::update(&mut st.page, m, sv, page),
     }
@@ -316,28 +448,42 @@ fn switcher_step(st: &mut State, m: &mut Model, msg: Msg) -> Task<Message> {
             st.switcher = switcher::Menu::Closed;
             Task::none()
         }
-        Msg::Choose { ws, id, scope } => {
+        Msg::Choose {
+            ws,
+            kind,
+            id,
+            scope,
+        } => {
             // Unasked, each pane follows on its own, once it has nothing to
             // lose (`follow`, run by the panes).
             let running = if m.settings().account_switch_ask {
-                running_in(m, &ws, scope)
+                running_in(m, &ws, kind, scope)
             } else {
                 0
             };
             if running == 0 {
                 st.switcher = switcher::Menu::Closed;
-                return apply_switch(m, &ws, id, scope, false);
+                return apply_switch(m, &ws, kind, id, scope, false);
             }
-            st.switcher = switcher::Menu::Ask { ws, id, scope };
+            st.switcher = switcher::Menu::Ask {
+                ws,
+                kind,
+                id,
+                scope,
+            };
             Task::none()
         }
         Msg::Decide(restart) => {
-            let switcher::Menu::Ask { ws, id, scope } =
-                std::mem::replace(&mut st.switcher, switcher::Menu::Closed)
+            let switcher::Menu::Ask {
+                ws,
+                kind,
+                id,
+                scope,
+            } = std::mem::replace(&mut st.switcher, switcher::Menu::Closed)
             else {
                 return Task::none();
             };
-            apply_switch(m, &ws, id, scope, restart)
+            apply_switch(m, &ws, kind, id, scope, restart)
         }
         Msg::Back => {
             st.switcher = switcher::Menu::Open;
@@ -347,11 +493,15 @@ fn switcher_step(st: &mut State, m: &mut Model, msg: Msg) -> Task<Message> {
     }
 }
 
-/// Keeps an `accounts_list` answer unless a newer one is already shown.
-fn listed(st: &mut State, m: &mut Model, seq: u64, accounts: Vec<ClaudeAccount>) {
+/// Keeps a listing unless a newer one is already shown.
+fn listed(st: &mut State, m: &mut Model, seq: u64, listing: Listing) {
     if seq > st.listed {
         st.listed = seq;
-        m.live.accounts.accounts = Some(accounts);
+        let live = &mut m.live.accounts;
+        for (kind, accounts) in listing.lists {
+            *live.list_mut(kind) = Some(accounts);
+        }
+        live.installed = listing.installed;
     }
 }
 
@@ -373,18 +523,28 @@ fn may_save(st: &mut State) -> bool {
     st.usage_read
 }
 
-/// The accounts, read again: at start and after every `accounts:changed`.
-/// They are small files on disk, so off the UI thread.
+/// The accounts of every kind, read again: at start and after every
+/// `accounts:changed`. They are small files on disk, and whether an agent is
+/// installed is a look on PATH, so off the UI thread.
 fn refresh() -> Task<Message> {
     let seq = LISTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     Task::perform(
         async {
-            tokio::task::spawn_blocking(hangar_core::accounts::accounts_list)
-                .await
-                .ok()
+            tokio::task::spawn_blocking(|| Listing {
+                lists: AgentKind::ALL
+                    .into_iter()
+                    .map(|kind| (kind, hangar_core::accounts::accounts_of(kind)))
+                    .collect(),
+                installed: AgentKind::ALL
+                    .into_iter()
+                    .filter(|kind| hangar_core::agent::detect::installed(*kind))
+                    .collect(),
+            })
+            .await
+            .ok()
         },
         move |read| match read {
-            Some(accounts) => Message::Accounts(Msg::Listed(seq, accounts)),
+            Some(listing) => Message::Accounts(Msg::Listed(seq, listing)),
             None => Message::Noop,
         },
     )
@@ -498,8 +658,10 @@ pub fn on_event(
     }
 }
 
-/// A report of a pane's bridge, kept when it carries the plan's limits and
-/// the pane runs on an account. Returns whether the figures changed.
+/// A report of a pane's side channel (the Claude mod's, or Hangar's client
+/// of an attached Codex), kept when it carries the plan's limits and the
+/// pane runs on an account: under that account of the pane's kind (`key`).
+/// Returns whether the figures changed.
 fn record_usage(m: &mut Model, pane: &PaneId, event: &serde_json::Value, at: u64) -> bool {
     let Some(BridgeEvent::Usage { rate_limits, .. }) = BridgeEvent::parse(event) else {
         return false;
@@ -507,7 +669,16 @@ fn record_usage(m: &mut Model, pane: &PaneId, event: &serde_json::Value, at: u64
     if rate_limits.is_empty() {
         return false;
     }
-    let Some(account) = m.live.accounts.launched.account(pane).map(str::to_string) else {
+    let Some(kind) = m.find_pane(pane).and_then(|(_, pane)| pane.agent.kind()) else {
+        return false;
+    };
+    let Some(account) = m
+        .live
+        .accounts
+        .launched
+        .account(pane)
+        .map(|id| key(kind, id))
+    else {
         return false;
     };
     let fresh = usage_by_account(
@@ -524,27 +695,25 @@ fn record_usage(m: &mut Model, pane: &PaneId, event: &serde_json::Value, at: u64
 
 // ── switching ─────────────────────────────────────────────────────────
 
-/// A workspace as the switching logic reads it, with the account it reads
-/// from its folder; `running` = a Claude Code is up in the pane.
-fn switch_workspace(m: &Model, workspace: &Workspace) -> SwitchWorkspace {
+/// A workspace as the switching logic reads it for `kind`'s accounts, with
+/// the account it reads from its folder; `running` = an agent is up in the
+/// pane, on an account.
+fn switch_workspace(m: &Model, workspace: &Workspace, kind: AgentKind) -> SwitchWorkspace {
     let live = &m.live.accounts;
+    let levels = AccountLevels::of_kind(m.state(), workspace, None, kind);
     SwitchWorkspace {
         id: workspace.id.clone(),
-        claude_account: workspace.claude_account.clone(),
-        folder_account: crate::state::folders::account_of(&m.state().folders, workspace)
-            .map(str::to_string),
+        kind,
+        account: levels.workspace,
+        folder_account: levels.folder,
         panes: workspace
             .panes
             .iter()
             .map(|pane| SwitchPane {
                 id: pane.id.clone(),
                 // A pane opened to log in runs no agent: nothing to restart.
-                agent: if pane.login == Some(true) {
-                    "login".to_string()
-                } else {
-                    pane.agent.as_str().to_string()
-                },
-                claude_account: pane.claude_account.clone(),
+                kind: Live::kind_of(pane),
+                account: pane.account(kind).map(str::to_string),
                 // A pane on a node runs on the node's login: no account of
                 // this computer's to restart it on.
                 running: live.launched.is_running(&pane.id)
@@ -554,11 +723,11 @@ fn switch_workspace(m: &Model, workspace: &Workspace) -> SwitchWorkspace {
     }
 }
 
-fn switch_workspaces(m: &Model) -> Vec<SwitchWorkspace> {
+fn switch_workspaces(m: &Model, kind: AgentKind) -> Vec<SwitchWorkspace> {
     m.state()
         .workspaces
         .iter()
-        .map(|workspace| switch_workspace(m, workspace))
+        .map(|workspace| switch_workspace(m, workspace, kind))
         .collect()
 }
 
@@ -572,31 +741,33 @@ fn running_ids(panes: Vec<&SwitchPane>) -> Vec<PaneId> {
         .collect()
 }
 
-/// How many running agents a switch in this scope would restart.
-fn running_in(m: &Model, ws: &WsId, scope: SwitchScope) -> usize {
+/// How many running agents a switch of `kind`'s account in this scope would
+/// restart.
+fn running_in(m: &Model, ws: &WsId, kind: AgentKind, scope: SwitchScope) -> usize {
     match scope {
         SwitchScope::Workspace => m
             .workspace(ws)
-            .map(|workspace| switch_workspace(m, workspace))
+            .map(|workspace| switch_workspace(m, workspace, kind))
             .map_or(0, |workspace| {
                 running_count(&panes_to_restart_on_workspace_change(&workspace))
             }),
-        SwitchScope::Default => {
-            running_count(&panes_to_restart_on_default_change(&switch_workspaces(m)))
-        }
+        SwitchScope::Default => running_count(&panes_to_restart_on_default_change(
+            &switch_workspaces(m, kind),
+        )),
     }
 }
 
 fn apply_switch(
     m: &mut Model,
     ws: &WsId,
+    kind: AgentKind,
     id: AccountId,
     scope: SwitchScope,
     restart: bool,
 ) -> Task<Message> {
     match scope {
-        SwitchScope::Workspace => set_workspace_account(m, ws, Some(id), restart),
-        SwitchScope::Default => set_default_account(m, id, restart),
+        SwitchScope::Workspace => set_workspace_account(m, ws, kind, Some(id), restart),
+        SwitchScope::Default => set_default_account(m, kind, id, restart),
     }
 }
 
@@ -618,6 +789,7 @@ fn restart_task(ws: &WsId, panes: Vec<PaneId>) -> Task<Message> {
 fn set_workspace_account(
     m: &mut Model,
     ws: &WsId,
+    kind: AgentKind,
     id: Option<AccountId>,
     restart: bool,
 ) -> Task<Message> {
@@ -626,11 +798,11 @@ fn set_workspace_account(
     };
     // Which panes follow is decided before the change; ids survive it, and
     // the respawn re-resolves the account at launch.
-    let switch = switch_workspace(m, workspace);
+    let switch = switch_workspace(m, workspace, kind);
     let panes = running_ids(panes_to_restart_on_workspace_change(&switch));
     m.apply(StoreAction::UpdateWorkspace(
         ws.clone(),
-        Patch::new(move |workspace: &mut Workspace| workspace.claude_account = id.clone()),
+        Patch::new(move |workspace: &mut Workspace| *workspace.account_mut(kind) = id.clone()),
     ));
     if restart {
         restart_task(ws, panes)
@@ -639,8 +811,13 @@ fn set_workspace_account(
     }
 }
 
-fn set_default_account(m: &mut Model, id: AccountId, restart: bool) -> Task<Message> {
-    let workspaces = switch_workspaces(m);
+fn set_default_account(
+    m: &mut Model,
+    kind: AgentKind,
+    id: AccountId,
+    restart: bool,
+) -> Task<Message> {
+    let workspaces = switch_workspaces(m, kind);
     let affected: Vec<(WsId, Vec<PaneId>)> = workspaces
         .iter()
         .filter(|workspace| follows_default(workspace))
@@ -652,7 +829,7 @@ fn set_default_account(m: &mut Model, id: AccountId, restart: bool) -> Task<Mess
         })
         .collect();
     m.apply(StoreAction::UpdateSettings(Patch::new(
-        move |settings: &mut Settings| settings.claude_account = Some(id.clone()),
+        move |settings: &mut Settings| *settings.account_mut(kind) = Some(id.clone()),
     )));
     if !restart {
         return Task::none();
@@ -664,36 +841,45 @@ fn set_default_account(m: &mut Model, id: AccountId, restart: bool) -> Task<Mess
     )
 }
 
-/// The account of a folder's workspaces, those that chose none of their own
-/// (read at each launch, never copied). Nothing restarts here, as for a pick
-/// in a workspace's menu: their agents move on their next launch, or by
-/// themselves between turns when the person does not want to be asked
+/// The account of `kind` of a folder's workspaces, those that chose none of
+/// their own (read at each launch, never copied). Nothing restarts here, as
+/// for a pick in a workspace's menu: their agents move on their next launch,
+/// or by themselves between turns when the person does not want to be asked
 /// (`follow`).
-fn set_folder_account(m: &mut Model, folder: String, id: Option<AccountId>) {
+fn set_folder_account(m: &mut Model, folder: String, kind: AgentKind, id: Option<AccountId>) {
     m.apply(StoreAction::UpdateFolder(
         folder,
         Patch::new(move |folder: &mut crate::state::types::WorkspaceFolder| {
-            folder.claude_account = id.clone();
+            *folder.account_mut(kind) = id.clone();
         }),
     ));
 }
 
-/// The person's pick in the pane's menu: a running agent restarts on it,
-/// conversation kept — at once when they asked to be asked
-/// (`account_switch_ask`), otherwise once it has nothing to lose (`follow`,
-/// run by the panes).
+/// The person's pick in the pane's menu, an account of its agent's kind: a
+/// running agent restarts on it, conversation kept — at once when they asked
+/// to be asked (`account_switch_ask`), otherwise once it has nothing to lose
+/// (`follow`, run by the panes).
 fn set_pane_account(
     m: &mut Model,
     ws: &WsId,
     pane: &PaneId,
     id: Option<AccountId>,
 ) -> Task<Message> {
+    let Some(kind) = m
+        .find_pane(pane)
+        .filter(|(found, _)| found.id == *ws)
+        .and_then(|(_, pane)| Live::kind_of(pane))
+    else {
+        return Task::none();
+    };
     // Unasked, the pane moves on its own once it has nothing to lose.
     let running = m.settings().account_switch_ask && m.live.accounts.launched.is_running(pane);
     m.apply(StoreAction::UpdatePane {
         ws: ws.clone(),
         pane: pane.clone(),
-        patch: Patch::new(move |pane: &mut crate::state::Pane| pane.claude_account = id.clone()),
+        patch: Patch::new(move |pane: &mut crate::state::Pane| {
+            *pane.account_mut(kind) = id.clone();
+        }),
     });
     if running {
         restart_task(ws, vec![pane.clone()])
@@ -736,7 +922,7 @@ pub fn folder_menu_items<'a>(ctx: Ctx<'a>, folder: &'a str) -> Vec<MenuEntry> {
     menu_items::folder_entries(ctx, folder)
 }
 
-/// The workspace dialog's account picker. `value` is the account the
+/// The workspace dialog's Claude account picker. `value` is the account the
 /// workspace being made has chosen for itself (`None`: none, it follows its
 /// folder's, else the default; `DEFAULT_CHOICE`: the default over the
 /// folder's), `folder` the account its folder names, if any.
@@ -745,7 +931,9 @@ pub fn workspace_picker<'a>(
     value: Option<&'a str>,
     folder: Option<&'a str>,
 ) -> Element<'a, Message> {
-    picker::view(ctx, value, folder)
+    picker::view(ctx, AgentKind::Claude, value, folder, |id| {
+        Message::WorkspaceDialog(crate::workspace_dialog::Msg::Account(id))
+    })
 }
 
 /// Settings › Accounts (embedded by the settings).
@@ -753,11 +941,15 @@ pub fn settings_page<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
     settings_page::view(&st.page, ctx)
 }
 
-/// Whether there is any account to choose from (the dialog shows the picker
-/// then).
+/// Whether there is any Claude account to choose from (the dialog shows the
+/// picker then).
 pub fn has_any(ctx: Ctx<'_>) -> bool {
+    has_any_of(ctx, AgentKind::Claude)
+}
+
+/// Whether there is any account of `kind` to choose from.
+pub fn has_any_of(ctx: Ctx<'_>, kind: AgentKind) -> bool {
     live(ctx)
-        .accounts
-        .as_ref()
+        .of(kind)
         .is_some_and(|accounts| !accounts.is_empty())
 }

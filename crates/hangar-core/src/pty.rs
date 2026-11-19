@@ -2474,8 +2474,11 @@ mod tests {
     /// the path published as a link to it once it listens — or, `direct`,
     /// the socket bound at the path itself. `busy`: it also runs a command in
     /// a session of its own, as Codex runs them, and a helper. It removes
-    /// what it made on `SIGTERM`, as Codex does. Its arguments end with the
-    /// fake's own, so its command line reads as a Codex server's.
+    /// what it made on `SIGTERM`, as Codex does. A socket of its own left
+    /// beside the path by a server killed before it could remove it (the
+    /// runtime folder is the machine's, shared by every run of these tests)
+    /// is removed before it binds. Its arguments end with the fake's own, so
+    /// its command line reads as a Codex server's.
     #[cfg(unix)]
     const FAKE_SERVER: &str = r#"import os, signal, socket, subprocess, sys
 here, direct, busy = sys.argv[1], sys.argv[2] == "1", sys.argv[3] == "1"
@@ -2493,6 +2496,11 @@ if busy:
     subprocess.Popen(["sh", "-c", "echo $$ > \"$0/job\"; sleep 600; true", here], start_new_session=True)
     subprocess.Popen(["sleep", "600"])
 server = socket.socket(socket.AF_UNIX)
+if not direct:
+    try:
+        os.unlink(bound)
+    except OSError:
+        pass
 server.bind(bound)
 if not direct:
     os.chmod(bound, 0o600)

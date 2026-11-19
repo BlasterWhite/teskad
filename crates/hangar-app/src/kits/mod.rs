@@ -6,11 +6,13 @@
 //! strings/kitsManage.ts (inventory §2.4/1.1–1.3, PACKAGES.md).
 //!
 //! A kit is a folder with a `hangar-kit.json`, linked from disk or cloned from
-//! a GitHub link, that brings a domain into Hangar: a Claude Code plugin,
+//! a GitHub link, that brings a domain into Hangar: a plugin for the agents,
 //! tabs of its own, setup commands (docs/kits.md). This package is where a
 //! person adds one (from a folder, from a GitHub link, from the library),
-//! updates and removes it, reads what it will run and says yes to it, once for
-//! a workspace or for all of them.
+//! updates and removes it, reads what it will run and what reaches Claude Code
+//! and Codex, and says yes to it, once for a workspace or for all of them; and
+//! where a kit's skills and hooks are added to Codex, which takes them only
+//! installed (`codex`, docs/native/agents.md §6.4).
 //!
 //! What it gives the shell and the other packages:
 //!
@@ -28,14 +30,14 @@
 //! `activation` (the diff between what a kit asks and what a workspace
 //! accepted), `setup` (typing a setup command into a pane), `gallery` (the
 //! library's versions and filter), `icon` (reading and drawing the icon),
-//! `update` (the messages), `views/` (the screens).
+//! `codex` (« Add to Codex »), `update` (the messages), `views/` (the screens).
 
 use std::collections::HashMap;
 use std::path::PathBuf;
 
 use iced::{Element, Subscription, Task};
 
-use hangar_core::kits::{Inspection, KitInfo, StepStatus, UpdateInfo};
+use hangar_core::kits::{CodexPlugin, Inspection, KitInfo, StepStatus, UpdateInfo};
 
 use crate::ctx::Ctx;
 use crate::message::{Intent, Message};
@@ -45,6 +47,7 @@ use crate::state::types::WorkspaceKit;
 use crate::state::{Model, PaneId, WsId};
 
 pub mod activation;
+pub mod codex;
 pub mod gallery;
 #[cfg(test)]
 mod guarded;
@@ -56,6 +59,7 @@ mod testing;
 mod update;
 mod views;
 
+use codex::{CodexEntries, CodexOp};
 use gallery::Gallery;
 use icon::IconBytes;
 use setup::SetupRunResult;
@@ -194,6 +198,8 @@ pub struct State {
     restarted: Option<WsId>,
     activation: Option<Activation>,
     page: Page,
+    /// Where each installed kit stands with Codex, by id.
+    codex: CodexEntries,
 }
 
 /// The kits chosen for a workspace that is being created, as the section of
@@ -322,6 +328,25 @@ pub enum Msg {
     ReviewEverywhere(String),
     DismissEverywhereRestart,
     ManageWorkspace(WsId),
+
+    // -- « Add to Codex » ------------------------------------------------------------------
+    /// `kit_codex_status` answered.
+    CodexRead(String, Result<Box<CodexPlugin>, String>),
+    /// « Add to Codex », « Remove from Codex »: shows what it adds and the
+    /// commands it runs, to be confirmed; `None` takes that back.
+    CodexAsk {
+        kit: String,
+        op: Option<CodexOp>,
+    },
+    /// The confirmation: runs it.
+    CodexRun {
+        kit: String,
+        op: CodexOp,
+    },
+    CodexDone {
+        kit: String,
+        result: Result<Box<CodexPlugin>, String>,
+    },
 
     // -- the library -----------------------------------------------------------------------
     Gallery(Result<Gallery, String>),

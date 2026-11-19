@@ -197,7 +197,7 @@ fn set_up<'a>(ctx: Ctx<'a>, kind: AgentKind) -> Element<'a, Message> {
         ctx.i18n
             .t_with(Key::CreateSetUp, &args!("agent" => kind.info().label))
             .into_owned(),
-        Message::Intent(Intent::OpenOverlay(Overlay::ClaudeSetup)),
+        Message::Intent(Intent::OpenOverlay(Overlay::AgentSetup)),
     )
 }
 

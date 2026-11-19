@@ -163,7 +163,7 @@ fn an_agent_that_is_not_installed_is_greyed_with_the_reason_and_a_link_to_the_se
     ui.click("Set up Codex").expect("the link to the setup");
     assert!(messages(ui).iter().any(|message| matches!(
         message,
-        Message::Intent(Intent::OpenOverlay(Overlay::ClaudeSetup))
+        Message::Intent(Intent::OpenOverlay(Overlay::AgentSetup))
     )));
     // Its « + » is off; were it asked all the same, nothing is added.
     let mut st = st;

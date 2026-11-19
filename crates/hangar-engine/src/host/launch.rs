@@ -28,21 +28,27 @@
 //! « Attach Hangar to Codex » is on and the server starts (D5), Codex's plain
 //! TUI otherwise (the floor, D6), with its settings in the shell's
 //! `HANGAR_CODEX_*` variables; the host keeps which, and why
-//! (`EngineHost::agent_server`).
+//! (`EngineHost::agent_server`), and so does the pane's machine
+//! (`live::SideChannel`). Attached, Hangar's client follows the server
+//! (`agent::codex_attach`) and reports what the session does the way the mod
+//! reports it, into the same machines; it lets go when the pane's shell
+//! ends, the pane closes or restarts (`pty_kill`), or it is unmounted.
 //!
 //! [`Terminals::spawn_agent`]: super::terminals::Terminals::spawn_agent
 
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use hangar_core::agent::codex_attach;
 use hangar_core::agent::launch::{LaunchRequest, McpRequest};
 use hangar_core::agent::{AgentKind, McpInjection};
-use hangar_core::pty::AgentLaunch;
+use hangar_core::pty::{AgentLaunch, ServerState};
 
 use super::terminals::{AgentStart, Spawn, TermEvent, TermSink};
 use super::{EngineHost, locked};
 use crate::accounts::AccountLevels;
-use crate::live::PaneStatus;
+use crate::live::{PaneStatus, SideChannel};
 use crate::panes::agents::permission_mode;
 use crate::panes::session_watch::session_to_resume;
 use crate::panes::wall_clock_ms;
@@ -273,7 +279,12 @@ pub(super) async fn start(host: EngineHost, ws: Workspace, pane: Pane, launch: u
         let printed = host.printed_of(&pane.id);
         Arc::new(move |event| match event {
             TermEvent::Output(_) => printed.note(wall_clock_ms()),
-            exit @ TermEvent::Exit(_) => host.on_term(exit),
+            TermEvent::Exit(id) => {
+                // Hangar's client of its Codex server, if it had one, goes
+                // with its shell (`agent::codex_attach::detach`).
+                codex_attach::detach(&id);
+                host.on_term(TermEvent::Exit(id));
+            }
         })
     };
     // Blocking, a Codex server's wait included: on tokio's blocking pool.
@@ -306,8 +317,18 @@ pub(super) async fn start(host: EngineHost, ws: Workspace, pane: Pane, launch: u
     let Some(AgentStart { line, server }) = agent else {
         return;
     };
-    host.set_server(&pane.id, server);
     let snapshot = host.snapshot();
+    let attached = match &server {
+        Some(ServerState::Attached { socket }) => Some(PathBuf::from(socket)),
+        _ => None,
+    };
+    if let Some(kind) = pane.agent.kind() {
+        let channel = side_channel(kind, server.as_ref(), &snapshot.state.settings);
+        locked(&host.0.model)
+            .panes
+            .set_side_channel(&pane.id, channel);
+    }
+    host.set_server(&pane.id, server);
     let here = snapshot
         .state
         .workspaces
@@ -316,6 +337,12 @@ pub(super) async fn start(host: EngineHost, ws: Workspace, pane: Pane, launch: u
         .is_some_and(|w| w.panes.iter().any(|p| p.id == pane.id));
     if !here {
         return;
+    }
+    // Hangar's client of the pane's Codex server (D5): it waits for the TUI
+    // the line starts to connect first, then follows its threads and
+    // reports them as the mod does (`EngineHost::feed`).
+    if let Some(socket) = attached {
+        codex_attach::attach(host.core(), &pane.id, &pane.name, socket);
     }
     settle(&host, &pane.id).await;
     let terminals = host.terminals().clone();
@@ -392,6 +419,25 @@ fn agent_launch(
         request: request(ws, pane, settings, found)?,
         attach: settings.codex_attach,
     })
+}
+
+/// How a pane's agent of `kind` was started, as far as its side channel goes
+/// (`live::SideChannel`). A kind Hangar reaches through a server of its own
+/// (`headless.app_server`: Codex, D5) is attached to the `server` its
+/// launch started, or on the floor and why — and on the floor when none was
+/// asked (« Attach Hangar to Codex » off) or these terminals start none.
+/// Any other has the hangar-bridge mod within reach while the settings'
+/// bridge is on.
+fn side_channel(kind: AgentKind, server: Option<&ServerState>, settings: &Settings) -> SideChannel {
+    match server {
+        Some(ServerState::Attached { .. }) => SideChannel::Attached,
+        Some(ServerState::Floor { reason }) => SideChannel::Floor {
+            reason: Some(reason.to_string()),
+        },
+        None if kind.info().caps.headless.app_server => SideChannel::Floor { reason: None },
+        None if settings.claude_bridge => SideChannel::Attached,
+        None => SideChannel::Floor { reason: None },
+    }
 }
 
 /// Waits for the shell to print its prompt and fall quiet, or for
@@ -784,6 +830,54 @@ mod tests {
         assert_eq!(
             account_levels(&state, &ws, &leo, AgentKind::Claude),
             AccountLevels::of(&state, &ws, Some(&leo))
+        );
+    }
+
+    /// What a pane's machine is told of its side channel: Codex attached to
+    /// its server, or on the floor with the reason its status gives, or
+    /// without a server asked; Claude Code with the mod within reach while
+    /// the bridge is on.
+    #[test]
+    fn the_side_channel_follows_the_server_and_the_bridge() {
+        use hangar_core::pty::FloorReason;
+        let on = Settings::default();
+        assert!(on.claude_bridge, "the bridge is on by default");
+        let attached = ServerState::Attached {
+            socket: "/run/user/1000/hangar/codex-p1.sock".into(),
+        };
+        assert_eq!(
+            side_channel(AgentKind::Codex, Some(&attached), &on),
+            SideChannel::Attached
+        );
+        let floor = ServerState::Floor {
+            reason: FloorReason::Timeout { seconds: 10 },
+        };
+        let SideChannel::Floor {
+            reason: Some(reason),
+        } = side_channel(AgentKind::Codex, Some(&floor), &on)
+        else {
+            panic!("a floor with its reason");
+        };
+        assert!(
+            reason.starts_with("Codex runs without Hangar attached"),
+            "{reason}"
+        );
+        // « Attach Hangar to Codex » off: no server asked, the floor.
+        assert_eq!(
+            side_channel(AgentKind::Codex, None, &on),
+            SideChannel::Floor { reason: None }
+        );
+        assert_eq!(
+            side_channel(AgentKind::Claude, None, &on),
+            SideChannel::Attached
+        );
+        let off = Settings {
+            claude_bridge: false,
+            ..Settings::default()
+        };
+        assert_eq!(
+            side_channel(AgentKind::Claude, None, &off),
+            SideChannel::Floor { reason: None }
         );
     }
 }

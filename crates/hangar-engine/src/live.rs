@@ -1,10 +1,16 @@
 //! What the engine keeps of each pane and agent beside the persisted state:
-//! activity, insight, the hangar-bridge mod's reports, rate limits. The app
-//! holds these in its read-models (`Model.live`); a Hangar with no window
-//! holds them alone.
+//! activity, insight, the reports of each pane's side channel (the
+//! hangar-bridge mod in a Claude Code, Hangar's client of a Codex pane's
+//! server), rate limits, and what each pane's agent can do now ([`live_caps`]).
+//! The app holds these in its read-models (`Model.live`); a Hangar with no
+//! window holds them alone.
 
 use std::collections::{HashMap, HashSet};
 
+use hangar_core::agent::{
+    Asks, Capabilities, IdleInject, Inject, RoleBriefing, RunningInject, SessionId, StateBriefing,
+    TurnSignal, UsageSource,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -39,8 +45,87 @@ pub type EpochMs = u64;
 pub struct PaneActivity {
     pub workspace_id: WsId,
     pub activity: AgentActivity,
-    /// The state comes from the hangar-bridge mod rather than from a guess.
+    /// The pane's side channel spoke — the hangar-bridge mod in its Claude
+    /// Code, or Hangar's client of its Codex server (`hello`, or any report
+    /// since): the state is reported rather than guessed, and the pane takes
+    /// what is queued for it without typing.
     pub bridged: bool,
+}
+
+/// How a pane's agent was started, as far as its side channel goes
+/// (docs/native/agents.md §3.2, D5, D6): what its launch set up, which the
+/// side channel proves by speaking (`PaneActivity::bridged`), or why there
+/// is none.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum SideChannel {
+    /// Not said: a shell, a pane mirrored from its node, a pane whose launch
+    /// was not the engine's.
+    #[default]
+    Unknown,
+    /// Set up: the hangar-bridge mod within reach of its Claude Code, or
+    /// Hangar's client following the Codex pane's own server.
+    Attached,
+    /// None: Claude Code with the mod turned off, or Codex's plain TUI (the
+    /// floor, D6). `reason`: why, as the pane's status says it, when there
+    /// is something to say (`FloorReason`).
+    Floor { reason: Option<String> },
+}
+
+/// What a pane's agent can do now — its live capabilities
+/// (docs/native/agents.md §3.2): its kind's levels (`AgentInfo::caps`, the
+/// best the tested version does) while its side channel speaks (`spoke`:
+/// the pane is `bridged`), and the floor otherwise. The floor is the same
+/// for every kind, read from the levels and never from the kind (D3): what
+/// only a side channel carries drops to what the terminal gives.
+///
+/// - **turns**: guessed from the terminal (`Inferred`): its output, its
+///   title, its bell and notifications (`panes::pane_agent`).
+/// - **inject**: typed when the agent is idle; a running turn is not reached.
+/// - **approvals, questions** a side channel holds: keys, checked on screen.
+/// - **briefing**: what reaches the session through its side channel — the
+///   state, and a role in the system prompt (the mod's) — goes as a labelled
+///   first message; a role that rides the launch line (Codex's developer
+///   instructions, on the floor's line too) stays.
+/// - **sessions**: the id is hunted in the agent's history folder.
+/// - **usage**: the context and the limits come from the history the agent
+///   writes when it writes one; limits only a side channel of Hangar's
+///   reports (the mod's) are not known. The protocol's exact limits are also
+///   in the agent's history (Codex's rollout `rate_limits`, §3.5).
+pub fn live_caps(caps: &Capabilities, spoke: bool) -> Capabilities {
+    if spoke {
+        return *caps;
+    }
+    let mut floor = *caps;
+    if floor.turns == TurnSignal::Reported {
+        floor.turns = TurnSignal::Inferred;
+    }
+    floor.inject = Inject {
+        idle: IdleInject::Type,
+        running: RunningInject::None,
+    };
+    let held = |asks: Asks| if asks == Asks::Held { Asks::Keys } else { asks };
+    floor.approvals = held(floor.approvals);
+    floor.questions = held(floor.questions);
+    if floor.briefing.role == RoleBriefing::SystemPrompt {
+        floor.briefing.role = RoleBriefing::FirstMessage;
+    }
+    floor.briefing.state = StateBriefing::FirstMessage;
+    floor.sessions.id = SessionId::Hunted;
+    let on_disk = if floor.transcript.is_some() {
+        UsageSource::Transcript
+    } else {
+        UsageSource::None
+    };
+    floor.usage.context = match floor.usage.context {
+        UsageSource::Reported | UsageSource::Protocol => on_disk,
+        other => other,
+    };
+    floor.usage.limits = match floor.usage.limits {
+        UsageSource::Reported => UsageSource::None,
+        UsageSource::Protocol => on_disk,
+        other => other,
+    };
+    floor
 }
 
 /// How many of a workspace's agents are working, waiting, or done
@@ -102,7 +187,7 @@ pub struct PlanLimits {
     pub at: EpochMs,
 }
 
-/// A prompt held until the pane's Claude Code is free (`QueuedPrompt`).
+/// A prompt held until the pane's agent is free (`QueuedPrompt`).
 pub type QueuedPrompt = hangar_core::bridge::Queued;
 
 /// The context gauge of a pane header (`ContextGauge`).
@@ -246,8 +331,10 @@ pub struct PaneInsight {
     pub mcp: Option<PaneMcp>,
 }
 
-/// What a pane's hangar-bridge mod reports (`BridgeEvent` of
-/// `lib/bridge.ts`). Core hands it over as raw JSON
+/// What a pane's side channel reports (`BridgeEvent` of `lib/bridge.ts`):
+/// the hangar-bridge mod from inside a Claude Code, or Hangar's own client
+/// of a Codex pane's server (`agent/codex_attach.rs`), which reports the
+/// same kinds in the same shapes. Core hands it over as raw JSON
 /// (`CoreEvent::Bridge`); `BridgeEvent::parse` reads it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
@@ -394,6 +481,48 @@ mod tests {
             Some(BridgeEvent::Turn(TurnPhase::Start))
         );
         assert_eq!(BridgeEvent::parse(&json!({"kind": "future"})), None);
+    }
+
+    /// A side channel that speaks gives the kind's levels; without one,
+    /// both kinds fall to the same floor, each keeping what rides its
+    /// launch or its history rather than the side channel.
+    #[test]
+    fn the_live_capabilities_fall_to_the_floor_until_the_side_channel_speaks() {
+        use hangar_core::agent::AgentKind;
+        for kind in AgentKind::ALL {
+            let caps = kind.info().caps;
+            assert_eq!(live_caps(&caps, true), caps, "{kind:?} speaking");
+            let floor = live_caps(&caps, false);
+            assert_eq!(floor.turns, TurnSignal::Inferred, "{kind:?}");
+            assert_eq!(
+                floor.inject,
+                Inject {
+                    idle: IdleInject::Type,
+                    running: RunningInject::None,
+                },
+                "{kind:?}"
+            );
+            assert_eq!((floor.approvals, floor.questions), (Asks::Keys, Asks::Keys));
+            assert_eq!(floor.briefing.state, StateBriefing::FirstMessage);
+            assert_eq!(floor.sessions.id, SessionId::Hunted);
+            // What does not depend on a side channel stays the kind's.
+            assert_eq!(floor.launch, caps.launch);
+            assert_eq!(floor.transcript, caps.transcript);
+            assert_eq!(floor.mcp, caps.mcp);
+            assert_eq!(floor.sessions.resume, caps.sessions.resume);
+        }
+        // Claude Code without its mod: no role in the system prompt, plan
+        // limits unknown, the context from its transcript as ever.
+        let claude = live_caps(&AgentKind::Claude.info().caps, false);
+        assert_eq!(claude.briefing.role, RoleBriefing::FirstMessage);
+        assert_eq!(claude.usage.context, UsageSource::Transcript);
+        assert_eq!(claude.usage.limits, UsageSource::None);
+        // Codex on the floor: its role still on its line, usage and limits
+        // from its rollouts.
+        let codex = live_caps(&AgentKind::Codex.info().caps, false);
+        assert_eq!(codex.briefing.role, RoleBriefing::DeveloperInstructions);
+        assert_eq!(codex.usage.context, UsageSource::Transcript);
+        assert_eq!(codex.usage.limits, UsageSource::Transcript);
     }
 
     /// The shapes of crates/hangar-core/claude-mod/hangar-bridge/hooks/

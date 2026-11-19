@@ -2,7 +2,9 @@
 //! desktop's terminals use (alacritty's), fed the pane's output, read as text.
 //!
 //! What it is for: an agent reading another pane (`pane_read`), the trust
-//! question looked for on screen, and the answers a program asks of its
+//! question looked for on screen, the title its program sets (an agent's
+//! own title tells its turns where no side channel does:
+//! `panes::pane_agent::title_says`), and the answers a program asks of its
 //! terminal (the cursor's position, the device's attributes), written back
 //! to the pane as a window's terminal would: a program that asks and is
 //! never answered can wait for good.
@@ -23,18 +25,26 @@ use alacritty_terminal::vte::ansi::Processor;
 /// (benches/scale.rs, `memory`).
 pub const HISTORY: usize = 2_000;
 
-/// What the emulator says back to the program.
+/// What the emulator says back to the program, and the title the program
+/// set: `Some("")` once it asked for the default back.
 #[derive(Clone, Default)]
-struct Answers(Arc<Mutex<Vec<String>>>);
+struct Answers(Arc<Mutex<Vec<String>>>, Arc<Mutex<Option<String>>>);
 
 impl EventListener for Answers {
     fn send_event(&self, event: Event) {
-        if let Event::PtyWrite(text) = event {
-            self.0
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .push(text);
-        }
+        let title = match event {
+            Event::PtyWrite(text) => {
+                self.0
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .push(text);
+                return;
+            }
+            Event::Title(title) => title,
+            Event::ResetTitle => String::new(),
+            _ => return,
+        };
+        *self.1.lock().unwrap_or_else(PoisonError::into_inner) = Some(title);
     }
 }
 
@@ -120,6 +130,16 @@ impl Screen {
         self.term.resize(Size { columns, rows });
         self.columns = columns;
         self.rows = rows;
+    }
+
+    /// The title the program last set (OSC 0 or 2), empty once it asked for
+    /// the default back; `None` when it never set one.
+    pub fn title(&self) -> Option<String> {
+        self.answers
+            .1
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     /// The program asked for pastes to be bracketed.
@@ -290,6 +310,24 @@ impl Screens {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The title a program sets, as Codex sets its own (OSC 0 ended by a
+    /// BEL, `tui/src/terminal_title.rs`), and an empty one once it lets go.
+    #[test]
+    fn keeps_the_title_the_program_set() {
+        let mut screen = Screen::new(40, 10);
+        assert_eq!(screen.title(), None);
+        screen.feed("\x1b]0;⠋ Fix login timeout | project\x07".as_bytes());
+        assert_eq!(
+            screen.title().as_deref(),
+            Some("⠋ Fix login timeout | project")
+        );
+        screen.feed(b"\x1b]2;project\x1b\\");
+        assert_eq!(screen.title().as_deref(), Some("project"));
+        screen.feed(b"\x1b]0;\x07");
+        assert_eq!(screen.title().as_deref(), Some(""));
+        assert!(screen.lines(5).is_empty(), "a title prints nothing");
+    }
 
     #[test]
     fn reads_what_was_printed_without_its_escapes() {

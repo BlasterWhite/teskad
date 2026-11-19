@@ -19,6 +19,7 @@ fn entry() -> GalleryKit {
         permissions_summary: "Runs gh.".into(),
         tags: vec!["ci".into(), "github".into()],
         verified: true,
+        agents: Vec::new(),
     }
 }
 
@@ -350,4 +351,34 @@ fn writes_the_date_of_a_kept_copy_the_way_each_language_does() {
     assert_eq!(format_date(0, Locale::En), "1/1/1970");
     // A leap day.
     assert_eq!(format_date(1_709_164_800_000, Locale::Fr), "29/02/2024");
+}
+
+/// Which agents a library kit is for: its own manifest once it is on this
+/// machine, the catalog's word before.
+#[test]
+fn says_which_agents_a_kit_is_for() {
+    use hangar_core::agent::AgentKind;
+
+    let agents =
+        |model: &GalleryModel| cards(model)[0].agents.as_ref().map(|tag| tag.label.clone());
+    // The catalog says nothing: nothing is said.
+    assert_eq!(agents(&Draw::new().en()), None);
+
+    let mut draw = Draw::new();
+    draw.gallery = Some(Gallery {
+        kits: vec![GalleryKit {
+            agents: vec![AgentKind::Codex],
+            ..entry()
+        }],
+        ..live()
+    });
+    assert_eq!(agents(&draw.en()).as_deref(), Some("Codex only"));
+
+    // Installed, its manifest says it.
+    draw.installed = Some(vec![KitInfo {
+        id: "ci-status".into(),
+        ..crate::kits::testing::kit("0.2.0", vec![])
+    }]);
+    assert_eq!(agents(&draw.en()).as_deref(), Some("Claude Code only"));
+    assert!(draw.en().text().contains("Claude Code only"));
 }
