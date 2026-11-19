@@ -11,7 +11,7 @@ use super::port::{ModelCmd, Port};
 use super::types::{Caller, normalize, same, text};
 
 /// Every operation, while the setting is off.
-pub const DISABLED: &str = "Pane control is turned off in Hangar.AI (Settings › General › Agents). Ask the user to turn it on.";
+pub const DISABLED: &str = "Pane control is turned off in HangarAI (Settings › General › Agents). Ask the user to turn it on.";
 
 /// Said wherever a sleeping workspace is the reason nothing runs.
 pub const ASLEEP: &str = "Hangar put it to sleep to free memory, as nobody had used it for a while: its agents were stopped, \

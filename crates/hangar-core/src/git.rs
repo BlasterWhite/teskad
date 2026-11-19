@@ -2823,7 +2823,7 @@ pub(crate) fn exclude_locally(root: &Path, dir: &str, probe: &str) {
         body.push('\n');
     }
     body.push_str(&format!(
-        "# Hangar.AI: the workspace's local task board\n/{prefix}{dir}/\n"
+        "# HangarAI: the workspace's local task board\n/{prefix}{dir}/\n"
     ));
     if let Some(parent) = exclude.parent() {
         let _ = std::fs::create_dir_all(parent);

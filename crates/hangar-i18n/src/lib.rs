@@ -18,7 +18,7 @@
 //!
 //! // A sentence with a placeholder. Text is put in as it is.
 //! let hint = tr.t_with(Key::SidebarVersion, &args!("version" => "1.12.1"));
-//! assert_eq!(hint, "Hangar.AI 1.12.1");
+//! assert_eq!(hint, "HangarAI 1.12.1");
 //!
 //! // A counted sentence: the language decides which form `n` takes. French
 //! // reads 0 and 1 as singular, English only 1, and `{n}` is written the way

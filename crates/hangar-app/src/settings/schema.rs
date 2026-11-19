@@ -1375,7 +1375,7 @@ fn about(ctx: &Context, version: &str) -> Category {
     let tx = |key: Key| t.t(key).into_owned();
     let mut identity = vec![item(
         "appName",
-        Some("Hangar.AI".to_string()),
+        Some("HangarAI".to_string()),
         Kind::Text {
             value: "hangar-ai".to_string(),
         },

@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/logo.png" alt="Hangar.AI logo" width="88" height="88">
+  <img src="assets/logo.png" alt="HangarAI logo" width="88" height="88">
 </p>
 
-<h1 align="center">Hangar.AI</h1>
+<h1 align="center">HangarAI</h1>
 
 <p align="center">
   <b>Run a team of Claude Code agents in one native window, and steer them from your phone.</b><br>

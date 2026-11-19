@@ -324,7 +324,7 @@ mod tests {
         );
         assert_eq!(
             fr.t_with(Key::SidebarVersion, &args!("version" => "1.12.1")),
-            "Hangar.AI 1.12.1"
+            "HangarAI 1.12.1"
         );
         assert_eq!(Translator::default(), en);
     }

@@ -105,7 +105,7 @@ jobs:
             prerelease=false
             case "$TAG" in *-*) prerelease=true ;; esac
             id=$(jq -n --arg tag "$TAG" --arg body "$NOTES" --argjson pre "$prerelease" \
-                  '{ tag_name: $tag, name: ("Hangar.AI " + $tag),
+                  '{ tag_name: $tag, name: ("HangarAI " + $tag),
                      body: $body, draft: true, prerelease: $pre }' \
                  | gh api --method POST "repos/$GITHUB_REPOSITORY/releases" \
                      --input - --jq .id)

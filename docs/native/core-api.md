@@ -1954,7 +1954,7 @@ does not:
   own (`open_workspace_window`, src/lib/windows.ts): the ids checked
   (non-empty, at most 64 characters, ASCII letters, digits, `-`, `_`; the
   same for the pane ids in `resume`), the window labelled
-  `workspace-<id>`, titled `<title> — Hangar.AI`, at least 640×420, showing
+  `workspace-<id>`, titled `<title> — HangarAI`, at least 640×420, showing
   that workspace (and starting the `resume` panes on their sessions whatever
   the auto-resume setting). It opened at the saved `bounds { x, y, width,
   height }` (logical pixels) when their title bar — the point half way
@@ -1968,7 +1968,7 @@ does not:
   window (their shells keep running) and then called
   `close_workspace_window`; a window that had not done so 4 s later was
   destroyed anyway. The main window is 1360×860, at least 900×560, centred,
-  titled `Hangar.AI`; its end is the app's (`Core::shutdown`, then exit). The
+  titled `HangarAI`; its end is the app's (`Core::shutdown`, then exit). The
   windows also saved their bounds as they moved and resized, set their title
   and full screen (src/App.tsx), and took files dropped on them
   (src/lib/fileDrop.ts).

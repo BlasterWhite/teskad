@@ -338,7 +338,7 @@ mod tests {
         let card = build(&on(), None, None).unwrap();
         assert_eq!(card.large_url.as_deref(), Some(REPO_URL));
         assert_eq!(card.button_url.as_deref(), Some(REPO_URL));
-        assert_eq!(card.button_label.as_deref(), Some("Get Hangar.AI"));
+        assert_eq!(card.button_label.as_deref(), Some("Get HangarAI"));
         assert_eq!(card.started_at, Some(1_700_000_000_000));
         assert!(card.large_image.ends_with("/assets/logo.png"));
     }

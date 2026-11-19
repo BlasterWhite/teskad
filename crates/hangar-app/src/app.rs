@@ -167,7 +167,7 @@ pub fn run() -> iced::Result {
 
 /// What an agent asking before the state is in is told, word for word as
 /// control.ts and remoteControl.ts said it.
-const STARTING: &str = "Hangar.AI is still starting. Try again in a moment.";
+const STARTING: &str = "HangarAI is still starting. Try again in a moment.";
 
 /// The app's log file, in the system's log folder (`Paths::app_log_dir`).
 const LOG_FILE: &str = "hangar.log";
@@ -621,14 +621,17 @@ impl App {
         }
     }
 
+    /// A window's title: the name, with the domain when the system draws the
+    /// title bar (shell/title_bar.rs: Hangar's own band shows it itself).
     fn title(&self, window: window::Id) -> String {
-        match self.model.live.windows.get(&window) {
-            Some(WindowKind::Workspace(id)) => match self.model.workspace(id) {
-                Some(ws) => format!("{} — Hangar.AI", ws.name),
-                None => "Hangar.AI".into(),
-            },
-            _ => "Hangar.AI".into(),
-        }
+        let workspace = match self.model.live.windows.get(&window) {
+            Some(WindowKind::Workspace(id)) => self.model.workspace(id).map(|ws| ws.name.as_str()),
+            _ => None,
+        };
+        crate::shell::title_bar::window_title(
+            workspace,
+            !crate::shell::title_bar::drawn(self.model.settings()),
+        )
     }
 
     /// Each window in its workspace's theme (inventory §1.11).
@@ -859,7 +862,7 @@ mod tests {
         assert_eq!(
             text.text(),
             "Could not read state.json (it is not UTF-8 text). It is kept as \
-             /d/state.json.corrupt.1, and Hangar.AI starts empty."
+             /d/state.json.corrupt.1, and HangarAI starts empty."
         );
         let held = LoadError {
             reason: "permission denied".into(),

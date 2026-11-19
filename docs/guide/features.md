@@ -2,11 +2,11 @@
 
 [← Hangar](../../README.md) · [Guide](README.md)
 
-![Hangar.AI 2.0 on the checkout-v2 workspace: Iris, the orchestrator, sums up the round her workers just finished. Leo's partial refunds and Zoe's CSV export passed their check and their review, all 95 tests pass, and two deliveries wait for you to merge them; she lists what is left for you, the EU card provider and the shipping rates among it. Leo and Zoe, each in a git worktree of its own, have handed in their branches. On the right, the inspector shows Iris's session, her context use, her cost and the Claude plan's usage.](../../.github/assets/hero.webp)
+![HangarAI 2.0 on the checkout-v2 workspace: Iris, the orchestrator, sums up the round her workers just finished. Leo's partial refunds and Zoe's CSV export passed their check and their review, all 95 tests pass, and two deliveries wait for you to merge them; she lists what is left for you, the EU card provider and the shipping rates among it. Leo and Zoe, each in a git worktree of its own, have handed in their branches. On the right, the inspector shows Iris's session, her context use, her cost and the Claude plan's usage.](../../.github/assets/hero.webp)
 
 <p align="center"><sub>Hangar 2.0's panes view on checkout-v2, a sample repository.</sub></p>
 
-Hangar.AI is an open-source desktop app for Windows, macOS and Linux. It runs Claude Code,
+HangarAI is an open-source desktop app for Windows, macOS and Linux. It runs Claude Code,
 as many sessions as you need, each in a real terminal next to plain shells, and gives them
 a shared place to coordinate.
 

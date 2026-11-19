@@ -141,10 +141,9 @@ impl AppPort for LivePort {
             .send(Message::Control(Msg::Model(cmd, answer)));
         Box::pin(async move {
             if !sent {
-                return Err("Hangar.AI is closing.".into());
+                return Err("HangarAI is closing.".into());
             }
-            done.await
-                .map_err(|_| "Hangar.AI is closing.".to_string())?
+            done.await.map_err(|_| "HangarAI is closing.".to_string())?
         })
     }
 
@@ -366,7 +365,7 @@ impl AppPort for LivePort {
         let path = format!("{path}{separator}cwd={}", crate::nodes::wire::encode(cwd));
         let method = method.to_string();
         Box::pin(async move {
-            let port = endpoint.ok_or("Hangar.AI's API is not listening yet.")?;
+            let port = endpoint.ok_or("HangarAI's API is not listening yet.")?;
             let client = crate::nodes::NodeClient {
                 base_url: format!("http://127.0.0.1:{port}"),
                 token,

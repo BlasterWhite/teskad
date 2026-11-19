@@ -220,7 +220,7 @@ pub struct NodeRequest {
 
 /// Said to a node's agent before the state is in.
 const STARTING: &str =
-    "Hangar.AI is still starting on the person's computer. Try again in a moment.";
+    "HangarAI is still starting on the person's computer. Try again in a moment.";
 
 pub fn update(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Message> {
     st.sync_engines(m);

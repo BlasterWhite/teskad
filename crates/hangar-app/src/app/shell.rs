@@ -231,6 +231,20 @@ impl App {
             // its workspace back, the main one ends the app.
             Press::Control(Control::Close) => self.window_event(w, window::Event::CloseRequested),
             Press::Edge(direction) => window::drag_resize(w, direction),
+            // The domain in the band: the site, in the browser, off the UI's
+            // thread (the opener may wait on a slow desktop).
+            Press::Site => Task::perform(
+                async {
+                    let opened = tokio::task::spawn_blocking(|| {
+                        hangar_core::opener::open_url(title_bar::SITE_URL)
+                    })
+                    .await;
+                    if let Ok(Err(error)) = opened {
+                        eprintln!("{} could not be opened: {error}", title_bar::DOMAIN);
+                    }
+                },
+                |()| Message::Noop,
+            ),
         }
     }
 

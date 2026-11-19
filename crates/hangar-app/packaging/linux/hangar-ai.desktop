@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=Hangar.AI
+Name=HangarAI
 Comment=Terminal multiplexer for CLI coding agents, with a shared task board
 Exec=hangar-ai
 Icon=hangar-ai
