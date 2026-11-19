@@ -127,7 +127,13 @@ async fn the_hunt_and_the_gauge_of_a_remote_pane_ask_its_node() {
     remote::publish(node, Some(client));
     let mut m = remote_model(node);
     // A hunt due, the pane having printed since.
-    let mut watch = SessionWatch::new("/home/hangar/demo".into(), HashSet::new(), 0);
+    let mut watch = SessionWatch::for_agent(
+        AgentId::Claude,
+        "/home/hangar/demo".into(),
+        HashSet::new(),
+        0,
+    )
+    .expect("Claude Code resumes its sessions");
     watch.note_output(0);
     m.live.panes_logic.watches.insert("p1".into(), watch);
     let mut st = State {

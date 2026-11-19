@@ -14,6 +14,13 @@
 //! under 64 em the views are icons, and under 46 em the terminal actions fold
 //! into the « … » menu.
 //!
+//! Where no navigator draws the brand (it is hidden, or the window is a
+//! workspace's own) and Hangar draws the title bar, the lead carries it before
+//! the workspace's name, so that `hangarai.dev` stays in view for whoever
+//! watches a stream. It takes what the rest of the bar leaves (`brand_room`),
+//! gives up its version, then its domain, as the bar narrows, and goes with its
+//! name when even that does not fit, rather than push the trail out.
+//!
 //! Gap: iced 0.14's buttons take no keyboard focus, so the view switcher's
 //! arrow-key walk (a radio group) is not here; the `view.*` shortcuts do the
 //! same from anywhere.
@@ -335,18 +342,30 @@ fn bar<'a>(st: &'a State, ctx: Ctx<'a>, ws: &'a Workspace, width: f32) -> Elemen
     let folded = width < 46.0 * EM;
 
     // ---- The lead: the window's buttons the desktop puts on the left, the
-    // navigator's door, the name, the views.
+    // navigator's door, the brand, the name, the views.
     let mut lead = row![].spacing(space::MD).align_y(Alignment::Center);
     if let Some(controls) = title_bar::toolbar(ctx, title_bar::Side::Start) {
         lead = lead.push(controls);
     }
-    if is_main && !settings.navigator_open {
+    let door = is_main && !settings.navigator_open;
+    if door {
         lead = lead.push(
             ui_button::icon_button(t, Icon::SidebarLeft)
                 .tip(tr.t(Key::ToolbarShowNavigator).into_owned())
                 .keys(keys(CommandId::ViewNavigator))
                 .on_press(Message::Intent(Intent::ToggleNavigator)),
         );
+    }
+    // Where the navigator is not drawn, the band says where the software
+    // lives: its name and site, in the room the rest of the bar leaves, then
+    // a hairline between it and the workspace's name.
+    let steps = Steps {
+        show_title,
+        icon_views,
+        folded,
+    };
+    if let Some(brand) = title_bar::toolbar_brand(ctx, brand_room(width, ws, door, steps)) {
+        lead = lead.push(brand).push(sep(t, 0.0));
     }
     if show_title {
         // The name alone: its folder is a detail, in the tooltip.
@@ -467,6 +486,70 @@ fn bar<'a>(st: &'a State, ctx: Ctx<'a>, ws: &'a Workspace, width: f32) -> Elemen
     .align_y(Alignment::Center)
     .height(Length::Fill)
     .into()
+}
+
+/// The steps the bar's width puts it in (the thresholds above).
+#[derive(Debug, Clone, Copy)]
+struct Steps {
+    show_title: bool,
+    icon_views: bool,
+    folded: bool,
+}
+
+// What the rest of the bar takes, in logical pixels, as it is drawn in a
+// window with Hangar's title bar and no navigator (measured on the bar, with
+// the workspace name `alpha`): the lead's padding, the two gaps around the
+// room in the middle, and the trail's padding...
+const BAR_PADDING: f32 = 44.0;
+/// ...the navigator's door and the gap after it...
+const DOOR: f32 = 34.0;
+/// ...the views as icons and as labels...
+const VIEWS_ICONS: f32 = 130.0;
+const VIEWS_LABELS: f32 = 302.0;
+/// ...the workspace's name: the gap before it, its padding, and its text,
+/// of which a character is taken as wide as the widest (a CJK one, 14 px)
+/// up to the box's 200 px...
+const TITLE_FRAME: f32 = 14.0;
+const TITLE_CHAR: f32 = 14.0;
+const TITLE_MAX: f32 = 200.0;
+/// ...and the trail whole, with the views as labels, with them as icons, and
+/// folded.
+const TRAIL_LABELS: f32 = 248.0;
+const TRAIL_ICONS: f32 = 240.0;
+const TRAIL_FOLDED: f32 = 143.0;
+/// The trail also holds what comes and goes: the accounts switcher (110 with
+/// an account called « Principal »), the needs-you button, the Kits button.
+/// The brand leaves the room of the first, the usual one.
+const COMES_AND_GOES: f32 = 110.0;
+/// What the brand adds besides its own width: the gap before it, the gap
+/// between it and the hairline, the hairline, and 8 px of room for a font
+/// that measures wider.
+const BRAND_FRAME: f32 = 8.0 + 8.0 + 1.0 + 8.0;
+
+/// The room the brand has in the lead: the bar's `width` (what the window's
+/// buttons leave) less what the rest of it takes at the step it is in
+/// (`door` is the navigator's door). `title_bar::toolbar_brand` drops the
+/// version, then the domain, as that room runs short, and the whole brand
+/// when not even its name fits, so that it never pushes the trail out of the
+/// window.
+fn brand_room(width: f32, ws: &Workspace, door: bool, steps: Steps) -> f32 {
+    let views = if steps.icon_views {
+        VIEWS_ICONS
+    } else {
+        VIEWS_LABELS
+    };
+    let trail = match (steps.folded, steps.icon_views) {
+        (true, _) => TRAIL_FOLDED,
+        (false, true) => TRAIL_ICONS,
+        (false, false) => TRAIL_LABELS,
+    };
+    let title = if steps.show_title {
+        TITLE_FRAME + (ws.name.chars().count() as f32 * TITLE_CHAR).min(TITLE_MAX)
+    } else {
+        0.0
+    };
+    let door = if door { DOOR } else { 0.0 };
+    width - (BAR_PADDING + door + views + title + trail + COMES_AND_GOES + BRAND_FRAME)
 }
 
 /// A hairline between two groups of controls.
@@ -728,6 +811,8 @@ fn kits_button<'a>(st: &'a State, ctx: Ctx<'a>, ws: &'a Workspace) -> Option<Ele
     )
 }
 
+#[cfg(test)]
+mod brand;
 #[cfg(test)]
 mod interaction;
 #[cfg(test)]

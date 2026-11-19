@@ -1,0 +1,251 @@
+{
+ "fixture": "Written by hand, not recorded (docs/native/agents.md §4.7): from the protocol schema (Codex 0.170.0), ThreadItemsListResponse — the answer to thread/items/list with sortDirection \"desc\" for turns 1 and 2 of the rollout fixture rollout-2026-11-19T16-20-05-019aa0b1-6c2e-7d41-8f3a-1b2c3d4e5f60.jsonl, the same items in the app server's shape (codex-rs/app-server-protocol/src/protocol/v2/item.rs). The \"hologram\" item stands for a kind a later Codex adds.",
+ "response": {
+  "data": [
+   {
+    "item": {
+     "type": "agentMessage",
+     "id": "msg_1d2e3f405162738495a6b7c8",
+     "text": "Sticky on phones too; the new test covers it.",
+     "phase": "final_answer"
+    },
+    "turnId": "019aa0b6-0a11-7b23-8c34-4d5e6f708192",
+    "startedAtMs": 1795106000300,
+    "completedAtMs": 1795106000300
+   },
+   {
+    "item": {
+     "type": "fileChange",
+     "id": "call_P4tch2St1cky8x7Wv6Ut5",
+     "changes": [
+      {
+       "path": "/home/dev/shop/src/header/Header.test.tsx",
+       "kind": {
+        "type": "add"
+       },
+       "diff": "import { render } from \"@testing-library/react\";\n\ntest(\"sticky\", () => {\n  render(<Header />);\n});\n"
+      },
+      {
+       "path": "/home/dev/shop/src/header/old.css",
+       "kind": {
+        "type": "delete"
+       },
+       "diff": ".header { position: fixed; }\n"
+      }
+     ],
+     "status": "completed"
+    },
+    "turnId": "019aa0b6-0a11-7b23-8c34-4d5e6f708192",
+    "startedAtMs": 1795105985700,
+    "completedAtMs": 1795105985700
+   },
+   {
+    "item": {
+     "type": "contextCompaction",
+     "id": "019aa0b7-0c45-7e67-9f78-8091a2b3c4d5"
+    },
+    "turnId": "019aa0b6-0a11-7b23-8c34-4d5e6f708192",
+    "startedAtMs": 1795105950001,
+    "completedAtMs": 1795105950001
+   },
+   {
+    "item": {
+     "type": "hologram",
+     "id": "h_1",
+     "depth": 3
+    },
+    "turnId": "019aa0b6-0a11-7b23-8c34-4d5e6f708192",
+    "startedAtMs": 1795105912011,
+    "completedAtMs": 1795105912011
+   },
+   {
+    "item": {
+     "type": "plan",
+     "id": "019aa0b6-2b34-7d56-8e67-7f8091a2b3c4",
+     "text": "1. Make the header sticky\n2. Check it at 360 px"
+    },
+    "turnId": "019aa0b6-0a11-7b23-8c34-4d5e6f708192",
+    "startedAtMs": 1795105912010,
+    "completedAtMs": 1795105912010
+   },
+   {
+    "item": {
+     "type": "imageGeneration",
+     "id": "ig_5e6f708192a3b4c5",
+     "status": "completed",
+     "revisedPrompt": "A phone-width header with the cart total on the right",
+     "result": "iVBORw0KGgo=",
+     "savedPath": "/home/dev/.codex/generated_images/019aa0b1-6c2e-7d41-8f3a-1b2c3d4e5f60/ig_5e6f708192a3b4c5.png"
+    },
+    "turnId": "019aa0b6-0a11-7b23-8c34-4d5e6f708192",
+    "startedAtMs": 1795105900900,
+    "completedAtMs": 1795105900900
+   },
+   {
+    "item": {
+     "type": "webSearch",
+     "id": "ws_1c2d3e4f5061728394a5b6c7",
+     "query": "",
+     "action": {
+      "type": "openPage",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/position"
+     }
+    },
+    "turnId": "019aa0b6-0a11-7b23-8c34-4d5e6f708192",
+    "startedAtMs": 1795105874250,
+    "completedAtMs": 1795105874250
+   },
+   {
+    "item": {
+     "type": "webSearch",
+     "id": "ws_0a1b2c3d4e5f60718293a4b5",
+     "query": "sticky header mobile safari",
+     "action": {
+      "type": "search",
+      "query": "sticky header mobile safari",
+      "queries": [
+       "sticky header mobile safari",
+       "position sticky ios"
+      ]
+     }
+    },
+    "turnId": "019aa0b6-0a11-7b23-8c34-4d5e6f708192",
+    "startedAtMs": 1795105869500,
+    "completedAtMs": 1795105869500
+   },
+   {
+    "item": {
+     "type": "userMessage",
+     "id": "019aa0b6-0a12-7c34-9d45-6e7f8091a2b3",
+     "content": [
+      {
+       "type": "text",
+       "text": "[Hangar] From agent \"Leo\": check the header on a phone too.",
+       "text_elements": []
+      }
+     ]
+    },
+    "turnId": "019aa0b6-0a11-7b23-8c34-4d5e6f708192",
+    "startedAtMs": 1795105862004,
+    "completedAtMs": 1795105862004
+   },
+   {
+    "item": {
+     "type": "agentMessage",
+     "id": "msg_0c1d2e3f405162738495a6b7",
+     "text": "The header now shows the cart total.",
+     "phase": "final_answer"
+    },
+    "turnId": "019aa0b1-7d3f-7e52-9a4b-2c3d4e5f6071",
+    "startedAtMs": 1795105238121,
+    "completedAtMs": 1795105238121
+   },
+   {
+    "item": {
+     "type": "mcpToolCall",
+     "id": "call_Mcp9b0aRd7Pr0gr3ssQw2E",
+     "server": "hangar",
+     "tool": "board_report_progress",
+     "arguments": {
+      "id": "t-42",
+      "percent": 50,
+      "note": "Header shows the total"
+     },
+     "status": "completed",
+     "result": {
+      "content": [
+       {
+        "type": "text",
+        "text": "{\"ok\":true}"
+       }
+      ],
+      "structuredContent": null
+     },
+     "durationMs": 120
+    },
+    "turnId": "019aa0b1-7d3f-7e52-9a4b-2c3d4e5f6071",
+    "startedAtMs": 1795105231640,
+    "completedAtMs": 1795105231640
+   },
+   {
+    "item": {
+     "type": "fileChange",
+     "id": "call_P4tchH3ad3rT0ta1x9Yz",
+     "changes": [
+      {
+       "path": "/home/dev/shop/src/header/Header.tsx",
+       "kind": {
+        "type": "update",
+        "move_path": null
+       },
+       "diff": "@@ -10,3 +10,4 @@\n <nav>\n   <Logo />\n+  <CartTotal value={total} />\n </nav>\n"
+      }
+     ],
+     "status": "completed"
+    },
+    "turnId": "019aa0b1-7d3f-7e52-9a4b-2c3d4e5f6071",
+    "startedAtMs": 1795105224351,
+    "completedAtMs": 1795105224351
+   },
+   {
+    "item": {
+     "type": "commandExecution",
+     "id": "call_Hd1rG7tq0uWc3sYx9zKp2LmN",
+     "command": "/bin/bash -lc 'rg -n \"total\" src/header'",
+     "commandActions": [
+      {
+       "type": "search",
+       "command": "rg -n total src/header",
+       "query": "total",
+       "path": "src/header"
+      }
+     ],
+     "cwd": "/home/dev/shop",
+     "source": "agent",
+     "status": "completed",
+     "aggregatedOutput": "src/header/Header.tsx:8:  const total = useCartTotal();\n",
+     "exitCode": 0,
+     "durationMs": 41
+    },
+    "turnId": "019aa0b1-7d3f-7e52-9a4b-2c3d4e5f6071",
+    "startedAtMs": 1795105217011,
+    "completedAtMs": 1795105217011
+   },
+   {
+    "item": {
+     "type": "reasoning",
+     "id": "rs_0b1c2d3e4f5061728394a5b6",
+     "summary": [
+      "**Finding the header**"
+     ],
+     "content": []
+    },
+    "turnId": "019aa0b1-7d3f-7e52-9a4b-2c3d4e5f6071",
+    "startedAtMs": 1795105216881,
+    "completedAtMs": 1795105216881
+   },
+   {
+    "item": {
+     "type": "userMessage",
+     "id": "019aa0b1-7d40-7f63-8b5c-3d4e5f607182",
+     "content": [
+      {
+       "type": "text",
+       "text": "Show the cart total in the header",
+       "text_elements": []
+      },
+      {
+       "type": "localImage",
+       "path": "/home/dev/shop/docs/header-mock.png"
+      }
+     ]
+    },
+    "turnId": "019aa0b1-7d3f-7e52-9a4b-2c3d4e5f6071",
+    "startedAtMs": 1795105210404,
+    "completedAtMs": 1795105210404
+   }
+  ],
+  "nextCursor": null,
+  "backwardsCursor": "bwd-1"
+ }
+}

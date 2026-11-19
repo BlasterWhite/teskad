@@ -7,10 +7,10 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 
-use hangar_core::stats::UsageStats;
+use hangar_core::stats::{Bucket, UsageStats, UsageStatsByAgent};
 
 use super::time::{add_days, hour_of, start_of_day, start_of_week, weekday_of};
-use crate::state::types::{AgentId, Workspace};
+use crate::state::types::{AgentKind, Workspace};
 
 /// The periods the page offers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -261,7 +261,7 @@ pub struct Totals {
 }
 
 impl Totals {
-    fn add(&mut self, row: &hangar_core::stats::Bucket) {
+    fn add(&mut self, row: &Bucket) {
         self.input += row.input;
         self.output += row.output;
         self.cache_write += row.cache_write;
@@ -335,9 +335,10 @@ pub struct Summary {
     pub series: Vec<Point>,
     /// Every project of the period, whatever the filter, so any can be picked.
     pub projects: Vec<Ranked>,
-    /// One row, Claude Code's, the only agent Hangar runs (owner's decision,
-    /// 2026-11-03): the desktop page has no card for it any more, but Hangar
-    /// Mobile's statistics screen still ranks agents.
+    /// One row per agent that did anything in the period (Claude Code,
+    /// Codex), ranked by the measure: the "by agent" card, and Hangar
+    /// Mobile's agent ranking. A user of one agent has one row, whose figures
+    /// are the totals'. A row is `unpriced` when a model it ran has no price.
     pub agents: Vec<Ranked>,
     pub models: Vec<Ranked>,
     /// Active time by weekday (Monday first) and hour.
@@ -469,37 +470,110 @@ pub fn pretty_model(model: &str) -> String {
     model.trim().to_owned()
 }
 
-/// A model's name as people say it: "Opus 5.5" for a Claude id (see
-/// [`pretty_model`]), "GPT-5.6 Sol" for an OpenAI one, and anything else
-/// exactly as the transcript wrote it.
-pub fn model_label(id: &str) -> String {
-    // `^gpt-(\d[\d.]*)((?:-[a-z0-9]+)*)$`, case-insensitive.
-    let trimmed = id.trim();
-    if trimmed.len() >= 4 && trimmed[..4].eq_ignore_ascii_case("gpt-") {
-        let rest = &trimmed[4..];
-        let version_len = rest
-            .bytes()
-            .take_while(|b| b.is_ascii_digit() || *b == b'.')
-            .count();
-        if version_len > 0 && rest.as_bytes()[0].is_ascii_digit() {
-            let (version, tail) = rest.split_at(version_len);
-            let words_ok = tail.is_empty()
-                || (tail.starts_with('-')
-                    && tail.split('-').skip(1).all(|word| {
-                        !word.is_empty() && word.bytes().all(|b| b.is_ascii_alphanumeric())
-                    }));
-            if words_ok {
-                let mut parts = vec![format!("GPT-{version}")];
-                parts.extend(
-                    tail.split('-')
-                        .filter(|word| !word.is_empty())
-                        .map(capitalize),
-                );
-                return parts.join(" ");
-            }
+/// `-YYYY-MM-DD` at the end of an OpenAI id: the snapshot, not the model.
+fn without_snapshot(words: &str) -> &str {
+    let at = words.len().saturating_sub(11);
+    match words.get(at..) {
+        Some(tail)
+            if tail.len() == 11
+                && tail.starts_with('-')
+                && tail.bytes().enumerate().all(|(i, b)| match i {
+                    0 | 5 | 8 => b == b'-',
+                    _ => b.is_ascii_digit(),
+                }) =>
+        {
+            &words[..at]
         }
+        _ => words,
     }
-    pretty_model(id)
+}
+
+/// `(-[a-z0-9]+)*`: whole, or nothing.
+fn dashed_words(tail: &str) -> Option<Vec<&str>> {
+    if tail.is_empty() {
+        return Some(Vec::new());
+    }
+    let words: Vec<&str> = tail.strip_prefix('-')?.split('-').collect();
+    words
+        .iter()
+        .all(|word| !word.is_empty() && word.bytes().all(|b| b.is_ascii_alphanumeric()))
+        .then_some(words)
+}
+
+/// `^gpt-(\d[\d.]*)((?:-[a-z0-9]+)*)$`: "gpt-5.3-codex" → "GPT-5.3 Codex",
+/// "gpt-5-2025-08-07" → "GPT-5". `None` for any other id.
+fn gpt_name(id: &str) -> Option<String> {
+    let head = id
+        .get(..4)
+        .filter(|head| head.eq_ignore_ascii_case("gpt-"))?;
+    let rest = &id[head.len()..];
+    if !rest.starts_with(|c: char| c.is_ascii_digit()) {
+        return None;
+    }
+    let (version, tail) = rest.split_at(
+        rest.bytes()
+            .take_while(|b| b.is_ascii_digit() || *b == b'.')
+            .count(),
+    );
+    let words = dashed_words(without_snapshot(tail))?;
+    let mut parts = vec![format!("GPT-{version}")];
+    parts.extend(words.into_iter().map(capitalize));
+    Some(parts.join(" "))
+}
+
+/// `^codex-[a-z0-9]+(-[a-z0-9]+)*$`: "codex-mini-latest" → "Codex Mini". The
+/// model Codex ran on before the GPT-5 line; "latest" is a pointer, not a
+/// part of its name.
+fn codex_name(id: &str) -> Option<String> {
+    let head = id
+        .get(..6)
+        .filter(|head| head.eq_ignore_ascii_case("codex-"))?;
+    let words = dashed_words(&id[head.len() - 1..])?;
+    let words: Vec<&str> = words
+        .into_iter()
+        .filter(|word| !word.eq_ignore_ascii_case("latest"))
+        .collect();
+    (!words.is_empty()).then(|| {
+        std::iter::once("Codex".to_owned())
+            .chain(words.into_iter().map(capitalize))
+            .collect::<Vec<_>>()
+            .join(" ")
+    })
+}
+
+/// Whether OpenAI names this model: `gpt-…`, `codex-…`, and the reasoning
+/// line (`o3`, `o4-mini`).
+fn is_openai_model(id: &str) -> bool {
+    let id = id.trim().to_ascii_lowercase();
+    if id.starts_with("gpt-") || id.starts_with("codex-") {
+        return true;
+    }
+    id.strip_prefix('o').is_some_and(|rest| {
+        let digits = count_digits(rest);
+        digits > 0 && (rest.len() == digits || rest[digits..].starts_with('-'))
+    })
+}
+
+/// The agent a model id runs under, by how its maker names it: OpenAI's
+/// models in Codex, anything else in Claude Code, the default kind. Only for
+/// figures that carry no agent of their own: what [`summarize_by_agent`]
+/// reads is hangar-core's, from the folder each session was found in.
+pub fn model_agent(id: &str) -> AgentKind {
+    if is_openai_model(id) {
+        AgentKind::Codex
+    } else {
+        AgentKind::default()
+    }
+}
+
+/// A model's name as people say it: "Opus 5.5" for a Claude id (see
+/// [`pretty_model`]), "GPT-5.6 Sol" or "GPT-5.3 Codex" for an OpenAI one,
+/// and anything else exactly as the transcript wrote it.
+pub fn model_label(id: &str) -> String {
+    let trimmed = id.trim();
+    gpt_name(trimmed)
+        .or_else(|| codex_name(trimmed))
+        .unwrap_or_else(|| pretty_model(id))
 }
 
 /// The first hour with anything in it.
@@ -588,7 +662,38 @@ fn count_session<K: Hash + Eq + Clone>(
     into.entry(key.clone()).or_default().insert(session);
 }
 
+/// The page's model, for figures that carry no agent per session: each row
+/// goes to the agent its model's maker names (see [`model_agent`]), so a
+/// Claude-only history is one Claude Code row, as it always was.
 pub fn summarize(stats: &UsageStats, options: &SummaryOptions<'_>) -> Summary {
+    let by_model = |row: &Bucket| {
+        usize::try_from(row.model)
+            .ok()
+            .and_then(|at| stats.models.get(at))
+            .map_or_else(AgentKind::default, |model| model_agent(&model.id))
+    };
+    summarize_with(stats, &by_model, options)
+}
+
+/// [`summarize`] with the agent each session ran, as hangar-core read it
+/// (`usage_stats_by_agent`): the "by agent" card's figures are exact, a
+/// session without an entry counting for the default agent. Everything but
+/// the agents' rows is what `summarize` returns for the same data.
+pub fn summarize_by_agent(data: &UsageStatsByAgent, options: &SummaryOptions<'_>) -> Summary {
+    let by_session = |row: &Bucket| {
+        data.session_agents
+            .get(row.session as usize)
+            .copied()
+            .unwrap_or_default()
+    };
+    summarize_with(&data.stats, &by_session, options)
+}
+
+fn summarize_with(
+    stats: &UsageStats,
+    agent_of: &dyn Fn(&Bucket) -> AgentKind,
+    options: &SummaryOptions<'_>,
+) -> Summary {
     let first_at = first_activity(stats);
     let range = period_range(options.period, options.now, first_at);
     let granularity = if range.days > WEEKLY_AFTER_DAYS {
@@ -688,11 +793,10 @@ pub fn summarize(stats: &UsageStats, options: &SummaryOptions<'_>) -> Summary {
             active_days.insert(start_of_day(row.at));
         }
 
-        let claude = AgentId::Claude;
-        ranked_entry(&mut agents, claude.as_str(), claude.info().label, "")
-            .totals
-            .add(row);
-        count_session(&mut agent_sessions, &claude.as_str().to_owned(), index);
+        let agent = agent_of(row);
+        let agent_row = ranked_entry(&mut agents, agent.id(), agent.info().label, "");
+        agent_row.totals.add(row);
+        count_session(&mut agent_sessions, &agent.id().to_owned(), index);
 
         let tokens = row.input + row.output + row.cache_write + row.cache_read;
         if row.model >= 0 {
@@ -705,6 +809,7 @@ pub fn summarize(stats: &UsageStats, options: &SummaryOptions<'_>) -> Summary {
             if model.is_some_and(|model| !model.priced) {
                 entry.unpriced = true;
                 unpriced_tokens += tokens;
+                ranked_entry(&mut agents, agent.id(), agent.info().label, "").unpriced = true;
             }
             *session_models
                 .entry(index)

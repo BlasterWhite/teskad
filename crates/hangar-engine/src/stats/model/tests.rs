@@ -2,7 +2,7 @@
 //! the page relies on added. Local times throughout, so the tests hold in any
 //! time zone.
 
-use hangar_core::stats::{Bucket, ModelInfo, ScanInfo, SessionInfo, UsageStats};
+use hangar_core::stats::{Bucket, ModelInfo, ScanInfo, SessionInfo, UsageStats, UsageStatsByAgent};
 
 use super::super::time::testing::{at, on};
 use super::*;
@@ -366,6 +366,58 @@ fn names_models_the_way_people_say_them() {
 }
 
 #[test]
+fn names_openai_models_by_their_line() {
+    for (id, label) in [
+        ("gpt-5.3-codex", "GPT-5.3 Codex"),
+        ("gpt-5.1-codex-max", "GPT-5.1 Codex Max"),
+        ("gpt-5.4-mini", "GPT-5.4 Mini"),
+        ("gpt-5.5-pro", "GPT-5.5 Pro"),
+        ("GPT-6.2-Sol", "GPT-6.2 Sol"),
+        ("  gpt-5.5  ", "GPT-5.5"),
+        // A dated snapshot is the same model.
+        ("gpt-5-2025-08-07", "GPT-5"),
+        ("gpt-5.4-mini-2026-03-17", "GPT-5.4 Mini"),
+        ("codex-mini-latest", "Codex Mini"),
+        // What is not of a family Hangar reads comes back as written.
+        ("o3", "o3"),
+        ("gpt-4o", "gpt-4o"),
+        ("gpt-oss", "gpt-oss"),
+        ("gpt-5-", "gpt-5-"),
+        ("codex-", "codex-"),
+        ("codex-latest", "codex-latest"),
+    ] {
+        assert_eq!(model_label(id), label, "{id}");
+    }
+    // The Claude names are the ones they were.
+    assert_eq!(model_label("claude-sonnet-4-5-20250929"), "Sonnet 4.5");
+}
+
+#[test]
+fn tells_the_agent_of_a_model_by_its_makers_naming() {
+    for id in [
+        "gpt-5.5",
+        "GPT-6.2-Sol",
+        "gpt-5.3-codex",
+        "codex-mini-latest",
+        "o3",
+        "o4-mini",
+    ] {
+        assert_eq!(model_agent(id), AgentKind::Codex, "{id}");
+    }
+    for id in [
+        "claude-opus-5-5",
+        "claude-opus-5-5[1m]",
+        "opus",
+        "house-model",
+        "omni-x",
+        "o3x",
+        "",
+    ] {
+        assert_eq!(model_agent(id), AgentKind::default(), "{id}");
+    }
+}
+
+#[test]
 fn pretty_model_reads_every_claude_naming() {
     for (id, label) in [
         ("claude-sonnet-4-5-20250929", "Sonnet 4.5"),
@@ -410,4 +462,214 @@ fn the_period_ids_round_trip() {
     }
     assert_eq!(Period::from_id("1y"), None);
     assert_eq!(on(10, 1, 0), start_of_day(on(10, 1, 13)));
+}
+
+// ---------------------------------------------------------------------------
+// By agent
+// ---------------------------------------------------------------------------
+
+/// Three sessions in the period, a Claude Code one (`a`, app) and two Codex
+/// ones (`b`, shop; `c`, app), the second with a model the price table does
+/// not know.
+fn mixed() -> UsageStatsByAgent {
+    let mut data = stats(vec![
+        plain(0, at(22, 9)),
+        bucket(0, at(25, 14), |row| {
+            row.output = 1000;
+            row.cost = 3.0;
+        }),
+        bucket(1, at(24, 9), |row| {
+            row.model = 2;
+            row.cost = 2.0;
+        }),
+        bucket(2, at(25, 10), |row| {
+            row.model = 3;
+            row.cost = 0.0;
+        }),
+        // The week before: the trend's material.
+        plain(0, at(15, 11)),
+    ]);
+    data.sessions.push(SessionInfo {
+        id: "c".into(),
+        cwd: "C:\\dev\\app".into(),
+        title: "Review".into(),
+        first_at: at(25, 10),
+        last_at: at(25, 10),
+    });
+    data.models.push(ModelInfo {
+        id: "gpt-5.3-codex".into(),
+        priced: true,
+    });
+    data.models.push(ModelInfo {
+        id: "gpt-5.5-codex".into(),
+        priced: false,
+    });
+    UsageStatsByAgent {
+        stats: data,
+        session_agents: vec![AgentKind::default(), AgentKind::Codex, AgentKind::Codex],
+    }
+}
+
+fn by_agent(data: &UsageStatsByAgent, project: Option<&str>, measure: Measure) -> Summary {
+    let mut projects = projects();
+    projects.push(projects[0].clone());
+    summarize_by_agent(
+        data,
+        &SummaryOptions {
+            period: Period::D7,
+            project,
+            measure,
+            now: now(),
+            projects: &projects,
+            top_sessions: TOP_SESSIONS,
+        },
+    )
+}
+
+fn agent_row<'s>(summary: &'s Summary, key: &str) -> &'s Ranked {
+    summary
+        .agents
+        .iter()
+        .find(|row| row.key == key)
+        .unwrap_or_else(|| panic!("no {key} row in {:?}", summary.agents))
+}
+
+#[test]
+fn a_claude_only_history_is_one_claude_code_row_and_the_totals_do_not_move() {
+    let data = stats(summary_rows());
+    let by_model = summary_of(&data, Period::D7, None, Measure::Tokens);
+    let exact = by_agent(
+        &UsageStatsByAgent {
+            stats: data.clone(),
+            session_agents: vec![AgentKind::default(); data.sessions.len()],
+        },
+        None,
+        Measure::Tokens,
+    );
+    for summary in [&by_model, &exact] {
+        assert_eq!(summary.agents.len(), 1);
+        let row = &summary.agents[0];
+        assert_eq!(
+            (row.key.as_str(), row.label.as_str()),
+            ("claude", "Claude Code")
+        );
+        assert_eq!(row.share, 1.0);
+        assert_eq!(row.totals, summary.totals);
+        // The house model has no price, and its row says so.
+        assert!(row.unpriced);
+    }
+    assert_eq!(by_model.totals.tokens, 1000 + 1980 + 1000);
+    // Everything but the agents' rows is the same whichever way it is read.
+    assert_eq!(by_model.totals, exact.totals);
+    assert_eq!(by_model.previous, exact.previous);
+    assert_eq!(by_model.series, exact.series);
+    assert_eq!(by_model.projects, exact.projects);
+    assert_eq!(by_model.models, exact.models);
+    assert_eq!(by_model.agents, exact.agents);
+}
+
+#[test]
+fn splits_the_figures_by_the_agent_each_session_ran() {
+    let summary = by_agent(&mixed(), None, Measure::Tokens);
+    let keys: Vec<&str> = summary.agents.iter().map(|row| row.key.as_str()).collect();
+    assert_eq!(keys, ["claude", "codex"]);
+    let (claude, codex) = (&summary.agents[0], &summary.agents[1]);
+    assert_eq!(claude.label, "Claude Code");
+    assert_eq!(codex.label, "Codex");
+    assert_eq!((claude.totals.tokens, codex.totals.tokens), (2980, 2000));
+    assert_eq!((claude.totals.cost, codex.totals.cost), (4.0, 2.0));
+    assert_eq!((claude.totals.calls, codex.totals.calls), (4, 4));
+    assert_eq!((claude.totals.sessions, codex.totals.sessions), (1, 2));
+    assert!((claude.share - 2980.0 / 4980.0).abs() < 1e-12);
+    assert!((codex.share - 2000.0 / 4980.0).abs() < 1e-12);
+
+    // The rows add up to the page's totals.
+    assert_eq!(
+        summary.totals.tokens,
+        claude.totals.tokens + codex.totals.tokens
+    );
+    assert_eq!(summary.totals.cost, claude.totals.cost + codex.totals.cost);
+    assert_eq!(
+        summary.totals.sessions,
+        claude.totals.sessions + codex.totals.sessions
+    );
+    let shares: f64 = summary.agents.iter().map(|row| row.share).sum();
+    assert!((shares - 1.0).abs() < 1e-12);
+}
+
+#[test]
+fn ranks_the_agents_by_the_measure_picked() {
+    let mut data = mixed();
+    // Codex cost the most, Claude Code moved the most tokens.
+    data.stats.buckets[2].cost = 9.0;
+    let tokens = by_agent(&data, None, Measure::Tokens);
+    assert_eq!(tokens.agents[0].key, "claude");
+    let cost = by_agent(&data, None, Measure::Cost);
+    assert_eq!(cost.agents[0].key, "codex");
+    assert!(cost.agents[0].share > cost.agents[1].share);
+}
+
+#[test]
+fn a_project_filter_narrows_the_agents_too() {
+    let summary = by_agent(&mixed(), Some("dir:c:/dev/shop"), Measure::Tokens);
+    assert_eq!(summary.agents.len(), 1);
+    let codex = &summary.agents[0];
+    assert_eq!(codex.key, "codex");
+    assert_eq!(codex.share, 1.0);
+    assert_eq!(codex.totals, summary.totals);
+
+    let app = by_agent(&mixed(), Some("ws:app"), Measure::Tokens);
+    assert_eq!(agent_row(&app, "claude").totals.sessions, 1);
+    assert_eq!(agent_row(&app, "codex").totals.sessions, 1);
+}
+
+#[test]
+fn says_which_agents_ran_a_model_without_a_price() {
+    let summary = by_agent(&mixed(), None, Measure::Tokens);
+    assert!(!agent_row(&summary, "claude").unpriced);
+    assert!(agent_row(&summary, "codex").unpriced);
+    assert_eq!(summary.unpriced_tokens, 1000);
+    // The models of both kinds are ranked together, each by its own name.
+    let labels: Vec<(&str, &str)> = summary
+        .models
+        .iter()
+        .map(|row| (row.label.as_str(), row.detail.as_str()))
+        .collect();
+    assert!(labels.contains(&("Opus 5.5", "claude-opus-5-5")));
+    assert!(labels.contains(&("GPT-5.3 Codex", "gpt-5.3-codex")));
+    assert!(labels.contains(&("GPT-5.5 Codex", "gpt-5.5-codex")));
+}
+
+#[test]
+fn a_session_the_list_does_not_name_counts_for_the_default_agent() {
+    let mut data = mixed();
+    data.session_agents.truncate(1);
+    let summary = by_agent(&data, None, Measure::Tokens);
+    assert_eq!(summary.agents.len(), 1);
+    assert_eq!(summary.agents[0].key, "claude");
+    assert_eq!(summary.agents[0].totals.tokens, summary.totals.tokens);
+}
+
+#[test]
+fn without_the_agents_of_the_sessions_each_row_goes_to_the_maker_of_its_model() {
+    let data = mixed();
+    let projects = vec![
+        projects()[0].clone(),
+        projects()[1].clone(),
+        projects()[0].clone(),
+    ];
+    let read = |summary: Summary| summary.agents;
+    let by_model = read(summarize(
+        &data.stats,
+        &SummaryOptions {
+            period: Period::D7,
+            project: None,
+            measure: Measure::Tokens,
+            now: now(),
+            projects: &projects,
+            top_sessions: TOP_SESSIONS,
+        },
+    ));
+    let exact = read(by_agent(&data, None, Measure::Tokens));
+    assert_eq!(by_model, exact);
 }

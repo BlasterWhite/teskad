@@ -28,8 +28,9 @@ use super::hibernate::{
     Awake, Blocker, Candidate, ForcedSleepInput, HibernateInput, PaneRest, StepAsideInput, Verdict,
     forced_sleep_verdict, hibernation_verdict, step_aside,
 };
+use super::session_watch::resumes;
 use crate::live::{AgentActivity, EpochMs};
-use crate::state::types::{AgentId, AppState, PaneId, Workspace, WsId};
+use crate::state::types::{AppState, PaneId, Workspace, WsId};
 
 /// A workspace asleep: since when, and how many agents it stopped.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -506,12 +507,14 @@ pub fn decide(
 /// process tree killed, its agents owed their sessions on the next launch,
 /// the workspace marked asleep and its terminals unmounted.
 pub fn put_to_sleep(env: &mut dyn SleepEnv, workspace: &Workspace, agents: usize, now: EpochMs) {
-    // Every agent pane has a session by now (`hibernate`): each resumes it.
+    // Every agent pane resumes sessions and has one by now (`hibernate`),
+    // whichever agent it runs: each resumes its own, with its kind's
+    // arguments (`claude --resume <id>`, `codex resume <id>`).
     env.store_mut().resume_on_wake(
         workspace
             .panes
             .iter()
-            .filter(|pane| pane.agent != AgentId::Shell)
+            .filter(|pane| resumes(pane.agent))
             .map(|pane| pane.id.as_str()),
     );
     // The whole tree under each shell, so the agents' helpers go too. The
@@ -664,7 +667,7 @@ pub fn announcement(t: Translator, workspaces: &[Workspace], agents: usize) -> S
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::types::Pane;
+    use crate::state::types::{AgentId, Pane};
     use hangar_i18n::Locale;
 
     const MIN: u64 = 60_000;
@@ -856,6 +859,48 @@ mod tests {
             *probes.borrow(),
             [vec!["sam".to_string()], vec!["tom".to_string()]]
         );
+    }
+
+    /// A Codex pane sleeps and wakes as a Claude Code one does: its tree
+    /// killed with the others, its thread owed to its next launch, once.
+    #[test]
+    fn a_codex_pane_is_owed_its_thread_when_its_workspace_wakes() {
+        let start = 3_000 * MIN;
+        let screen = workspace("screen", vec![pane("gus", AgentId::Claude)]);
+        let mixed = workspace(
+            "mixed",
+            vec![
+                pane("ava", AgentId::Claude),
+                pane("cody", AgentId::Codex),
+                pane("sam", AgentId::Shell),
+            ],
+        );
+        let mut window = Window::new(vec![screen, mixed.clone()], "screen", &[], start);
+        let probes = std::cell::RefCell::new(Vec::new());
+        assert_eq!(
+            sweep(&mut window, 10 * MIN, start, &mut nothing_runs(&probes)),
+            []
+        );
+
+        let later = start + 11 * MIN;
+        assert_eq!(
+            sweep(&mut window, 10 * MIN, later, &mut nothing_runs(&probes)),
+            [Slept {
+                workspace: mixed.clone(),
+                agents: 2
+            }]
+        );
+        assert_eq!(
+            slept(&mut window, &mixed),
+            (
+                true,
+                vec!["ava".into(), "cody".into(), "sam".into()],
+                vec!["ava".into(), "cody".into()]
+            )
+        );
+        // Its launch on waking takes the promise, which holds for that one.
+        assert!(window.store.must_resume("cody", true));
+        assert!(!window.store.must_resume("cody", true));
     }
 
     #[test]

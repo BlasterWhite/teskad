@@ -3,6 +3,10 @@
 
   scripts/remote/rcargo <cargo arguments…>   cargo on the build machine, in a copy of the current git worktree
   scripts/remote/rbuild check [--keep-going] the CI rust job's Linux checks in one remote call (the workspace check)
+  scripts/remote/rbuild check --affected [--base REF]
+                                             the same checks for the crates the branch changes and those that depend on
+                                             them (files differing from REF's merge-base, origin/main by default); the full
+                                             check when that cannot be told
   scripts/remote/rbuild up | status | stop | ssh [command] | offers | reap [--watch | --github] | seed [pull]
 
 The machine is one Vast.ai instance (the CPU cores of a GPU host), rented on the first call, labelled
@@ -78,15 +82,17 @@ UNTRACKED_MAX = 16 << 20
 
 # The CI's rust job on ubuntu-22.04 (.github/workflows/ci.yml), in its order; formatting is checked there on
 # Windows only, which makes no difference to the result. The arm64 cross-check of hangar-node is left to the CI.
+# `check --affected` (vm/affected.py) runs the same steps for the affected crates: `--workspace` becomes `-p <crate>` for
+# each of them, a step with `only` runs when that crate is one of them, and fmt, which has neither, always runs.
 CHECK_STEPS = [
     {"name": "fmt", "argv": ["cargo", "fmt", "--all", "--check"]},
     {"name": "clippy", "argv": ["cargo", "clippy", "--workspace", "--all-targets", "--locked", "--", "-D", "warnings"]},
     {"name": "clippy core headless", "argv": ["cargo", "clippy", "-p", "hangar-core", "--no-default-features", "--all-targets",
-                                              "--locked", "--", "-D", "warnings"]},
+                                              "--locked", "--", "-D", "warnings"], "only": "hangar-core"},
     {"name": "test core headless", "argv": ["cargo", "test", "-p", "hangar-core", "--no-default-features", "--locked"],
-     "unset": ["ICED_TEST_BACKEND"]},
+     "unset": ["ICED_TEST_BACKEND"], "only": "hangar-core"},
     {"name": "clippy webview engine", "argv": ["cargo", "clippy", "-p", "hangar-webview", "--all-targets", "--features", "engine",
-                                               "--locked", "--", "-D", "warnings"]},
+                                               "--locked", "--", "-D", "warnings"], "only": "hangar-webview"},
     {"name": "test", "argv": ["cargo", "test", "--workspace", "--locked", "--no-fail-fast"]},
 ]
 
@@ -217,13 +223,27 @@ def make_label(state):
     return f"{LABEL} {int(time.time())} {state}"
 
 
+FAMILY = "hangar-rbuild"  # every build machine of this tool, trial labels ("hangar-rbuild-trial-…") included
+
+
 def parse_label(text):
-    m = re.match(rf"^{LABEL} (\d+) (boot|busy|idle)\b", (text or "").strip())
+    m = re.match(rf"^{FAMILY}(?:-[A-Za-z0-9_.-]+)? (\d+) (boot|busy|idle)\b", (text or "").strip())
     return {"epoch": int(m.group(1)), "state": m.group(2)} if m else None
+
+
+def in_family(label):
+    label = (label or "").strip()
+    return label == FAMILY or label.startswith(FAMILY + " ") or label.startswith(FAMILY + "-")
 
 
 def ours():
     return [i for i in vast("show", "instances") if (i.get("label") or "").startswith(LABEL + " ") or (i.get("label") or "") == LABEL]
+
+
+def family():
+    """Every machine of this tool, whatever its label: the reapers judge them all, so a trial machine (another
+    HANGAR_RBUILD_LABEL) left behind goes too, and a new machine is not rented beside one."""
+    return [i for i in vast("show", "instances") if in_family(i.get("label"))]
 
 
 def set_label(iid, state, current=None):
@@ -449,9 +469,11 @@ def wait_ssh(m, seconds=240):
 
 
 def vm_hash():
+    """Of the box's scripts, the files of vm/ (a __pycache__ that importing one of them leaves here is not one)."""
     h = hashlib.sha256()
     for name in sorted(os.listdir(VM_DIR)):
-        h.update(name.encode() + b"\0" + open(os.path.join(VM_DIR, name), "rb").read())
+        if os.path.isfile(os.path.join(VM_DIR, name)):
+            h.update(name.encode() + b"\0" + open(os.path.join(VM_DIR, name), "rb").read())
     return h.hexdigest()[:16]
 
 
@@ -479,7 +501,7 @@ def ensure_tools(m):
         ssh(m, f"echo {provision_hash()} > /root/hb/state/provisioned", timeout=30)
         jlog("provision", id=m["id"], s=round(time.time() - t0, 1))
     if lines[1].strip() != vm_hash():
-        rsync(m, ["-r", "--chmod=F755", VM_DIR + "/", f"root@{m['host']}:/root/hb/bin/"], "box scripts")
+        rsync(m, ["-r", "--chmod=F755", "--exclude=__pycache__", VM_DIR + "/", f"root@{m['host']}:/root/hb/bin/"], "box scripts")
         ssh(m, f"echo {vm_hash()} > /root/hb/bin/.hash", timeout=30)
     ssh(m, "(setsid nohup bash /root/hb/bin/watchdog.sh >/dev/null 2>&1 </dev/null &) ; true", timeout=30)
 
@@ -493,6 +515,10 @@ def hello(m):
 
 
 def create_fresh():
+    other = [i for i in family() if not ((i.get("label") or "").startswith(LABEL + " ") or (i.get("label") or "") == LABEL)]
+    if other:
+        raise Unavailable(f"another build machine ({other[0].get('label')}, instance {other[0]['id']}) is up: one machine "
+                          f"at a time. Destroy it (rbuild reap, or vastai destroy instance {other[0]['id']}) or use it")
     offers = search_offers()
     if not offers:
         raise Unavailable(f"no Vast offer in Europe with {MIN_THREADS}+ threads, {MIN_RAM_GB}+ GB, {DISK_GB} GB of disk under "
@@ -749,7 +775,41 @@ def spawn(*args):
                      start_new_session=True, close_fds=True)
 
 
-def remote_run(kind, steps, keep_going=False, retry=True):
+def git_out(top, *args):
+    r = subprocess.run(["git", "-C", top, *args], capture_output=True)
+    return r.returncode, r.stdout
+
+
+def changed_files(top, base=None):
+    """What `check --affected` judges: the files that differ from the merge-base of HEAD and the base branch, as the
+    worktree is now: committed, staged, unstaged and untracked ones (git's ignored ones never), deletions and both
+    sides of a rename included. The base is `--base`, else $HANGAR_RBUILD_BASE, else origin/main, else main: nothing
+    is fetched, so a stale origin/main only widens the list (the full check is the worst it comes to). An unpushed
+    main that the checkout is built on widens it too: `--base` names a nearer one.
+    -> {"base", "merge_base", "files"}, or {"base", "error"} when there is nothing to compare with (the box then
+    runs the full check). SystemExit(2) for a --base that is not a commit."""
+    explicit = base or os.environ.get("HANGAR_RBUILD_BASE")
+    ref = next((c for c in ([explicit] if explicit else ["origin/main", "main"])
+                if git_out(top, "rev-parse", "--verify", "--quiet", c + "^{commit}")[0] == 0), None)
+    if ref is None:
+        if explicit:
+            print(f"rbuild: --base {explicit}: not a commit here", file=sys.stderr)
+            sys.exit(2)
+        return {"base": "origin/main", "error": "neither origin/main nor main exists here: nothing to compare with"}
+    rc, out = git_out(top, "merge-base", "HEAD", ref)
+    if rc != 0 or not out.strip():
+        return {"base": ref, "error": f"HEAD and {ref} have no merge-base"}
+    sha = out.decode().strip()
+    rc1, tracked = git_out(top, "diff", "--name-only", "-z", "--no-renames", sha)
+    rc2, untracked = git_out(top, "ls-files", "-z", "-o", "--exclude-standard")
+    if rc1 != 0 or rc2 != 0:
+        return {"base": ref, "merge_base": sha, "error": "git could not list the changed files"}
+    files = {x.decode("utf-8", "surrogateescape") for x in (tracked + b"\0" + untracked).split(b"\0") if x}
+    return {"base": ref, "merge_base": sha, "files": sorted(files)}
+
+
+def remote_run(kind, steps, keep_going=False, retry=True, changed=None):
+    """changed: changed_files()'s answer for `check --affected` (the box then picks the steps), None for the full check."""
     top = toplevel()
     files, skipped = file_list(top)
     key = worktree_key(top)
@@ -759,10 +819,11 @@ def remote_run(kind, steps, keep_going=False, retry=True):
     color = os.environ.get("CARGO_TERM_COLOR") or ("always" if sys.stdout.isatty() else "never")
     payload = base64.b64encode(json.dumps({"key": key, "worktree": top, "lanes": LANES, "steps": steps, "color": color,
                                            "keep_going": keep_going, "kind": kind, "min_free_gb": MIN_FREE_GB,
-                                           "min_free_pct": MIN_FREE_PCT, "incremental": INCREMENTAL}).encode()).decode()
+                                           "min_free_pct": MIN_FREE_PCT, "incremental": INCREMENTAL,
+                                           "affected": changed is not None}).encode()).decode()
     proc = subprocess.Popen(["ssh", *ssh_opts(m), f"root@{m['host']}", f"python3 /root/hb/bin/remote.py run {payload}"],
                             stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-    lane = exit_info = None
+    lane = exit_info = plan = None
     sync, space = {}, {}
     retired = False
     out = sys.stdout.buffer
@@ -804,7 +865,11 @@ def remote_run(kind, steps, keep_going=False, retry=True):
                     + (f" (waited {lane['wait_s']} s for a lane)" if lane["wait_s"] > 1 else "")
                     + (f"; {len(skipped)} untracked left on the PC" if skipped else ""))
                 proc.stdin.write(b"go\n")
+                if changed is not None:
+                    proc.stdin.write(json.dumps(changed).encode("utf-8", "surrogateescape") + b"\n")
                 proc.stdin.close()
+            elif tag == "PLAN":
+                plan = json.loads(data)
             elif tag == "EXIT":
                 exit_info = json.loads(data)
         proc.wait()
@@ -819,7 +884,7 @@ def remote_run(kind, steps, keep_going=False, retry=True):
     if retired and retry:
         with Flock("instance.lock", "instance"):
             destroy(m, "its watchdog stopped the build service")
-        return remote_run(kind, steps, keep_going, retry=False)
+        return remote_run(kind, steps, keep_going, retry=False, changed=changed)
     if space and not space.get("ok"):
         set_label(m["id"], "busy" if space.get("busy") else "idle")
         jlog("build", id=m["id"], kind=kind, worktree=top, lane=space.get("lane"), code=UNAVAILABLE, total_s=round(total, 1), disk_short=True,
@@ -843,7 +908,7 @@ def remote_run(kind, steps, keep_going=False, retry=True):
     jlog("build", id=m["id"], kind=kind, worktree=top, lane=exit_info["lane"], code=code, vm_s=round(vm_s, 1),
          wait_s=(lane or {}).get("wait_s"), sync_s=sync.get("sync_s"), prep_s=exit_info.get("prep_s"), total_s=round(total, 1),
          steps=exit_info["steps"], sent=sync.get("sent", 0), traffic_usd=round(traffic, 6),
-         argv=steps[0]["argv"] if kind == "cargo" else None, incremental=INCREMENTAL or None,
+         argv=steps[0]["argv"] if kind == "cargo" else None, incremental=INCREMENTAL or None, plan=plan,
          free_gb=round(space["free_after"] / 1e9, 1) if space else None,
          free_end_gb=round(exit_info["free"] / 1e9, 1) if exit_info.get("free") is not None else None,
          **({"disk_full": True, "cargo_code": exit_info["code"]} if code != exit_info["code"] else {}))
@@ -853,12 +918,23 @@ def remote_run(kind, steps, keep_going=False, retry=True):
     if code != exit_info["code"]:
         say(f"the box's disk filled up during this run ({gb1(exit_info['free'])} left): cargo's failure says nothing about the code. "
             "Exit 75; run it again, the next run prunes idle lanes first")
-    if kind == "check" and any(s["name"] == "test" for s in exit_info["steps"]):
+    if plan:
+        say(plan_text(plan))
+    # the mirror takes its dependencies from a lane that tested the whole workspace, not from a partial run's
+    if kind == "check" and exit_info.get("tested", any(s["name"] == "test" for s in exit_info["steps"])):
         if seed_stale(exit_info.get("seed_key"), exit_info.get("rustc")):
             say("the seed mirror is out of date: refreshing it in the background (~/.local/state/hangar-rbuild/background.log)")
             spawn("seed", "pull", "--id", str(m["id"]), "--lane", str(exit_info["lane"]))
     spawn("reap", "--watch")
     return code
+
+
+def plan_text(plan):
+    if plan["mode"] == "affected":
+        return f"affected: {len(plan['packages'])} of {plan['total']} crates checked ({', '.join(plan['packages'])})"
+    if plan["mode"] == "fmt":
+        return f"affected: no crate is affected ({plan['why']}): formatting checked alone"
+    return f"affected: the full check ran ({plan['why']})"
 
 
 # ------------------------------------------------------------------------------------------------ reaping
@@ -880,12 +956,12 @@ def reap_reason(inst, grace_min=0.0):
 
 
 def reap(grace_min=0.0, refresh_seed=True, quiet=False, lock=True):
-    """Destroys this tool's instances unused for IDLE_MIN (+ grace) minutes, stopped or broken ones, and those whose
+    """Destroys this tool's instances (every label of the family, trial ones included) unused for IDLE_MIN (+ grace) minutes, stopped or broken ones, and those whose
     "busy" label is too old to be a live run. Never touches another label (aps5's "aps5 …") or an unlabelled one.
     The mirror is refreshed first, outside the lock that calls take: a call that comes meanwhile refreshes the label,
     and the instance, looked at again under the lock, is then kept."""
     kept = []
-    for inst in ours():
+    for inst in family():
         reason = reap_reason(inst, grace_min)
         if not reason:
             kept.append(inst)
@@ -897,7 +973,7 @@ def reap(grace_min=0.0, refresh_seed=True, quiet=False, lock=True):
         if refresh_seed and inst.get("actual_status") == "running":
             try_refresh_seed(machine(inst))
         with (Flock("instance.lock", "a call starting the machine") if lock else _NoLock()):
-            now = next((i for i in ours() if i["id"] == inst["id"]), None)
+            now = next((i for i in family() if i["id"] == inst["id"]), None)
             reason = reap_reason(now, grace_min) if now else None
             if reason:
                 destroy(now, reason)
@@ -952,7 +1028,7 @@ def reap_watch():
 
 # ------------------------------------------------------------------------------------------------ commands
 def cmd_status():
-    live = ours()
+    live = family()
     reconcile(live)
     usd, hours, traffic = spend_today()
     if not live:
@@ -985,7 +1061,8 @@ def cmd_status():
         steps = " ".join(f"{s['name']}={s['s']:.0f}s" for s in b.get("steps") or [])
         free = f", {b['free_gb']:.0f}→{b['free_end_gb']:.0f} GB free" if b.get("free_gb") is not None and b.get("free_end_gb") is not None else ""
         print(f"  {b['time']} {b.get('kind')} exit {b.get('code')} in {b.get('total_s')} s, lane {b.get('lane')}{free}, "
-              f"{os.path.basename(b.get('worktree', ''))} {steps}" + (" (disk short: refused)" if b.get("disk_short") else ""))
+              f"{os.path.basename(b.get('worktree', ''))} {steps}" + (" (disk short: refused)" if b.get("disk_short") else "")
+              + (f" [affected: {b['plan']['mode']}]" if b.get("plan") else ""))
     prunes = [e for e in jread() if e["event"] == "prune"][-5:]
     if prunes:
         print("pruned on the box (the last ones):")
@@ -1015,6 +1092,31 @@ def print_box_disk(m):
           + f", cargo registry {gb1(d.get('registry'))}")
 
 
+def cmd_check(args):
+    keep_going = affected = bad = False
+    base = None
+    it = iter(args)
+    for a in it:
+        if a == "--keep-going":
+            keep_going = True
+        elif a == "--affected":
+            affected = True
+        elif a == "--base":
+            base = next(it, "")
+        elif a.startswith("--base="):
+            base = a[len("--base="):]
+        else:
+            bad = True
+    if bad or (base is not None and not (base and affected)):
+        print("usage: scripts/remote/rbuild check [--keep-going] [--affected [--base REF]]", file=sys.stderr)
+        return 2
+    changed = changed_files(toplevel(), base) if affected else None
+    if changed and "files" in changed:
+        say(f"{len(changed['files'])} file(s) differ from {changed['base']} (merge-base {changed['merge_base'][:8]}): "
+            "the box maps them to crates")
+    return remote_run("check", CHECK_STEPS, keep_going=keep_going, changed=changed)
+
+
 def main(argv):
     if not argv or argv[0] in ("-h", "--help", "help"):
         print(__doc__)
@@ -1027,7 +1129,7 @@ def main(argv):
                 return 2
             return remote_run("cargo", [{"name": "cargo " + rest[0], "argv": ["cargo", *rest]}])
         if cmd == "check":
-            return remote_run("check", CHECK_STEPS, keep_going="--keep-going" in rest)
+            return cmd_check(rest)
         if cmd == "status":
             return cmd_status()
         if cmd == "up":
