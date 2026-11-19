@@ -339,7 +339,10 @@ impl Versions {
     /// most.
     async fn of(&self, kind: AgentKind, command: AgentCommand) -> Option<String> {
         let mut said = self.ask(kind, command);
-        match tokio::time::timeout(VERSION_WAIT, said.wait_for(Option::is_some)).await {
+        // A local, dropped before `said` it borrows (a temporary of the
+        // block's last expression would outlive it).
+        let seen = tokio::time::timeout(VERSION_WAIT, said.wait_for(Option::is_some)).await;
+        match seen {
             Ok(Ok(seen)) => seen.clone().flatten(),
             _ => None,
         }
