@@ -41,10 +41,10 @@
 //! - `/api/*`: core's own API, relayed (proxy.rs).
 #![cfg(target_os = "linux")]
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path as FsPath, PathBuf};
-use std::sync::Arc;
-use std::time::Duration;
+use std::sync::{Arc, Mutex, PoisonError};
+use std::time::{Duration, SystemTime};
 
 use axum::extract::ws::rejection::WebSocketUpgradeRejection;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
@@ -60,6 +60,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use subtle::ConstantTimeEq;
 use tokio::sync::broadcast::error::RecvError;
+use tokio::sync::watch;
 
 use crate::panes::{Pane, Panes, Spawn, Then};
 use crate::proxy;
@@ -86,6 +87,8 @@ pub struct Node {
     /// workspace is the node's, nobody starts a shell under one of them,
     /// and two adoptions never cross.
     pub adopting: Arc<tokio::sync::RwLock<()>>,
+    /// The versions its agents said, for `/node/info`.
+    versions: Versions,
 }
 
 impl Node {
@@ -108,6 +111,7 @@ impl Node {
             discord: crate::discord::Connector::default(),
             boot: hangar_engine::state::store::new_id(),
             adopting: Arc::default(),
+            versions: Versions::default(),
         }
     }
 
@@ -272,11 +276,13 @@ fn hostname() -> String {
     String::from_utf8_lossy(&buf[..end]).into_owned()
 }
 
-/// How long `/node/info` waits for an agent to say its version: the
-/// desktop's handshake gives the whole answer five seconds, and a first run
-/// of npm's Node shim can take longer than that alone. Past it the agent is
-/// said installed, its version unknown.
-const VERSION_WAIT: Duration = Duration::from_secs(2);
+/// How long `/node/info` waits for an agent still saying its version. The
+/// node's own liveness probe (`state::answers`, which the command line and
+/// `serve --detach` go by) gives the whole answer two seconds, the desktop's
+/// handshake five, and a first run of npm's Node shim can take longer than
+/// either alone. Past it the agent is said installed, its version unknown,
+/// and the asking goes on: a later `/node/info` says the version.
+const VERSION_WAIT: Duration = Duration::from_millis(600);
 
 /// What `/node/info` says of one agent: whether it is installed, where its
 /// command is, its version when it said one, and whether its main account
@@ -291,32 +297,102 @@ fn agent_entry(path: Option<&FsPath>, version: Option<&str>, signed_in: bool) ->
     })
 }
 
+/// The versions the node's agents said (`--version`), each command asked
+/// once, in a task of its own, rather than on every `/node/info`. A command
+/// written anew (an upgrade) is asked again, and so is one that said none.
+#[derive(Default)]
+struct Versions {
+    asked: Mutex<HashMap<AgentKind, Asked>>,
+}
+
+/// An agent's command as a version is asked of it: where it is, and when it
+/// was written.
+#[derive(PartialEq, Eq)]
+struct AgentCommand {
+    path: PathBuf,
+    written: Option<SystemTime>,
+}
+
+impl AgentCommand {
+    /// The command at `path` as it is now: a look at the file, nothing run.
+    fn at(path: PathBuf) -> Self {
+        let written = std::fs::metadata(&path)
+            .and_then(|meta| meta.modified())
+            .ok();
+        Self { path, written }
+    }
+}
+
+/// `None` while the command is being asked; then the version it said, if it
+/// said one.
+type Said = Option<Option<String>>;
+
+/// The last command of an agent asked, and its answer, given or to come.
+struct Asked {
+    command: AgentCommand,
+    said: watch::Receiver<Said>,
+}
+
+impl Versions {
+    /// The version `kind`'s `command` says: at once when it said it already,
+    /// else asked (or still being asked) and waited for [`VERSION_WAIT`] at
+    /// most.
+    async fn of(&self, kind: AgentKind, command: AgentCommand) -> Option<String> {
+        let mut said = self.ask(kind, command);
+        match tokio::time::timeout(VERSION_WAIT, said.wait_for(Option::is_some)).await {
+            Ok(Ok(seen)) => seen.clone().flatten(),
+            _ => None,
+        }
+    }
+
+    /// The answer of `kind`'s `command`: the last one asked when that is the
+    /// same command and it said its version or is still saying it; else
+    /// asked anew, in a task of its own that outlives any wait (core bounds
+    /// its `--version`).
+    fn ask(&self, kind: AgentKind, command: AgentCommand) -> watch::Receiver<Said> {
+        let mut asked = self.asked.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(known) = asked.get(&kind) {
+            let said_none = matches!(*known.said.borrow(), Some(None));
+            if known.command == command && !said_none {
+                return known.said.clone();
+            }
+        }
+        let (tell, said) = watch::channel(None);
+        tokio::spawn(async move {
+            let version = detect::detect(kind).await.version().map(str::to_owned);
+            tell.send_replace(Some(version));
+        });
+        asked.insert(
+            kind,
+            Asked {
+                command,
+                said: said.clone(),
+            },
+        );
+        said
+    }
+}
+
 /// Agent `kind` as this machine has it, the way the desktop looks at its own
-/// (`agent::detect`, the accounts' main login), its version waited for
-/// [`VERSION_WAIT`] at most.
-async fn agent(kind: AgentKind) -> Value {
-    // In a task of its own: one that outlasts the wait ends by itself, its
-    // `--version` with it (core bounds it), and nobody waits for it.
-    let detecting = tokio::spawn(detect::detect(kind));
-    let (path, version) = match tokio::time::timeout(VERSION_WAIT, detecting).await {
-        Ok(Ok(detection)) => match detection.found {
-            Some(found) => (Some(found.path), found.version),
-            None => (None, None),
-        },
-        // Too slow to say its version: where it is, which is quick.
-        _ => (
-            blocking(move || detect::find(kind)).await.ok().flatten(),
-            None,
-        ),
-    };
-    let signed_in = blocking(move || {
-        hangar_core::accounts::accounts_of(kind)
+/// (`agent::detect`, the accounts' main login): where it is and whether its
+/// main account is signed in, looked at on each call (nothing is run), its
+/// version from [`Versions`].
+async fn agent(versions: &Versions, kind: AgentKind) -> Value {
+    let (command, signed_in) = blocking(move || {
+        let command = detect::find(kind).map(AgentCommand::at);
+        let signed_in = hangar_core::accounts::accounts_of(kind)
             .iter()
-            .any(|account| account.is_main && account.logged_in)
+            .any(|account| account.is_main && account.logged_in);
+        (command, signed_in)
     })
     .await
-    .unwrap_or(false);
-    agent_entry(path.as_deref(), version.as_deref(), signed_in)
+    .unwrap_or((None, false));
+    let Some(command) = command else {
+        return agent_entry(None, None, signed_in);
+    };
+    let path = command.path.clone();
+    let version = versions.of(kind, command).await;
+    agent_entry(Some(path.as_path()), version.as_deref(), signed_in)
 }
 
 /// Whether an entry of [`agent_entry`] says its agent is installed.
@@ -336,7 +412,10 @@ async fn info(State(node): State<Shared>) -> Response {
         Ok(git) => git,
         Err(failed) => return failed.into_response(),
     };
-    let (claude, codex) = tokio::join!(agent(AgentKind::Claude), agent(AgentKind::Codex));
+    let (claude, codex) = tokio::join!(
+        agent(&node.versions, AgentKind::Claude),
+        agent(&node.versions, AgentKind::Codex)
+    );
     Json(json!({
         "version": crate::VERSION,
         "target": crate::TARGET,

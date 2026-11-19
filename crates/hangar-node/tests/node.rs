@@ -962,12 +962,19 @@ while True:
 /// its TUI, which writes what it was started with, an argument a line, to
 /// `$HOME/codex-tui.args`, and stays.
 fn fake_codex(dir: &Path) -> PathBuf {
+    fake_codex_slow(dir, 0)
+}
+
+/// [`fake_codex`], its `--version` said after `seconds`, as a first run of
+/// npm's Node shim can be.
+fn fake_codex_slow(dir: &Path, seconds: u32) -> PathBuf {
     let codex = dir.join("codex");
     let script = format!(
         "#!/bin/sh\n\
          # A fake codex, for Hangar's tests: never OpenAI's program.\n\
          case \"$1\" in\n\
-         --version) echo 'codex-cli 0.170.0'; exit 0 ;;\n\
+         --version) sleep {seconds}; echo 'codex-cli 0.170.0'; exit 0 ;;\n\
+         --ready) exit 0 ;;\n\
          app-server) exec python3 -I -c '{FAKE_CODEX_SERVER}' \"$@\" ;;\n\
          esac\n\
          printf '%s\\n' \"$@\" > \"$HOME/codex-tui.args\"\n\
@@ -978,7 +985,7 @@ fn fake_codex(dir: &Path) -> PathBuf {
     // A file just written cannot be run while a process another test forked
     // meanwhile still holds it open (ETXTBSY, 26): tried until it can.
     for _ in 0..100 {
-        match Command::new(&codex).arg("--version").output() {
+        match Command::new(&codex).arg("--ready").output() {
             Err(error) if error.raw_os_error() == Some(26) => {
                 std::thread::sleep(Duration::from_millis(20))
             }
@@ -986,6 +993,43 @@ fn fake_codex(dir: &Path) -> PathBuf {
         }
     }
     codex
+}
+
+/// A node whose `codex` is the one in `<home>/bin`, found before any other
+/// on its PATH.
+fn node_with_codex_in_bin(home: tempfile::TempDir) -> Node {
+    let bin = home.path().join("bin");
+    let path = std::env::join_paths(std::iter::once(bin).chain(std::env::split_paths(
+        &std::env::var_os("PATH").unwrap_or_default(),
+    )))
+    .unwrap();
+    let status = command(home.path())
+        .env("PATH", path)
+        // No login shell to put its PATH first (path_env.rs): the fake is
+        // the `codex` found.
+        .env_remove("SHELL")
+        .args(["serve", "--detach"])
+        .status()
+        .unwrap();
+    assert!(status.success(), "serve --detach: {status}");
+    Node::found(home)
+}
+
+/// `/node/info` until it says Codex's version, each answer within the two
+/// seconds the node's liveness probe gives it (`state::answers`).
+fn info_once_codex_said(node: &Node) -> Value {
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        let asked = Instant::now();
+        let (status, info) = node.get("/node/info");
+        assert_eq!(status, 200, "{info}");
+        assert!(asked.elapsed() < Duration::from_secs(2), "{info}");
+        if info["agents"]["codex"]["version"].is_string() {
+            return info;
+        }
+        assert!(Instant::now() < deadline, "no version said: {info}");
+        std::thread::sleep(Duration::from_millis(100));
+    }
 }
 
 /// `/node/info` says each agent the node has: Codex found on its PATH, its
@@ -1003,23 +1047,9 @@ fn the_node_says_which_agents_it_has() {
         r#"{"OPENAI_API_KEY":"sk-test-not-a-key"}"#,
     )
     .unwrap();
-    let path = std::env::join_paths(std::iter::once(bin.clone()).chain(std::env::split_paths(
-        &std::env::var_os("PATH").unwrap_or_default(),
-    )))
-    .unwrap();
-    let status = command(home.path())
-        .env("PATH", path)
-        // No login shell to put its PATH first (path_env.rs): the fake is
-        // the `codex` found.
-        .env_remove("SHELL")
-        .args(["serve", "--detach"])
-        .status()
-        .unwrap();
-    assert!(status.success(), "serve --detach: {status}");
-    let node = Node::found(home);
+    let node = node_with_codex_in_bin(home);
 
-    let (status, info) = node.get("/node/info");
-    assert_eq!(status, 200, "{info}");
+    let info = info_once_codex_said(&node);
     assert_eq!(
         info["agents"]["codex"],
         json!({
@@ -1034,6 +1064,39 @@ fn the_node_says_which_agents_it_has() {
     let claude = &info["agents"]["claude"];
     assert_eq!(info["claude"], claude["installed"], "{info}");
     assert!(claude["signedIn"].is_boolean(), "{info}");
+}
+
+/// An agent slow to say its version (a first run of npm's Node shim) does
+/// not hold `/node/info` back past the node's liveness probe: the daemon
+/// starts, the command line finds it running, Codex is said installed at
+/// once, and its version, asked meanwhile, on a later call.
+#[test]
+fn an_agent_slow_to_say_its_version_does_not_hold_the_node_back() {
+    let home = tempfile::tempdir().unwrap();
+    let bin = home.path().join("bin");
+    std::fs::create_dir_all(&bin).unwrap();
+    let codex = fake_codex_slow(&bin, 5);
+    // `serve --detach` waits for the daemon to answer its probe.
+    let node = node_with_codex_in_bin(home);
+
+    let asked = Instant::now();
+    let (status, info) = node.get("/node/info");
+    assert_eq!(status, 200, "{info}");
+    assert!(asked.elapsed() < Duration::from_secs(2), "{info}");
+    let said = &info["agents"]["codex"];
+    assert_eq!(said["installed"], true, "{info}");
+    assert_eq!(said["path"], codex.to_str().unwrap(), "{info}");
+    assert!(said["version"].is_null(), "{info}");
+    // The command line goes by the same probe (`state::running`).
+    let listed = command(node.home()).arg("workspaces").output().unwrap();
+    assert!(
+        listed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&listed.stderr)
+    );
+
+    let info = info_once_codex_said(&node);
+    assert_eq!(info["agents"]["codex"]["version"], "0.170.0", "{info}");
 }
 
 /// A workspace the node runs itself, its orchestrator on Codex (the default
