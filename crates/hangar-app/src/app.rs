@@ -280,9 +280,7 @@ impl App {
         app.cache_themes();
         let host = core.host().clone();
         let load = Task::perform(services::core::load_state(host), Message::Booted);
-        let detect = Task::perform(services::core::detect(), |(claude, shells)| {
-            Message::Detected(claude, shells)
-        });
+        let detect = Task::perform(services::core::detect(), Message::Detected);
         let screenshot = match crate::shell::dev_screenshot::requested() {
             Some(_) => crate::shell::dev_screenshot::capture(main_window),
             None => Task::none(),
@@ -327,9 +325,10 @@ impl App {
         }
         match message {
             Message::Booted(loaded) => self.booted(loaded),
-            Message::Detected(claude, shells) => {
-                self.model.ui.claude_installed = claude;
-                self.model.ui.shells = shells;
+            Message::Detected(found) => {
+                self.model.ui.claude_installed = found.claude;
+                self.model.ui.codex_installed = found.codex;
+                self.model.ui.shells = found.shells;
                 self.pkg.setup.detected = true;
                 // The panes' shells start only now: one started before
                 // would run the first shell found instead of its own.
@@ -452,8 +451,8 @@ impl App {
         Task::batch(tasks)
     }
 
-    /// The Claude Code setup, at start, once the state and the detection are
-    /// both in and only when Claude Code is missing (shell/setup).
+    /// The agents' setup, at start, once the state and the detection are
+    /// both in and only when no agent is installed (shell/setup).
     fn offer_setup(&mut self) -> Task<Message> {
         match crate::shell::setup::offer_at_start(&self.pkg.setup, &self.model) {
             Some(intent) => self.intent(intent),
@@ -574,11 +573,14 @@ impl App {
 
     /// The intent's shell part, then every package's.
     fn intent(&mut self, intent: Intent) -> Task<Message> {
-        // A new workspace while Claude Code is missing is the setup first.
-        let intent = crate::shell::setup::redirect(&mut self.pkg.setup, &self.model, intent);
+        // A new workspace while no agent is installed is the setup first;
+        // the setup, as it opens, looks at the agents again.
+        let (intent, setup) =
+            crate::shell::setup::redirect(&mut self.pkg.setup, &self.model, intent);
         let own = self.own_intent(&intent);
         let mut tasks = self.offer_intent(&intent);
         tasks.push(own);
+        tasks.push(setup);
         Task::batch(tasks)
     }
 
@@ -733,9 +735,10 @@ impl App {
         if !self.model.is_focused_window(window) {
             return Task::none();
         }
-        // The Claude Code setup has no Escape: it is installed or set aside.
+        // The agents' setup closes its own way, and not while no agent is
+        // installed nor while an installer runs (shell/setup).
         if crate::shell::setup::is_open(&self.model) {
-            return Task::none();
+            return crate::shell::setup::escape(&self.pkg.setup, &self.model);
         }
         if !self.model.ui.overlays.is_empty() {
             return self.intent(Intent::CloseOverlay);
