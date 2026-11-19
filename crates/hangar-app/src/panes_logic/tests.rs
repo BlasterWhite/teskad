@@ -1162,7 +1162,8 @@ fn a_bridged_panes_trust_look_keeps_no_timer_running() {
 fn the_hunt_wakes_slow_only_after_output_and_on_its_cadence() {
     let mut m = at_rest();
     let st = polled_at(NOW);
-    let watch = SessionWatch::new("/work/w1".into(), HashSet::new(), NOW);
+    let watch = SessionWatch::for_agent(AgentId::Claude, "/work/w1".into(), HashSet::new(), NOW)
+        .expect("Claude Code resumes its sessions");
     m.live.panes_logic.watches.insert("sh".into(), watch);
     // Its round is due at NOW + HUNT_MS, but would do nothing: not a wake.
     assert_eq!(next_slow_at(&st, &m), Some(NOW + PANE_BRANCH_REFRESH_MS));
