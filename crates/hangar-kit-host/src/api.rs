@@ -56,8 +56,9 @@ pub trait KitApi: Send + Sync + 'static {
 
     /// What only the app can refuse of a call whose params are right, asked
     /// before the call counts against its rate: the workspace is still there,
-    /// the pane `panes.send` names is one of its Claude Code agents with the
-    /// bridge. `src/lib/kitApi.ts` checked those before it took from the
+    /// the pane `panes.send` names is one of its agents, whatever the kind,
+    /// whose session speaks to Hangar now (Claude Code's bridge, Codex
+    /// attached). `src/lib/kitApi.ts` checked those before it took from the
     /// limit, so a page that keeps naming the wrong pane never spends the
     /// sends of the right one. Nothing by default.
     fn check(&self, call: &HostCall) -> Result<(), KitError> {
@@ -126,8 +127,9 @@ pub enum HostCall {
     WorkspaceInfo,
     /// `[{ name, agent, role, state, canSend }]`.
     PanesList,
-    /// `{ queued: true, pane }`; `not_found`, `denied` (not a Claude Code
-    /// agent) or `unavailable` (no bridge) as the app finds the pane.
+    /// `{ queued: true, pane }`; `not_found`, `denied` (not an agent: a
+    /// plain shell) or `unavailable` (its session does not speak to Hangar:
+    /// no bridge, Codex not attached) as the app finds the pane.
     PanesSend { pane: String, text: String },
     /// The file's text. `hidden`: the tab holds `files.write` too, so a
     /// hidden file is read as well (`kit_files_read`, not `kit_file_read`).

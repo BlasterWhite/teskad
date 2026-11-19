@@ -6,9 +6,10 @@
 //! switch off applies at once. A kit enabled on all workspaces and not listed
 //! by this one shows a locked switch and an « everywhere » tag: Settings › Kits
 //! manages it. A kit enabled here but no longer installed shows a « gone » row
-//! whose switch removes it. After an accept, if the workspace has Claude Code
-//! panes, a notice offers to restart them, as they keep the kits they started
-//! with.
+//! whose switch removes it. A kit meant for one agent says so (« Claude Code
+//! only »). After an accept, if the workspace has panes of an agent that
+//! loads kits at launch, a notice offers to restart them, as they keep the
+//! kits they started with.
 
 use iced::widget::{column, container, row, text};
 use iced::{Alignment, Element, Length};
@@ -20,7 +21,7 @@ use hangar_ui::badge::Tone;
 use hangar_ui::{button, form, input, text as typography};
 
 use super::activation_model::{Tag, TagTone};
-use super::{msg, notice};
+use super::{agents_tag, msg, notice};
 use crate::ctx::Ctx;
 use crate::kits::activation::{
     KitState, hooks_to_accept, kit_name, kit_requested, kit_state, panes_to_restart,
@@ -135,6 +136,11 @@ impl SectionModel {
             let name = kit_name(kit).to_owned();
             let usable = kit.error.is_none() && kit.manifest.is_some();
             let requested = kit_requested(kit);
+            // « Claude Code only »: the agents its plugin reaches, when not all.
+            let agents = kit
+                .manifest
+                .as_ref()
+                .and_then(|manifest| agents_tag(t, &manifest.agents));
             if let Some(shared) = shared {
                 let state = if usable {
                     kit_state(Some(shared), requested.as_deref())
@@ -155,6 +161,7 @@ impl SectionModel {
                         },
                     ));
                 }
+                tags.extend(agents);
                 rows.push(Row::Everywhere(KitRow {
                     id: kit.id.clone(),
                     meta: kit
@@ -206,7 +213,7 @@ impl SectionModel {
                 name,
                 on: own.is_some(),
                 switch_enabled: usable || own.is_some(),
-                tags: vec![tag(
+                tags: [tag(
                     t.t(if held {
                         Key::KitsManageStatusReviewHooks
                     } else {
@@ -214,7 +221,10 @@ impl SectionModel {
                     })
                     .into_owned(),
                     tone,
-                )],
+                )]
+                .into_iter()
+                .chain(agents)
+                .collect(),
                 open: (usable && matches!(state, KitState::Review | KitState::On)).then(|| {
                     t.t(if state == KitState::Review {
                         Key::KitsManageReview

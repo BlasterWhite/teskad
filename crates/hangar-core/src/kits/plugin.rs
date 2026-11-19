@@ -1358,7 +1358,7 @@ fn expand(value: &mut Value, root: &str) {
 }
 
 /// `skills/<name>/SKILL.md`, by folder name.
-fn skills(plugin_dir: &Path) -> Vec<String> {
+pub(super) fn skills(plugin_dir: &Path) -> Vec<String> {
     let mut names: Vec<String> = fs::read_dir(plugin_dir.join("skills"))
         .into_iter()
         .flatten()

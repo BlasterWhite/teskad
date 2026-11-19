@@ -15,7 +15,7 @@ use hangar_ui::badge::Tone;
 use hangar_ui::{button, form, input, text as typography};
 
 use super::activation_model::{Loadable, Tag, TagTone};
-use super::{msg, note, notice, tag};
+use super::{agents_tag, msg, note, notice, tag};
 use crate::ctx::Ctx;
 use crate::kits::gallery::{
     Gallery, GalleryKit, GalleryStatus, Origin, filter_gallery, gallery_status,
@@ -48,6 +48,9 @@ pub struct Card {
     pub source: String,
     pub action: CardAction,
     pub verified: Tag,
+    /// « Claude Code only »: from the kit's own manifest once it is on this
+    /// machine, from the catalog's word before.
+    pub agents: Option<Tag>,
     /// Said beside « Community kit ».
     pub community_note: Option<String>,
     pub tags: Vec<String>,
@@ -201,6 +204,14 @@ impl GalleryModel {
     fn card(t: Translator, entry: &GalleryKit, input: &GalleryInput<'_>) -> Card {
         let installed = input.installed.unwrap_or_default();
         let status = gallery_status(entry, installed);
+        let agents = match installed
+            .iter()
+            .find(|kit| kit.id == entry.id)
+            .and_then(|kit| kit.manifest.as_ref())
+        {
+            Some(manifest) => agents_tag(t, &manifest.agents),
+            None => agents_tag(t, &entry.agents),
+        };
         let working = input.busy == Some(entry.id.as_str());
         let version = |version: &str| format!("v{version}");
         let pinned = |tag: &str| Tag {
@@ -300,6 +311,7 @@ impl GalleryModel {
                     tone: TagTone::Plain,
                 }
             },
+            agents,
             community_note: (!entry.verified)
                 .then(|| t.t(Key::KitsManageGalleryCommunityNote).into_owned()),
             tags: entry.tags.clone(),
@@ -341,6 +353,7 @@ impl GalleryModel {
                         card.source.clone(),
                         card.verified.label.clone(),
                     ]);
+                    out.extend(card.agents.as_ref().map(|tag| tag.label.clone()));
                     out.extend(card.community_note.clone());
                     out.extend(card.tags.clone());
                     out.extend(card.asks.clone());
@@ -455,6 +468,9 @@ fn card_view<'a>(ctx: Ctx<'a>, card: &Card) -> Element<'a, Message> {
     let mut trust = row![tag(ctx, &card.verified)]
         .spacing(tokens::space::MD)
         .align_y(Alignment::Center);
+    if let Some(agents) = &card.agents {
+        trust = trust.push(tag(ctx, agents));
+    }
     if let Some(words) = &card.community_note {
         trust = trust.push(typography::hint(ctx.theme, words.clone()));
     }
