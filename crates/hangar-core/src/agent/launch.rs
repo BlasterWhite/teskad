@@ -86,6 +86,14 @@ pub struct LaunchRequest {
     /// this way (D8). Claude Code reads it from its configuration files, so
     /// its line ignores this.
     pub hangar_mcp: Option<String>,
+    /// The launch's other MCP servers, for a kind that takes its servers as
+    /// configuration overrides (`McpInjection::Overrides`): each kit's, and,
+    /// in a workspace in « custom » MCP mode, each of the agent's own that the
+    /// workspace did not choose, turned off — by name, each an object in the
+    /// kind's own keys (`mcp_scope::codex_mcp_scope`). Claude Code gets the
+    /// same from its `--mcp-config` file ([`LaunchRequest::mcp`]), so its line
+    /// ignores this.
+    pub mcp_overrides: Vec<(String, serde_json::Value)>,
     /// Folders the agent is to trust for this launch only, for a kind that
     /// asks before working in a folder it does not trust (Codex): a worker's
     /// worktree, when its workspace's own folder is trusted in the person's

@@ -11,6 +11,7 @@ are regenerated when the pin moves, and never edited.
 | `subset.json` | The pin (`"codex"`), whether the experimental surface is included (`false`: Hangar sends `experimentalApi: false`), and the methods Hangar uses: requests it sends, notifications and requests it reads. `responseOverrides` names an answer type Codex's `…Params` → `…Response` naming does not give. |
 | `fetch-schema.sh` | Runs the pinned `codex app-server generate-json-schema` on the build machine (scripts/remote) and brings the schema back. Codex is not installed on the person's PC, and nothing here installs it there. |
 | `generate.mjs` | Reduces the schema to the subset and writes the outputs below. Node only, no dependencies; needs `rustfmt`. |
+| `diff-schema.mjs` | The schema watch's diff of two Codex releases' schemas, restricted to the subset (below). Node only, no dependencies; its reduction is `generate.mjs`'s. Tested by `diff-schema.test.mjs` (`node --test scripts/codex-protocol/`). |
 | `schema.subset.json` (generated) | The schema reduced to the subset's methods and every type they reach: what a bump's review reads, and what `generate.mjs` alone regenerates from. |
 | `crates/hangar-core/src/codex_app/generated.rs` (generated) | The Rust types, `serde`. |
 | `crates/hangar-core/src/codex_app/testdata/schema-samples.jsonl` (generated) | A JSON instance of every type, variant and value, written from the schema alone; `codex_app/tests.rs` reads each back with its Rust type. |
@@ -100,3 +101,44 @@ are regenerated when the pin moves, and never edited.
   and exits 1 when a generated file is not what the generator writes.
 - **An experimental method**: set `"experimental": true` (the schema then includes the gated
   methods and fields) and have the client send `experimentalApi: true`; record why in the commit.
+
+## Schema watch
+
+Codex ships about three releases a week, and the pin only moves by hand. So that Hangar learns when a
+release changes what it uses, `.github/workflows/codex-schema-watch.yml` runs every Monday (05:23 UTC)
+and on demand, on a GitHub runner: no build machine, no secret, no login.
+
+1. It reads the latest release (`npm view @openai/codex version`) and stops there when it is not newer
+   than the pin.
+2. It installs the pinned release and the latest one from npm, each into a throwaway prefix (install
+   scripts off), and runs `codex app-server generate-json-schema` on both with an empty `CODEX_HOME`.
+3. `diff-schema.mjs` compares the two schemas restricted to the subset: both go through
+   `generate.mjs`'s reduction (the methods of `subset.json` and every type they reach), so what is
+   compared is what the generated types come from. It prints the methods of the subset that are gone,
+   and per method and type the fields added, removed, now required or no longer, the changed types and
+   the enum values and alternatives added or removed. Descriptions are not compared. Methods outside
+   the subset are listed for information and never count.
+4. When the subset changed it opens an issue labelled `codex-schema` with the diff and the release's
+   link, or updates the one already open (a comment says when a newer release replaced the one it was
+   about): never two. Unchanged, it does nothing. It never fails a release: it is a notice, in a
+   workflow of its own. It fails only when the diff cannot be made, which shows in Actions.
+
+What to do with the issue: read the release notes against the diff, then bump the pin (above), or,
+when the release drops something Hangar needs, list it in `CODEX_BROKEN`
+(`crates/hangar-core/src/codex_app/gate.rs`) so Hangar runs the plain TUI for it meanwhile. Closing the
+issue is by hand.
+
+**By hand.** The PC never runs Codex, so either let the workflow do it for any release
+(`gh workflow run codex-schema-watch.yml -f version=0.171.0`, or Actions > Run workflow), or, from
+two schema folders written on a machine that has Codex (`fetch-schema.sh` brings the pinned one back
+from the build machine):
+
+```sh
+codex app-server generate-json-schema --out <folder>   # CODEX_HOME empty, no login
+codex --version > <folder>/codex-version.txt           # which release wrote it
+node scripts/codex-protocol/diff-schema.mjs <pinned folder> <latest folder>
+```
+
+The pinned folder must be the release `subset.json` pins. Exit 0: the subset is unchanged; 1: it
+changed (the diff is on stdout); 2: the diff could not be made. `--subset <file>` reads another
+subset than `subset.json`.

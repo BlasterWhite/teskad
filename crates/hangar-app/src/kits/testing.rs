@@ -47,6 +47,7 @@ pub fn manifest(id: &str, version: &str, tabs: Vec<Tab>) -> Manifest {
         icon: None,
         hangar: None,
         plugin: None,
+        agents: vec![hangar_core::agent::AgentKind::Claude],
         tabs,
         setup: Vec::new(),
         commands: BTreeMap::new(),
@@ -141,6 +142,7 @@ pub fn inspection(tabs: Vec<Tab>) -> Inspection {
         setup: Vec::new(),
         declared_commands: Vec::new(),
         commands_permission: None,
+        by_agent: Vec::new(),
     }
 }
 

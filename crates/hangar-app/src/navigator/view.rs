@@ -226,9 +226,9 @@ fn message<'a>(t: &'a Theme, words: String) -> Element<'a, Message> {
 // ---- The top ----------------------------------------------------------------------------------
 
 /// The mark, the name with the site and the version, and the button that
-/// hides the navigator, level with the toolbar beside it so the window reads as one band: the
-/// title bar's left end when Hangar draws it, with the window's buttons the
-/// desktop puts on the left.
+/// hides the navigator, level with the toolbar beside it so the window reads
+/// as one band: the title bar's left end when Hangar draws it, with the
+/// window's buttons the desktop puts on the left.
 fn top<'a>(f: &Frame<'a>) -> Element<'a, Message> {
     let t = f.ctx.theme;
     let tr = f.ctx.i18n;

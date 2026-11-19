@@ -10,6 +10,12 @@ Every release, with its installers, is on the
 
 ## [Unreleased]
 
+## [2.4.6] - 2026-11-19
+
+### Fixed
+
+- hangarai.dev also shows in the title bar with the navigator hidden and in workspace windows.
+
 ## [2.4.5] - 2026-11-19
 
 ### Added
@@ -860,6 +866,7 @@ statistics, workspace sleep and per-workspace MCP servers.
 - Automatic updates from signed GitHub releases.
 - An interface in English and French (0.1.1).
 
+[2.4.6]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.6
 [2.4.5]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.5
 [2.4.4]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.4
 [2.4.3]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.3

@@ -1,0 +1,175 @@
+name: Codex schema watch
+
+# Codex ships about three releases a week and Hangar's protocol types come from one of them
+# (scripts/codex-protocol/subset.json, docs/native/agents.md §4.6 and decision 2). Every Monday this
+# generates the app-server JSON Schema of that pinned release and of the latest one on npm, diffs
+# them restricted to the methods and types Hangar uses (scripts/codex-protocol/diff-schema.mjs), and
+# when the subset changed opens an issue labelled codex-schema, or updates the one already open:
+# never two. It is a notice, not a gate: no release depends on it, and an unchanged subset does
+# nothing.
+#
+# Nothing here needs a login or a secret: `codex app-server generate-json-schema` prints the schema
+# from the binary alone, with an empty CODEX_HOME. Codex is installed from npm into a throwaway
+# prefix of the runner (never globally, install scripts off) and the only thing that sees the
+# workflow's token is the step that writes the issue.
+#
+# By hand: Actions > Codex schema watch > Run workflow, with a version to diff the pin against that
+# release instead of the latest one.
+on:
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "A Codex release to diff the pin against, instead of the latest on npm (for example 0.171.0)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  issues: write
+
+# One run at a time, so a manual run cannot open a second issue beside the scheduled one.
+concurrency:
+  group: codex-schema-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    # A fork has no issues of ours to open.
+    if: github.repository == 'hangar-ai/hangar'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/codex-protocol
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Find the releases to compare
+        id: versions
+        env:
+          REQUESTED: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          pinned="$(node -p 'require("./scripts/codex-protocol/subset.json").codex')"
+          latest="$(npm view "@openai/codex@${REQUESTED:-latest}" version)"
+          semver='^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'
+          for v in "$pinned" "$latest"; do
+            [[ "$v" =~ $semver ]] || { echo "::error::\"${v%%$'\n'*}\" is not one Codex release"; exit 1; }
+          done
+          run=true
+          # The scheduled run compares the pin with the latest release, and only when that one is
+          # newer (a pin ahead of npm's latest has nothing to learn from it).
+          if [ -z "$REQUESTED" ] && [ "$(printf '%s\n%s\n' "$pinned" "$latest" | sort -V | tail -n 1)" = "$pinned" ]; then
+            run=false
+            echo "Codex $latest is the pinned release ($pinned) or older: nothing to compare." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          {
+            echo "pinned=$pinned"
+            echo "latest=$latest"
+            echo "run=$run"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Generate the schema of both releases
+        if: steps.versions.outputs.run == 'true'
+        env:
+          PINNED: ${{ steps.versions.outputs.pinned }}
+          LATEST: ${{ steps.versions.outputs.latest }}
+        run: |
+          set -euo pipefail
+          flags=()
+          if [ "$(node -p 'Boolean(require("./scripts/codex-protocol/subset.json").experimental)')" = true ]; then
+            flags=(--experimental)
+          fi
+          schema() {
+            local version="$1" out="$2" prefix home codex
+            prefix="$RUNNER_TEMP/codex-$version"
+            npm install --ignore-scripts --no-audit --no-fund --prefix "$prefix" "@openai/codex@$version"
+            codex="$prefix/node_modules/.bin/codex"
+            # An empty CODEX_HOME: the schema must not depend on a config or a login.
+            home="$(mktemp -d -p "$RUNNER_TEMP")"
+            CODEX_HOME="$home" "$codex" app-server generate-json-schema "${flags[@]}" --out "$out"
+            CODEX_HOME="$home" "$codex" --version > "$out/codex-version.txt"
+            cat "$out/codex-version.txt"
+          }
+          schema "$PINNED" "$RUNNER_TEMP/schema-pinned"
+          schema "$LATEST" "$RUNNER_TEMP/schema-latest"
+
+      - name: Diff the subset Hangar uses
+        id: diff
+        if: steps.versions.outputs.run == 'true'
+        run: |
+          set -uo pipefail
+          # 0: unchanged, 1: changed, anything else: the diff could not be made (the job fails).
+          status=0
+          node scripts/codex-protocol/diff-schema.mjs "$RUNNER_TEMP/schema-pinned" "$RUNNER_TEMP/schema-latest" > "$RUNNER_TEMP/diff.txt" || status=$?
+          cat "$RUNNER_TEMP/diff.txt"
+          {
+            echo '```text'
+            cat "$RUNNER_TEMP/diff.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          case "$status" in
+            0) echo "changed=false" >> "$GITHUB_OUTPUT" ;;
+            1) echo "changed=true" >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "::error::diff-schema.mjs could not compare the two schemas (exit $status)"
+              exit 1
+              ;;
+          esac
+
+      - name: Open or update the issue
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PINNED: ${{ steps.versions.outputs.pinned }}
+          LATEST: ${{ steps.versions.outputs.latest }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          label=codex-schema
+          title="Codex $LATEST changes the app-server protocol Hangar uses"
+          body="$RUNNER_TEMP/issue.md"
+          max=55000 # an issue body holds 65536 characters
+          {
+            echo "<!-- codex-schema-watch latest=$LATEST pinned=$PINNED -->"
+            echo "Codex **$LATEST** changes the part of the app-server protocol Hangar uses. Hangar is pinned to **$PINNED** (\`scripts/codex-protocol/subset.json\`)."
+            echo
+            echo "- Release: https://github.com/openai/codex/releases/tag/rust-v$LATEST"
+            echo "- npm: https://www.npmjs.com/package/@openai/codex/v/$LATEST"
+            echo "- Found by: $RUN_URL"
+            echo
+            echo '```text'
+            head -c "$max" "$RUNNER_TEMP/diff.txt"
+            if [ "$(wc -c < "$RUNNER_TEMP/diff.txt")" -gt "$max" ]; then
+              printf '\n[cut here: the whole diff is in the run above]\n'
+            fi
+            echo '```'
+            echo
+            echo "What to do: read the release notes against the diff. If nothing in it changes what Hangar sends or reads, bump the pin (\`scripts/codex-protocol/README.md\`, \"How to bump the pinned Codex version\"). If this release drops something Hangar needs, add it to \`CODEX_BROKEN\` (\`crates/hangar-core/src/codex_app/gate.rs\`) so Hangar runs the plain TUI for it meanwhile. Methods and types outside the subset are listed for information only."
+            echo
+            echo "Opened by the Codex schema watch (\`.github/workflows/codex-schema-watch.yml\`) when the subset differs, and updated, never duplicated, while it stays open."
+          } > "$body"
+
+          labels="$(gh label list --limit 200 --json name --jq '.[].name')"
+          if ! grep -qx "$label" <<< "$labels"; then
+            gh label create "$label" --color 1D76DB --description "The latest Codex release changes the app-server protocol Hangar uses"
+          fi
+
+          number="$(gh issue list --label "$label" --state open --limit 1 --json number --jq '.[0].number // empty')"
+          if [ -z "$number" ]; then
+            gh issue create --title "$title" --label "$label" --body-file "$body"
+          else
+            previous="$(gh issue view "$number" --json body --jq .body | grep -o 'latest=[^ ]*' | head -n 1 || true)"
+            gh issue edit "$number" --title "$title" --body-file "$body"
+            # The edit is silent: say it when a release newer than the one the issue was about came out.
+            if [ "$previous" != "latest=$LATEST" ]; then
+              gh issue comment "$number" --body "Updated for Codex $LATEST: $RUN_URL"
+            fi
+          fi
