@@ -1,6 +1,8 @@
-//! « Comptes Claude »: several Claude subscriptions on one machine, one
-//! Claude Code profile per account, and every Claude Code pane launched on
-//! the account chosen for it.
+//! « Comptes »: several subscriptions of each agent on one machine — one
+//! Claude Code profile, or one Codex home, per account — and every agent pane
+//! launched on the account chosen for it. The accounts of every kind are
+//! listed in one `accounts.json`, by kind (store.rs); a Claude account is
+//! told below, a Codex account under « Codex ».
 //!
 //! # Profiles
 //!
@@ -85,7 +87,22 @@
 //! `Event::AccountsChanged` (the window's `accounts:changed`) is sent after
 //! every change made here, and when a profile's login appears, changes or
 //! goes (`watch`).
+//!
+//! # Codex
+//!
+//! A Codex account is a *shadow* `CODEX_HOME` (codex_home.rs,
+//! docs/native/agents.md §6.1): main is the person's own (`CODEX_HOME` if
+//! Hangar was started with it, `~/.codex` otherwise), only ever read; every
+//! other account is `~/.hangar/accounts/codex/<id>/`, with its own
+//! `auth.json` and models cache and links to main's configuration, tools and
+//! conversations. A pane on it — the agent and its server — is started with
+//! `CODEX_HOME` naming it and `CODEX_SQLITE_HOME` naming main's SQLite folder
+//! (`env_for`). Its login is `codex login` in a pane on it, which writes
+//! only its own `auth.json`; who it is logged in as is read from that file
+//! (login.rs), its tokens never held. Logins stay apart by construction: a
+//! file per home, and a keyring entry named after the home's path.
 
+mod codex_home;
 mod link;
 mod login;
 mod share;
@@ -101,20 +118,26 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 
+use crate::agent::AgentKind;
 use crate::host::{Event, Host};
 
+pub use codex_home::CodexHome;
 pub use share::Issue;
 use share::{stamp, Stamp};
 use store::Store;
 
-/// The account that is Claude Code's own configuration.
+/// The account that is the agent's own configuration, of every kind.
 pub const MAIN: &str = "main";
-/// The agent an account applies to.
+/// The id of Claude Code, the agent `account_add` and the other calls
+/// without a kind are for.
 pub const CLAUDE_AGENT: &str = "claude";
 /// What logs a profile in, typed in a pane whose Claude Code runs on it
 /// (checked against Claude Code 2.1.316, which also has `claude` then
 /// `/login`).
 pub const LOGIN_COMMAND: &str = "claude auth login";
+/// What logs a Codex account in, typed in a pane on its home: it writes that
+/// home's `auth.json` (`--device-auth` where no browser can be opened).
+pub const CODEX_LOGIN_COMMAND: &str = "codex login";
 /// How often the logins are looked at for `Event::AccountsChanged`.
 const WATCH_EVERY: Duration = Duration::from_secs(3);
 /// Claude Code keeps tokens in the Keychain on macOS, in
@@ -188,10 +211,65 @@ fn store_root() -> Option<PathBuf> {
     Some(dirs::home_dir()?.join(".hangar").join("accounts"))
 }
 
-fn homes() -> Result<(ClaudeHome, Store), String> {
-    match (ClaudeHome::main(), store_root()) {
-        (Some(main), Some(root)) => Ok((main, Store::at(root))),
+/// The main account of each kind.
+#[derive(Debug, Clone)]
+struct Mains {
+    claude: ClaudeHome,
+    codex: CodexHome,
+}
+
+impl Mains {
+    fn dir(&self, kind: AgentKind) -> &Path {
+        match kind {
+            AgentKind::Claude => &self.claude.dir,
+            AgentKind::Codex => &self.codex.dir,
+        }
+    }
+}
+
+fn homes() -> Result<(Mains, Store), String> {
+    match (ClaudeHome::main(), CodexHome::main(), store_root()) {
+        (Some(claude), Some(codex), Some(root)) => Ok((Mains { claude, codex }, Store::at(root))),
         _ => Err("No home directory on this system.".into()),
+    }
+}
+
+/// What logs an account of `kind` in, typed in a pane on it.
+pub fn login_command(kind: AgentKind) -> &'static str {
+    match kind {
+        AgentKind::Claude => LOGIN_COMMAND,
+        AgentKind::Codex => CODEX_LOGIN_COMMAND,
+    }
+}
+
+/// An account's folder, by kind: what its login is read from.
+enum Home {
+    Claude(ClaudeHome),
+    Codex(CodexHome),
+}
+
+impl Home {
+    fn main(mains: &Mains, kind: AgentKind) -> Self {
+        match kind {
+            AgentKind::Claude => Home::Claude(mains.claude.clone()),
+            AgentKind::Codex => Home::Codex(mains.codex.clone()),
+        }
+    }
+
+    /// The account `id` of `kind` Hangar made.
+    fn of(store: &Store, kind: AgentKind, id: &str) -> Self {
+        let dir = store.dir_of(kind, id);
+        match kind {
+            AgentKind::Claude => Home::Claude(ClaudeHome::profile(dir)),
+            AgentKind::Codex => Home::Codex(CodexHome::at(dir)),
+        }
+    }
+
+    fn dir(&self) -> &Path {
+        match self {
+            Home::Claude(home) => &home.dir,
+            Home::Codex(home) => &home.dir,
+        }
     }
 }
 
@@ -228,28 +306,37 @@ pub struct Account {
     pub plan: Option<String>,
 }
 
-/// Logins already read, by folder, with the stamps of the two files they
-/// were read from: polling every few seconds reads nothing that did not
-/// move.
-fn read_login(home: &ClaudeHome) -> login::Login {
+/// Logins already read, by folder, with the stamps of the files they were
+/// read from (`.claude.json` and `.credentials.json`, or `auth.json`):
+/// polling every few seconds reads nothing that did not move.
+fn read_login(home: &Home) -> login::Login {
     type Cache = HashMap<PathBuf, (Option<Stamp>, Option<Stamp>, login::Login)>;
     static CACHE: OnceLock<Mutex<Cache>> = OnceLock::new();
-    let stamps = (stamp(&home.config), stamp(&home.credentials()));
+    let stamps = match home {
+        Home::Claude(home) => (stamp(&home.config), stamp(&home.credentials())),
+        Home::Codex(home) => (stamp(&home.auth()), None),
+    };
     let mut cache = CACHE
         .get_or_init(|| Mutex::new(HashMap::new()))
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    if let Some((config, credentials, login)) = cache.get(&home.dir) {
-        if (*config, *credentials) == stamps {
+    if let Some((first, second, login)) = cache.get(home.dir()) {
+        if (*first, *second) == stamps {
             return login.clone();
         }
     }
-    let login = login::read_login(home, KEYCHAIN);
-    cache.insert(home.dir.clone(), (stamps.0, stamps.1, login.clone()));
+    let login = match home {
+        Home::Claude(home) => login::read_login(home, KEYCHAIN),
+        Home::Codex(home) => login::read_codex_login(&home.auth()),
+    };
+    cache.insert(
+        home.dir().to_path_buf(),
+        (stamps.0, stamps.1, login.clone()),
+    );
     login
 }
 
-fn account(id: &str, label: &str, home: &ClaudeHome) -> Account {
+fn account(id: &str, label: &str, home: &Home) -> Account {
     let login = read_login(home);
     Account {
         id: id.to_string(),
@@ -261,29 +348,38 @@ fn account(id: &str, label: &str, home: &ClaudeHome) -> Account {
     }
 }
 
-/// Main first, then the profiles in the order they were added. An index
-/// nobody can read lists main alone rather than nothing.
-fn list_with(main: &ClaudeHome, store: &Store) -> Vec<Account> {
+/// The accounts of `kind`: main first, then the others in the order they
+/// were added. An index nobody can read lists main alone rather than
+/// nothing.
+fn list_with(mains: &Mains, store: &Store, kind: AgentKind) -> Vec<Account> {
     let index = store.read().unwrap_or_else(|err| {
         eprintln!("accounts: {err}");
         store::Index::default()
     });
-    std::iter::once(account(MAIN, index.main_label(), main))
-        .chain(index.accounts.iter().map(|entry| {
-            account(
-                &entry.id,
-                &entry.label,
-                &ClaudeHome::profile(store.dir_of(&entry.id)),
-            )
-        }))
-        .collect()
+    std::iter::once(account(
+        MAIN,
+        index.main_label(kind),
+        &Home::main(mains, kind),
+    ))
+    .chain(
+        index
+            .of(kind)
+            .map(|entry| account(&entry.id, &entry.label, &Home::of(store, kind, &entry.id))),
+    )
+    .collect()
 }
 
-fn list() -> Vec<Account> {
+fn list(kind: AgentKind) -> Vec<Account> {
     match homes() {
-        Ok((main, store)) => list_with(&main, &store),
+        Ok((mains, store)) => list_with(&mains, &store, kind),
         Err(_) => Vec::new(),
     }
+}
+
+/// Every kind's list, in `AgentKind::ALL`'s order: what the windows are told
+/// changed.
+fn list_all() -> Vec<Vec<Account>> {
+    AgentKind::ALL.iter().map(|kind| list(*kind)).collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -295,10 +391,11 @@ fn list() -> Vec<Account> {
 pub struct Launch {
     /// The account it really runs on: main when the one asked for is gone.
     pub id: String,
-    /// What `CLAUDE_CONFIG_DIR` is set to; `None` on main, which keeps the
-    /// environment Hangar has.
+    /// The account's folder, what `CLAUDE_CONFIG_DIR` or `CODEX_HOME` is set
+    /// to (`env_for`); `None` on main, which keeps the environment Hangar
+    /// has.
     pub dir: Option<PathBuf>,
-    /// What the profile could not take from main this time.
+    /// What the account could not take from main this time.
     pub issues: Vec<Issue>,
 }
 
@@ -318,36 +415,44 @@ fn chosen(account: Option<&str>) -> Option<&str> {
         .filter(|id| !id.is_empty() && *id != MAIN)
 }
 
-/// The account a pane of `agent` starts on, its profile prepared: `None` for
-/// a pane that is not Claude Code, which no account applies to. An id that
-/// is no longer listed — removed since the window chose it — runs on main.
+/// The account a pane of `agent` (an `AgentKind` id) starts on, its folder
+/// prepared: `None` for a pane no account applies to, a shell's. An id that
+/// is not an account of that agent — removed since the window chose it, or
+/// another agent's — runs on main.
 pub fn for_launch(agent: Option<&str>, account: Option<&str>) -> Option<Launch> {
-    if agent != Some(CLAUDE_AGENT) {
-        return None;
-    }
+    let kind = agent.and_then(AgentKind::from_id)?;
     let Some(id) = chosen(account) else {
         return Some(Launch::main());
     };
-    let Ok((main, store)) = homes() else {
+    let Ok((mains, store)) = homes() else {
         return Some(Launch::main());
     };
-    Some(launch_with(&main, &store, id))
+    Some(launch_with(&mains, &store, kind, id))
 }
 
-fn launch_with(main: &ClaudeHome, store: &Store, id: &str) -> Launch {
+fn launch_with(mains: &Mains, store: &Store, kind: AgentKind, id: &str) -> Launch {
     let _guard = lock();
     let listed = store
         .read()
-        .is_ok_and(|index| index.accounts.iter().any(|entry| entry.id == id));
+        .is_ok_and(|index| index.find(kind, id).is_some());
     if !listed {
         return Launch::main();
     }
-    let profile = ClaudeHome::profile(store.dir_of(id));
-    let issues = share::prepare(main, &profile);
+    let dir = store.dir_of(kind, id);
+    let issues = prepare(mains, kind, &dir);
     Launch {
         id: id.to_string(),
-        dir: Some(profile.dir),
+        dir: Some(dir),
         issues,
+    }
+}
+
+/// Brings the account at `dir` level with main: a Claude profile's links,
+/// copies and settings (share.rs), a Codex home's links (codex_home.rs).
+fn prepare(mains: &Mains, kind: AgentKind, dir: &Path) -> Vec<Issue> {
+    match kind {
+        AgentKind::Claude => share::prepare(&mains.claude, &ClaudeHome::profile(dir.to_path_buf())),
+        AgentKind::Codex => codex_home::prepare(&mains.codex, &CodexHome::at(dir.to_path_buf())),
     }
 }
 
@@ -360,21 +465,22 @@ pub fn home_for(account: Option<&str>, prepared: bool) -> Option<ClaudeHome> {
     let Some(id) = chosen(account) else {
         return Some(main);
     };
-    let Some(root) = store_root() else {
+    let Ok((mains, store)) = homes() else {
         return Some(main);
     };
-    let store = Store::at(root);
     if prepared {
-        return Some(match launch_with(&main, &store, id).dir {
-            Some(dir) => ClaudeHome::profile(dir),
-            None => main,
-        });
+        return Some(
+            match launch_with(&mains, &store, AgentKind::Claude, id).dir {
+                Some(dir) => ClaudeHome::profile(dir),
+                None => main,
+            },
+        );
     }
     let listed = store
         .read()
-        .is_ok_and(|index| index.accounts.iter().any(|entry| entry.id == id));
+        .is_ok_and(|index| index.find(AgentKind::Claude, id).is_some());
     Some(if listed {
-        ClaudeHome::profile(store.dir_of(id))
+        ClaudeHome::profile(store.dir_of(AgentKind::Claude, id))
     } else {
         main
     })
@@ -385,16 +491,16 @@ pub fn home_for(account: Option<&str>, prepared: bool) -> Option<ClaudeHome> {
 /// profile that could not be linked and kept its own.
 pub fn projects_dirs() -> Vec<PathBuf> {
     match homes() {
-        Ok((main, store)) => projects_with(&main, &store),
+        Ok((mains, store)) => projects_with(&mains.claude, &store),
         Err(_) => Vec::new(),
     }
 }
 
 fn projects_with(main: &ClaudeHome, store: &Store) -> Vec<PathBuf> {
     let mut dirs = vec![main.projects()];
-    let profiles = store.read().map(|index| index.accounts).unwrap_or_default();
-    for entry in profiles {
-        let projects = ClaudeHome::profile(store.dir_of(&entry.id)).projects();
+    let index = store.read().unwrap_or_default();
+    for entry in index.of(AgentKind::Claude) {
+        let projects = ClaudeHome::profile(store.dir_of(AgentKind::Claude, &entry.id)).projects();
         if projects.is_dir() && !dirs.iter().any(|known| link::same_place(known, &projects)) {
             dirs.push(projects);
         }
@@ -425,78 +531,121 @@ pub struct Support {
     pub note: Option<String>,
 }
 
-/// The last list told to the windows, so that the watch does not tell a
+/// The last lists told to the windows, so that the watch does not tell a
 /// change made here a second time.
-fn last_told() -> &'static Mutex<Option<Vec<Account>>> {
-    static LAST: Mutex<Option<Vec<Account>>> = Mutex::new(None);
+fn last_told() -> &'static Mutex<Option<Vec<Vec<Account>>>> {
+    static LAST: Mutex<Option<Vec<Vec<Account>>>> = Mutex::new(None);
     &LAST
 }
 
 fn tell(host: &Host) {
-    let now = list();
+    let now = list_all();
     if let Ok(mut last) = last_told().lock() {
         *last = Some(now);
     }
     let _ = host.emit(Event::AccountsChanged);
 }
 
+/// The Claude accounts.
 pub fn accounts_list() -> Vec<Account> {
-    list()
+    list(AgentKind::Claude)
 }
 
-/// A new profile named `label`, ready for its login. An account that could
-/// not share main's conversations is not made: a conversation could not
-/// move to it or from it.
+/// The accounts of `kind`, main first.
+pub fn accounts_of(kind: AgentKind) -> Vec<Account> {
+    list(kind)
+}
+
+/// A new Claude account named `label` (`account_add_of`).
 pub fn account_add(host: &Host, label: String) -> Result<Added, String> {
-    let (main, store) = homes()?;
-    let added = add_with(&main, &store, &label, now_ms())?;
+    account_add_of(host, AgentKind::Claude, label)
+}
+
+/// A new account of `kind` named `label`, ready for its login. An account
+/// that could not share main's conversations is not made: a conversation
+/// could not move to it or from it.
+pub fn account_add_of(host: &Host, kind: AgentKind, label: String) -> Result<Added, String> {
+    let (mains, store) = homes()?;
+    let added = add_with(&mains, &store, kind, &label, now_ms())?;
     tell(host);
     Ok(added)
 }
 
-fn add_with(main: &ClaudeHome, store: &Store, label: &str, now: u64) -> Result<Added, String> {
+fn add_with(
+    mains: &Mains,
+    store: &Store,
+    kind: AgentKind,
+    label: &str,
+    now: u64,
+) -> Result<Added, String> {
     let _guard = lock();
-    let entry = store.add(label, now)?;
-    let profile = ClaudeHome::profile(store.dir_of(&entry.id));
-    let issues = share::prepare(main, &profile);
+    let entry = store.add(kind, label, now)?;
+    let dir = store.dir_of(kind, &entry.id);
+    let issues = prepare(mains, kind, &dir);
+    // Where each kind keeps its conversations.
+    let conversations = match kind {
+        AgentKind::Claude => "projects",
+        AgentKind::Codex => "sessions",
+    };
     if let Some(issue) = issues
         .iter()
-        .find(|issue| issue.item == "projects" || issue.item == "profile")
+        .find(|issue| issue.item == conversations || issue.item == "profile")
     {
         let _ = store.forget(&entry.id);
-        delete_tree(&profile.dir);
+        delete_tree(&dir);
         return Err(format!(
             "The account could not share the conversations of the main one: {}",
             issue.reason
         ));
     }
     Ok(Added {
-        account: account(&entry.id, &entry.label, &profile),
+        account: account(&entry.id, &entry.label, &Home::of(store, kind, &entry.id)),
         login: LoginCommand {
-            command: LOGIN_COMMAND.to_string(),
+            command: login_command(kind).to_string(),
         },
     })
 }
 
+/// Renames a Claude account, its main one included (`account_rename_of`).
 pub fn account_rename(host: &Host, id: String, label: String) -> Result<Account, String> {
-    let (main, store) = homes()?;
-    let label = {
-        let _guard = lock();
-        store.rename(&id, &label)?
-    };
-    let home = if id == MAIN {
-        main
-    } else {
-        ClaudeHome::profile(store.dir_of(&id))
-    };
-    let renamed = account(&id, &label, &home);
+    account_rename_of(host, AgentKind::Claude, id, label)
+}
+
+/// Renames an account of `kind`, its main one included.
+pub fn account_rename_of(
+    host: &Host,
+    kind: AgentKind,
+    id: String,
+    label: String,
+) -> Result<Account, String> {
+    let (mains, store) = homes()?;
+    let renamed = rename_with(&mains, &store, kind, &id, &label)?;
     tell(host);
     Ok(renamed)
 }
 
-/// Deletes a profile Hangar made — its folder, its login — once the window
-/// has asked the person. Never main, nothing the links lead to, and not
-/// while a pane still runs on it.
+fn rename_with(
+    mains: &Mains,
+    store: &Store,
+    kind: AgentKind,
+    id: &str,
+    label: &str,
+) -> Result<Account, String> {
+    let label = {
+        let _guard = lock();
+        store.rename(kind, id, label)?
+    };
+    let home = if id == MAIN {
+        Home::main(mains, kind)
+    } else {
+        Home::of(store, kind, id)
+    };
+    Ok(account(id, &label, &home))
+}
+
+/// Deletes an account Hangar made, of any kind — its folder, its login —
+/// once the window has asked the person. Never main, nothing the links lead
+/// to, and not while a pane still runs on it.
 pub fn account_remove(
     host: &Host,
     manager: &crate::pty::PtyManager,
@@ -508,24 +657,38 @@ pub fn account_remove(
             "{running} pane(s) still run on this account: switch or close them first."
         ));
     }
-    let (main, store) = homes()?;
-    remove_with(&main, &store, &id, now_ms())?;
+    let (mains, store) = homes()?;
+    remove_with(&mains, &store, &id, now_ms())?;
     tell(host);
     Ok(())
 }
 
-fn remove_with(main: &ClaudeHome, store: &Store, id: &str, now: u64) -> Result<(), String> {
+fn remove_with(mains: &Mains, store: &Store, id: &str, now: u64) -> Result<(), String> {
     if id == MAIN {
         return Err("The main account cannot be removed.".into());
     }
     let _guard = lock();
     let index = store.read()?;
-    if !store::valid_id(id) || !index.accounts.iter().any(|entry| entry.id == id) {
+    let Some(entry) = index
+        .accounts
+        .iter()
+        .find(|entry| entry.id == id && store::valid_id(id))
+    else {
         return Err("No such account.".into());
-    }
-    let dir = store.dir_of(id);
-    if link::same_place(&dir, &main.dir) || main.dir.starts_with(&dir) {
+    };
+    let dir = store.dir_of(entry.kind, id);
+    let main = mains.dir(entry.kind);
+    if link::same_place(&dir, main) || main.starts_with(&dir) {
         return Err("This account's folder is the main one's: it is not removed.".into());
+    }
+    // A Claude account made before Codex accounts with the id `codex` holds
+    // their folder.
+    if index
+        .accounts
+        .iter()
+        .any(|other| other.id != id && store.dir_of(other.kind, &other.id).starts_with(&dir))
+    {
+        return Err("Other accounts' folders are inside this one's: it is not removed.".into());
     }
     // Moved aside in one step first: a folder still in use stays whole.
     let trash = store.trash(id, now);
@@ -542,7 +705,7 @@ fn remove_with(main: &ClaudeHome, store: &Store, id: &str, now: u64) -> Result<(
     Ok(())
 }
 
-/// A profile's folder, deleted: its links taken out first, so nothing is
+/// An account's folder, deleted: its links taken out first, so nothing is
 /// ever removed through one. Only ever called on a folder of the store.
 fn delete_tree(dir: &Path) {
     if let Ok(entries) = fs::read_dir(dir) {
@@ -556,7 +719,8 @@ fn delete_tree(dir: &Path) {
     let _ = fs::remove_dir_all(dir);
 }
 
-/// Whether logging in to one account here leaves the others logged in.
+/// Whether logging in to one Claude account here leaves the others logged
+/// in. Codex's always do: a file per home, a keyring entry per home's path.
 pub fn accounts_support() -> Support {
     if !KEYCHAIN {
         return Support {
@@ -567,10 +731,9 @@ pub fn accounts_support() -> Support {
     let profiles: Vec<ClaudeHome> = match homes() {
         Ok((_, store)) => store
             .read()
-            .map(|index| index.accounts)
             .unwrap_or_default()
-            .iter()
-            .map(|entry| ClaudeHome::profile(store.dir_of(&entry.id)))
+            .of(AgentKind::Claude)
+            .map(|entry| ClaudeHome::profile(store.dir_of(AgentKind::Claude, &entry.id)))
             .collect(),
         Err(_) => Vec::new(),
     };
@@ -588,9 +751,10 @@ fn support_from(isolated: bool) -> Support {
     }
 }
 
-/// Tells the windows when a profile's login appears, changes or goes —
+/// Tells the windows when an account's login appears, changes or goes —
 /// the person logged in from a pane, or out — by looking at the accounts'
-/// files every few seconds. Also deletes what a removal could not.
+/// files of every kind every few seconds. Also deletes what a removal could
+/// not.
 pub fn watch(host: Host) {
     std::thread::spawn(move || {
         if let Some(root) = store_root() {
@@ -599,7 +763,7 @@ pub fn watch(host: Host) {
             }
         }
         loop {
-            let now = list();
+            let now = list_all();
             let changed = {
                 let mut last = last_told()
                     .lock()
@@ -616,32 +780,51 @@ pub fn watch(host: Host) {
     });
 }
 
-/// The variables a pane gets for its account: `CLAUDE_CONFIG_DIR` for a
-/// Claude Code pane on a profile, and nothing for any other — those keep
-/// the environment Hangar has, its own `CLAUDE_CONFIG_DIR` included.
-/// `CLAUDE_SECURESTORAGE_CONFIG_DIR` would make every profile share one
-/// Keychain login on macOS, so a profile pane goes without it.
+/// The variables a launch of `agent` (an `AgentKind` id) on the account
+/// whose folder is `dir` (`Launch::dir`) needs: `Some` sets one, `None`
+/// takes it out of the environment.
+///
+/// - Claude Code on a profile: `CLAUDE_CONFIG_DIR`, without
+///   `CLAUDE_SECURESTORAGE_CONFIG_DIR`, which would make every profile share
+///   one Keychain login on macOS.
+/// - Codex on a shadow home: `CODEX_HOME`, and `CODEX_SQLITE_HOME` naming
+///   main's SQLite folder (codex_home.rs).
+///
+/// Nothing for main, nor for a pane no account applies to: those keep the
+/// environment Hangar has, its own `CLAUDE_CONFIG_DIR` or `CODEX_HOME`
+/// included.
 pub fn env_for(agent: Option<&str>, dir: Option<&Path>) -> Vec<(&'static str, Option<PathBuf>)> {
-    match (agent, dir) {
-        (Some(CLAUDE_AGENT), Some(dir)) => vec![
+    let Some(dir) = dir else {
+        return Vec::new();
+    };
+    match agent.and_then(AgentKind::from_id) {
+        Some(AgentKind::Claude) => vec![
             ("CLAUDE_CONFIG_DIR", Some(dir.to_path_buf())),
             ("CLAUDE_SECURESTORAGE_CONFIG_DIR", None),
         ],
-        _ => Vec::new(),
+        Some(AgentKind::Codex) => codex_home::env(
+            dir,
+            CodexHome::main()
+                .map(|main| codex_home::sqlite_home(&main, std::env::var_os("CODEX_SQLITE_HOME"))),
+        ),
+        None => Vec::new(),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agent::AgentKind::{Claude, Codex};
     use testing::Scratch;
 
     fn store(scratch: &Scratch) -> Store {
         Store::at(scratch.root.join("accounts"))
     }
 
-    fn furnished(scratch: &Scratch) -> ClaudeHome {
-        let main = scratch.main_home();
+    /// Main accounts in use: Claude Code's logged in on « pro », Codex's on
+    /// a ChatGPT « team » account (fixtures/codex/chatgpt.json).
+    fn furnished(scratch: &Scratch) -> Mains {
+        let claude = scratch.main_home();
         scratch.file("home/.claude/projects/C--repo/conv-1.jsonl", "{}\n");
         scratch.file("home/.claude/skills/review/SKILL.md", "skill");
         scratch.file("home/.claude/settings.json", "{}");
@@ -653,7 +836,17 @@ mod tests {
             "home/.claude.json",
             r#"{"oauthAccount":{"emailAddress":"main@example.com"}}"#,
         );
-        main
+        let codex = scratch.codex_home();
+        scratch.file("home/.codex/config.toml", "model = \"gpt-5.5\"\n");
+        scratch.file(
+            "home/.codex/sessions/2026/11/18/rollout-2026-11-18T09-00-00-t1.jsonl",
+            "{}\n",
+        );
+        scratch.file(
+            "home/.codex/auth.json",
+            include_str!("accounts/fixtures/codex/chatgpt.json"),
+        );
+        Mains { claude, codex }
     }
 
     #[test]
@@ -672,14 +865,14 @@ mod tests {
     #[test]
     fn an_added_account_is_listed_after_main_and_logged_out() {
         let scratch = Scratch::new("add");
-        let main = furnished(&scratch);
+        let mains = furnished(&scratch);
         let store = store(&scratch);
-        let added = add_with(&main, &store, "Work", 7).unwrap();
+        let added = add_with(&mains, &store, Claude, "Work", 7).unwrap();
         assert_eq!(added.login.command, "claude auth login");
         assert_eq!(added.account.id, "work");
         assert!(!added.account.logged_in);
 
-        let listed = list_with(&main, &store);
+        let listed = list_with(&mains, &store, Claude);
         assert_eq!(listed.len(), 2);
         assert_eq!(
             listed[0],
@@ -697,9 +890,11 @@ mod tests {
         assert_eq!(listed[1].id, "work");
         assert!(!listed[1].is_main);
         // Its folder is ready: the conversations and tools of main are there.
-        let dir = store.dir_of("work");
+        let dir = store.dir_of(Claude, "work");
         assert!(dir.join("projects/C--repo/conv-1.jsonl").is_file());
         assert!(dir.join("skills/review/SKILL.md").is_file());
+        // No Codex account came with it.
+        assert_eq!(list_with(&mains, &store, Codex).len(), 1);
 
         // The serialized shape the window reads (src/lib/accounts.ts).
         let json = serde_json::to_value(&added).unwrap();
@@ -710,13 +905,71 @@ mod tests {
     }
 
     #[test]
+    fn a_codex_account_is_a_shadow_home_listed_with_codexs_main() {
+        let scratch = Scratch::new("add-codex");
+        let mains = furnished(&scratch);
+        let store = store(&scratch);
+        let added = add_with(&mains, &store, Codex, "Team", 7).unwrap();
+        assert_eq!(added.login.command, "codex login");
+        assert_eq!(added.account.id, "team");
+        assert!(!added.account.logged_in);
+        let home = store.dir_of(Codex, "team");
+        assert_eq!(home, scratch.root.join("accounts/codex/team"));
+        // Main's conversations and configuration, not its login.
+        assert!(home
+            .join("sessions/2026/11/18/rollout-2026-11-18T09-00-00-t1.jsonl")
+            .is_file());
+        assert!(home.join("config.toml").is_file());
+        assert!(!link::exists(&home.join("auth.json")));
+
+        // Logged in from a pane on it: who it is comes from its own file.
+        scratch.file(
+            "accounts/codex/team/auth.json",
+            include_str!("accounts/fixtures/codex/api-key.json"),
+        );
+        let listed = list_with(&mains, &store, Codex);
+        assert_eq!(
+            listed,
+            vec![
+                Account {
+                    id: "main".into(),
+                    label: "Main".into(),
+                    is_main: true,
+                    logged_in: true,
+                    email: Some("team@example.com".into()),
+                    plan: Some("team".into()),
+                },
+                Account {
+                    id: "team".into(),
+                    label: "Team".into(),
+                    is_main: false,
+                    logged_in: true,
+                    email: None,
+                    plan: Some("apikey".into()),
+                },
+            ]
+        );
+        // Claude's list is as it was.
+        assert_eq!(list_with(&mains, &store, Claude).len(), 1);
+        // And nothing secret is in what the window reads.
+        let shown = serde_json::to_string(&listed).unwrap();
+        assert!(!shown.contains("placeholder") && !shown.contains("eyJ"));
+
+        // Renamed per kind: Codex's main, not Claude's.
+        let renamed = rename_with(&mains, &store, Codex, "main", "Perso").unwrap();
+        assert_eq!(renamed.label, "Perso");
+        assert_eq!(list_with(&mains, &store, Claude)[0].label, "Main");
+    }
+
+    #[test]
     fn removing_a_profile_leaves_main_and_the_shared_data_intact() {
         let scratch = Scratch::new("remove");
-        let main = furnished(&scratch);
+        let mains = furnished(&scratch);
+        let main = &mains.claude;
         let store = store(&scratch);
-        add_with(&main, &store, "Work", 1).unwrap();
-        add_with(&main, &store, "Perso", 2).unwrap();
-        let work = store.dir_of("work");
+        add_with(&mains, &store, Claude, "Work", 1).unwrap();
+        add_with(&mains, &store, Claude, "Perso", 2).unwrap();
+        let work = store.dir_of(Claude, "work");
         // A conversation written on the account, and its own login.
         scratch.file("accounts/work/projects/C--repo/conv-2.jsonl", "{}\n");
         scratch.file(
@@ -724,14 +977,17 @@ mod tests {
             r#"{"claudeAiOauth":{"accessToken":"w"}}"#,
         );
 
-        assert!(remove_with(&main, &store, "main", 3).is_err());
-        assert!(remove_with(&main, &store, "../home", 3).is_err());
-        assert!(remove_with(&main, &store, "nobody", 3).is_err());
-        remove_with(&main, &store, "work", 3).unwrap();
+        assert!(remove_with(&mains, &store, "main", 3).is_err());
+        assert!(remove_with(&mains, &store, "../home", 3).is_err());
+        assert!(remove_with(&mains, &store, "nobody", 3).is_err());
+        remove_with(&mains, &store, "work", 3).unwrap();
 
         assert!(!link::exists(&work));
         assert!(store.trashed().is_empty());
-        let ids: Vec<String> = list_with(&main, &store).into_iter().map(|a| a.id).collect();
+        let ids: Vec<String> = list_with(&mains, &store, Claude)
+            .into_iter()
+            .map(|a| a.id)
+            .collect();
         assert_eq!(ids, ["main", "perso"]);
         // Everything shared is still main's, the conversation made on the
         // removed account included, and the other profile still reaches it.
@@ -741,31 +997,75 @@ mod tests {
         assert!(main.dir.join(".credentials.json").is_file());
         assert!(main.config.is_file());
         assert!(store
-            .dir_of("perso")
+            .dir_of(Claude, "perso")
             .join("projects/C--repo/conv-2.jsonl")
+            .is_file());
+    }
+
+    #[test]
+    fn removing_a_codex_account_leaves_mains_conversations_and_login() {
+        let scratch = Scratch::new("remove-codex");
+        let mains = furnished(&scratch);
+        let store = store(&scratch);
+        add_with(&mains, &store, Codex, "Team", 1).unwrap();
+        let team = store.dir_of(Codex, "team");
+        scratch.file(
+            "accounts/codex/team/auth.json",
+            "{\"OPENAI_API_KEY\":\"k\"}",
+        );
+        scratch.file(
+            "accounts/codex/team/sessions/2026/11/19/rollout-2026-11-19T09-00-00-t2.jsonl",
+            "{}\n",
+        );
+
+        remove_with(&mains, &store, "team", 3).unwrap();
+        assert!(!link::exists(&team));
+        assert!(store.trashed().is_empty());
+        assert_eq!(list_with(&mains, &store, Codex).len(), 1);
+        let main = &mains.codex.dir;
+        assert!(main.join("auth.json").is_file());
+        assert!(main.join("config.toml").is_file());
+        assert!(main
+            .join("sessions/2026/11/19/rollout-2026-11-19T09-00-00-t2.jsonl")
             .is_file());
     }
 
     #[test]
     fn a_launch_prepares_the_profile_and_falls_back_to_main_for_a_gone_account() {
         let scratch = Scratch::new("launch");
-        let main = furnished(&scratch);
+        let mains = furnished(&scratch);
         let store = store(&scratch);
-        add_with(&main, &store, "Work", 1).unwrap();
+        add_with(&mains, &store, Claude, "Work", 1).unwrap();
+        add_with(&mains, &store, Codex, "Team", 2).unwrap();
         // Main's setup changed since the account was added.
         scratch.file("home/.claude/CLAUDE.md", "New rule.");
+        scratch.file("home/.codex/AGENTS.md", "New rule.");
 
-        let launch = launch_with(&main, &store, "work");
+        let launch = launch_with(&mains, &store, Claude, "work");
         assert_eq!(launch.id, "work");
-        assert_eq!(launch.dir.as_deref(), Some(store.dir_of("work").as_path()));
+        assert_eq!(
+            launch.dir.as_deref(),
+            Some(store.dir_of(Claude, "work").as_path())
+        );
         assert!(launch.issues.is_empty(), "{:?}", launch.issues);
-        assert!(store.dir_of("work").join("CLAUDE.md").is_file());
+        assert!(store.dir_of(Claude, "work").join("CLAUDE.md").is_file());
 
-        assert_eq!(launch_with(&main, &store, "gone"), Launch::main());
+        let launch = launch_with(&mains, &store, Codex, "team");
+        assert_eq!(
+            launch.dir.as_deref(),
+            Some(store.dir_of(Codex, "team").as_path())
+        );
+        assert!(launch.issues.is_empty(), "{:?}", launch.issues);
+        assert!(store.dir_of(Codex, "team").join("AGENTS.md").is_file());
+
+        assert_eq!(launch_with(&mains, &store, Claude, "gone"), Launch::main());
+        // An account of the other agent is not this one's.
+        assert_eq!(launch_with(&mains, &store, Claude, "team"), Launch::main());
+        assert_eq!(launch_with(&mains, &store, Codex, "work"), Launch::main());
     }
 
     #[test]
-    fn panes_get_claude_config_dir_only_for_claude_code_on_a_profile() {
+    fn panes_get_their_agents_folder_only_on_an_account_hangar_made() {
         let dir = PathBuf::from("/accounts/work");
         assert_eq!(
             env_for(Some("claude"), Some(&dir)),
@@ -774,14 +1074,24 @@ mod tests {
                 ("CLAUDE_SECURESTORAGE_CONFIG_DIR", None),
             ]
         );
+        // Codex: its home, and main's SQLite folder beside it (its value is
+        // codex_home.rs's to test: it comes from this process's
+        // environment).
+        let codex = env_for(Some("codex"), Some(&dir));
+        let names: Vec<&str> = codex.iter().map(|(name, _)| *name).collect();
+        assert_eq!(names, ["CODEX_HOME", "CODEX_SQLITE_HOME"]);
+        assert_eq!(codex[0].1.as_deref(), Some(dir.as_path()));
         // Main keeps Hangar's environment.
         assert!(env_for(Some("claude"), None).is_empty());
+        assert!(env_for(Some("codex"), None).is_empty());
         // No account applies to a shell.
         assert!(env_for(Some("shell"), Some(&dir)).is_empty());
         assert!(env_for(None, Some(&dir)).is_empty());
         // And no launch is ever made for them.
         assert_eq!(for_launch(Some("shell"), Some("work")), None);
+        assert_eq!(for_launch(None, Some("work")), None);
         assert_eq!(for_launch(Some("claude"), None), Some(Launch::main()));
+        assert_eq!(for_launch(Some("codex"), None), Some(Launch::main()));
         assert_eq!(
             for_launch(Some("claude"), Some(" main ")),
             Some(Launch::main())
@@ -791,17 +1101,19 @@ mod tests {
     #[test]
     fn conversations_are_read_once_and_a_profile_of_its_own_too() {
         let scratch = Scratch::new("projects");
-        let main = furnished(&scratch);
+        let mains = furnished(&scratch);
         let store = store(&scratch);
-        add_with(&main, &store, "Work", 1).unwrap();
+        add_with(&mains, &store, Claude, "Work", 1).unwrap();
         // A profile whose link was replaced by a folder of its own.
-        add_with(&main, &store, "Perso", 2).unwrap();
-        let perso = store.dir_of("perso").join("projects");
+        add_with(&mains, &store, Claude, "Perso", 2).unwrap();
+        // A Codex account is no Claude profile.
+        add_with(&mains, &store, Codex, "Team", 3).unwrap();
+        let perso = store.dir_of(Claude, "perso").join("projects");
         link::remove_link(&perso).unwrap();
         scratch.file("accounts/perso/projects/C--x/conv-9.jsonl", "{}\n");
 
-        let dirs = projects_with(&main, &store);
-        assert_eq!(dirs, vec![main.projects(), perso]);
+        let dirs = projects_with(&mains.claude, &store);
+        assert_eq!(dirs, vec![mains.claude.projects(), perso]);
     }
 
     #[test]
