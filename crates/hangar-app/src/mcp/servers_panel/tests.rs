@@ -8,7 +8,7 @@ use super::*;
 use crate::app::Packages;
 use crate::navigator::testing::{ctx, model_of, pane, simulate, workspace};
 use crate::state::live::{AgentActivity, PaneMcp as Launched, PaneMcpMode};
-use crate::state::types::AppState;
+use crate::state::types::{AgentId, AppState};
 
 fn server(name: &str, hangar: bool) -> ServerInfo {
     ServerInfo {

@@ -145,7 +145,7 @@ fn overrides_kind(ws: &Workspace) -> Option<AgentKind> {
 
 /// What a pane's launch is compared with, by the way its agent takes the
 /// servers ([`takes_servers`]).
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 struct Defined<'a> {
     /// The servers the panel lists: the configuration a file's servers are
     /// copied from (Claude Code's).
