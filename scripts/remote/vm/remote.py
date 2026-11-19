@@ -3,7 +3,8 @@
 
   remote.py hello <idle-min>   state of the box (JSON), and a contact for the watchdog
   remote.py run <payload>      takes a lane, frees disk if short, waits for the PC's "go" (the sources are synced
-                               meanwhile), runs the steps
+                               meanwhile), runs the steps. With "affected" in the payload, the line after "go" lists the
+                               files that differ from origin/main and affected.plan() picks the crates to check
   remote.py seed-out <lane> [<min-free-gb> <min-free-pct>]
                                copies the lane's dependency artifacts to /root/hb/seed-out, for the PC's mirror
   remote.py seed-pulled <created>
@@ -33,6 +34,8 @@ import signal
 import subprocess
 import sys
 import time
+
+import affected
 
 HB = "/root/hb"
 LANES = f"{HB}/lanes"
@@ -389,6 +392,14 @@ def run(payload):
     emit("LANE", {"lane": i, "src": src, "list": f"{LANES}/{i}.files", "wait_s": wait_s})
     if sys.stdin.readline().strip() != "go":
         return 0
+    changed = None
+    if p.get("affected"):
+        try:
+            changed = json.loads(sys.stdin.readline() or "null")
+        except ValueError:
+            changed = None
+        if not isinstance(changed, dict):
+            changed = {"error": "the PC's list of changed files did not arrive"}
     t1 = time.time()
     removed = prune(src, f"{LANES}/{i}.files")
     os.makedirs(f"{src}/dist-mobile", exist_ok=True)
@@ -400,8 +411,27 @@ def run(payload):
     env["CARGO_TARGET_DIR"] = target
     if p.get("incremental") in ("0", "1"):
         env["CARGO_INCREMENTAL"] = p["incremental"]
+    to_run, planned = p["steps"], None
+    if changed is not None:
+        # The run is never refused for what planning could not read: it falls back to the full check.
+        cargo_meta = None
+        if not changed.get("error"):
+            try:
+                cargo_meta = metadata(src, env)
+            except (OSError, ValueError, subprocess.SubprocessError) as e:
+                say(f"cargo metadata: {e}")
+        try:
+            planned = affected.plan(p["steps"], changed, cargo_meta, src)
+        except Exception as e:  # a planner's bug costs time (the full check), never a verdict on the wrong crates
+            why = f"planning failed ({e!r})"
+            planned = {"mode": "full", "steps": p["steps"], "packages": [], "total": 0, "why": why,
+                       "lines": [f"full check: {why}"]}
+        for line in planned["lines"]:
+            say(line)
+        emit("PLAN", {k: planned[k] for k in ("mode", "packages", "total", "why")})
+        to_run = planned["steps"]
     steps, code = [], 0
-    for step in p["steps"]:
+    for step in to_run:
         say(f"{step['name']}: {' '.join(step['argv'])}")
         contact()
         s0 = time.time()
@@ -420,25 +450,35 @@ def run(payload):
                 break
     contact()
     meta = {"key": p["key"], "worktree": p.get("worktree", ""), "used": time.time(), "kind": p.get("kind", ""),
-            "tested": any(s["name"] == "test" for s in steps), "seed_key": seed_key(rustc, src),
+            # only a whole-workspace test run leaves every dependency built: what a new lane's seed is taken from
+            "tested": (planned is None or planned["mode"] == "full") and any(s["name"] == "test" for s in steps),
+            "seed_key": seed_key(rustc, src),
             "rustc": rustc.splitlines()[0] if rustc else ""}
     free = disk()[0]
     try:
         write(f"{LANES}/{i}.json", json.dumps(meta))
     except OSError:
         pass  # a full disk: the lane is still the least recently used one, which is what its next pruning wants
-    emit("EXIT", {"code": code, "lane": i, "removed": removed, "prep_s": prep_s, "steps": steps,
+    emit("EXIT", {"code": code, "lane": i, "removed": removed, "prep_s": prep_s, "steps": steps, "tested": meta["tested"],
                   "busy": busy_lanes(int(p["lanes"]), i), "seed_key": meta["seed_key"], "rustc": meta["rustc"],
                   "free": free, "disk_full": code != 0 and free < DISK_FULL})
     return code
 
 
-def members(src, env):
+def metadata(src, env):
+    """The workspace's crates (`cargo metadata --no-deps`), as cargo prints them."""
     r = subprocess.run(["cargo", "metadata", "--no-deps", "--format-version", "1", "--offline"], cwd=src, env=env,
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, timeout=120)
     if r.returncode != 0:
-        raise SystemExit(f"cargo metadata: {r.stderr.strip()[-400:]}")
-    data = json.loads(r.stdout)
+        raise ValueError(r.stderr.strip()[-400:] or f"exit {r.returncode}")
+    return json.loads(r.stdout)
+
+
+def members(src, env):
+    try:
+        data = metadata(src, env)
+    except (ValueError, OSError, subprocess.SubprocessError) as e:
+        raise SystemExit(f"cargo metadata: {e}")
     pkgs = {pkg["name"] for pkg in data["packages"]}
     targets = {t["name"].replace("-", "_") for pkg in data["packages"] for t in pkg["targets"]}
     return pkgs, targets
