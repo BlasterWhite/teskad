@@ -921,6 +921,7 @@ fn installing_from_the_library_marks_the_kit_busy_and_reports_a_failure_by_name(
             permissions_summary: String::new(),
             tags: vec![],
             verified: true,
+            agents: Vec::new(),
         }],
         fetched_at: Some(1),
     });

@@ -11,7 +11,7 @@ use crate::kits::testing::{
     COMMANDS, HOOKS, OTHER_COMMANDS, OTHER_HOOKS, command_kit, entry, folder, git_kit, inspection,
     installed, kit, native_tab, tab,
 };
-use crate::state::types::{Pane, Workspace};
+use crate::state::types::{AgentId, Pane, Workspace};
 
 fn strs(items: &[&str]) -> Vec<String> {
     items.iter().map(|s| (*s).to_owned()).collect()
@@ -812,8 +812,10 @@ fn compares_two_lists_by_content_not_by_order() {
     assert!(!same_kits(&[entry("a-kit", &[])], &[]));
 }
 
+/// The panes of an agent that loads kits at launch: Claude Code's, and
+/// Codex's (their MCP servers); not a plain shell.
 #[test]
-fn restarts_the_claude_code_panes_only() {
+fn restarts_the_panes_of_agents_that_load_kits_at_launch() {
     let pane = |id: &str, agent: AgentId| Pane {
         id: id.into(),
         name: id.into(),
@@ -824,12 +826,12 @@ fn restarts_the_claude_code_panes_only() {
         panes: vec![
             pane("a", AgentId::Claude),
             pane("b", AgentId::Shell),
-            pane("c", AgentId::Shell),
+            pane("c", AgentId::Codex),
             pane("d", AgentId::Claude),
         ],
         ..Workspace::default()
     };
-    assert_eq!(panes_to_restart(&ws), strs(&["a", "d"]));
+    assert_eq!(panes_to_restart(&ws), strs(&["a", "c", "d"]));
 }
 
 #[test]

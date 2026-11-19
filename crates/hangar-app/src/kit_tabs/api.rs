@@ -22,6 +22,7 @@ use std::time::Instant;
 
 use serde_json::{Value, json};
 
+use hangar_core::agent::IdleInject;
 use hangar_kit_host::{
     CallFuture, ClipboardFuture, ClipboardImage, Gate, HostCall, KitApi, LoopbackCall, PickFuture,
     PickedFile,
@@ -33,7 +34,7 @@ use hangar_webview::kit_relay::{self, Incoming};
 
 use crate::preview::store::{KitBadge, KitBadgeState, KitTabCaller, KitTabParams};
 use crate::state::live::PaneActivity;
-use crate::state::types::{AgentId, Pane, Workspace};
+use crate::state::types::{Pane, Workspace};
 
 /// A future the app's dependencies answer with.
 pub type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
@@ -154,7 +155,8 @@ pub trait Deps: Send + Sync + 'static {
         path: String,
         opened_by: String,
     ) -> BoxFuture<Result<(), String>>;
-    /// The hangar-bridge queue: submitted once the agent is free.
+    /// The pane's inbox (hangar-bridge for Claude Code, the attached client
+    /// for Codex): submitted once the agent is free.
     fn enqueue(&self, pane_id: String, text: String, from: String)
     -> BoxFuture<Result<(), String>>;
     fn activity(&self, pane_id: &str) -> Option<PaneActivity>;
@@ -207,10 +209,20 @@ pub trait Deps: Send + Sync + 'static {
     }
 }
 
-/// A pane `panes.send` may reach: a Claude Code agent whose session runs
-/// Hangar's bridge.
+/// Whether `pane` runs an agent a message can be submitted to through
+/// Hangar, nothing typed (its `inject`): Claude Code with the bridge, Codex
+/// attached. A plain shell is not one.
+fn takes_messages(pane: &Pane) -> bool {
+    pane.agent
+        .kind()
+        .is_some_and(|kind| kind.info().caps.inject.idle == IdleInject::Submit)
+}
+
+/// A pane `panes.send` may reach: an agent that takes messages, whose session
+/// speaks to Hangar now (its side channel: the bridge, or Hangar's client on
+/// Codex's app-server).
 fn sendable(pane: &Pane, activity: Option<&PaneActivity>) -> bool {
-    pane.agent == AgentId::Claude && activity.is_some_and(|now| now.bridged)
+    takes_messages(pane) && activity.is_some_and(|now| now.bridged)
 }
 
 /// The workspace's panes, in their order, as a tab sees them (`kitPanes`).
@@ -284,21 +296,22 @@ impl TabApi {
                 ),
             ));
         };
-        if pane.agent != AgentId::Claude {
+        if !takes_messages(pane) {
             return Err(error(
                 KitError::DENIED,
                 format!(
-                    "panes.send only reaches Claude Code agents, and {} runs {}",
+                    "panes.send only reaches agents, and {} runs {}",
                     pane.name,
                     pane.agent.as_str()
                 ),
             ));
         }
         if !sendable(pane, self.deps.activity(&pane.id).as_ref()) {
+            let agent = pane.agent.kind().map_or("agent", |kind| kind.info().label);
             return Err(error(
                 KitError::UNAVAILABLE,
                 format!(
-                    "{}'s Claude Code is not running with Hangar's bridge, so nothing can wait for it to be free",
+                    "{}'s {agent} is not connected to Hangar, so nothing can wait for it to be free",
                     pane.name
                 ),
             ));

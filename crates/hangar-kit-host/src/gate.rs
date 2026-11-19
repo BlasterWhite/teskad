@@ -1043,7 +1043,7 @@ mod tests {
         let mut gate = Gate::new();
         let now = Instant::now();
         let sender = grant(&["panes.send"]);
-        let not_claude = |call: &HostCall| match call {
+        let not_an_agent = |call: &HostCall| match call {
             HostCall::PanesSend { pane, .. } if pane == "Ben" => {
                 Err(KitError::new("denied", "Ben runs a shell"))
             }
@@ -1052,14 +1052,14 @@ mod tests {
         let send = |id, pane: &str| call(id, "panes.send", json!({ "pane": pane, "text": "hi" }));
         for id in 0..20 {
             let refused = gate
-                .admit(&send(id, "Ben"), &sender, false, now, not_claude)
+                .admit(&send(id, "Ben"), &sender, false, now, not_an_agent)
                 .unwrap_err();
             assert_eq!(refused.code, "denied");
         }
         // Nothing of the refused calls waits, nor counted against the sends.
         assert_eq!(gate.waiting(), 0);
         assert!(
-            gate.admit(&send(99, "Ava"), &sender, false, now, not_claude)
+            gate.admit(&send(99, "Ava"), &sender, false, now, not_an_agent)
                 .is_ok()
         );
     }
