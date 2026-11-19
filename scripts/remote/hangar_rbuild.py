@@ -25,11 +25,12 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 VM_DIR = os.path.join(HERE, "vm")
-STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "hangar-rbuild")
+STATE = os.environ.get("HANGAR_RBUILD_STATE") or os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "hangar-rbuild")
 CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "hangar-rbuild")
 SEED = os.path.join(CACHE, "seed")
 EVENTS = os.path.join(STATE, "events.jsonl")
@@ -56,7 +57,7 @@ LANES = int(env_float("HANGAR_RBUILD_LANES", 4))
 IMAGE = os.environ.get("HANGAR_RBUILD_IMAGE", "ubuntu:22.04")
 SKIP = {int(x) for x in re.split(r"[\s,]+", os.environ.get("HANGAR_RBUILD_SKIP_MACHINES", "")) if x.isdigit()}
 UNAVAILABLE = 75
-LABEL = "hangar-rbuild"
+LABEL = os.environ.get("HANGAR_RBUILD_LABEL", "hangar-rbuild")  # another one (with another HANGAR_RBUILD_STATE) for a trial machine
 EUROPE = set("AT BE BG CH CY CZ DE DK EE ES FI FR GB GR HR HU IE IS IT LI LT LU LV MT NL NO PL PT RO RS SE SI SK".split())
 ONSTART = ("mkdir -p /root/hb/state; if [ -f /root/hb/bin/watchdog.sh ]; then "
            "(setsid nohup bash /root/hb/bin/watchdog.sh >/dev/null 2>&1 </dev/null &); fi; true")
@@ -149,25 +150,39 @@ RATE_LIMIT = re.compile(r"too many requests|rate.?limit|(?:error|status|code|htt
 
 def vast(*args, parse=True, timeout=120):
     """The vastai CLI (the key comes from ~/.config/vastai or VAST_API_KEY). Its raw output is never printed: the
-    creation's answer and some errors carry keys."""
-    for attempt in range(6):
+    creation's answer and some errors carry keys. The account is shared with aps5 and every worker calls it: a
+    "too frequent" answer (HTTP 429, which comes back as JSON) is waited out, up to two minutes."""
+    what = f"vastai {' '.join(args[:2])}"
+    deadline = time.time() + 120
+    attempt = 0
+    while True:
         try:
             r = subprocess.run([VASTAI, *args, "--raw"], capture_output=True, text=True, timeout=timeout)
         except (OSError, subprocess.TimeoutExpired) as e:
-            raise Unavailable(f"vastai {' '.join(args[:2])}: {e}")
+            raise Unavailable(f"{what}: {e}")
         text = (r.stdout or "") + (r.stderr or "")
-        limited = RATE_LIMIT.search(text) and not _is_json(r.stdout)
-        if not limited or attempt == 5:
+        try:
+            data = json.loads(r.stdout)
+        except ValueError:
+            data = None
+        error = isinstance(data, dict) and data.get("error") not in (None, False)
+        limited = (error and (data.get("status_code") == 429 or "frequent" in str(data.get("msg", "")).lower())) \
+            or (data is None and RATE_LIMIT.search(text))
+        if not limited:
             break
-        time.sleep(2 * (attempt + 1))
+        attempt += 1
+        if time.time() > deadline:
+            raise Unavailable(f"{what}: Vast keeps answering \"too many requests\"")
+        time.sleep(min(20.0, 1.5 * 2 ** attempt) + (os.getpid() % 10) * 0.2)
     if r.returncode != 0:
-        raise Unavailable(f"vastai {' '.join(args[:2])}: exit {r.returncode}: " + SCRUB.sub("<hidden>", text.strip())[-400:])
+        raise Unavailable(f"{what}: exit {r.returncode}: " + SCRUB.sub("<hidden>", text.strip())[-400:])
+    if error:
+        raise Unavailable(f"{what}: " + SCRUB.sub("<hidden>", str(data.get("msg") or data.get("error")))[:300])
     if not parse:
         return r.stdout
-    try:
-        return json.loads(r.stdout)
-    except ValueError:
-        raise Unavailable(f"vastai {' '.join(args[:2])}: unreadable answer: " + SCRUB.sub("<hidden>", r.stdout.strip())[:300])
+    if data is None:
+        raise Unavailable(f"{what}: unreadable answer: " + SCRUB.sub("<hidden>", r.stdout.strip())[:300])
+    return data
 
 
 def _is_json(text):
@@ -191,7 +206,12 @@ def ours():
     return [i for i in vast("show", "instances") if (i.get("label") or "").startswith(LABEL + " ") or (i.get("label") or "") == LABEL]
 
 
-def set_label(iid, state):
+def set_label(iid, state, current=None):
+    """The label carries the last use; rewriting it within 5 minutes with the same state is skipped (one API call
+    less per run: the reapers count in hours)."""
+    lab = parse_label(current) if current else None
+    if lab and lab["state"] == state and time.time() - lab["epoch"] < 300:
+        return
     try:
         vast("label", "instance", str(iid), make_label(state), parse=False)
     except Unavailable as e:
@@ -210,7 +230,7 @@ def machine(inst):
         host, port = public, int(ports[0].get("HostPort") or 0)
     else:
         host, port = inst.get("ssh_host"), int(inst.get("ssh_port") or 0)
-    return {"id": inst["id"], "host": host, "port": port, "dph": float(inst.get("dph_total") or 0),
+    return {"id": inst["id"], "host": host, "port": port, "dph": float(inst.get("dph_total") or 0), "label": inst.get("label"),
             "down_cost": float(inst.get("inet_down_cost") or 0), "up_cost": float(inst.get("inet_up_cost") or 0)}
 
 
@@ -314,11 +334,20 @@ def ensure_key():
     return open(KEY + ".pub").read().strip()
 
 
+def control_dir():
+    """Where the shared SSH connections' sockets go: a socket's path may not exceed 108 bytes, which a state folder
+    under a long XDG_STATE_HOME would."""
+    run = os.environ.get("XDG_RUNTIME_DIR")
+    d = os.path.join(run, "hangar-rbuild") if run and os.path.isdir(run) else f"/tmp/hangar-rbuild-{os.getuid()}"
+    os.makedirs(d, mode=0o700, exist_ok=True)
+    return d
+
+
 def ssh_opts(m):
     return ["-i", KEY, "-o", "IdentitiesOnly=yes", "-o", f"UserKnownHostsFile={STATE}/ssh/known_hosts-{m['id']}",
             "-o", "StrictHostKeyChecking=accept-new", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15",
             "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=8", "-o", "LogLevel=ERROR",
-            "-o", "ControlMaster=auto", "-o", f"ControlPath={STATE}/ssh/cm-%C", "-o", "ControlPersist=120", "-p", str(m["port"])]
+            "-o", "ControlMaster=auto", "-o", f"ControlPath={control_dir()}/%C", "-o", "ControlPersist=120", "-p", str(m["port"])]
 
 
 def ssh(m, command, timeout=None, data=None):
@@ -478,9 +507,22 @@ def create_fresh():
             wait_ssh(m)
             jlog("running", id=iid, s=round(time.time() - t0, 1))
             say(f"instance {iid} up in {time.time() - t0:.0f} s ({m['host']}:{m['port']})")
+            pusher = None
+            rsync_ok = ssh(m, "command -v rsync >/dev/null || { apt-get update -qq && DEBIAN_FRONTEND=noninteractive "
+                          "apt-get install -y -qq --no-install-recommends rsync; } >/dev/null 2>&1", timeout=600)
+            if seed_info() and rsync_ok.returncode != 0:
+                say("rsync not installable before the setup: the seed waits for it")
+                ensure_tools(m)
+            if seed_info():
+                say(f"seeding the box from ~/.cache/hangar-rbuild/seed ({gb(seed_info().get('bytes', 0))} on disk) during its setup")
+                pusher = SeedPush(m)
+                pusher.start()
+            else:
+                say("no seed mirror yet in ~/.cache/hangar-rbuild/seed: this box builds cold, and fills it afterwards")
             ensure_tools(m)
             info = hello(m)
-            seed_push(m, info)
+            if pusher:
+                pusher.finish(info)
             return m
         except Unavailable as e:
             say(f"instance {iid} unusable: {e}")
@@ -528,7 +570,7 @@ def ensure_instance(state="busy"):
             if info.get("retired"):
                 destroy(good, "its watchdog stopped the build service (no contact for an hour)")
             else:
-                set_label(good["id"], state)
+                set_label(good["id"], state, good.get("label"))
                 return good
         m = create_fresh()
         set_label(m["id"], state)
@@ -548,27 +590,54 @@ def seed_size():
     return (info or {}).get("bytes", 0)
 
 
-def seed_push(m, box):
+def seed_stale(key, rustc):
+    """Worth a pull: no mirror, another rustc (the mirror would be useless), or other dependencies and a mirror over
+    12 hours old. Branches with different Cargo.lock files would otherwise make it follow each check back and forth."""
     info = seed_info()
     if not info:
-        say("no seed mirror yet in ~/.cache/hangar-rbuild/seed: this box builds cold, and fills it afterwards")
-        return
-    rustc = (box.get("rustc") or [""])[0]
-    if info.get("rustc", "").splitlines()[:1] != [rustc]:
-        say(f"seed built by {info.get('rustc', '?').splitlines()[0]}, the box has {rustc}: cold build (a new stable Rust)")
-        return
-    t0 = time.time()
-    say(f"seeding the box from ~/.cache/hangar-rbuild/seed ({gb(info.get('bytes', 0))} on disk)…")
-    s1, _ = rsync(m, ["-a", "--mkpath", "--compress", "--compress-choice=zstd", SEED + "/registry/", f"root@{m['host']}:/root/.cargo/registry/"], "seed registry")
-    s2, _ = rsync(m, ["-a", "--mkpath", "--compress", "--compress-choice=zstd", SEED + "/target/", f"root@{m['host']}:/root/hb/seed-in/target/"], "seed target")
-    s3, _ = rsync(m, [os.path.join(SEED, "hb-seed.json"), f"root@{m['host']}:/root/hb/seed-in/hb-seed.json"], "seed tag")
-    r = ssh(m, "python3 /root/hb/bin/remote.py seed-in", timeout=300)
-    if r.returncode != 0:
-        say(f"seed not installed: {(r.stderr or r.stdout).strip()[-300:]}")
-    sent = s1 + s2 + s3
-    usd = sent / 1e9 * m["down_cost"]
-    jlog("transfer", id=m["id"], what="seed push", bytes=sent, s=round(time.time() - t0, 1), traffic_usd=round(usd, 5))
-    say(f"seed pushed: {gb(sent)} over the network in {time.time() - t0:.0f} s ({usd:.3f} $ of traffic)")
+        return True
+    if rustc and (info.get("rustc") or "").splitlines()[:1] != [rustc]:
+        return True
+    return bool(key) and key != info.get("key") and time.time() - info.get("pulled", 0) > 12 * 3600
+
+
+class SeedPush(threading.Thread):
+    """The mirror goes up while the box installs its packages and toolchain: the PC's upload, not the box, is the
+    slow part (1.4 GB compressed). seed-in, once the box is provisioned, makes it what empty lanes start from."""
+
+    def __init__(self, m):
+        super().__init__(daemon=True)
+        self.m, self.info, self.sent, self.error, self.s = m, seed_info(), 0, None, 0.0
+
+    def run(self):
+        m, t0 = self.m, time.time()
+        z = ["-a", "--mkpath", "--compress", "--compress-choice=zstd", "--compress-level=6"]
+        try:
+            s1, _ = rsync(m, [*z, SEED + "/registry/", f"root@{m['host']}:/root/.cargo/registry/"], "seed registry")
+            s2, _ = rsync(m, [*z, SEED + "/target/", f"root@{m['host']}:/root/hb/seed-in/target/"], "seed target")
+            s3, _ = rsync(m, [os.path.join(SEED, "hb-seed.json"), f"root@{m['host']}:/root/hb/seed-in/hb-seed.json"], "seed tag")
+            self.sent = s1 + s2 + s3
+        except Unavailable as e:
+            self.error = e
+        self.s = time.time() - t0
+
+    def finish(self, box):
+        self.join()
+        m = self.m
+        if self.error:
+            say(f"seed not pushed ({self.error}): cold build")
+            return
+        usd = self.sent / 1e9 * m["down_cost"]
+        jlog("transfer", id=m["id"], what="seed push", bytes=self.sent, s=round(self.s, 1), traffic_usd=round(usd, 5))
+        rustc = (box.get("rustc") or [""])[0]
+        if (self.info.get("rustc") or "").splitlines()[:1] != [rustc]:
+            say(f"seed pushed ({gb(self.sent)}) but built by {(self.info.get('rustc') or '?').splitlines()[0]}, the box has {rustc}: "
+                "cold build (a new stable Rust); the next check refreshes the mirror")
+        r = ssh(m, "python3 /root/hb/bin/remote.py seed-in", timeout=300)
+        if r.returncode != 0:
+            say(f"seed not installed: {(r.stderr or r.stdout).strip()[-300:]}")
+            return
+        say(f"seed pushed: {gb(self.sent)} over the network in {self.s:.0f} s, alongside the setup ({usd:.3f} $ of traffic)")
 
 
 def seed_pull(m, lane):
@@ -722,8 +791,7 @@ def remote_run(kind, steps, keep_going=False, retry=True):
     say(f"{kind} {'ok' if exit_info['code'] == 0 else 'failed (exit ' + str(exit_info['code']) + ')'} in {total:.0f} s on instance {m['id']} "
         f"(machine {vm_s:.0f} s, sync {sync.get('sync_s', 0):.0f} s, lane prep {exit_info.get('prep_s', 0):.0f} s): {summary}")
     if kind == "check" and any(s["name"] == "test" for s in exit_info["steps"]):
-        info = seed_info()
-        if not info or info.get("key") != exit_info.get("seed_key"):
+        if seed_stale(exit_info.get("seed_key"), exit_info.get("rustc")):
             say("the seed mirror is out of date: refreshing it in the background (~/.local/state/hangar-rbuild/background.log)")
             spawn("seed", "pull", "--id", str(m["id"]), "--lane", str(exit_info["lane"]))
     spawn("reap", "--watch")
@@ -731,35 +799,56 @@ def remote_run(kind, steps, keep_going=False, retry=True):
 
 
 # ------------------------------------------------------------------------------------------------ reaping
-def reap(grace_min=0.0, refresh_seed=True, quiet=False):
+def reap_reason(inst, grace_min=0.0):
+    """Why this instance should go now, or None."""
+    lab = parse_label(inst.get("label"))
+    st = inst.get("actual_status")
+    epoch = lab["epoch"] if lab else (inst.get("start_date") or time.time())
+    age = (time.time() - epoch) / 60
+    if st in ("exited", "offline", "stopped") or inst.get("intended_status") == "stopped":
+        return f"{st or inst.get('intended_status')}: never kept stopped"
+    if lab is None or lab["state"] == "boot":
+        return f"creation started {age:.0f} min ago and never finished" if age >= 45 else None
+    if lab["state"] == "idle" and age >= IDLE_MIN + grace_min:
+        return f"unused for {age:.0f} min"
+    if lab["state"] == "busy" and age >= BUSY_MAX_MIN:
+        return f"marked busy {age:.0f} min ago: a lost run"
+    return None
+
+
+def reap(grace_min=0.0, refresh_seed=True, quiet=False, lock=True):
     """Destroys this tool's instances unused for IDLE_MIN (+ grace) minutes, stopped or broken ones, and those whose
-    "busy" label is too old to be a live run. Never touches another label (aps5's "aps5 …") or an unlabelled one."""
+    "busy" label is too old to be a live run. Never touches another label (aps5's "aps5 …") or an unlabelled one.
+    The mirror is refreshed first, outside the lock that calls take: a call that comes meanwhile refreshes the label,
+    and the instance, looked at again under the lock, is then kept."""
     kept = []
     for inst in ours():
-        lab = parse_label(inst.get("label"))
-        now = time.time()
-        st = inst.get("actual_status")
-        epoch = lab["epoch"] if lab else (inst.get("start_date") or now)
-        age = (now - epoch) / 60
-        reason = None
-        if st in ("exited", "offline", "stopped") or inst.get("intended_status") == "stopped":
-            reason = f"{st or inst.get('intended_status')}: never kept stopped"
-        elif lab is None or lab["state"] == "boot":
-            if age >= 45:
-                reason = f"creation started {age:.0f} min ago and never finished"
-        elif lab["state"] == "idle" and age >= IDLE_MIN + grace_min:
-            reason = f"unused for {age:.0f} min"
-        elif lab["state"] == "busy" and age >= BUSY_MAX_MIN:
-            reason = f"marked busy {age:.0f} min ago: a lost run"
+        reason = reap_reason(inst, grace_min)
         if not reason:
             kept.append(inst)
             if not quiet:
-                say(f"instance {inst['id']} kept: {lab['state'] if lab else '?'} for {age:.0f} min ({st})")
+                lab = parse_label(inst.get("label")) or {}
+                say(f"instance {inst['id']} kept: {lab.get('state', '?')} since "
+                    f"{time.strftime('%H:%M', time.localtime(lab.get('epoch', 0)))} ({inst.get('actual_status')})")
             continue
-        if refresh_seed and st == "running":
+        if refresh_seed and inst.get("actual_status") == "running":
             try_refresh_seed(machine(inst))
-        destroy(inst, reason)
+        with (Flock("instance.lock", "a call starting the machine") if lock else _NoLock()):
+            now = next((i for i in ours() if i["id"] == inst["id"]), None)
+            reason = reap_reason(now, grace_min) if now else None
+            if reason:
+                destroy(now, reason)
+            elif now:
+                kept.append(now)
     return kept
+
+
+class _NoLock:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
 
 
 def try_refresh_seed(m):
@@ -771,9 +860,8 @@ def try_refresh_seed(m):
         if not checked:
             return
         _, lane, meta = checked[-1]
-        if meta.get("seed_key") and meta["seed_key"] == (seed_info() or {}).get("key"):
-            return
-        seed_pull(m, lane)
+        if seed_stale(meta.get("seed_key"), meta.get("rustc")):
+            seed_pull(m, lane)
     except (Unavailable, ValueError) as e:
         say(f"seed not refreshed before destroying: {e}")
 
@@ -784,12 +872,11 @@ def reap_watch():
         if held is None:
             return 0
         while True:
-            with Flock("instance.lock", "instance"):
-                try:
-                    kept = reap(quiet=True)
-                except Unavailable as e:
-                    say(f"reaper: {e}")
-                    kept = [None]
+            try:
+                kept = reap(quiet=True)
+            except Unavailable as e:
+                say(f"reaper: {e}")
+                kept = [None]
             if not kept:
                 return 0
             nxt = 300.0
@@ -877,11 +964,10 @@ def main(argv):
             if "--watch" in rest:
                 return reap_watch()
             if "--github" in rest:  # .github/workflows/rbuild-reaper.yml: no seed refresh, 10 min more for the PC's own
-                kept = reap(grace_min=10, refresh_seed=False)
+                kept = reap(grace_min=10, refresh_seed=False, lock=False)
                 print(f"kept {len(kept)} hangar-rbuild instance(s)")
                 return 0
-            with Flock("instance.lock", "instance"):
-                reap()
+            reap()
             return 0
         if cmd == "seed":
             if rest[:1] == ["pull"]:
