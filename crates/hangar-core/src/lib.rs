@@ -32,6 +32,7 @@ pub mod build_cache;
 pub mod chat;
 #[cfg(feature = "desktop")]
 pub mod cloud;
+pub mod codex_app;
 pub mod context;
 pub mod control;
 pub mod delivery;
