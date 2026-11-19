@@ -19,6 +19,13 @@ pub struct Palette {
     /// The terminal's background, and the one cells are compared against: a
     /// cell with this background is not drawn at all.
     pub background: Color,
+    /// How much of [`background`](Self::background) the terminal paints
+    /// itself, from 0 to 1. At 1, the default, it fills its area with it; at
+    /// 0 it leaves that to what is behind it, for a window the desktop shows
+    /// through whose page is already that colour. Cells with a background of
+    /// their own, the selection, and a background a program set (`OSC 11`)
+    /// are drawn opaque whatever it is, as in Ghostty.
+    pub background_opacity: f32,
     /// The cursor's fill.
     pub cursor: Color,
     /// The character under a block cursor, which must stay legible on the
@@ -47,6 +54,7 @@ impl Default for Palette {
         Self {
             foreground: hex(0xc8c9ce),
             background: hex(0x121316),
+            background_opacity: 1.0,
             cursor: hex(0xd8d9dd),
             cursor_text: hex(0x121316),
             selection_background: hex(0x2a3954),
@@ -76,6 +84,23 @@ impl Default for Palette {
 }
 
 impl Palette {
+    /// What a terminal fills its area with before its cells, when its
+    /// default background is `background` (the palette's own, or one a
+    /// program set): the palette's own at
+    /// [`background_opacity`](Self::background_opacity), any other opaque.
+    pub fn background_fill(&self, background: Color) -> Color {
+        if background == self.background {
+            let opacity = if self.background_opacity.is_finite() {
+                self.background_opacity.clamp(0.0, 1.0)
+            } else {
+                1.0
+            };
+            background.scale_alpha(opacity)
+        } else {
+            background
+        }
+    }
+
     /// The colour of palette entry `index`, 0 to 255.
     pub fn indexed(&self, index: u8) -> Color {
         match index {
@@ -146,6 +171,26 @@ mod tests {
     fn grey_ramp_runs_from_8_to_238() {
         assert_eq!(to_rgb8(xterm_indexed(232)), (8, 8, 8));
         assert_eq!(to_rgb8(xterm_indexed(255)), (238, 238, 238));
+    }
+
+    #[test]
+    fn the_default_background_is_painted_as_opaque_as_the_palette_says() {
+        let mut palette = Palette::default();
+        let own = palette.background;
+        assert_eq!(palette.background_fill(own), own);
+        palette.background_opacity = 0.0;
+        assert_eq!(palette.background_fill(own).a, 0.0);
+        palette.background_opacity = 0.5;
+        assert_eq!(palette.background_fill(own), own.scale_alpha(0.5));
+        // One a program set stays opaque: it is the program's colour, not the
+        // window's.
+        let set = Color::from_rgb8(0x20, 0x10, 0x40);
+        assert_eq!(palette.background_fill(set), set);
+        // Out of range or not a number: held to 0..1, or painted.
+        palette.background_opacity = 3.0;
+        assert_eq!(palette.background_fill(own), own);
+        palette.background_opacity = f32::NAN;
+        assert_eq!(palette.background_fill(own), own);
     }
 
     #[test]

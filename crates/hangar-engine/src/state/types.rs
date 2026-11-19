@@ -633,6 +633,11 @@ pub struct AgentCommands {
     pub claude: Option<String>,
 }
 
+/// A window opacity that leaves the window as it always was.
+fn is_opaque(opacity: &f64) -> bool {
+    *opacity == 1.0
+}
+
 fn text_or_none<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
 ) -> Result<Option<String>, D::Error> {
@@ -708,6 +713,12 @@ pub struct Settings {
     /// before it had the setting is written back the same.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub system_title_bar: bool,
+    /// How opaque the windows' backgrounds are, from 0.5 to 1 (held there
+    /// where it is read), whatever the theme: below 1 the desktop shows
+    /// through behind the page, the bars and the terminals (Linux only).
+    /// Written only when it is not 1, so a file from before stays as it was.
+    #[serde(skip_serializing_if = "is_opaque")]
+    pub window_opacity: f64,
     pub agent_pane_control: bool,
     /// `"main"` by default; `null` is kept as the person wrote it.
     pub claude_account: Option<String>,
@@ -910,6 +921,7 @@ impl Default for Settings {
             inspector_collapsed: Vec::new(),
             ui_scale: 100.0,
             system_title_bar: false,
+            window_opacity: 1.0,
             account_switch_ask: false,
             agent_pane_control: true,
             claude_account: Some("main".into()),

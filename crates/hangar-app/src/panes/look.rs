@@ -24,6 +24,7 @@ pub struct Look {
 /// set them.
 pub fn theme_of(settings: &Settings, ws: &Workspace) -> &'static Theme {
     hangar_theme::by_id_or_default(ws.theme_id.as_deref().unwrap_or(&settings.theme_id))
+        .with_window_opacity(settings.window_opacity)
 }
 
 /// The terminal colours of a theme, with its search marks: matches in the
@@ -35,6 +36,9 @@ pub fn palette(theme: &Theme) -> Palette {
     Palette {
         foreground: terminal.foreground,
         background: terminal.background,
+        // A window the desktop shows through has its page under the grid
+        // already (shell/frame.rs): the terminal leaves that to it.
+        background_opacity: if theme.is_translucent() { 0.0 } else { 1.0 },
         cursor: terminal.cursor,
         cursor_text: terminal.cursor_text,
         selection_background: terminal.selection,
@@ -266,6 +270,42 @@ mod tests {
         // WCAG's floor for large text; xterm.js made no promise, and the
         // dimmest pairs of the 33 themes are above it.
         assert!(worst.0 >= 3.0, "{worst:?}");
+    }
+
+    #[test]
+    fn a_terminal_paints_its_background_unless_the_desktop_shows_through_it() {
+        for theme in hangar_theme::themes() {
+            assert_eq!(palette(theme).background_opacity, 1.0, "{}", theme.id);
+        }
+        // At the opacity the settings give every theme, on Linux, the page
+        // under the grid is the terminal's background.
+        let mut settings = Settings {
+            theme_id: "tokyo-night".into(),
+            window_opacity: 0.85,
+            ..Settings::default()
+        };
+        let ws = Workspace::default();
+        let theme = theme_of(&settings, &ws);
+        assert_eq!(theme.id, "tokyo-night");
+        let expected = if cfg!(target_os = "linux") { 0.0 } else { 1.0 };
+        assert_eq!(
+            look(&settings, &ws, AgentId::Shell)
+                .palette
+                .background_opacity,
+            expected
+        );
+        // Its colours are Tokyo Night's whatever the opacity.
+        assert_eq!(
+            palette(theme).background,
+            palette(hangar_theme::by_id_or_default("tokyo-night")).background
+        );
+        settings.window_opacity = 1.0;
+        assert_eq!(
+            look(&settings, &ws, AgentId::Shell)
+                .palette
+                .background_opacity,
+            1.0
+        );
     }
 
     #[test]

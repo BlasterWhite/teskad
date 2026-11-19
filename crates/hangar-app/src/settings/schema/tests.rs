@@ -200,6 +200,8 @@ fn appearance_terminal_shell_and_notifications_have_every_row_too() {
         appearance.push("systemTitleBar: toggle SystemTitleBar = false");
     }
     appearance.push(r#"themePick: custom Themes { active: "graphite" }"#);
+    // Linux's, the platform of the world these tests build.
+    appearance.push(r#"windowOpacity: slider WindowOpacity = 100 [50..100 by 1] "100 %""#);
     assert_eq!(table(&built, SettingsCategory::Appearance), appearance);
     assert_eq!(
         table(&built, SettingsCategory::Terminal),
@@ -370,7 +372,7 @@ fn the_rows_that_need_a_workspace_exist_only_with_one() {
     if crate::shell::title_bar::has_own_bar() {
         appearance.push("systemTitleBar");
     }
-    appearance.extend(["themeScope", "themePick"]);
+    appearance.extend(["themeScope", "themePick", "windowOpacity"]);
     assert_eq!(
         ids(category(&with, SettingsCategory::Appearance)),
         appearance
@@ -424,6 +426,38 @@ fn the_theme_row_is_found_by_the_name_of_any_theme() {
     assert!(keywords.starts_with("theme "));
     for theme in hangar_theme::themes() {
         assert!(keywords.contains(theme.name), "{}", theme.name);
+    }
+}
+
+#[test]
+fn the_window_opacity_is_offered_on_linux_only_whatever_the_theme() {
+    let mut world = World::new();
+    world.settings.window_opacity = 0.854;
+    world.settings.theme_id = "tokyo-night".into();
+    let built = world.build();
+    let row = find(&built, "windowOpacity");
+    assert_eq!(
+        describe(row),
+        r#"slider WindowOpacity = 85 [50..100 by 1] "85 %""#
+    );
+    assert!(
+        row.hint
+            .as_deref()
+            .is_some_and(|hint| hint.contains("Blur my Shell"))
+    );
+    assert!(row.keywords.contains("transparent"));
+    // Out of range in the file: shown within the slider's bounds.
+    world.settings.window_opacity = 0.2;
+    assert_eq!(
+        describe(find(&world.build(), "windowOpacity")),
+        r#"slider WindowOpacity = 50 [50..100 by 1] "50 %""#
+    );
+    // Windows and macOS draw their windows opaque: no row there.
+    for platform in [Platform::Windows, Platform::Macos] {
+        world.platform = Some(platform);
+        let built = world.build();
+        let rows = ids(category(&built, SettingsCategory::Appearance));
+        assert!(!rows.contains(&"windowOpacity"), "{platform:?}");
     }
 }
 

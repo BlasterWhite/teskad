@@ -1213,6 +1213,16 @@ impl State {
         }
     }
 
+    /// Terminal `pane` in the colours of `theme`, as the program had printed
+    /// `bytes` in it: what a picture of a window shows in its panes.
+    pub(crate) fn print_for_test(&self, pane: &str, theme: &hangar_theme::Theme, bytes: &[u8]) {
+        if let Some(rt) = self.panes.get(pane) {
+            let mut terminal = rt.link.lock();
+            terminal.set_palette(look::palette(theme));
+            let _ = terminal.feed(bytes);
+        }
+    }
+
     /// Whether terminal `pane` is mounted.
     pub(crate) fn is_mounted(&self, pane: &str) -> bool {
         self.panes.contains_key(pane)

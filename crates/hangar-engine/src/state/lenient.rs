@@ -478,6 +478,30 @@ mod tests {
     }
 
     #[test]
+    fn the_window_opacity_is_written_once_set_and_read_back_and_a_bad_one_is_opaque() {
+        // Opaque, and not in the file, until it is set.
+        assert_eq!(Settings::default().window_opacity, 1.0);
+        let untouched = serde_json::to_value(Settings::default()).unwrap();
+        assert!(untouched.get("windowOpacity").is_none());
+        let set = Settings {
+            window_opacity: 0.85,
+            ..Settings::default()
+        };
+        let written = serde_json::to_value(&set).unwrap();
+        assert_eq!(written["windowOpacity"], json!(0.85));
+        let state = app_state(json!({ "settings": written }));
+        assert_eq!(state.settings.window_opacity, 0.85);
+        assert_eq!(state.settings, set);
+        // A value that is not a number costs that field only, and is kept.
+        let (state, kept) = read(json!({
+            "settings": {"windowOpacity": "glass", "uiScale": 110}
+        }));
+        assert_eq!(state.settings.window_opacity, 1.0);
+        assert_eq!(state.settings.ui_scale, 110.0);
+        assert_eq!(kept.len(), 1);
+    }
+
+    #[test]
     fn a_bad_value_costs_its_field_and_nothing_else() {
         let (state, kept) = read(json!({
             "workspaces": [

@@ -1,6 +1,9 @@
 //! What a theme is: an identity, a terminal palette and every colour token of
 //! the window.
 
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock, PoisonError};
+
 use iced::Color;
 
 use crate::data::THEMES;
@@ -59,7 +62,21 @@ pub struct Theme {
     pub terminal: TerminalColors,
     /// The colours of everything else.
     pub colors: Colors,
+    /// How opaque the window's own background is, from 0 to 1: 1 for a solid
+    /// window, less for one the desktop shows through, behind the terminals'
+    /// default background and the chrome's bars. Text, cards, menus, dialogs
+    /// and popovers stay opaque whatever it is. Only Linux, where the window
+    /// is transparent already, honours it: see [`Theme::window_alpha`].
+    ///
+    /// 1 for every bundled theme: the person's setting (Settings ›
+    /// Appearance › Window opacity) makes it less, for whatever theme is
+    /// shown, through [`Theme::with_window_opacity`].
+    pub window_opacity: f32,
 }
+
+/// The least opaque a window is drawn, whatever is asked: below it, text on
+/// the desktop's own colours stops reading.
+pub const MIN_WINDOW_OPACITY: f32 = 0.5;
 
 impl Theme {
     /// The accent, which marks links, focus and the selection.
@@ -69,6 +86,66 @@ impl Theme {
 
     pub fn is_dark(&self) -> bool {
         self.appearance.is_dark()
+    }
+
+    /// How opaque the window's background is drawn here: the theme's
+    /// [`window_opacity`](Theme::window_opacity) on Linux, where the window is
+    /// created transparent (for the corners of the title bar Hangar draws),
+    /// and 1 everywhere else, where it is not and a translucent fill would
+    /// only darken.
+    ///
+    /// Whether the desktop shows blurred through it is the compositor's
+    /// business: KDE blurs what asks for it, GNOME only with an extension
+    /// such as Blur my Shell.
+    pub fn window_alpha(&self) -> f32 {
+        if cfg!(target_os = "linux") {
+            window_alpha_of(self.window_opacity)
+        } else {
+            1.0
+        }
+    }
+
+    /// This theme with its window drawn at `opacity` (the person's setting,
+    /// held within [`MIN_WINDOW_OPACITY`] and 1; a value that is not a number
+    /// is 1). Nothing but the alpha of the window's backgrounds changes: the
+    /// accent, the text, the borders and the terminal's palette stay the
+    /// theme's.
+    ///
+    /// Themes are handed out as `&'static`, so a theme at an opacity of its
+    /// own is made once and kept: in whole percents, at most 51 of each.
+    pub fn with_window_opacity(&'static self, opacity: f64) -> &'static Theme {
+        let opacity = if opacity.is_finite() { opacity } else { 1.0 };
+        let percent = (opacity.clamp(f64::from(MIN_WINDOW_OPACITY), 1.0) * 100.0).round() as u8;
+        let window_opacity = f32::from(percent) / 100.0;
+        if window_opacity == self.window_opacity {
+            return self;
+        }
+        static COPIES: OnceLock<Mutex<HashMap<(usize, u8), &'static Theme>>> = OnceLock::new();
+        let key = (std::ptr::from_ref(self) as usize, percent);
+        let mut copies = COPIES
+            .get_or_init(Mutex::default)
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let &mut copy = copies.entry(key).or_insert_with(|| {
+            Box::leak(Box::new(Theme {
+                window_opacity,
+                ..*self
+            }))
+        });
+        copy
+    }
+
+    /// Whether the desktop shows through the window here.
+    pub fn is_translucent(&self) -> bool {
+        self.window_alpha() < 1.0
+    }
+
+    /// `color` as a surface laid straight on the desktop: at the window's
+    /// alpha. Only for what nothing else of the window is drawn under (the
+    /// window's page, the chrome's bars): two such surfaces on top of each
+    /// other add up to an opaque one.
+    pub fn see_through(&self, color: Color) -> Color {
+        color.scale_alpha(self.window_alpha())
     }
 
     /// Matches and the current match of a search in a terminal: the theme's
@@ -85,6 +162,16 @@ impl Theme {
             active_background: crate::mix(bg, accent, 0.45).into(),
             active_border: accent.into(),
         }
+    }
+}
+
+/// A theme's opacity as it is drawn: within [`MIN_WINDOW_OPACITY`] and 1, and 1
+/// for a value that is not a number.
+pub(crate) fn window_alpha_of(opacity: f32) -> f32 {
+    if opacity.is_finite() {
+        opacity.clamp(MIN_WINDOW_OPACITY, 1.0)
+    } else {
+        1.0
     }
 }
 

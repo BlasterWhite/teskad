@@ -5,6 +5,10 @@
 
 use crate::{Appearance, Colors, TerminalColors, Theme, rgb, rgba};
 
+/// A window the desktop does not show through: every bundled theme's, until
+/// the person's setting says otherwise (`Theme::with_window_opacity`).
+const SOLID: f32 = 1.0;
+
 #[rustfmt::skip]
 pub(crate) static THEMES: [Theme; 33] = [
     Theme {
@@ -74,6 +78,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x47484b),
             viz_line: rgb(0x6c6d71),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "tokyo-night",
@@ -142,6 +147,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x4b4e5f),
             viz_line: rgb(0x6e738c),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "catppuccin-mocha",
@@ -210,6 +216,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x515365),
             viz_line: rgb(0x73778c),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "dracula",
@@ -278,6 +285,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x61636a),
             viz_line: rgb(0x88898d),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "one-dark",
@@ -346,6 +354,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x555a62),
             viz_line: rgb(0x7e858e),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "nord",
@@ -414,6 +423,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x5f646f),
             viz_line: rgb(0x878d98),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "gruvbox-dark",
@@ -482,6 +492,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x5f5b52),
             viz_line: rgb(0x87806e),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "github-dark",
@@ -550,6 +561,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x44494e),
             viz_line: rgb(0x666c72),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "ayu-dark",
@@ -618,6 +630,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x404244),
             viz_line: rgb(0x696969),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "rose-pine",
@@ -686,6 +699,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x514f5d),
             viz_line: rgb(0x767484),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "solarized-dark",
@@ -754,6 +768,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x385960),
             viz_line: rgb(0x6b8287),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "vscode-dark",
@@ -822,6 +837,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x515151),
             viz_line: rgb(0x777777),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "night-owl",
@@ -890,6 +906,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x3e4e5e),
             viz_line: rgb(0x657382),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "monokai-pro",
@@ -958,6 +975,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x666467),
             viz_line: rgb(0x8d8b8c),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "material-palenight",
@@ -1026,6 +1044,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x565a6d),
             viz_line: rgb(0x80859d),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "synthwave-84",
@@ -1094,6 +1113,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x605e6a),
             viz_line: rgb(0x87858d),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "cobalt2",
@@ -1162,6 +1182,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x586c7b),
             viz_line: rgb(0x83929d),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "shades-of-purple",
@@ -1230,6 +1251,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x676584),
             viz_line: rgb(0x8e8da3),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "andromeda",
@@ -1298,6 +1320,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x56575f),
             viz_line: rgb(0x7e7d87),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "ayu-mirage",
@@ -1366,6 +1389,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x52545b),
             viz_line: rgb(0x7b7c7d),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "horizon",
@@ -1434,6 +1458,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x515359),
             viz_line: rgb(0x75777c),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "panda",
@@ -1502,6 +1527,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x5e5f60),
             viz_line: rgb(0x818282),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "kanagawa",
@@ -1570,6 +1596,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x555454),
             viz_line: rgb(0x7a7870),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "everforest-dark",
@@ -1638,6 +1665,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x5e615e),
             viz_line: rgb(0x918d80),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "poimandres",
@@ -1706,6 +1734,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0x494d5c),
             viz_line: rgb(0x71768c),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "catppuccin-latte",
@@ -1774,6 +1803,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0xbec0cb),
             viz_line: rgb(0x888a9c),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "github-light",
@@ -1842,6 +1872,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0xcbcccd),
             viz_line: rgb(0x929598),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "one-light",
@@ -1910,6 +1941,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0xc7c8ca),
             viz_line: rgb(0x919196),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "solarized-light",
@@ -1978,6 +2010,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0xc4c6ba),
             viz_line: rgb(0x87908e),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "quiet-light",
@@ -2046,6 +2079,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0xc3c3c3),
             viz_line: rgb(0x8e8e8e),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "ayu-light",
@@ -2114,6 +2148,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0xc8cacb),
             viz_line: rgb(0x909397),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "rose-pine-dawn",
@@ -2182,6 +2217,7 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0xc8c2c9),
             viz_line: rgb(0x908ba2),
         },
+        window_opacity: SOLID,
     },
     Theme {
         id: "night-owl-light",
@@ -2250,5 +2286,6 @@ pub(crate) static THEMES: [Theme; 33] = [
             viz_mute: rgb(0xc9c8cd),
             viz_line: rgb(0x92919c),
         },
+        window_opacity: SOLID,
     },
 ];

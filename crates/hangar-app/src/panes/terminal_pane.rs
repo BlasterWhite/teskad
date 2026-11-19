@@ -112,13 +112,17 @@ pub fn view<'a>(
     let body = stack![terminal, card, bar]
         .width(Length::Fill)
         .height(Length::Fill);
-    let background = look::theme_of(ctx.model.settings(), ws).terminal.background;
+    // On a window the desktop shows through, the terminal leaves its
+    // default background to the page under the grid (shell/frame.rs): a
+    // fill here would make it opaque.
+    let theme = look::theme_of(ctx.model.settings(), ws);
+    let background = (!theme.is_translucent()).then_some(theme.terminal.background);
     pane_column = pane_column.push(
         container(body)
             .width(Length::Fill)
             .height(Length::Fill)
             .style(move |_| container::Style {
-                background: Some(Background::Color(background)),
+                background: background.map(Background::Color),
                 ..container::Style::default()
             }),
     );
@@ -126,7 +130,7 @@ pub fn view<'a>(
         .id(slot_id(&pane.id))
         .width(Length::Fill)
         .height(Length::Fill)
-        .style(style::container::window(t))
+        .style(style::container::page(t))
         .into()
 }
 

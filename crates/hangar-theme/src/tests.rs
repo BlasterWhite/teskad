@@ -7,8 +7,8 @@ use std::collections::HashSet;
 use iced::Color;
 
 use crate::{
-    AgentState, Colors, DEFAULT_ID, FILL_CONTRAST, Rgb, TEXT_CONTRAST, Theme, by_id,
-    by_id_or_default, contrast_ratio, default_theme, derive_colors, hue_and_saturation,
+    AgentState, Colors, DEFAULT_ID, FILL_CONTRAST, MIN_WINDOW_OPACITY, Rgb, TEXT_CONTRAST, Theme,
+    by_id, by_id_or_default, contrast_ratio, default_theme, derive_colors, hue_and_saturation,
     hue_distance, mix, over, perceived_lightness, themes,
 };
 
@@ -185,6 +185,88 @@ mod the_bundled_themes {
             let lightness = perceived_lightness(Rgb::from(theme.terminal.background));
             assert_eq!(theme.is_dark(), lightness < 0.5, "{}", theme.id);
         }
+    }
+}
+
+mod window_opacity {
+    use super::*;
+    use crate::theme::window_alpha_of;
+
+    fn tokyo() -> &'static Theme {
+        by_id("tokyo-night").unwrap()
+    }
+
+    #[test]
+    fn every_bundled_theme_is_a_solid_window_until_the_person_says_otherwise() {
+        for theme in themes() {
+            assert_eq!(theme.window_opacity, 1.0, "{}", theme.id);
+            assert!(!theme.is_translucent(), "{}", theme.id);
+            assert_eq!(theme.window_alpha(), 1.0, "{}", theme.id);
+            assert_eq!(theme.see_through(theme.colors.bg), theme.colors.bg);
+        }
+    }
+
+    #[test]
+    fn is_held_between_the_floor_and_solid() {
+        assert_eq!(window_alpha_of(0.92), 0.92);
+        assert_eq!(window_alpha_of(1.0), 1.0);
+        assert_eq!(window_alpha_of(1.7), 1.0);
+        assert_eq!(window_alpha_of(0.1), MIN_WINDOW_OPACITY);
+        assert_eq!(window_alpha_of(f32::NAN), 1.0);
+        assert_eq!(window_alpha_of(f32::INFINITY), 1.0);
+    }
+
+    #[test]
+    fn at_1_a_theme_is_the_bundled_one() {
+        let theme = default_theme();
+        assert!(std::ptr::eq(theme.with_window_opacity(1.0), theme));
+        assert!(std::ptr::eq(theme.with_window_opacity(f64::NAN), theme));
+        assert!(std::ptr::eq(theme.with_window_opacity(7.0), theme));
+    }
+
+    #[test]
+    fn applies_to_any_theme_and_changes_nothing_but_the_alpha() {
+        for theme in [default_theme(), tokyo()] {
+            let solid = theme.with_window_opacity(1.0);
+            let glass = theme.with_window_opacity(0.85);
+            assert_eq!(glass.window_opacity, 0.85, "{}", theme.id);
+            // The same theme at 1 and at 0.85: its accent, its text, its
+            // borders, its terminal's palette.
+            assert_eq!(glass.id, solid.id);
+            assert_eq!(glass.accent(), solid.accent(), "{}", theme.id);
+            assert_eq!(glass.colors.fg, solid.colors.fg, "{}", theme.id);
+            assert_eq!(glass.colors, solid.colors, "{}", theme.id);
+            assert_eq!(glass.terminal, solid.terminal, "{}", theme.id);
+            if cfg!(target_os = "linux") {
+                assert!(glass.is_translucent());
+                assert_eq!(glass.window_alpha(), 0.85, "{}", theme.id);
+                // Only the alpha of a background goes down.
+                assert_eq!(
+                    glass.see_through(glass.colors.chrome),
+                    solid.colors.chrome.scale_alpha(0.85)
+                );
+            } else {
+                assert!(!glass.is_translucent());
+                assert_eq!(glass.window_alpha(), 1.0, "{}", theme.id);
+            }
+        }
+        // Tokyo Night keeps its own accent, not Graphite's.
+        assert_ne!(
+            tokyo().with_window_opacity(0.85).accent(),
+            default_theme().with_window_opacity(0.85).accent()
+        );
+    }
+
+    #[test]
+    fn is_held_to_whole_percents_from_the_floor_and_made_once() {
+        let theme = tokyo();
+        let once = theme.with_window_opacity(0.854);
+        assert_eq!(once.window_opacity, 0.85);
+        assert!(std::ptr::eq(once, theme.with_window_opacity(0.85)));
+        assert_eq!(
+            theme.with_window_opacity(0.1).window_opacity,
+            MIN_WINDOW_OPACITY
+        );
     }
 }
 

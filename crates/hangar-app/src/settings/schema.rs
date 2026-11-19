@@ -220,6 +220,21 @@ pub struct Context<'a> {
     pub keymap: &'a KeymapIndex,
 }
 
+/// The least opaque the window opacity slider goes, in percent
+/// (`hangar_theme::MIN_WINDOW_OPACITY`).
+pub const WINDOW_OPACITY_MIN: f64 = 50.0;
+
+/// The window opacity of the settings as the slider shows it: a whole
+/// percent from [`WINDOW_OPACITY_MIN`] to 100, and 100 for a value that is
+/// not a number.
+pub fn window_opacity_percent(opacity: f64) -> f64 {
+    if opacity.is_finite() {
+        (opacity * 100.0).round().clamp(WINDOW_OPACITY_MIN, 100.0)
+    } else {
+        100.0
+    }
+}
+
 /// The delays the settings offer for hibernation, in minutes.
 pub const HIBERNATE_DELAYS: [f64; 5] = [5.0, 10.0, 20.0, 30.0, 60.0];
 
@@ -488,6 +503,26 @@ pub fn build_categories(ctx: &Context) -> Vec<Category> {
                         )
                         .keywords(format!("theme {}", names.join(" "))),
                     );
+                    // Linux's only: its windows are made transparent, the
+                    // others' are not and stay opaque. Every theme's.
+                    if ctx.platform == Some(Platform::Linux) {
+                        let percent = window_opacity_percent(settings.window_opacity);
+                        items.push(
+                            slider(
+                                "windowOpacity",
+                                tx(Key::SettingsWindowOpacity),
+                                percent,
+                                (WINDOW_OPACITY_MIN, 100.0),
+                                1.0,
+                                format!("{} %", plain(percent)),
+                                Target::WindowOpacity,
+                            )
+                            .hint(tx(Key::SettingsWindowOpacityHint))
+                            .keywords(
+                                "opacity opacité transparency transparence transparent translucent translucide window fenêtre desktop bureau blur flou",
+                            ),
+                        );
+                    }
                     items
                 })
                 .hint(tx(Key::SettingsThemeHint)),

@@ -1153,8 +1153,20 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
         let state = tree.state.downcast_ref::<State>();
         let c = &self.theme.colors;
         let bounds = layout.bounds();
-        // What shows between the panes is the separator colour.
-        fill(renderer, bounds, c.sep, None);
+        // What shows between the panes is the separator colour. On a window
+        // the desktop shows through, only the strips between them, at the
+        // window's alpha: under the panes is the page (shell/frame.rs), which
+        // a fill here would make opaque.
+        if !self.theme.is_translucent() {
+            fill(renderer, bounds, c.sep, None);
+        } else if self.zoomed.is_none() {
+            let sep = self.theme.see_through(c.sep);
+            for pane in layout.children().take(self.slots()) {
+                for strip in separator_strips(pane.bounds(), bounds) {
+                    fill(renderer, strip, sep, None);
+                }
+            }
+        }
 
         let dragging = state
             .press
@@ -1321,6 +1333,26 @@ fn resize_cursor(dir: SplitDir) -> mouse::Interaction {
     }
 }
 
+/// The 1 px separators `layout` takes from the left and the top of a pane's
+/// slot when the pane is off the grid's left or top edge, as strips: the
+/// corner where the two meet is in the left one.
+fn separator_strips(pane: Rectangle, grid: Rectangle) -> impl Iterator<Item = Rectangle> {
+    let left = pane.x - grid.x >= 0.5;
+    let top = pane.y - grid.y >= 0.5;
+    let above = if top { 1.0 } else { 0.0 };
+    [
+        left.then(|| {
+            Rectangle::new(
+                Point::new(pane.x - 1.0, pane.y - above),
+                Size::new(1.0, pane.height + above),
+            )
+        }),
+        top.then(|| Rectangle::new(Point::new(pane.x, pane.y - 1.0), Size::new(pane.width, 1.0))),
+    ]
+    .into_iter()
+    .flatten()
+}
+
 fn fill(
     renderer: &mut iced::Renderer,
     bounds: Rectangle,
@@ -1422,6 +1454,32 @@ mod tests {
     use iced_test::Simulator;
 
     const WINDOW: Size = Size::new(800.0, 600.0);
+
+    #[test]
+    fn the_strips_between_panes_are_the_pixels_their_slots_give_up() {
+        let grid = Rectangle::new(Point::new(10.0, 20.0), Size::new(400.0, 300.0));
+        // The top-left pane gives up nothing.
+        let first = Rectangle::new(Point::new(10.0, 20.0), Size::new(200.0, 150.0));
+        assert_eq!(separator_strips(first, grid).count(), 0);
+        // The one to its right, its first column.
+        let right = Rectangle::new(Point::new(211.0, 20.0), Size::new(199.0, 150.0));
+        assert_eq!(
+            separator_strips(right, grid).collect::<Vec<_>>(),
+            [Rectangle::new(
+                Point::new(210.0, 20.0),
+                Size::new(1.0, 150.0)
+            )]
+        );
+        // The bottom-right one, its first column and row, corner included.
+        let corner = Rectangle::new(Point::new(211.0, 171.0), Size::new(199.0, 149.0));
+        assert_eq!(
+            separator_strips(corner, grid).collect::<Vec<_>>(),
+            [
+                Rectangle::new(Point::new(210.0, 170.0), Size::new(1.0, 150.0)),
+                Rectangle::new(Point::new(211.0, 170.0), Size::new(199.0, 1.0)),
+            ]
+        );
+    }
 
     fn leaf(id: &str) -> SplitNode {
         SplitNode::Pane { id: id.into() }

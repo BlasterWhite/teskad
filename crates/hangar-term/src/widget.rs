@@ -1047,10 +1047,14 @@ where
         let bounds = layout.bounds();
         let terminal = self.terminal;
         let palette = terminal.palette();
-        let background = terminal.color_of_index(257);
+        // The default background, which a see-through window leaves to its
+        // page (`Palette::background_opacity`).
+        let background = palette.background_fill(terminal.color_of_index(257));
 
         let Some(measured) = &state.measured else {
-            renderer.fill_quad(quad(bounds), background);
+            if background.a > 0.0 {
+                renderer.fill_quad(quad(bounds), background);
+            }
             return;
         };
         let cell = measured.cell;
@@ -1076,7 +1080,9 @@ where
         };
 
         renderer.with_layer(bounds, |renderer| {
-            renderer.fill_quad(quad(bounds), background);
+            if background.a > 0.0 {
+                renderer.fill_quad(quad(bounds), background);
+            }
 
             // Backgrounds.
             for (row, slot) in cache.plans.iter().enumerate() {
