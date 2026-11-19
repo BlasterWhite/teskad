@@ -52,6 +52,7 @@ use serde_json::Value;
 use tokio::sync::{Notify, broadcast};
 
 use hangar_core::Event;
+use hangar_core::pty::ServerState;
 use hangar_i18n::{Locale, Translator};
 
 use crate::control::delivery::Deliveries;
@@ -66,13 +67,15 @@ use crate::panes::pane_index::info_of;
 use crate::panes::{self, Ambient, Effect, EpochMs, PaneInfo, wall_clock_ms};
 use crate::state::hosted::HostedOp;
 use crate::state::persist::{SAVE_DEBOUNCE, Writer};
-use crate::state::types::{AppState, Pane, PaneId, Workspace, WsId};
+use crate::state::types::{
+    AgentId, AgentKind, AppState, OrchestrationRole, Pane, PaneId, Workspace, WsId,
+};
 use crate::state::{PanePatch, Snapshot, Store, StoreAction, StoreOutcome};
 
 pub use desk::HostSources;
 pub use orchestrate::{HostPorts, HostRuntime};
 pub use port::HostPort;
-pub use terminals::{CorePtys, Spawn, TermEvent, TermSink, Terminals};
+pub use terminals::{AgentStart, CorePtys, Spawn, TermEvent, TermSink, Terminals};
 
 /// The orchestration runtime, as this host runs it.
 pub type Orchestration = orchestration_runtime::OrchestrationHandle<HostRuntime>;
@@ -113,6 +116,10 @@ struct Model {
     opened: HashSet<WsId>,
     /// Deliveries running, per workspace, by task: how many hold each.
     runs: HashMap<WsId, HashMap<String, usize>>,
+    /// The server each pane's agent was started attached to, or why it runs
+    /// the floor instead, for the panes whose launch asked for one
+    /// ([`EngineHost::agent_server`]).
+    servers: HashMap<PaneId, ServerState>,
 }
 
 impl Model {
@@ -442,6 +449,26 @@ impl EngineHost {
     }
 
     /// Puts what serves the phone's calls on the bus.
+    /// The server pane `pane`'s agent runs attached to, as its launch left
+    /// it (docs/native/agents.md D5): `Attached { socket }`, the socket
+    /// Hangar's own client of the server follows, or `Floor { reason }`, why
+    /// the pane runs Codex's plain TUI instead (D6). `None` for a pane whose
+    /// launch asked for no server — Claude Code, a shell, « Attach Hangar to
+    /// Codex » off — or that is not up.
+    pub fn agent_server(&self, pane: &str) -> Option<ServerState> {
+        locked(&self.0.model).servers.get(pane).cloned()
+    }
+
+    /// What pane `pane`'s status says of its agent beside its activity: why
+    /// it runs without Hangar attached (`FloorReason`'s text, « Codex runs
+    /// without Hangar attached: … »). `None` when there is nothing to say.
+    pub fn status_note(&self, pane: &str) -> Option<String> {
+        match self.agent_server(pane)? {
+            ServerState::Floor { reason } => Some(reason.to_string()),
+            ServerState::Attached { .. } => None,
+        }
+    }
+
     pub fn install_mobile(&self, mobile: Arc<dyn MobileHooks>) {
         *self
             .0
@@ -516,11 +543,31 @@ impl EngineHost {
         outcome
     }
 
-    /// A workspace in folder `cwd` (absolute, existing) with one Claude Code
+    /// A workspace in folder `cwd` (absolute, existing) with one agent's
     /// pane, its orchestrator unless `orchestrator` is false: how a server's
     /// workspace is made, from its command line or a connector. An empty
     /// name is the folder's.
+    ///
+    /// The pane runs the agent of a new workspace's orchestrator (D20,
+    /// `Settings::agent_for`): the one the settings chose, else Claude Code
+    /// when it is installed, Codex when it alone is.
     pub fn add_workspace(&self, name: &str, cwd: &str, orchestrator: bool) -> Result<WsId, String> {
+        self.add_workspace_with(
+            name,
+            cwd,
+            orchestrator,
+            hangar_core::agent::detect::installed,
+        )
+    }
+
+    /// [`EngineHost::add_workspace`], told which agents this machine has.
+    pub(crate) fn add_workspace_with(
+        &self,
+        name: &str,
+        cwd: &str,
+        orchestrator: bool,
+        installed: impl Fn(AgentKind) -> bool,
+    ) -> Result<WsId, String> {
         let path = Path::new(cwd);
         if !path.is_absolute() {
             return Err(format!("{cwd}: a workspace's folder is an absolute path"));
@@ -537,17 +584,23 @@ impl EngineHost {
         };
         // The workspace and its orchestrator's role in one change: told of
         // the pane before its role, the panes would start it as a plain
-        // Claude Code, without Hangar's tools, and nothing here repairs a
-        // pane that runs.
+        // agent, without Hangar's tools, and nothing here repairs a pane
+        // that runs.
         let ws = {
             let mut model = locked(&self.0.model);
+            let agent = model.store.settings().agent_for(
+                OrchestrationRole::Orchestrator,
+                None,
+                None,
+                installed,
+            );
             let made = edited(
                 &mut model,
                 StoreAction::AddWorkspace(crate::state::WorkspaceDraft {
                     name,
                     cwd: cwd.to_string(),
                     layout: 1,
-                    agents: vec![crate::state::types::AgentId::Claude],
+                    agents: vec![AgentId::from(agent)],
                     ..Default::default()
                 }),
             );
@@ -908,6 +961,8 @@ impl EngineHost {
             let mut model = locked(&self.0.model);
             model.index();
             model.panes.mount_pane(&pane.id, &ws.id, &pane.name, now);
+            // A launch before this one's: its server went with its shell.
+            model.servers.remove(&pane.id);
             // What was queued for it before it had a machine to hear of it
             // (a worker's brief is queued the moment its pane is added).
             let waiting = hangar_core::bridge::bridge_queue(pane.id.clone());
@@ -944,6 +999,24 @@ impl EngineHost {
         self.live_changed();
     }
 
+    /// The server pane `pane`'s agent was started with
+    /// (`Terminals::spawn_agent`), kept for [`EngineHost::agent_server`]; the
+    /// floor's reason said in the log too. Not for a pane gone meanwhile.
+    fn set_server(&self, pane: &str, server: Option<ServerState>) {
+        if let Some(ServerState::Floor { reason }) = &server {
+            eprintln!("pane {pane}: {reason}");
+        }
+        let mut model = locked(&self.0.model);
+        match server {
+            Some(server) if model.panes.machines.contains_key(pane) => {
+                model.servers.insert(pane.to_string(), server);
+            }
+            _ => {
+                model.servers.remove(pane);
+            }
+        }
+    }
+
     /// The agent's command was typed.
     fn launched(&self, pane: &str, resumed: Option<&str>) {
         let now = wall_clock_ms();
@@ -956,9 +1029,8 @@ impl EngineHost {
                 model.panes.claim_session(id);
             }
             // A Claude Code with the mod says it all in its hello.
-            let says_itself = info.agent == crate::state::types::AgentId::Claude
-                && model.store.settings().claude_bridge;
-            if !says_itself && info.agent != crate::state::types::AgentId::Shell {
+            let says_itself = info.agent == AgentId::Claude && model.store.settings().claude_bridge;
+            if !says_itself && info.agent != AgentId::Shell {
                 model.panes.launched(&info, resumed, now);
             }
         }
@@ -991,6 +1063,7 @@ impl EngineHost {
                 model.panes.carried.stash(&key, queue, now);
             }
             model.panes.unmount_pane(pane, false);
+            model.servers.remove(pane);
             release_unheld_sessions(&mut model);
         }
         locked(&self.0.printed).remove(pane);
@@ -1215,5 +1288,342 @@ async fn tick_loop(host: EngineHost) {
             break;
         }
         host.tick();
+    }
+}
+
+/// The agent of a workspace made with no window (`add_workspace`), and what
+/// the host keeps of an agent's launch.
+#[cfg(test)]
+mod agent_tests {
+    use std::time::Duration;
+
+    use hangar_core::pty::{AgentLaunch, FloorReason};
+
+    use super::*;
+    use crate::state::types::{PaneRole, Settings};
+    use crate::testdir::scratch;
+    use AgentKind::{Claude, Codex};
+
+    /// Shells nobody starts: the workspaces below are made, not run.
+    struct NoShells;
+
+    impl Terminals for NoShells {
+        fn spawn(&self, _: Spawn, _: TermSink) -> Result<(), String> {
+            Err("no shell is started here".into())
+        }
+        fn write(&self, _: &str, _: &str) -> Result<(), String> {
+            Ok(())
+        }
+        fn alive(&self, _: &str) -> bool {
+            false
+        }
+        fn kill(&self, _: &str) -> Result<(), String> {
+            Ok(())
+        }
+        fn lines(&self, _: &str, _: usize) -> Option<Vec<String>> {
+            None
+        }
+        fn screen(&self, _: &str) -> Option<Vec<String>> {
+            None
+        }
+        fn kill_all(&self) {}
+    }
+
+    fn host(settings: Settings) -> EngineHost {
+        let root = scratch("engine-host-agent");
+        let file = root.join("engine").join("state.json");
+        let state = AppState {
+            settings,
+            ..AppState::default()
+        };
+        write_state_file(&file, &serde_json::to_value(&state).unwrap()).unwrap();
+        EngineHost::load(Config {
+            core: hangar_core::Host::with_paths(hangar_core::paths::Paths::rooted(&root)),
+            terminals: Arc::new(NoShells),
+            state_file: file,
+        })
+        .unwrap()
+    }
+
+    /// The agent and the role of the one pane of a workspace made on a
+    /// machine that has `installed`.
+    fn made(
+        host: &EngineHost,
+        orchestrator: bool,
+        installed: &[AgentKind],
+    ) -> (AgentId, Option<PaneRole>) {
+        let folder = scratch("engine-host-agent-ws");
+        let ws = host
+            .add_workspace_with("Blog", folder.to_str().unwrap(), orchestrator, |kind| {
+                installed.contains(&kind)
+            })
+            .unwrap();
+        let snapshot = host.snapshot();
+        let made = snapshot.state.workspaces.iter().find(|w| w.id == ws);
+        let pane = &made.expect("the workspace").panes[0];
+        (pane.agent, pane.role)
+    }
+
+    /// Nothing chosen (« Automatic », D20): Claude Code when it is
+    /// installed, as always; Codex when it alone is; Claude Code, which the
+    /// setup offers first, with neither.
+    #[test]
+    fn its_orchestrator_runs_claude_code_unless_codex_alone_is_installed() {
+        let host = host(Settings::default());
+        let orchestrator = Some(PaneRole::Orchestrator);
+        assert_eq!(
+            made(&host, true, &[Claude, Codex]),
+            (AgentId::Claude, orchestrator)
+        );
+        assert_eq!(
+            made(&host, true, &[Claude]),
+            (AgentId::Claude, orchestrator)
+        );
+        assert_eq!(made(&host, true, &[Codex]), (AgentId::Codex, orchestrator));
+        assert_eq!(made(&host, true, &[]), (AgentId::Claude, orchestrator));
+    }
+
+    /// The settings' choice stands, installed or not: the pane says why it
+    /// cannot start, rather than starting another agent than the one chosen.
+    #[test]
+    fn its_orchestrator_runs_the_agent_the_settings_chose() {
+        let host = host(Settings {
+            default_orchestrator_agent: Some(Codex),
+            ..Settings::default()
+        });
+        let orchestrator = Some(PaneRole::Orchestrator);
+        assert_eq!(
+            made(&host, true, &[Claude, Codex]),
+            (AgentId::Codex, orchestrator)
+        );
+        assert_eq!(made(&host, true, &[Claude]), (AgentId::Codex, orchestrator));
+    }
+
+    /// A workspace made without its orchestrator: the same agent, no role.
+    #[test]
+    fn a_workspace_without_an_orchestrator_runs_the_same_agent() {
+        let host = host(Settings::default());
+        assert_eq!(made(&host, false, &[Codex]), (AgentId::Codex, None));
+        assert_eq!(
+            made(&host, false, &[Claude, Codex]),
+            (AgentId::Claude, None)
+        );
+    }
+
+    // What the host keeps of an agent's launch.
+
+    /// Shells that start at once, run Codex's server as `server` says, and
+    /// remember the launches they were handed and what they were typed.
+    struct Launches {
+        server: ServerState,
+        launched: Mutex<Vec<(PaneId, AgentLaunch)>>,
+        typed: Mutex<Vec<(PaneId, String)>>,
+        alive: Mutex<HashSet<PaneId>>,
+    }
+
+    impl Terminals for Launches {
+        fn spawn(&self, spawn: Spawn, sink: TermSink) -> Result<(), String> {
+            locked(&self.alive).insert(spawn.id.clone());
+            sink(TermEvent::Output(spawn.id));
+            Ok(())
+        }
+        fn spawn_agent(
+            &self,
+            spawn: Spawn,
+            launch: AgentLaunch,
+            sink: TermSink,
+        ) -> Result<AgentStart, String> {
+            let line = format!("start {} for {}", launch.request.kind.id(), spawn.id);
+            let server =
+                (launch.request.kind == Codex && launch.attach).then(|| self.server.clone());
+            locked(&self.launched).push((spawn.id.clone(), launch));
+            self.spawn(spawn, sink)?;
+            Ok(AgentStart { line, server })
+        }
+        fn write(&self, pane: &str, data: &str) -> Result<(), String> {
+            locked(&self.typed).push((pane.to_string(), data.to_string()));
+            Ok(())
+        }
+        fn alive(&self, pane: &str) -> bool {
+            locked(&self.alive).contains(pane)
+        }
+        fn kill(&self, pane: &str) -> Result<(), String> {
+            locked(&self.alive).remove(pane);
+            Ok(())
+        }
+        fn lines(&self, pane: &str, _: usize) -> Option<Vec<String>> {
+            self.alive(pane).then(|| vec!["$ ".to_string()])
+        }
+        fn screen(&self, pane: &str) -> Option<Vec<String>> {
+            self.alive(pane).then(|| vec!["$ ".to_string()])
+        }
+        fn kill_all(&self) {
+            locked(&self.alive).clear();
+        }
+    }
+
+    fn pane(id: &str, name: &str, agent: AgentId) -> Pane {
+        Pane {
+            id: id.into(),
+            name: name.into(),
+            agent,
+            ..Pane::default()
+        }
+    }
+
+    /// A host over a workspace with a Codex orchestrator, a Claude Code pane
+    /// and a shell, on terminals whose Codex server ends as `server` says.
+    fn launching(server: ServerState, settings: Settings) -> (EngineHost, Arc<Launches>) {
+        let root = scratch("engine-host-launch");
+        let file = root.join("engine").join("state.json");
+        let mut codex = pane("p1", "Leo", AgentId::Codex);
+        codex.role = Some(PaneRole::Orchestrator);
+        let state = AppState {
+            workspaces: vec![Workspace {
+                id: "shop".into(),
+                name: "Shop".into(),
+                cwd: root.to_string_lossy().into_owned(),
+                panes: vec![
+                    codex,
+                    pane("p2", "Ada", AgentId::Claude),
+                    pane("p3", "Sh", AgentId::Shell),
+                ],
+                ..Workspace::default()
+            }],
+            settings,
+            ..AppState::default()
+        };
+        write_state_file(&file, &serde_json::to_value(&state).unwrap()).unwrap();
+        let terminals = Arc::new(Launches {
+            server,
+            launched: Mutex::default(),
+            typed: Mutex::default(),
+            alive: Mutex::default(),
+        });
+        let host = EngineHost::load(Config {
+            core: hangar_core::Host::with_paths(hangar_core::paths::Paths::rooted(&root)),
+            terminals: terminals.clone(),
+            state_file: file,
+        })
+        .unwrap();
+        (host, terminals)
+    }
+
+    fn typed_into(terminals: &Launches, pane: &str) -> Vec<String> {
+        locked(&terminals.typed)
+            .iter()
+            .filter(|(id, _)| id == pane)
+            .map(|(_, text)| text.clone())
+            .collect()
+    }
+
+    /// Waits up to five seconds for `done`.
+    async fn eventually(what: &str, mut done: impl FnMut() -> bool) {
+        for _ in 0..500 {
+            if done() {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("never happened: {what}");
+    }
+
+    /// Each agent pane is started with its launch and types the line the
+    /// terminals answer; a Codex pane asks to attach as the settings say and
+    /// gets Hangar's server; a shell is started with none and types nothing.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn each_agent_pane_types_the_line_its_launch_started_with() {
+        let floor = ServerState::Floor {
+            reason: FloorReason::Timeout { seconds: 10 },
+        };
+        let (host, terminals) = launching(floor.clone(), Settings::default());
+        host.start();
+        eventually("Leo and Ada typed", || {
+            !typed_into(&terminals, "p1").is_empty() && !typed_into(&terminals, "p2").is_empty()
+        })
+        .await;
+        assert_eq!(typed_into(&terminals, "p1"), ["start codex for p1\r"]);
+        assert_eq!(typed_into(&terminals, "p2"), ["start claude for p2\r"]);
+        let launched = locked(&terminals.launched).clone();
+        let of = |id: &str| {
+            launched
+                .iter()
+                .find(|(pane, _)| pane == id)
+                .map(|(_, launch)| launch.clone())
+        };
+        let leo = of("p1").expect("Leo's launch");
+        assert!(leo.attach);
+        assert_eq!(leo.request.kind, Codex);
+        assert!(leo.request.hangar_mcp.is_some(), "{leo:?}");
+        assert_eq!(leo.request.allowed_tools, ["mcp__hangar"]);
+        assert_eq!(leo.request.mcp, None);
+        assert_eq!(of("p2").map(|launch| launch.request.kind), Some(Claude));
+        assert!(of("p3").is_none(), "a shell has no launch");
+        tokio::time::sleep(Duration::from_millis(700)).await;
+        assert!(typed_into(&terminals, "p3").is_empty());
+        host.shutdown().await;
+    }
+
+    /// A pane on the floor keeps why, which its status says; one attached
+    /// keeps its socket; a Claude Code pane has no server. Closed, the pane
+    /// takes its server's state with it.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn the_host_keeps_each_pane_s_server_and_says_why_one_runs_the_floor() {
+        let floor = ServerState::Floor {
+            reason: FloorReason::Timeout { seconds: 10 },
+        };
+        let (host, terminals) = launching(floor.clone(), Settings::default());
+        host.start();
+        eventually("Leo's server known", || host.agent_server("p1").is_some()).await;
+        assert_eq!(host.agent_server("p1"), Some(floor));
+        let note = host.status_note("p1").expect("a note");
+        assert!(
+            note.starts_with("Codex runs without Hangar attached"),
+            "{note}"
+        );
+        eventually("Ada typed", || !typed_into(&terminals, "p2").is_empty()).await;
+        assert_eq!(host.agent_server("p2"), None);
+        assert_eq!(host.status_note("p2"), None);
+
+        host.apply(ModelCmd::ClosePane {
+            ws: "shop".into(),
+            pane: "p1".into(),
+        })
+        .unwrap();
+        eventually("Leo's server forgotten", || {
+            host.agent_server("p1").is_none()
+        })
+        .await;
+        host.shutdown().await;
+
+        let attached = ServerState::Attached {
+            socket: "/run/user/1000/hangar/codex-0123456789ab.sock".into(),
+        };
+        let (host, _) = launching(attached.clone(), Settings::default());
+        host.start();
+        eventually("Leo's server known", || host.agent_server("p1").is_some()).await;
+        assert_eq!(host.agent_server("p1"), Some(attached));
+        assert_eq!(host.status_note("p1"), None);
+        host.shutdown().await;
+
+        // « Attach Hangar to Codex » off: no server asked, none kept.
+        let (host, terminals) = launching(
+            ServerState::Attached {
+                socket: "/never".into(),
+            },
+            Settings {
+                codex_attach: false,
+                ..Settings::default()
+            },
+        );
+        host.start();
+        eventually("Leo typed", || !typed_into(&terminals, "p1").is_empty()).await;
+        let leo = locked(&terminals.launched)
+            .iter()
+            .find(|(pane, _)| pane == "p1")
+            .map(|(_, launch)| launch.attach);
+        assert_eq!(leo, Some(false));
+        assert_eq!(host.agent_server("p1"), None);
+        host.shutdown().await;
     }
 }
