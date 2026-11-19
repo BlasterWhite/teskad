@@ -330,24 +330,12 @@ const ALLOWED: &[Allowed] = &[
     ),
     // Features that name a kind where they should read a capability.
     only(
-        "crates/hangar-core/src/pty.rs",
-        &["let (server, state) = if attach && request.kind == AgentKind::Codex {"],
-        "TODO(capability): the pane's own app-server starts by kind; read `caps.headless.app_server`",
-    ),
-    only(
         "crates/hangar-engine/src/accounts.rs",
         &[
             "Self::of_kind(state, ws, pane, AgentKind::Claude)",
             "self.launch_of(AgentKind::Claude)",
         ],
         "TODO(capability): `of` and `launch` are Claude Code's whatever the pane runs; pass its kind",
-    ),
-    only(
-        "crates/hangar-engine/src/host/mod.rs",
-        &[
-            "let says_itself = info.agent == AgentId::Claude && model.store.settings().claude_bridge;",
-        ],
-        "TODO(capability): whether the side channel tells the session is `caps.sessions.id` (Reported)",
     ),
     only(
         "crates/hangar-app/src/panes_logic/mod.rs",
