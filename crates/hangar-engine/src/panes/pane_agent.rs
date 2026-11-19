@@ -1,6 +1,6 @@
 //! A pane's agent, as its terminal lives it: the state half of
 //! TerminalPane.tsx (`activity`, `bridged`, `attention`, the trust question,
-//! the hand-back and the reports of the hangar-bridge mod).
+//! the hand-back and the reports of the pane's side channel).
 //!
 //! In the web app these were `useState`s of the terminal component, which
 //! published what the rest of the window reads (`setPaneActivity`,
@@ -13,15 +13,25 @@
 //! decide whether to notify), and answers what the window must do
 //! (`Effect`).
 //!
-//! Guesses and reports. Without the mod, the shape of the output is all there
-//! is to go by (`activity`: bursts and silences; the trust question read off
-//! the screen; the bell and OSC 9 and 777). The first report of the mod
-//! proves it loaded, and from then on every guess stands down.
+//! Guesses and reports. A pane's side channel reports what its agent does:
+//! the hangar-bridge mod from inside a Claude Code, Hangar's own client of a
+//! Codex pane's server (`agent/codex_attach.rs`), both in the same reports
+//! (`BridgeEvent`), read here alike (`on_bridge`). The first report proves
+//! the side channel is there (`bridged`: it spoke), and from then on every
+//! guess stands down. Without one — the mod off or not loaded, Codex on its
+//! floor (D6), a shell — the terminal is all there is to go by: the shape of
+//! the output (`activity`: bursts and silences), the agent's own title
+//! ([`title_says`]), the trust question read off the screen, the bell and OSC
+//! 9 and 777. What each agent draws is read whatever the pane's kind: a
+//! shell can run either, and no agent draws another's screens. What the
+//! pane's agent can do, side channel or not, is its live capabilities
+//! ([`Live::live_caps`]).
 
+use hangar_core::agent::Capabilities;
 use hangar_i18n::{Key, Translator, args};
 
 use super::Live;
-use super::activity::{ActivityWatcher, Signal};
+use super::activity::{ActivityWatcher, MIN_BUSY_MS, Signal};
 use super::agent_state::activity_at_hello;
 use super::agents::is_trust_prompt;
 use super::bridge_events::{
@@ -29,7 +39,7 @@ use super::bridge_events::{
 };
 use crate::live::{
     AgentActivity, BridgeEvent, ContextGauge, EpochMs, ExitWhat, PaneActivity, PaneEventDetail,
-    PaneStatus, QueuedPrompt, ToolPhase, TurnOutcome, TurnPhase,
+    PaneStatus, QueuedPrompt, SideChannel, ToolPhase, TurnOutcome, TurnPhase, live_caps,
 };
 use crate::state::types::{AgentId, PaneId, WsId};
 
@@ -84,14 +94,26 @@ pub struct PaneAgent {
     /// Where the agent stands, even when nobody reads it (a plain shell
     /// reports nothing, but a bell in it still hands back).
     pub activity: AgentActivity,
-    /// The pane's Claude Code loaded the hangar-bridge mod: its turns,
-    /// dialogs and usage are reported rather than guessed from the output.
+    /// The pane's side channel spoke (the hangar-bridge mod in its Claude
+    /// Code, Hangar's client of its Codex server): its turns, dialogs and
+    /// usage are reported rather than guessed from the terminal.
     pub bridged: bool,
+    /// How its agent was started, as far as a side channel goes: said by
+    /// its launch.
+    pub side_channel: SideChannel,
     /// The pane handed control back while you were looking somewhere else.
     pub attention: bool,
     pub watcher: ActivityWatcher,
-    /// Claude Code is asking whether to trust the folder.
+    /// Its agent is asking whether to trust the folder.
     trust_asked: bool,
+    /// What the agent's own title last said, once it said something
+    /// ([`title_says`]): from then on the title, not the shape of the
+    /// output, tells its turns. `None` until then, and once the title is let
+    /// go of.
+    title: Option<TitleSays>,
+    /// Since when the title has said a turn runs (at work or asking), until
+    /// it says the turn is over.
+    title_turn_since: Option<EpochMs>,
     /// When to read the screen for that question, 600 ms after the last output.
     pub trust_look_at: Option<EpochMs>,
     /// Whether the pane was attended (focused and shown) the last time we
@@ -225,6 +247,34 @@ impl Live {
         machine.activity = activity;
         machine.bridged = bridged;
         self.publish(info, now);
+    }
+
+    // ----- the side channel, and what the agent can do now
+
+    /// How the pane's agent was started, as far as its side channel goes,
+    /// as its launch says (`host/launch.rs`): attached to one, or on the
+    /// floor and why.
+    pub fn set_side_channel(&mut self, pane: &str, channel: SideChannel) {
+        if let Some(machine) = self.machines.get_mut(pane) {
+            machine.side_channel = channel;
+        }
+    }
+
+    /// How the pane's agent was started, as far as its side channel goes;
+    /// `None` for a pane not mounted.
+    pub fn side_channel(&self, pane: &str) -> Option<&SideChannel> {
+        self.machines.get(pane).map(|machine| &machine.side_channel)
+    }
+
+    /// What the pane's agent can do now: its kind's levels while its side
+    /// channel speaks, the floor until then (`live::live_caps`). What reads
+    /// a pane's agent reads these, never its kind (docs/native/agents.md
+    /// D3). `None` for a shell, which has no agent, and for a pane not
+    /// mounted.
+    pub fn live_caps(&self, info: &PaneInfo) -> Option<Capabilities> {
+        let machine = self.machines.get(&info.id)?;
+        let kind = info.agent.kind()?;
+        Some(live_caps(&kind.info().caps, machine.bridged))
     }
 
     // ----- what is published
@@ -363,7 +413,28 @@ impl Live {
         self.announce(info, body, amb).into_iter().collect()
     }
 
-    // ----- the guesses of a pane without the mod
+    /// The agent asks something of the person on its own screen — an
+    /// approval, a question — which no side channel reported: waiting, and
+    /// said once, however many signs of it come (its title, its
+    /// notification).
+    fn ask(&mut self, info: &PaneInfo, body: String, amb: &Ambient) -> Vec<Effect> {
+        let waiting = self
+            .machines
+            .get(&info.id)
+            .is_some_and(|machine| machine.activity == AgentActivity::Waiting);
+        if waiting {
+            return Vec::new();
+        }
+        self.set_activity(info, AgentActivity::Waiting, amb.now);
+        self.record(
+            &info.id,
+            PaneEventDetail::Permission { tool: None },
+            amb.now,
+        );
+        self.announce(info, body, amb).into_iter().collect()
+    }
+
+    // ----- the guesses of a pane without a side channel
 
     /// A chunk of output was printed (written to the terminal) at `now`.
     #[cfg(any(test, feature = "testing"))]
@@ -399,9 +470,9 @@ impl Live {
                 break;
             };
             // Everything that reads the output is a guess, and a pane whose
-            // mod reports its turns has no use for one: it would only
-            // notify twice.
-            if machine.bridged {
+            // side channel reports its turns has no use for one: it would
+            // only notify twice. Nor has one whose agent's title tells them.
+            if machine.bridged || machine.title.is_some() {
                 continue;
             }
             match signal {
@@ -427,12 +498,14 @@ impl Live {
     }
 
     /// A bell is the agent asking for you outright, so it settles the pane
-    /// without waiting out the silence.
+    /// without waiting out the silence. Not where the agent's title tells
+    /// its turns: Codex rings for an approval as for a turn's end, which its
+    /// title tells apart.
     pub fn bell(&mut self, info: &PaneInfo, amb: &Ambient) -> Vec<Effect> {
         let Some(machine) = self.machines.get_mut(&info.id) else {
             return Vec::new();
         };
-        if machine.bridged {
+        if machine.bridged || machine.title.is_some() {
             return Vec::new();
         }
         let signal = machine.watcher.ring(amb.now);
@@ -443,14 +516,31 @@ impl Live {
     /// notification". The agent already wrote the message, so it is passed
     /// through instead of being guessed at. `message` is what
     /// `osc9_notification` or `osc777_notification` read.
+    ///
+    /// One that asks something of the person ([`asks_the_person`]: Codex's
+    /// approvals and questions) leaves the agent waiting rather than done.
+    /// Where the agent's title tells its turns, a turn it already handed
+    /// back is not handed back twice.
     pub fn terminal_notification(
         &mut self,
         info: &PaneInfo,
         message: &str,
         amb: &Ambient,
     ) -> Vec<Effect> {
-        let bridged = self.machines.get(&info.id).is_none_or(|m| m.bridged);
-        if bridged {
+        let Some(machine) = self.machines.get(&info.id) else {
+            return Vec::new();
+        };
+        if machine.bridged {
+            return Vec::new();
+        }
+        if asks_the_person(message) {
+            return self.ask(info, message.to_string(), amb);
+        }
+        let in_turn = matches!(
+            machine.activity,
+            AgentActivity::Working | AgentActivity::Waiting
+        );
+        if machine.title.is_some() && !in_turn {
             return Vec::new();
         }
         let body = if message.is_empty() {
@@ -461,9 +551,89 @@ impl Live {
         self.hand_back(info, body, amb)
     }
 
-    /// Whether the screen is due to be read for Claude Code's question about
-    /// trusting a folder it has not seen. It comes before the session exists,
-    /// so no event of the mod can announce it, and it is drawn in one short
+    /// The title the pane's program set (OSC 0 or 2; empty: it let go of
+    /// it). Where no side channel speaks, an agent's own title tells its
+    /// turns better than the shape of its output ([`title_says`]): at work
+    /// the moment it starts, waiting on the person (which the output cannot
+    /// tell from done), done the moment it rests. Once it said something,
+    /// the guesses from the output, the bell included, stand down until the
+    /// title is let go of or the agent ends.
+    ///
+    /// A turn shorter than a burst the output watcher would count as work
+    /// (`activity::MIN_BUSY_MS`) ends idle, without a hand-back: what Codex
+    /// shows while its MCP servers start, as much as a reply you watched
+    /// come.
+    pub fn terminal_title(&mut self, info: &PaneInfo, title: &str, amb: &Ambient) -> Vec<Effect> {
+        let Some(machine) = self.machines.get_mut(&info.id) else {
+            return Vec::new();
+        };
+        if machine.bridged {
+            return Vec::new();
+        }
+        let says = title_says(title);
+        let before = machine.title;
+        if before.is_none() && says.is_none() {
+            // Someone else's title: a shell's, an agent's Hangar reads
+            // otherwise.
+            return Vec::new();
+        }
+        // Between turns Codex's title carries no mark at all.
+        let now_says = says.unwrap_or(TitleSays::Resting);
+        machine.title = (!title.trim().is_empty()).then_some(now_says);
+        if before == Some(now_says) {
+            // The spinner's next frame.
+            return Vec::new();
+        }
+        let now = amb.now;
+        match now_says {
+            TitleSays::Busy => {
+                machine.title_turn_since.get_or_insert(now);
+                if machine.activity != AgentActivity::Working {
+                    self.set_activity(info, AgentActivity::Working, now);
+                }
+                Vec::new()
+            }
+            TitleSays::Asking => {
+                machine.title_turn_since.get_or_insert(now);
+                let body = amb
+                    .t
+                    .t_with(Key::NotifyPermission, &args!("tool" => ACTION_REQUIRED))
+                    .into_owned();
+                self.ask(info, body, amb)
+            }
+            TitleSays::Resting => {
+                let Some(since) = machine.title_turn_since.take() else {
+                    return Vec::new();
+                };
+                // Already handed back (by its notification), or taken back.
+                if !matches!(
+                    machine.activity,
+                    AgentActivity::Working | AgentActivity::Waiting
+                ) {
+                    return Vec::new();
+                }
+                if now.saturating_sub(since) < MIN_BUSY_MS {
+                    self.set_activity(info, AgentActivity::Idle, now);
+                    return Vec::new();
+                }
+                let body = amb.t.t(Key::NotifySettled).into_owned();
+                self.hand_back(info, body, amb)
+            }
+        }
+    }
+
+    /// The agent's title tells nothing any more: it ended, or its shell did.
+    fn forget_title(&mut self, pane: &str) {
+        if let Some(machine) = self.machines.get_mut(pane) {
+            machine.title = None;
+            machine.title_turn_since = None;
+        }
+    }
+
+    /// Whether the screen is due to be read for the agent's question about
+    /// trusting a folder it has not seen (Claude Code's, Codex's: see
+    /// [`trust_question`]). It comes before the session exists, so no report
+    /// of a side channel can announce it, and it is drawn in one short
     /// burst the idle watcher never counts as work. The screen is read a
     /// moment after the last output instead: the pane is waiting for the
     /// person, and not done.
@@ -502,11 +672,18 @@ impl Live {
         if machine.bridged {
             return Vec::new();
         }
-        let asking = is_trust_prompt(screen);
-        if asking && !machine.trust_asked {
+        let question = trust_question(screen);
+        let asking = question.is_some();
+        if let Some(question) = question.filter(|_| !machine.trust_asked) {
             machine.trust_asked = true;
             self.set_activity(info, AgentActivity::Waiting, amb.now);
-            let body = amb.t.t(Key::NotifyTrustFolder).into_owned();
+            let body = match question {
+                TrustQuestion::Trust => amb.t.t(Key::NotifyTrustFolder).into_owned(),
+                TrustQuestion::Named(name) => amb
+                    .t
+                    .t_with(Key::NotifyPermission, &args!("tool" => name))
+                    .into_owned(),
+            };
             return self.announce(info, body, amb).into_iter().collect();
         }
         if !asking && machine.trust_asked {
@@ -560,6 +737,7 @@ impl Live {
             return;
         }
         self.status.insert(info.id.clone(), PaneStatus::Exited);
+        self.forget_title(&info.id);
         self.set_bridged(info, false, now);
         self.set_activity(info, AgentActivity::Idle, now);
         self.insights.update(&info.id, |i| i.turn_started_at = None);
@@ -627,11 +805,15 @@ impl Live {
         }
     }
 
-    // ----- what the hangar-bridge mod reports
+    // ----- what the pane's side channel reports
 
-    /// A report of the mod, from inside this pane's Claude Code. The first
-    /// report of any kind is proof the mod loaded, and from then on the
-    /// guesses above stand down.
+    /// A report of the pane's side channel: the mod from inside its Claude
+    /// Code, or Hangar's client of its Codex server, which reports the same
+    /// kinds (`hello` with the thread, its model and Codex's version; `turn`
+    /// with the last answer as the headline; `permission` while it waits on
+    /// the person; `end` when the TUI leaves). The first report of any kind
+    /// is proof the side channel is there, and from then on the guesses
+    /// above stand down.
     pub fn on_bridge(&mut self, info: &PaneInfo, event: BridgeEvent, amb: &Ambient) -> Vec<Effect> {
         if !self.machines.contains_key(&info.id) {
             return Vec::new();
@@ -856,9 +1038,11 @@ impl Live {
                     }
                 });
             }
-            // Claude Code exited; whatever runs in the pane next is a shell.
+            // The agent exited (Claude Code, or the Codex TUI left its
+            // server); whatever runs in the pane next is a shell.
             BridgeEvent::End { .. } => {
                 self.hibernation.note_agent_exited(&info.id, true);
+                self.forget_title(&info.id);
                 self.set_bridged(info, false, now);
                 if let Some(machine) = self.machines.get_mut(&info.id) {
                     machine.bridge_context = None;
@@ -893,6 +1077,145 @@ impl Live {
         self.claims.claim(session_id);
         Some(Effect::CaptureSession(session_id.to_string()))
     }
+}
+
+// ----- what the agents' own terminals say
+//
+// Read on any pane no side channel speaks for, whatever its kind: a shell
+// can run either agent, and none draws another's screens. Codex's are read
+// in its source at the pinned release (`agent::codex::CHECKED_AT`, paths
+// under `codex-rs/`), never run (docs/native/agents.md §4.0).
+
+/// What an agent's own title says of it ([`title_says`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TitleSays {
+    /// At work: a turn runs, or the agent starts.
+    Busy,
+    /// Blocked on the person: an approval, a question.
+    Asking,
+    /// Its turn is over: the prompt is the person's.
+    Resting,
+}
+
+/// What Codex's title says while it is blocked on the person, before the
+/// rest of the title (`tui/src/chatwidget/status_surfaces.rs`,
+/// `TERMINAL_TITLE_ACTION_REQUIRED_PREFIX`; the `[ . ]` form is the blink's
+/// other phase).
+const ACTION_REQUIRED: &str = "Action Required";
+const ACTION_REQUIRED_PREFIXES: [&str; 2] = ["[ ! ] Action Required", "[ . ] Action Required"];
+
+/// The frames of Codex's title spinner (`status_surfaces.rs`,
+/// `TERMINAL_TITLE_SPINNER_FRAMES`).
+const SPINNER_FRAMES: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+/// What Codex's title says of its turn, from its source
+/// (`tui/src/chatwidget/status_surfaces.rs`, `tui/src/bottom_pane/
+/// {title_setup,action_required_title}.rs`, `tui/src/terminal_title.rs`):
+///
+/// - its items are, unless the person chose others (`tui.terminal_title`),
+///   `activity`, `thread-name`, `project-name`, joined by ` | `, and by a
+///   plain space next to `activity`;
+/// - `activity` is a frame of its spinner while a turn runs or its MCP
+///   servers start (after `● ` while the microphone listens), nothing
+///   between turns, and while it is blocked on the person the whole title
+///   starts with `[ ! ] Action Required` instead;
+/// - the `run-state` item, when the person's items name it, says `Starting`,
+///   `Working`, `Thinking`, `Waiting` (on a background terminal: the turn
+///   still runs) or `Ready`.
+///
+/// `None` when the title carries none of these: between turns with the
+/// default items, with the spinner turned off (`tui.animations`), or
+/// someone else's title — a shell's, Claude Code's.
+pub fn title_says(title: &str) -> Option<TitleSays> {
+    let title = title.trim();
+    if ACTION_REQUIRED_PREFIXES
+        .iter()
+        .any(|prefix| title.starts_with(prefix))
+    {
+        return Some(TitleSays::Asking);
+    }
+    let mut words = title.split_whitespace();
+    let activity = match words.next() {
+        Some("●") => words.next(),
+        first => first,
+    };
+    let frame = |word: &str| {
+        let mut chars = word.chars();
+        chars.next().is_some_and(|c| SPINNER_FRAMES.contains(&c)) && chars.next().is_none()
+    };
+    if activity.is_some_and(frame) {
+        return Some(TitleSays::Busy);
+    }
+    title.split(" | ").find_map(|item| {
+        let words: Vec<&str> = item
+            .split_whitespace()
+            .filter(|word| *word != "●" && !frame(word))
+            .collect();
+        match words.as_slice() {
+            ["Starting" | "Working" | "Thinking" | "Waiting"] => Some(TitleSays::Busy),
+            ["Ready"] => Some(TitleSays::Resting),
+            _ => None,
+        }
+    })
+}
+
+/// Whether an agent's desktop notification asks something of the person
+/// rather than says it is done: Codex's approvals, its MCP servers'
+/// elicitations, its plan-mode prompts and its questions
+/// (`tui/src/chatwidget/notifications.rs`, `Notification::display`). Its
+/// turn's end says its answer, or "Agent turn complete".
+pub fn asks_the_person(message: &str) -> bool {
+    const ASKING: [&str; 5] = [
+        "Approval requested: ",
+        "Approval requested by ",
+        "Codex wants to edit ",
+        "Plan mode prompt: ",
+        "Question: ",
+    ];
+    ASKING.iter().any(|lead| message.starts_with(lead))
+}
+
+/// An agent's question about the folder it was started in, before its
+/// session exists.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrustQuestion {
+    /// Whether to trust the folder, which Hangar says in its own words
+    /// (Claude Code's « Quick safety check », `agents::is_trust_prompt`).
+    Trust,
+    /// A dialog the agent names itself, named as it does.
+    Named(&'static str),
+}
+
+/// The heading of Codex's dialog, and the first choice of each of its forms
+/// (`tui/src/onboarding/trust_directory.rs`): the folder to trust, a folder
+/// opened restricted, a task that was trusted before.
+const FOLDER_ACCESS: &str = "Folder access";
+const FOLDER_ACCESS_CHOICES: [&str; 3] = [
+    "trust and continue",
+    "open restricted",
+    "open existing task",
+];
+
+/// Which agent's question about its folder the screen shows, if any:
+/// Claude Code's (« Quick safety check… Yes, I trust this folder ») or
+/// Codex's « Folder access » dialog, with its choice. A heading and a choice
+/// are both needed, wrapped or not, as for Claude Code's: a transcript that
+/// merely talks about them is not the question.
+pub fn trust_question(screen: &str) -> Option<TrustQuestion> {
+    if is_trust_prompt(screen) {
+        return Some(TrustQuestion::Trust);
+    }
+    let text = screen
+        .split(|c: char| c.is_whitespace() || c == '\u{feff}')
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase();
+    let codex = text.contains(&FOLDER_ACCESS.to_lowercase())
+        && FOLDER_ACCESS_CHOICES
+            .iter()
+            .any(|choice| text.contains(choice));
+    codex.then_some(TrustQuestion::Named(FOLDER_ACCESS))
 }
 
 fn session_event(session_id: &str, resumed: bool) -> PaneEventDetail {
@@ -1807,5 +2130,402 @@ mod tests {
         live.unmount_pane("p1", false);
         assert!(live.agents.get("p1").is_none());
         assert!(!live.insights.contains("p1"));
+    }
+
+    /// Codex panes: one attached to its own server, read from Hangar's
+    /// client of it as a Claude Code is from its mod, and one on the floor
+    /// (D6), read from its terminal. The reports are those of
+    /// `agent/codex_attach.rs`; the screens, titles and notifications are
+    /// written from Codex's source at the pinned release
+    /// (`agent::codex::CHECKED_AT`, paths under `codex-rs/`), never run.
+    mod codex {
+        use hangar_core::agent::{AgentKind, Asks, IdleInject, RunningInject, TurnSignal};
+
+        use super::*;
+
+        const THREAD: &str = "0199a5c4-7b3e-7c51-a2f4-6d0e8c1b9f20";
+
+        fn permission(tool: &str) -> String {
+            Translator::new(Locale::En)
+                .t_with(Key::NotifyPermission, &args!("tool" => tool))
+                .into_owned()
+        }
+
+        fn notified(body: &str) -> Effect {
+            Effect::Notify {
+                title: "Ava · Codex".into(),
+                body: body.into(),
+            }
+        }
+
+        fn title(live: &mut Live, info: &PaneInfo, title: &str, now: EpochMs) -> Vec<Effect> {
+            live.terminal_title(info, title, &amb(now))
+        }
+
+        // ----- attached: Hangar's client reports
+
+        #[test]
+        fn an_attached_codex_pane_is_read_from_hangar_s_client_as_claude_code_is_from_its_mod() {
+            let (mut live, mut info) = mounted(AgentId::Codex);
+            live.set_side_channel("p1", SideChannel::Attached);
+            assert_eq!(live.side_channel("p1"), Some(&SideChannel::Attached));
+            // Attached, but nothing said yet: the floor's levels until it speaks.
+            let before = live.live_caps(&info).expect("an agent's");
+            assert_eq!(before.turns, TurnSignal::Inferred);
+            assert_eq!(before.inject.idle, IdleInject::Type);
+
+            // The client's hello: the thread, its model, Codex's version.
+            let effects = report(
+                &mut live,
+                &info,
+                json!({ "kind": "hello", "sessionId": THREAD, "model": "gpt-5.5-codex", "version": "0.170.0" }),
+                &amb(NOW),
+            );
+            assert_eq!(effects, [Effect::CaptureSession(THREAD.into())]);
+            info.session_id = Some(THREAD.into());
+            let published = live.agents.get("p1").expect("published");
+            assert!(published.bridged, "its side channel spoke");
+            assert_eq!(published.activity, AgentActivity::Idle);
+            let caps = live.live_caps(&info).unwrap();
+            assert_eq!(caps, AgentKind::Codex.info().caps);
+            assert_eq!(caps.turns, TurnSignal::Reported);
+            assert_eq!(caps.inject.running, RunningInject::Steer);
+            assert_eq!(caps.approvals, Asks::Held);
+            let insight = live.insights.get("p1");
+            assert_eq!(insight.model.as_deref(), Some("gpt-5.5-codex"));
+            assert_eq!(insight.agent_version.as_deref(), Some("0.170.0"));
+            report(
+                &mut live,
+                &info,
+                json!({ "kind": "settings", "model": "gpt-5.5-codex", "mode": "default", "effort": "high" }),
+                &amb(NOW),
+            );
+            assert_eq!(live.insights.get("p1").effort.as_deref(), Some("high"));
+
+            // A turn, an approval it waits on, the answer.
+            report(
+                &mut live,
+                &info,
+                json!({ "kind": "turn", "phase": "start" }),
+                &amb(NOW + 10),
+            );
+            assert_eq!(activity(&live, &info), Some(AgentActivity::Working));
+            report(
+                &mut live,
+                &info,
+                json!({ "kind": "permission", "waiting": true }),
+                &amb(NOW + 20),
+            );
+            let effects = report(
+                &mut live,
+                &info,
+                json!({
+                    "kind": "permission", "waiting": true, "tool": "Bash",
+                    "input": { "command": "cargo test", "cwd": "/work/hangar" },
+                    "askId": "codex-1-7", "toolUseId": "item-3",
+                }),
+                &amb(NOW + 30),
+            );
+            assert_eq!(activity(&live, &info), Some(AgentActivity::Waiting));
+            assert_eq!(effects, [notified(&permission("Bash"))]);
+            report(
+                &mut live,
+                &info,
+                json!({ "kind": "permission", "waiting": false }),
+                &amb(NOW + 40),
+            );
+            assert_eq!(activity(&live, &info), Some(AgentActivity::Working));
+
+            // Its own title and output are not listened to while it speaks.
+            assert!(
+                title(
+                    &mut live,
+                    &info,
+                    "[ ! ] Action Required | project",
+                    NOW + 50
+                )
+                .is_empty()
+            );
+            assert!(live.bell(&info, &amb(NOW + 60)).is_empty());
+            assert_eq!(activity(&live, &info), Some(AgentActivity::Working));
+
+            let effects = report(
+                &mut live,
+                &info,
+                json!({ "kind": "turn", "phase": "end", "reason": "answer", "durationMs": 3150, "answer": "All 42 tests pass." }),
+                &amb(NOW + 3_200),
+            );
+            assert_eq!(activity(&live, &info), Some(AgentActivity::Yours));
+            assert_eq!(effects, [notified("All 42 tests pass.")]);
+            assert_eq!(
+                live.insights.get("p1").last_answer.as_deref(),
+                Some("All 42 tests pass.")
+            );
+
+            // The TUI quits, or the server goes: the floor again.
+            report(
+                &mut live,
+                &info,
+                json!({ "kind": "end", "reason": "closed" }),
+                &amb(NOW + 4_000),
+            );
+            assert!(!live.agents.get("p1").unwrap().bridged);
+            assert_eq!(activity(&live, &info), Some(AgentActivity::Idle));
+            assert_eq!(live.live_caps(&info).unwrap().turns, TurnSignal::Inferred);
+        }
+
+        // ----- the floor: its terminal
+
+        #[test]
+        fn a_floor_codex_pane_reads_its_turns_from_its_title() {
+            let (mut live, info) = mounted(AgentId::Codex);
+            let reason =
+                "Codex runs without Hangar attached: its server did not listen within 10 seconds";
+            live.set_side_channel(
+                "p1",
+                SideChannel::Floor {
+                    reason: Some(reason.into()),
+                },
+            );
+            let caps = live.live_caps(&info).unwrap();
+            assert_eq!(caps.turns, TurnSignal::Inferred);
+            assert_eq!(caps.approvals, Asks::Keys);
+
+            // Between turns the default title has no mark: nothing to say yet.
+            assert!(title(&mut live, &info, "Fix login timeout | project", NOW).is_empty());
+            assert_eq!(activity(&live, &info), None, "nothing published");
+            // A turn: the spinner, frame after frame.
+            assert!(title(&mut live, &info, "⠋ Fix login timeout | project", NOW + 100).is_empty());
+            assert_eq!(activity(&live, &info), Some(AgentActivity::Working));
+            assert!(title(&mut live, &info, "⠙ Fix login timeout | project", NOW + 200).is_empty());
+            // Its output, the bell: the title tells the turn instead.
+            let mut now = NOW + 300;
+            for _ in 0..40 {
+                live.note_output("p1", now);
+                now += 100;
+            }
+            assert!(live.poll_pane(&info, 1000, &amb(now + 5_000)).is_empty());
+            assert!(live.bell(&info, &amb(now + 5_000)).is_empty());
+            assert_eq!(activity(&live, &info), Some(AgentActivity::Working));
+
+            // Blocked on the person: waiting, said once over the blink.
+            let effects = title(
+                &mut live,
+                &info,
+                "[ ! ] Action Required | Fix login timeout | project",
+                now + 6_000,
+            );
+            assert_eq!(activity(&live, &info), Some(AgentActivity::Waiting));
+            assert_eq!(effects, [notified(&permission("Action Required"))]);
+            assert_eq!(
+                live.insights.get("p1").events[0].detail,
+                PaneEventDetail::Permission { tool: None }
+            );
+            assert!(
+                title(
+                    &mut live,
+                    &info,
+                    "[ . ] Action Required | Fix login timeout | project",
+                    now + 7_000
+                )
+                .is_empty()
+            );
+            // Answered at the pane, at work again, then done: yours.
+            assert!(
+                title(
+                    &mut live,
+                    &info,
+                    "⠹ Fix login timeout | project",
+                    now + 8_000
+                )
+                .is_empty()
+            );
+            assert_eq!(activity(&live, &info), Some(AgentActivity::Working));
+            let effects = title(&mut live, &info, "Fix login timeout | project", now + 9_000);
+            assert_eq!(activity(&live, &info), Some(AgentActivity::Yours));
+            assert_eq!(effects, [notified(&said(Key::NotifySettled))]);
+            // Resting stays resting.
+            assert!(title(&mut live, &info, "Fix login timeout | project", now + 9_500).is_empty());
+        }
+
+        #[test]
+        fn a_short_spin_of_codex_s_title_ends_idle_without_a_hand_back() {
+            let (mut live, info) = mounted(AgentId::Codex);
+            // Its MCP servers starting, or a reply watched as it came.
+            assert!(title(&mut live, &info, "⠋ project", NOW).is_empty());
+            assert_eq!(activity(&live, &info), Some(AgentActivity::Working));
+            assert!(title(&mut live, &info, "project", NOW + 800).is_empty());
+            assert_eq!(activity(&live, &info), Some(AgentActivity::Idle));
+            assert!(!live.needs_attention("p1"));
+        }
+
+        #[test]
+        fn codex_s_notifications_tell_an_approval_from_the_end_of_its_turn() {
+            let (mut live, info) = mounted(AgentId::Codex);
+            // `tui/src/chatwidget/notifications.rs`, `Notification::display`.
+            let effects =
+                live.terminal_notification(&info, "Approval requested: cargo test", &amb(NOW));
+            assert_eq!(activity(&live, &info), Some(AgentActivity::Waiting));
+            assert_eq!(effects, [notified("Approval requested: cargo test")]);
+            // The title says the same thing: not said twice.
+            assert!(
+                title(
+                    &mut live,
+                    &info,
+                    "[ ! ] Action Required | project",
+                    NOW + 10
+                )
+                .is_empty()
+            );
+            assert!(title(&mut live, &info, "⠋ project", NOW + 5_000).is_empty());
+            let effects =
+                live.terminal_notification(&info, "All 42 tests pass.", &amb(NOW + 9_000));
+            assert_eq!(activity(&live, &info), Some(AgentActivity::Yours));
+            assert_eq!(effects, [notified("All 42 tests pass.")]);
+            // Its title rests after: already handed back.
+            assert!(title(&mut live, &info, "project", NOW + 9_010).is_empty());
+            assert_eq!(activity(&live, &info), Some(AgentActivity::Yours));
+
+            for asking in [
+                "Approval requested by github",
+                "Codex wants to edit src/main.rs",
+                "Codex wants to edit 3 files",
+                "Plan mode prompt: Implement the plan?",
+                "Question: Which database?",
+            ] {
+                assert!(asks_the_person(asking), "{asking}");
+            }
+            for done in [
+                "Agent turn complete",
+                "All 42 tests pass.",
+                "Build finished",
+                "",
+            ] {
+                assert!(!asks_the_person(done), "{done}");
+            }
+        }
+
+        #[test]
+        fn codex_s_folder_access_question_is_waiting() {
+            let (mut live, info) = mounted(AgentId::Codex);
+            // From the source: `tui/src/onboarding/trust_directory.rs`, its
+            // snapshot `renders_snapshot_for_git_repo`.
+            let screen = "\n  Folder access\n  /workspace/project\n\n  Trust this folder? Codex can read, edit, and run files here,\n  subject to your permission settings. Folder settings can run code\n  automatically, even without a model request. Continue only if you\n  trust these files. Your trust decision will be saved.\n\n\u{203a} 1. Trust and continue\n  2. Quit\n\n  enter continue and create sandbox \u{b7} esc quit";
+            live.note_output("p1", NOW);
+            assert!(live.trust_look_due("p1", NOW + TRUST_LOOK_MS));
+            let effects = live.look_for_trust_question(&info, screen, &amb(NOW + TRUST_LOOK_MS));
+            assert_eq!(activity(&live, &info), Some(AgentActivity::Waiting));
+            assert_eq!(effects, [notified(&permission("Folder access"))]);
+            // Trusted: the session starts.
+            live.note_output("p1", NOW + 5_000);
+            assert!(
+                live.look_for_trust_question(
+                    &info,
+                    "\u{203a} Ask Codex to do anything",
+                    &amb(NOW + 5_600)
+                )
+                .is_empty()
+            );
+            assert_eq!(activity(&live, &info), Some(AgentActivity::Working));
+        }
+
+        #[test]
+        fn each_agent_s_trust_question_is_known_and_nothing_else_is() {
+            // Codex's forms (`trust_directory.rs`): the folder to trust,
+            // narrow enough to wrap; a folder opened restricted; a task
+            // trusted before.
+            let narrow = "  Folder\n  access\n  /w/p\n  Trust this\n  folder?\n\u{203a} 1. Trust and\n  continue\n  2. Quit";
+            assert_eq!(
+                trust_question(narrow),
+                Some(TrustQuestion::Named("Folder access"))
+            );
+            let restricted = "  Folder access\n  /workspace/project\n  Config, hooks, and exec policies from untrusted folders stay\n\u{203a} 1. Open restricted\n  2. Back to Agent Command Center";
+            assert!(trust_question(restricted).is_some());
+            let existing = "  Folder access\n  /workspace/project\n\u{203a} 1. Open existing task\n  2. Back to Agent Command Center";
+            assert!(trust_question(existing).is_some());
+            // Claude Code's, as `agents::is_trust_prompt` reads it.
+            let claude = "Quick safety check: Is this a project you created or one you trust?\n \u{276f} 1. Yes, I trust this folder";
+            assert_eq!(trust_question(claude), Some(TrustQuestion::Trust));
+            // Talk about them is not the question.
+            assert_eq!(trust_question("> what does Folder access mean?"), None);
+            assert_eq!(trust_question("press enter: trust and continue"), None);
+            assert_eq!(trust_question(""), None);
+        }
+
+        #[test]
+        fn codex_s_title_is_read_as_its_source_writes_it() {
+            // `status_surfaces.rs`: activity, thread name, project name.
+            assert_eq!(
+                title_says("⠋ Fix login timeout | project"),
+                Some(TitleSays::Busy)
+            );
+            assert_eq!(title_says("⠏ project"), Some(TitleSays::Busy));
+            assert_eq!(title_says("● ⠇ thread | project"), Some(TitleSays::Busy));
+            assert_eq!(
+                title_says("[ ! ] Action Required | project"),
+                Some(TitleSays::Asking)
+            );
+            assert_eq!(
+                title_says("[ . ] Action Required | Fix login timeout | project"),
+                Some(TitleSays::Asking)
+            );
+            assert_eq!(title_says("Fix login timeout | project"), None);
+            assert_eq!(title_says("project"), None);
+            // The run-state item, where the person's items name it.
+            assert_eq!(title_says("⠋ Working | project"), Some(TitleSays::Busy));
+            assert_eq!(title_says("project | Thinking"), Some(TitleSays::Busy));
+            assert_eq!(title_says("Starting | project"), Some(TitleSays::Busy));
+            assert_eq!(title_says("Waiting | project"), Some(TitleSays::Busy));
+            assert_eq!(title_says("Ready | project"), Some(TitleSays::Resting));
+            assert_eq!(title_says("project Ready"), None);
+            // Someone else's: a shell's, Claude Code's.
+            for other in [
+                "",
+                "simon@vast: ~/hangar",
+                "vim src/main.rs",
+                "\u{2733} Fix the login bug",
+                "\u{2802} Fix the login bug",
+                "\u{2810} Claude Code",
+            ] {
+                assert_eq!(title_says(other), None, "{other:?}");
+            }
+        }
+
+        #[test]
+        fn a_title_let_go_of_hands_the_guesses_back() {
+            let (mut live, info) = mounted(AgentId::Codex);
+            title(&mut live, &info, "⠋ project", NOW);
+            // Codex quits mid-turn: it clears the title it set
+            // (`App::drop`, `clear_managed_terminal_title`).
+            title(&mut live, &info, "", NOW + 5_000);
+            assert_eq!(activity(&live, &info), Some(AgentActivity::Yours));
+            // The shell's own work is guessed again, and so is its bell.
+            assert_eq!(live.bell(&info, &amb(NOW + 10_000)).len(), 1);
+        }
+
+        #[test]
+        fn claude_code_s_titles_change_nothing_for_a_claude_code_without_its_mod() {
+            let (mut live, info) = mounted(AgentId::Claude);
+            assert!(title(&mut live, &info, "\u{2733} Fix the login bug", NOW).is_empty());
+            assert!(title(&mut live, &info, "\u{2802} Fix the login bug", NOW + 10).is_empty());
+            let mut now = NOW;
+            for _ in 0..40 {
+                live.note_output("p1", now);
+                now += 100;
+            }
+            live.poll_pane(&info, 3000, &amb(now));
+            assert_eq!(activity(&live, &info), Some(AgentActivity::Working));
+            let effects = live.poll_pane(&info, 3000, &amb(now + 5000));
+            assert_eq!(activity(&live, &info), Some(AgentActivity::Yours));
+            assert_eq!(effects.len(), 1);
+            let caps = live.live_caps(&info).unwrap();
+            assert_eq!(
+                (caps.turns, caps.inject.idle),
+                (TurnSignal::Inferred, IdleInject::Type)
+            );
+            // A shell has no agent, and so no capabilities.
+            let (live, shell) = mounted(AgentId::Shell);
+            assert_eq!(live.live_caps(&shell), None);
+        }
     }
 }
