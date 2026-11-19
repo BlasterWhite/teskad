@@ -293,6 +293,14 @@ pub trait AppPort: Send + Sync + 'static {
         None
     }
 
+    /// core's host on this machine: what a delegation's child runs beside
+    /// and reports through (`hangar_core::delegate`, delegate.rs). `None`
+    /// where no child may start: the requests of a node's panes, whose
+    /// folders are on the node.
+    fn core(&self) -> Option<hangar_core::Host> {
+        None
+    }
+
     /// The deliveries in flight and settled while the app runs
     /// (deliveryControl's module state).
     fn deliveries(&self) -> &super::delivery::Deliveries;

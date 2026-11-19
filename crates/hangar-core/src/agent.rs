@@ -23,6 +23,7 @@ mod claude;
 pub mod codex;
 pub mod codex_attach;
 pub mod detect;
+pub mod images;
 pub mod launch;
 
 use serde::{Deserialize, Serialize};
@@ -94,6 +95,19 @@ pub struct AgentInfo {
     pub binaries: &'static [&'static str],
     /// The project instructions file it reads, where Hangar's playbook goes.
     pub instructions_file: &'static str,
+    /// What its prompt reads as "a new line, not sent" from a terminal that
+    /// does not speak the kitty keyboard protocol: what a pane's Shift+Enter
+    /// sends it (hangar-app's `panes/look.rs`).
+    ///
+    /// - Claude Code: ESC+CR (Alt+Enter), what it reads as a newline.
+    /// - Codex: LF, its Ctrl+J, the newline key its own footer offers when the
+    ///   terminal reports no enhanced keys (`codex-rs/tui`, `keymap.rs`:
+    ///   `editor.insert_newline`, and `footer.rs`, read at the pinned
+    ///   0.170.0). Its Alt+Enter is a newline too, but an ESC that reaches it
+    ///   on its own is its Esc: the running turn interrupted, or the last
+    ///   message taken back to be edited.
+    #[serde(skip)]
+    pub newline: &'static [u8],
     /// The best the tested version does. A pane's live capabilities may be
     /// lower (the side channel off, a version too old).
     pub caps: Capabilities,
@@ -114,6 +128,7 @@ static CLAUDE: AgentInfo = AgentInfo {
     program: "claude",
     binaries: &["claude.exe", "claude.cmd", "claude"],
     instructions_file: "CLAUDE.md",
+    newline: b"\x1b\r",
     caps: Capabilities {
         launch: Launch {
             model: true,
@@ -129,6 +144,7 @@ static CLAUDE: AgentInfo = AgentInfo {
             idle: IdleInject::Submit,
             running: RunningInject::Append,
         },
+        submits_commands: true,
         briefing: Briefing {
             role: RoleBriefing::SystemPrompt,
             state: StateBriefing::SessionContext,
@@ -181,6 +197,7 @@ static CODEX: AgentInfo = AgentInfo {
     program: "codex",
     binaries: &["codex.exe", "codex.cmd", "codex"],
     instructions_file: "AGENTS.md",
+    newline: b"\n",
     caps: Capabilities {
         launch: Launch {
             model: true,
@@ -196,6 +213,7 @@ static CODEX: AgentInfo = AgentInfo {
             idle: IdleInject::Submit,
             running: RunningInject::Steer,
         },
+        submits_commands: false,
         briefing: Briefing {
             role: RoleBriefing::DeveloperInstructions,
             state: StateBriefing::SessionContext,
@@ -300,6 +318,7 @@ mod tests {
         assert_eq!(claude.program, "claude");
         assert_eq!(claude.binaries, ["claude.exe", "claude.cmd", "claude"]);
         assert_eq!(claude.instructions_file, "CLAUDE.md");
+        assert_eq!(claude.newline, b"\x1b\r");
 
         let caps = claude.caps;
         assert_eq!(caps.turns, TurnSignal::Reported);
@@ -310,6 +329,7 @@ mod tests {
                 running: RunningInject::Append,
             }
         );
+        assert!(caps.submits_commands);
         assert_eq!(caps.briefing.role, RoleBriefing::SystemPrompt);
         assert_eq!(caps.briefing.state, StateBriefing::SessionContext);
         assert_eq!(caps.approvals, Asks::Held);
@@ -345,11 +365,14 @@ mod tests {
         assert_eq!(codex.program, "codex");
         assert_eq!(codex.binaries, ["codex.exe", "codex.cmd", "codex"]);
         assert_eq!(codex.instructions_file, "AGENTS.md");
+        assert_eq!(codex.newline, b"\n");
 
         let caps = codex.caps;
         assert_eq!(caps.turns, TurnSignal::Reported);
         assert_eq!(caps.inject.idle, IdleInject::Submit);
         assert_eq!(caps.inject.running, RunningInject::Steer);
+        // Its slash commands run in its own window, not from a turn.
+        assert!(!caps.submits_commands);
         assert_eq!(caps.briefing.role, RoleBriefing::DeveloperInstructions);
         assert_eq!(caps.approvals, Asks::Held);
         assert_eq!(caps.transcript, Some(TranscriptFormat::CodexRollout));

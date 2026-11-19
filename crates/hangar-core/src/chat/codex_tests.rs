@@ -178,14 +178,14 @@ fn a_paginated_rollout_reads_as_the_chat_of_its_items() {
         "Fetched https://developer.mozilla.org/en-US/docs/Web/CSS/position"
     );
 
-    let (tool, title, detail, result, state) = action_of(&items[8]);
-    assert_eq!((tool, title), ("imageGeneration", "Generated an image"));
+    // Completed and saved: the image, where Codex saved it.
     assert_eq!(
-        detail,
-        Some("A phone-width header with the cart total on the right")
+        items[8].body,
+        Body::Image {
+            path: "/home/dev/.codex/generated_images/019aa0b1-6c2e-7d41-8f3a-1b2c3d4e5f60/ig_5e6f708192a3b4c5.png".into(),
+            prompt: Some("A phone-width header with the cart total on the right".into()),
+        }
     );
-    assert!(result.unwrap().text.ends_with("/ig_5e6f708192a3b4c5.png"));
-    assert_eq!(state, CallState::Done);
 
     let (tool, title, detail, _, _) = action_of(&items[9]);
     assert_eq!((tool, title), ("plan", "Presented a plan"));
@@ -511,6 +511,78 @@ fn legacy_tool_events_read_as_their_items() {
             text: "Turn interrupted".into()
         }
     );
+}
+
+/// A generation Codex completed and saved is an image item, whichever shape
+/// it comes in; one running, or completed without a file, is the call. From
+/// the protocol schema (`imageGeneration`) and from the source: the
+/// extension's item in a paginated rollout (`ext/items/src/lib.rs`,
+/// `image_generation.rs`, filled by `ext/image-generation/src/tool.rs`) and a
+/// legacy thread's `ImageGenerationEndEvent` (`protocol/src/protocol.rs`).
+#[test]
+fn a_saved_image_is_an_image_item_in_every_shape() {
+    const SAVED: &str =
+        "/home/dev/.codex/generated_images/019aa0b1-6c2e-7d41-8f3a-1b2c3d4e5f60/ig_7.png";
+    let whale = Body::Image {
+        path: SAVED.into(),
+        prompt: Some("A blue whale, paper cut-out".into()),
+    };
+    let one = |value: Value| {
+        let item: protocol::ThreadItem = serde_json::from_value(value).unwrap();
+        super::item(&item, 7, Some(CWD)).unwrap()
+    };
+
+    let attached = one(json!({
+        "type": "imageGeneration", "id": "ig_7", "status": "completed",
+        "revisedPrompt": "A blue whale, paper cut-out", "result": "iVBORw0KGgo=",
+        "savedPath": SAVED
+    }));
+    assert_eq!((attached.id.as_str(), &attached.body), ("ig_7", &whale));
+    // What Hangar Mobile reads.
+    assert_eq!(
+        serde_json::to_value(&attached).unwrap(),
+        json!({ "id": "ig_7", "at": 7, "kind": "image", "path": SAVED,
+                "prompt": "A blue whale, paper cut-out" })
+    );
+
+    let record = |payload: Value| {
+        json!({ "timestamp": "2026-11-19T16:40:01.000Z", "type": "event_msg", "payload": payload })
+            .to_string()
+    };
+    let paginated = record(json!({
+        "type": "item_completed", "thread_id": "019aa0b1-6c2e-7d41-8f3a-1b2c3d4e5f60",
+        "turn_id": "turn-1", "completed_at_ms": 1_795_106_401_000_i64,
+        "item": { "type": "Extension", "kind": "image_gen.generation", "id": "ig_7",
+                  "status": "completed", "revisedPrompt": "A blue whale, paper cut-out",
+                  "result": "iVBORw0KGgo=", "transparentBackground": false, "failure": null,
+                  "savedPath": SAVED, "generationId": "gen-1" }
+    }));
+    let legacy = record(json!({
+        "type": "image_generation_end", "call_id": "ig_7", "status": "completed",
+        "revised_prompt": "A blue whale, paper cut-out", "result": "iVBORw0KGgo=",
+        "saved_path": SAVED
+    }));
+    for line in [paginated, legacy] {
+        let items = all_of(&line);
+        assert_eq!(items.len(), 1, "{line}");
+        assert_eq!((items[0].id.as_str(), &items[0].body), ("ig_7", &whale));
+    }
+
+    let running = one(json!({ "type": "imageGeneration", "id": "ig_8", "status": "in_progress" }));
+    let (tool, title, _, result, state) = action_of(&running);
+    assert_eq!(
+        (tool, title, result, state),
+        (
+            "imageGeneration",
+            "Generated an image",
+            None,
+            CallState::Running
+        )
+    );
+    let unsaved = one(json!({
+        "type": "imageGeneration", "id": "ig_9", "status": "completed", "result": "iVBORw0KGgo="
+    }));
+    assert_eq!(action_of(&unsaved).4, CallState::Done);
 }
 
 /// A line that is not a record, a record nobody knows, an item kind a later

@@ -193,3 +193,52 @@ fn a_merge_that_failed_says_why_on_its_row() {
         "the failure is not on the row"
     );
 }
+
+/// A Codex pane that asks is listed as any agent that asks: Hangar attached
+/// to its server holds the ask and reports it as the hangar-bridge mod does,
+/// and the row reads the pane's activity, never its agent.
+#[test]
+fn a_codex_pane_that_asks_is_listed_and_shown() {
+    let (mut model, mut st) = world();
+    let mut state = model.state().clone();
+    for pane in &mut state.workspaces[0].panes {
+        pane.agent = AgentId::Codex;
+    }
+    model.hydrate(state);
+    let now = crate::control::types::now_ms();
+    crate::panes_logic::mount_for_test(&mut model, "ben", "w", "Ben", now - 600_000);
+    for event in [
+        json!({"kind": "hello", "sessionId": "019aa0b1-6c2e-7d41-8f3a-1b2c3d4e5f60",
+               "model": "gpt-5.1-codex", "version": "0.170.0"}),
+        json!({"kind": "turn", "phase": "start"}),
+        json!({"kind": "permission", "waiting": true, "tool": "Bash",
+               "input": {"command": "cargo test"}}),
+    ] {
+        let event = CoreEvent::Bridge {
+            pane: "ben".into(),
+            event,
+        };
+        let _ = crate::panes_logic::reduce_for_test(&mut model, &event, now - 10_000);
+    }
+    assert!(model.live.panes_logic.is_waiting("ben"));
+
+    // Once its terminal runs, its glyph waits: the row is the agent's.
+    let waiting: HashSet<String> = ["ben".to_string()].into_iter().collect();
+    let seen = look(&model, &waiting, &Boards::new());
+    let _ = settle(&mut st, &mut model, seen);
+    assert!(matches!(
+        st.items(),
+        [NeedsYouItem::Waiting { pane_id, .. }] if pane_id == "ben"
+    ));
+    model.ui.needs_you_open = true;
+    let messages = run(&st, &model, |ui| {
+        assert!(ui.find("Ben").is_ok(), "the pane is named");
+        ui.click("Show").expect("the pane can be shown");
+    });
+    assert!(
+        needs_you(&messages)
+            .iter()
+            .any(|msg| matches!(msg, Msg::GoTo { ws, pane } if ws == "w" && pane == "ben")),
+        "{messages:?}"
+    );
+}

@@ -58,6 +58,12 @@ pub const OPERATIONS: &[&str] = &[
     "project_list",
     "project_status",
     "project_send",
+    // a sub-task handed to an agent that runs with no terminal (delegate.rs;
+    // the engine's control/delegate.rs)
+    "delegate",
+    "delegation_status",
+    "delegation_cancel",
+    "delegation_list",
 ];
 
 /// Long enough for a window that is busy repainting eight streaming panes;
@@ -94,6 +100,13 @@ const PROJECT_ANSWER_TIMEOUT: Duration = Duration::from_secs(60);
 /// when the window has stopped answering.
 const WORKSPACE_CREATE_ANSWER_TIMEOUT: Duration = Duration::from_secs(35 * 60);
 
+/// `delegation_status` waits up to `delegate::WAIT_MAX` for a child to end,
+/// `delegation_cancel` gives one a few seconds to stop, and `delegate` may
+/// make a worktree before it answers: a minute past the longest wait, so the
+/// API never gives up on an answer the window is still giving.
+const DELEGATION_ANSWER_TIMEOUT: Duration =
+    Duration::from_secs(crate::delegate::WAIT_MAX.as_secs() + 60);
+
 fn answer_timeout(op: &str) -> Duration {
     if op == "workspace_create" {
         WORKSPACE_CREATE_ANSWER_TIMEOUT
@@ -103,6 +116,8 @@ fn answer_timeout(op: &str) -> Duration {
         WORKER_ANSWER_TIMEOUT
     } else if op.starts_with("project_") {
         PROJECT_ANSWER_TIMEOUT
+    } else if op == "delegate" || op.starts_with("delegation_") {
+        DELEGATION_ANSWER_TIMEOUT
     } else {
         ANSWER_TIMEOUT
     }
@@ -444,6 +459,23 @@ mod tests {
             Duration::from_secs(20)
         );
         assert_eq!(answer_timeout("workspace_list"), Duration::from_secs(20));
+    }
+
+    #[test]
+    fn a_delegation_s_wait_is_answered_before_the_api_gives_up() {
+        for op in [
+            "delegate",
+            "delegation_status",
+            "delegation_cancel",
+            "delegation_list",
+        ] {
+            assert!(OPERATIONS.contains(&op), "{op} never reaches the window");
+            assert_eq!(answer_timeout(op), DELEGATION_ANSWER_TIMEOUT, "{op}");
+            assert!(
+                answer_timeout(op) >= crate::delegate::WAIT_MAX + Duration::from_secs(30),
+                "{op}"
+            );
+        }
     }
 
     #[test]

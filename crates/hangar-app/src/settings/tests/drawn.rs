@@ -51,6 +51,7 @@ fn model() -> Model {
                 home: "/home/me".into(),
                 claude: true,
                 git: false,
+                ..Default::default()
             },
             local_port: 40000,
             token: "t".into(),

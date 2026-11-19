@@ -15,10 +15,11 @@ images and files agents share with you, and see what happened since your last vi
 Notifications reach the phone even with the app closed. Merging a delivery is still done
 on the PC.
 
-A Claude Code pane, and the project manager, open as a conversation rather than a copy of
-the terminal: your messages, Claude's answers, one line per action. When Claude asks you
-something, each question shows with its options as large buttons, and a **Terminal** button
-still shows any pane's raw screen. Shells keep the terminal view.
+An agent pane, Claude Code or Codex, and the project manager open as a conversation rather
+than a copy of the terminal: your messages, the agent's answers, one line per action, and the
+images a Codex agent makes. When the agent asks you something, each question shows with its
+options as large buttons, and a **Terminal** button still shows any pane's raw screen. Shells
+keep the terminal view.
 
 It is a web app that Hangar itself serves, and that you add to the phone's Home Screen.
 There is no app store, no account and no server of ours in between.
@@ -64,11 +65,13 @@ in 1.1, with a real chat since 1.2):
 
 - **For you** lists what waits for you in every project: an agent asking for a permission,
   a question from an orchestrator, a delivery ready to land.
-- **A real chat.** A Claude Code pane, and the project manager, open as a conversation:
-  your messages, Claude's answers with their formatting, and one line per action that opens
-  its detail. Shells keep the terminal view.
-- **Claude's questions as buttons**, several choices when it allows them, and "Other" with a
-  text field. Your answer reaches the session on the PC as if you had typed it there.
+- **A real chat.** An agent pane, Claude Code or Codex, and the project manager open as a
+  conversation: your messages, the agent's answers with their formatting, and one line per
+  action that opens its detail. Shells keep the terminal view.
+- **Your agents' questions as buttons**, several choices when they allow them, and "Other"
+  with a text field. Your answer reaches the session on the PC as if you had typed it there:
+  through its side channel (Claude Code's mod, Codex attached), or, when there is none, as
+  keys typed into its dialog once the screen shows it.
 - **Permissions** show the tool and what it will do (the command, the file), with Allow and
   Deny.
 - **Files and notifications.** Agents share images and files with you through
