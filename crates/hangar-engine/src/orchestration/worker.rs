@@ -1,7 +1,7 @@
 //! The `worker_*` control operations (`lib/workerControl.ts`): an
 //! orchestrator starting, listing and stopping the workers of its workspace.
 //!
-//! A worker is a Claude Code pane on one board task, in a git worktree of its
+//! A worker is an agent's pane on one board task, in a git worktree of its
 //! own, with ports of its own and a brief written from the task. Starting one
 //! is all or nothing: the claim, the worktree, the pane and the brief either
 //! all happen, or whatever was done is undone and the task is back in todo.
@@ -10,6 +10,13 @@
 //! hangar-core's board.rs, never left to a prompt. How many workers run at
 //! once and how many a task gets are not: Hangar sets no limit on either,
 //! the orchestrator decides.
+//!
+//! Its agent is the one asked for (`agent`), else the workspace's worker
+//! agent (`Settings::agent_for`): an orchestrator of either agent runs
+//! workers of either agent (docs/native/agents.md §5.1). An agent that
+//! cannot run a worker here — not installed, or its link with Hangar turned
+//! off so its brief would never reach it (`roles::worker_refusal`) — is
+//! refused with the reason, never swapped for another.
 //!
 //! A worker can be sent to a node (`node`, nodes/away.rs): the branch it
 //! starts from is pushed to a repository there, its worktree is made there
@@ -33,6 +40,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use unicode_normalization::UnicodeNormalization;
 
+use hangar_core::agent::AgentKind;
 use hangar_core::board::Task;
 use hangar_core::git::{
     Changes, CopyResult, DeleteBranchResult, HookReport, RemoveResult, RepoInfo, Worktree,
@@ -43,9 +51,13 @@ use super::port::{Announcement, Caller, NewPane, WorkerInit};
 use crate::state::PaneActivity;
 use crate::state::pane_names::{all_pane_names, pick_pane_name};
 use crate::state::roles::{
-    NEEDS_YOU_LABEL, READY_TO_LAND_LABEL, orchestration_of, orchestrator_of, workers_of,
+    NEEDS_YOU_LABEL, READY_TO_LAND_LABEL, RoleRefusal, lead_labels, orchestration_of,
+    orchestrator_of, worker_refusal, workers_of,
 };
-use crate::state::types::{AgentId, AppState, MAX_PANES, Pane, PaneId, PaneRole, Workspace, WsId};
+use crate::state::types::{
+    AgentId, AppState, MAX_PANES, OrchestrationRole, Pane, PaneId, PaneRole, Settings, Workspace,
+    WsId,
+};
 
 /// How many ports a worker gets: `HANGAR_PORT_COUNT` (pty.rs).
 pub const PORT_COUNT: u32 = 20;
@@ -109,6 +121,10 @@ pub trait WorkerPort: Sync {
     /// not handed out).
     fn port_free(&self, port: u32) -> bool {
         port_is_free(port)
+    }
+    /// Whether `kind`'s agent is installed on this machine (nothing is run).
+    fn installed(&self, kind: AgentKind) -> bool {
+        hangar_core::agent::detect::installed(kind)
     }
     /// What the workspace's orchestrator heard lately (`orchestratorJournal`).
     fn journal(&self, workspace_id: &str) -> Vec<JournalEntry>;
@@ -657,8 +673,9 @@ fn orchestrator_calling<'a>(
     }
     match orchestrator {
         None => Err(format!(
-            "{op} is for a workspace's orchestrator, and \"{}\" has none. Only the person can pin one, from the menu of a Claude Code pane; ask them if this workspace should have one.",
-            ws.name
+            "{op} is for a workspace's orchestrator, and \"{}\" has none. Only the person can pin one, from the menu of a {} pane; ask them if this workspace should have one.",
+            ws.name,
+            lead_labels()
         )),
         Some(orchestrator) => Err(format!(
             "{op} is for the orchestrator of \"{}\", which is \"{}\", not you. Leave the work on the board for it, or ask it with pane_send (when_idle=true).",
@@ -674,10 +691,108 @@ fn model_arg(value: Option<&Value>) -> Result<Option<String>, String> {
     let allowed = |ch: char| ch.is_ascii_alphanumeric() || "_.:[]-".contains(ch);
     if wanted.chars().count() > 80 || !wanted.chars().all(allowed) {
         return Err(format!(
-            "\"{wanted}\" is not a model name. Use an alias — sonnet, opus, haiku — or a full model id such as claude-sonnet-4-5."
+            "\"{wanted}\" is not a model name. Name it as the worker's agent does — Claude Code: an alias (sonnet, opus, haiku) or a full id such as claude-sonnet-4-5; Codex: a model id such as gpt-5.1-codex — or leave model out for the workspace's worker model."
         ));
     }
     Ok(Some(wanted))
+}
+
+/// Every agent a worker may run, for a sentence: `claude (Claude Code),
+/// codex (Codex)`.
+fn worker_agents() -> String {
+    AgentKind::ALL
+        .into_iter()
+        .map(|kind| format!("{} ({})", kind.id(), kind.info().label))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// The agent a request names (`agent`, as `state.json` and the MCP tools
+/// spell it); absent, null or blank: none named, the workspace's worker
+/// agent then. Anything else than an agent — a shell, an unknown name — is
+/// refused, never read as the default.
+fn agent_arg(value: Option<&Value>) -> Result<Option<AgentKind>, String> {
+    let wanted = match value {
+        None | Some(Value::Null) => return Ok(None),
+        Some(Value::String(wanted)) if wanted.trim().is_empty() => return Ok(None),
+        Some(Value::String(wanted)) => wanted.trim().to_string(),
+        Some(other) => other.to_string(),
+    };
+    serde_json::from_value(Value::String(wanted.clone()))
+        .map(Some)
+        .map_err(|_| {
+            format!(
+                "\"{wanted}\" is not an agent a worker can run. agent is one of: {}; leave it out for the workspace's worker agent.",
+                worker_agents()
+            )
+        })
+}
+
+/// The other agents a worker could run here, for a refusal: `Codex (agent:
+/// "codex")`; `None` when there is none.
+fn other_agents(kind: AgentKind, settings: &Settings, port: &impl WorkerPort) -> Option<String> {
+    let others: Vec<String> = AgentKind::ALL
+        .into_iter()
+        .filter(|other| {
+            *other != kind && worker_refusal(*other, settings).is_none() && port.installed(*other)
+        })
+        .map(|other| format!("{} (agent: \"{}\")", other.info().label, other.id()))
+        .collect();
+    (!others.is_empty()).then(|| others.join(" or "))
+}
+
+/// The agent the worker runs — the one asked for, else the workspace's
+/// worker agent: its orchestration's choice, else the settings' default,
+/// else the orchestrator's own agent (`Settings::agent_for`, D13) — or why
+/// it cannot run here. `away`: the worker runs on a node, whose agents are
+/// not this machine's to look for.
+fn worker_agent(
+    ws: &Workspace,
+    asked: Option<AgentKind>,
+    settings: &Settings,
+    away: bool,
+    port: &impl WorkerPort,
+) -> Result<AgentKind, String> {
+    let kind = asked.unwrap_or_else(|| {
+        settings.agent_for(
+            OrchestrationRole::Worker,
+            ws.orchestration.as_ref(),
+            orchestrator_of(ws).and_then(|pane| pane.agent.kind()),
+            |kind| port.installed(kind),
+        )
+    });
+    let label = kind.info().label;
+    let or_else = || {
+        other_agents(kind, settings, port)
+            .map(|others| format!(", or start the worker on {others}"))
+            .unwrap_or_default()
+    };
+    match worker_refusal(kind, settings) {
+        Some(refusal @ RoleRefusal::SwitchedOff { .. }) => {
+            return Err(format!(
+                "A {label} worker would never receive its brief: {}. Ask the person to turn it on{}.",
+                refusal.reason(),
+                or_else()
+            ));
+        }
+        Some(refusal) => {
+            return Err(format!(
+                "A worker cannot run {label}: {}.{}",
+                refusal.reason(),
+                other_agents(kind, settings, port)
+                    .map(|others| format!(" Start it on {others}."))
+                    .unwrap_or_default()
+            ));
+        }
+        None => {}
+    }
+    if !away && !port.installed(kind) {
+        return Err(format!(
+            "{label} is not installed on this computer, so a worker cannot run it. Ask the person to install it{}.",
+            or_else()
+        ));
+    }
+    Ok(kind)
 }
 
 /// The workers its orchestrator still hears about: a new worker given one of
@@ -779,12 +894,15 @@ fn node_arg(
 
 /* ── worker_spawn ──────────────────────────────────────────────── */
 
-/// What `worker_spawn` is asked (`{task, name?, model?}`).
+/// What `worker_spawn` is asked (`{task, name?, model?, agent?}`).
 #[derive(Debug, Clone, Default)]
 pub struct SpawnRequest {
     pub task: Option<Value>,
     pub name: Option<Value>,
     pub model: Option<Value>,
+    /// The agent it runs, by its id (`claude`, `codex`); absent, the
+    /// workspace's worker agent.
+    pub agent: Option<Value>,
     /// `false`: no worktree, the worker starts in the workspace's own folder.
     pub worktree: Option<Value>,
     /// The id or label of a connected node to run it on.
@@ -810,7 +928,10 @@ pub struct Ports {
 pub struct SpawnedWorker {
     pub worker: String,
     pub task: SpawnedTask,
-    pub model: String,
+    /// The agent it runs, by its id (`claude`, `codex`).
+    pub agent: &'static str,
+    /// `None`: its agent's own default model, the workspace choosing none.
+    pub model: Option<String>,
     /// The folder it works in; the three after it are `None` without git.
     pub folder: String,
     pub branch: Option<String>,
@@ -853,7 +974,9 @@ struct Start<'a> {
     ws: &'a Workspace,
     task_id: String,
     name: String,
-    model: String,
+    kind: AgentKind,
+    /// `None`: its agent's own default model.
+    model: Option<String>,
     port_base: u32,
     by: Option<&'a Pane>,
     /// `Some(false)`: start in the workspace's own folder, with no worktree.
@@ -891,12 +1014,13 @@ pub async fn spawn_worker(
         None | Some(Value::Null) => None,
         Some(wanted) => Some(node_arg(ws, wanted, worktree, port)?),
     };
-    if !state.settings.claude_bridge {
-        return Err(
-            "Hangar's Claude Code bridge is turned off (Settings › Sessions), so a worker would never receive its brief. Ask the person to turn it on."
-                .into(),
-        );
-    }
+    let kind = worker_agent(
+        ws,
+        agent_arg(request.agent.as_ref())?,
+        &state.settings,
+        node.is_some() || ws.node.is_some(),
+        port,
+    )?;
     // Read before the reservation is held: the journal is the engine's.
     let recent = recent_workers(&port.journal(&ws.id));
     let (name, model, port_base) = {
@@ -910,8 +1034,13 @@ pub async fn spawn_worker(
         if ws.pane_count() + pending >= MAX_PANES {
             return Err(full(ws));
         }
-        let model =
-            model_arg(request.model.as_ref())?.unwrap_or_else(|| settings.worker_model.clone());
+        // The model the workspace gives its workers on that agent; none: the
+        // agent's own default.
+        let model = model_arg(request.model.as_ref())?.or_else(|| {
+            settings
+                .model(OrchestrationRole::Worker, kind)
+                .map(str::to_string)
+        });
         let name = name_arg(request.name.as_ref(), &state, &starting, &recent)?;
         let Some(port_base) = allocate_port_base(
             &state.workspaces,
@@ -933,6 +1062,7 @@ pub async fn spawn_worker(
         ws,
         task_id,
         name,
+        kind,
         model,
         port_base,
         by,
@@ -1116,7 +1246,7 @@ async fn start_steps(
         .or_else(|| orchestrator_of(current))
         .map(|pane| pane.id.clone());
     let pane = NewPane {
-        agent: AgentId::Claude,
+        agent: AgentId::from(start.kind),
         cwd: folder.clone(),
         name: start.name.clone(),
         near,
@@ -1124,7 +1254,8 @@ async fn start_steps(
         init: Some(WorkerInit {
             role: PaneRole::Worker,
             task_id: task.id.clone(),
-            model: start.model.clone(),
+            // Blank: no model on its launch line, the agent's own default.
+            model: start.model.clone().unwrap_or_default(),
             port_base: start.port_base,
             shared_folder: (git.is_none() || shared_checkout).then_some(true),
             node: start.node.as_ref().map(|(node, _)| node.clone()),
@@ -1228,6 +1359,7 @@ async fn start_steps(
             title: task.title.clone(),
             attempt,
         },
+        agent: start.kind.id(),
         model: start.model.clone(),
         folder,
         branch: tree.as_ref().map(|(branch, _)| branch.clone()),
@@ -1238,7 +1370,10 @@ async fn start_steps(
             count: PORT_COUNT,
         },
         node: start.node.as_ref().map(|(node, _)| node.clone()),
-        brief: "queued: submitted as soon as its Claude Code session is ready".into(),
+        brief: format!(
+            "queued: submitted as soon as its {} session is ready",
+            start.kind.info().label
+        ),
         note,
     })
 }
@@ -1409,12 +1544,14 @@ pub async fn list_workers(ws: &Workspace, port: &impl WorkerPort) -> Value {
         let running = open && port.alive(&pane.id).await;
         let mut entry = json!({
             "name": pane.name,
+            "agent": pane.agent.as_str(),
             "task": task_value,
             "activity": port.activity(&pane.id).map(|a| a.activity),
             "running": running,
             "branch": tree.and_then(|tree| tree.branch.clone()),
             "worktree": worktree,
-            "model": pane.model,
+            // Blank: its agent's own default.
+            "model": pane.model.as_deref().filter(|model| !model.is_empty()),
             "ports": pane.port_base.map(|base| json!({"base": base, "count": PORT_COUNT})),
             "delivery": delivery_of(task, shared),
         });
@@ -1737,6 +1874,7 @@ pub async fn worker_control(
                 task: args.get("task").cloned(),
                 name: args.get("name").cloned(),
                 model: args.get("model").cloned(),
+                agent: args.get("agent").cloned(),
                 worktree: args.get("worktree").cloned(),
                 node: args.get("node").cloned(),
             };

@@ -14,12 +14,13 @@ use std::sync::Arc;
 
 use tokio::sync::broadcast;
 
+use hangar_core::agent::{AgentKind, detect};
 use hangar_core::board::Task;
 use hangar_engine::control::port::{ModelCmd, Port};
 use hangar_engine::host::EngineHost;
 use hangar_engine::mobile::engine::Mobile;
 use hangar_engine::orchestration::events::JournalEntry;
-use hangar_engine::state::types::{AgentId, Pane, PaneRole};
+use hangar_engine::state::types::{AgentId, OrchestrationRole, Pane, PaneRole};
 use hangar_engine::state::{PanePatch, Snapshot, WorkspaceDraft};
 
 pub trait Hangar: Send + Sync + 'static {
@@ -123,9 +124,24 @@ impl Hangar for EngineHost {
 }
 
 /// A workspace in `folder` (absolute, existing where the Hangar runs), with
-/// one Claude Code pane as its orchestrator, opened: `/workspace`. Through
-/// the model writes any host applies, as an agent's `workspace_create`.
+/// one pane of the default orchestrator agent as its orchestrator, opened:
+/// `/workspace`. Through the model writes any host applies, as an agent's
+/// `workspace_create`.
 pub async fn add_workspace(port: &Port, name: &str, folder: &str) -> Result<String, String> {
+    add_workspace_with(port, name, folder, detect::installed).await
+}
+
+/// [`add_workspace`], told which agents this machine has (`installed`). The
+/// orchestrator runs the agent a new workspace's orchestrator runs (D20):
+/// the settings' default, else Claude Code when it is installed or when
+/// neither is, else Codex; as the node's own workspaces and the desktop's
+/// new-workspace dialog choose it.
+pub async fn add_workspace_with(
+    port: &Port,
+    name: &str,
+    folder: &str,
+    installed: impl Fn(AgentKind) -> bool,
+) -> Result<String, String> {
     let folder = folder.trim();
     if !Path::new(folder).is_absolute() {
         return Err(format!("{folder}: give the folder's full path"));
@@ -140,13 +156,19 @@ pub async fn add_workspace(port: &Port, name: &str, folder: &str) -> Result<Stri
             .unwrap_or_else(|| "Workspace".into()),
         named => named.to_string(),
     };
+    let agent = port.snapshot().state.settings.agent_for(
+        OrchestrationRole::Orchestrator,
+        None,
+        None,
+        installed,
+    );
     let made = port
         .apply(ModelCmd::CreateWorkspace {
             draft: WorkspaceDraft {
                 name,
                 cwd: folder.to_string(),
                 layout: 1,
-                agents: vec![AgentId::Claude],
+                agents: vec![AgentId::from(agent)],
                 ..WorkspaceDraft::default()
             },
             activate: false,

@@ -2406,5 +2406,21 @@
   "orch.codexWorkerModel": "Workers, Codex (bêta)",
   "orch.codexReviewerModel": "Relecteur, Codex (bêta)",
   "orch.codexModelDefault": "Celui que Codex choisit",
-  "orch.codexModelHint": "Un identifiant de modèle Codex. Vide : le modèle que Codex choisit lui-même. Vaut quand ce rôle tourne sur Codex."
+  "orch.codexModelHint": "Un identifiant de modèle Codex. Vide : le modèle que Codex choisit lui-même. Vaut quand ce rôle tourne sur Codex.",
+  "pane.agentBeta": "bêta",
+  "pane.agentBetaHint": "La prise en charge de {agent} est en bêta",
+  "pane.attached": "attaché",
+  "pane.attachedHint": "Hangar suit ce {agent} par son propre serveur : ses états sont rapportés, ses autorisations attendent ta réponse, son usage est exact.",
+  "pane.attachedQuietHint": "Hangar a lancé le serveur de ce {agent} et ne l'a pas encore entendu : d'ici là, ses états sont lus dans le terminal.",
+  "pane.unattached": "non attaché",
+  "pane.unattachedOffHint": "« {setting} » est désactivé dans les réglages : Hangar lit ce {agent} dans son terminal et ses fichiers.",
+  "pane.unattachedHint": "Hangar n'a pas pu s'attacher à ce {agent} : {reason}. Il le lit à la place dans son terminal et ses fichiers.",
+  "pane.floorUnsupported": "Hangar ne s'y attache pas encore sur ce système",
+  "pane.floorFolder": "le dossier de son socket n'est pas utilisable",
+  "pane.floorUntypable": "ce shell ne peut pas taper le chemin de son socket",
+  "pane.floorNotStarted": "« {program} app-server » n'a pas pu démarrer",
+  "pane.floorExited": "son serveur s'est arrêté avant d'écouter",
+  "pane.floorExitCode": "{reason} (code {code})",
+  "pane.floorTimeout": "son serveur n'a pas écouté dans les {seconds} s",
+  "pane.floorDetail": "{reason} : {detail}"
 }

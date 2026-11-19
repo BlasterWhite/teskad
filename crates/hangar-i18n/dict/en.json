@@ -2406,5 +2406,21 @@
   "orch.codexWorkerModel": "Workers, Codex (beta)",
   "orch.codexReviewerModel": "Reviewer, Codex (beta)",
   "orch.codexModelDefault": "Codex's own default",
-  "orch.codexModelHint": "A Codex model id. Empty: the model Codex picks itself. Used when this role runs on Codex."
+  "orch.codexModelHint": "A Codex model id. Empty: the model Codex picks itself. Used when this role runs on Codex.",
+  "pane.agentBeta": "beta",
+  "pane.agentBetaHint": "Support for {agent} is in beta",
+  "pane.attached": "attached",
+  "pane.attachedHint": "Hangar follows this {agent} through its own server: its states are reported, its approvals held until you answer, its usage exact.",
+  "pane.attachedQuietHint": "Hangar started this {agent}'s own server and has not heard from it yet: until it does, its states are read from the terminal.",
+  "pane.unattached": "not attached",
+  "pane.unattachedOffHint": "“{setting}” is off in the settings: Hangar reads this {agent} from its terminal and its files.",
+  "pane.unattachedHint": "Hangar could not attach to this {agent}: {reason}. It reads it from its terminal and its files instead.",
+  "pane.floorUnsupported": "Hangar does not attach to it on this system yet",
+  "pane.floorFolder": "its socket's folder is not usable",
+  "pane.floorUntypable": "this shell cannot type its socket's path",
+  "pane.floorNotStarted": "“{program} app-server” could not start",
+  "pane.floorExited": "its server stopped before it listened",
+  "pane.floorExitCode": "{reason} (exit {code})",
+  "pane.floorTimeout": "its server did not listen within {seconds} s",
+  "pane.floorDetail": "{reason}: {detail}"
 }
