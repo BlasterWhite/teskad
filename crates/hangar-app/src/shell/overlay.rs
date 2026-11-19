@@ -101,8 +101,10 @@ pub enum Overlay {
     Diff { ws: WsId, pane: Option<PaneId> },
     /// A board task, new or opened (P12).
     Task { cwd: String, task: Option<String> },
-    /// Claude Code is missing: install it, or go on with shells (setup/).
-    ClaudeSetup,
+    /// The agents' setup: Claude Code and Codex, each to install and sign
+    /// in to; in the way until one is installed, or Hangar is set to shells
+    /// only (setup/).
+    AgentSetup,
     /// A question about a workspace on a node, before what cannot be
     /// undone from here (nodes).
     NodeAsk(crate::nodes::Ask),
@@ -135,7 +137,7 @@ pub fn view<'a>(ctx: Ctx<'a>, overlay: &'a Overlay) -> Element<'a, Message> {
         }
         Overlay::Diff { ws, pane } => crate::git_ui::diff_view(&p.git_ui, ctx, ws, pane.as_ref()),
         Overlay::Task { cwd, task } => crate::board::task_view(&p.board, ctx, cwd, task.as_deref()),
-        Overlay::ClaudeSetup => crate::shell::setup::view(&p.setup, ctx),
+        Overlay::AgentSetup => crate::shell::setup::view(&p.setup, ctx),
         Overlay::NodeAsk(ask) => crate::nodes::ask::view(ctx, ask),
     };
     opaque(content)
