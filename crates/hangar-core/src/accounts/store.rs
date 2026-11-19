@@ -1,11 +1,25 @@
-//! The profiles Hangar made, and their names: `<root>/accounts.json` beside
-//! one folder per profile, `<root>/<id>/`.
+//! The accounts Hangar made, of every agent, and their names:
+//! `<root>/accounts.json` beside one folder per account — `<root>/<id>/` for
+//! a Claude Code profile, `<root>/codex/<id>/` for a Codex home.
+//!
+//! An entry is `{ id, label, dir, addedAt, kind }`. `kind` is the agent's id
+//! (`agent::AgentKind`) and is written for Codex only: an entry without it is
+//! Claude Code's, so a file from before Codex accounts reads as it did, and
+//! one with Claude accounts only is written as it was. An entry of a kind
+//! this Hangar does not know (a newer one wrote it) is kept as it is and
+//! written back, its id taken. A Hangar from before Codex accounts reads a
+//! Codex entry as a Claude account that is not logged in.
+//!
+//! Ids are unique across kinds (a pane's account is found by id alone,
+//! `pty::panes_on`); labels are unique within a kind, so a Claude « Work »
+//! and a Codex « Work » can both be. `codex` is never handed out as an id:
+//! `<root>/codex/` holds the Codex homes.
 //!
 //! The index is read defensively — it is a file a person may edit — and an
 //! entry that does not hold together is skipped rather than trusted. Its
 //! `dir` is written for whoever reads the file; Hangar always works from
-//! `<root>/<id>`, so a hand-edited `dir` can never point a removal, or a
-//! pane, anywhere else.
+//! the id and the kind, so a hand-edited `dir` can never point a removal, or
+//! a pane, anywhere else.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -15,8 +29,11 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use super::MAIN;
+use crate::agent::AgentKind;
 
 const INDEX: &str = "accounts.json";
+/// The folder of the Codex homes, under the root; never an account's id.
+pub const CODEX_DIR: &str = "codex";
 /// What the main account is called until the person names it.
 pub const MAIN_LABEL: &str = "Main";
 const MAX_LABEL: usize = 80;
@@ -32,32 +49,63 @@ pub struct Entry {
     pub dir: String,
     /// Epoch milliseconds.
     pub added_at: u64,
+    #[serde(skip_serializing_if = "is_claude")]
+    pub kind: AgentKind,
+}
+
+fn is_claude(kind: &AgentKind) -> bool {
+    *kind == AgentKind::Claude
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Index {
-    /// The main account's name, once the person gave it one.
+    /// The main Claude account's name, once the person gave it one.
     pub main_label: Option<String>,
+    /// The main Codex account's name, likewise.
+    pub codex_main_label: Option<String>,
     pub accounts: Vec<Entry>,
+    /// Entries of a kind this Hangar does not know, as they were read.
+    pub others: Vec<Value>,
 }
 
 impl Index {
-    pub fn main_label(&self) -> &str {
-        self.main_label.as_deref().unwrap_or(MAIN_LABEL)
+    pub fn main_label(&self, kind: AgentKind) -> &str {
+        let label = match kind {
+            AgentKind::Claude => &self.main_label,
+            AgentKind::Codex => &self.codex_main_label,
+        };
+        label.as_deref().unwrap_or(MAIN_LABEL)
     }
 
-    fn labels(&self) -> impl Iterator<Item = (&str, &str)> {
-        std::iter::once((MAIN, self.main_label())).chain(
-            self.accounts
+    /// The accounts of one kind, in the order they were added.
+    pub fn of(&self, kind: AgentKind) -> impl Iterator<Item = &Entry> {
+        self.accounts.iter().filter(move |entry| entry.kind == kind)
+    }
+
+    pub fn find(&self, kind: AgentKind, id: &str) -> Option<&Entry> {
+        self.of(kind).find(|entry| entry.id == id)
+    }
+
+    /// An entry of any kind, a kind unknown here included, has this id.
+    fn id_taken(&self, id: &str) -> bool {
+        self.accounts.iter().any(|entry| entry.id == id)
+            || self
+                .others
                 .iter()
+                .any(|other| other.get("id").and_then(Value::as_str) == Some(id))
+    }
+
+    fn labels(&self, kind: AgentKind) -> impl Iterator<Item = (&str, &str)> {
+        std::iter::once((MAIN, self.main_label(kind))).chain(
+            self.of(kind)
                 .map(|entry| (entry.id.as_str(), entry.label.as_str())),
         )
     }
 
-    /// Another account already goes by `label`, whatever its case.
-    fn label_taken(&self, label: &str, except: Option<&str>) -> bool {
+    /// Another account of `kind` already goes by `label`, whatever its case.
+    fn label_taken(&self, kind: AgentKind, label: &str, except: Option<&str>) -> bool {
         let wanted = label.to_lowercase();
-        self.labels()
+        self.labels(kind)
             .any(|(id, taken)| Some(id) != except && taken.to_lowercase() == wanted)
     }
 }
@@ -127,8 +175,11 @@ impl Store {
         Store { root }
     }
 
-    pub fn dir_of(&self, id: &str) -> PathBuf {
-        self.root.join(id)
+    pub fn dir_of(&self, kind: AgentKind, id: &str) -> PathBuf {
+        match kind {
+            AgentKind::Claude => self.root.join(id),
+            AgentKind::Codex => self.root.join(CODEX_DIR).join(id),
+        }
     }
 
     /// The index as it stands: missing is empty, unreadable is an error —
@@ -147,21 +198,39 @@ impl Store {
     }
 
     fn parse(&self, value: &Value) -> Index {
-        let main_label = value
-            .get("mainLabel")
-            .and_then(Value::as_str)
-            .and_then(|label| clean_label(label).ok());
-        let mut accounts: Vec<Entry> = Vec::new();
+        let label_at = |key: &str| {
+            value
+                .get(key)
+                .and_then(Value::as_str)
+                .and_then(|label| clean_label(label).ok())
+        };
+        let mut index = Index {
+            main_label: label_at("mainLabel"),
+            codex_main_label: label_at("codexMainLabel"),
+            ..Index::default()
+        };
         for item in value
             .get("accounts")
             .and_then(Value::as_array)
             .into_iter()
             .flatten()
         {
+            let kind = match item.get("kind") {
+                None => AgentKind::Claude,
+                Some(kind) => match kind.as_str().and_then(AgentKind::from_id) {
+                    Some(kind) => kind,
+                    None => {
+                        if item.is_object() {
+                            index.others.push(item.clone());
+                        }
+                        continue;
+                    }
+                },
+            };
             let Some(id) = item.get("id").and_then(Value::as_str) else {
                 continue;
             };
-            if !valid_id(id) || accounts.iter().any(|entry| entry.id == id) {
+            if !valid_id(id) || index.id_taken(id) {
                 continue;
             }
             let label = item
@@ -170,73 +239,95 @@ impl Store {
                 .and_then(|label| clean_label(label).ok())
                 .unwrap_or_else(|| id.to_string());
             let added_at = item.get("addedAt").and_then(Value::as_u64).unwrap_or(0);
-            accounts.push(Entry {
+            index.accounts.push(Entry {
                 id: id.to_string(),
                 label,
-                dir: self.dir_of(id).to_string_lossy().into_owned(),
+                dir: self.dir_of(kind, id).to_string_lossy().into_owned(),
                 added_at,
+                kind,
             });
         }
-        Index {
-            main_label,
-            accounts,
-        }
+        index
     }
 
     pub fn write(&self, index: &Index) -> Result<(), String> {
         fs::create_dir_all(&self.root).map_err(|e| e.to_string())?;
-        let body = json!({
+        let mut accounts = serde_json::to_value(&index.accounts).map_err(|e| e.to_string())?;
+        if let Value::Array(list) = &mut accounts {
+            list.extend(index.others.iter().cloned());
+        }
+        let mut body = json!({
             "mainLabel": index.main_label,
-            "accounts": index.accounts,
+            "accounts": accounts,
         });
+        if let Some(label) = &index.codex_main_label {
+            body["codexMainLabel"] = json!(label);
+        }
         let body = serde_json::to_string_pretty(&body).map_err(|e| e.to_string())?;
         write_atomic(&self.root.join(INDEX), body.as_bytes())
     }
 
-    /// A new profile in the index, named `label`. Its folder is the caller's
-    /// to prepare.
-    pub fn add(&self, label: &str, now: u64) -> Result<Entry, String> {
+    /// A new account of `kind` in the index, named `label`. Its folder is
+    /// the caller's to prepare.
+    pub fn add(&self, kind: AgentKind, label: &str, now: u64) -> Result<Entry, String> {
         let label = clean_label(label)?;
         let mut index = self.read()?;
-        if index.label_taken(&label, None) {
+        if index.label_taken(kind, &label, None) {
             return Err("Another account already has this name.".into());
+        }
+        // A Claude account made before Codex accounts, and given the id
+        // `codex`, has the folder their homes go in.
+        if kind == AgentKind::Codex && index.find(AgentKind::Claude, CODEX_DIR).is_some() {
+            return Err(
+                "A Claude account's folder is where Codex accounts go (accounts/codex): \
+                 remove that Claude account first."
+                    .into(),
+            );
         }
         let base = slug(&label);
         let free = |id: &str| {
-            id != MAIN
-                && valid_id(id)
-                && !index.accounts.iter().any(|entry| entry.id == id)
-                && !super::link::exists(&self.dir_of(id))
+            valid_id(id)
+                && id != CODEX_DIR
+                && !index.id_taken(id)
+                && AgentKind::ALL
+                    .iter()
+                    .all(|kind| !super::link::exists(&self.dir_of(*kind, id)))
         };
         let id = std::iter::once(base.clone())
             .chain((2..).map(|n| format!("{base}-{n}")))
             .find(|id| free(id))
             .expect("an unbounded list of names has a free one");
         let entry = Entry {
-            dir: self.dir_of(&id).to_string_lossy().into_owned(),
+            dir: self.dir_of(kind, &id).to_string_lossy().into_owned(),
             id,
             label,
             added_at: now,
+            kind,
         };
         index.accounts.push(entry.clone());
         self.write(&index)?;
         Ok(entry)
     }
 
-    /// Renames an account, the main one included. Returns the new label.
-    pub fn rename(&self, id: &str, label: &str) -> Result<String, String> {
+    /// Renames an account of `kind`, its main one included. Returns the new
+    /// label.
+    pub fn rename(&self, kind: AgentKind, id: &str, label: &str) -> Result<String, String> {
         let label = clean_label(label)?;
         let mut index = self.read()?;
-        if index.label_taken(&label, Some(id)) {
+        if index.label_taken(kind, &label, Some(id)) {
             return Err("Another account already has this name.".into());
         }
         if id == MAIN {
-            index.main_label = Some(label.clone());
+            let main = match kind {
+                AgentKind::Claude => &mut index.main_label,
+                AgentKind::Codex => &mut index.codex_main_label,
+            };
+            *main = Some(label.clone());
         } else {
             let entry = index
                 .accounts
                 .iter_mut()
-                .find(|entry| entry.id == id)
+                .find(|entry| entry.kind == kind && entry.id == id)
                 .ok_or("No such account.")?;
             entry.label = label.clone();
         }
@@ -244,7 +335,7 @@ impl Store {
         Ok(label)
     }
 
-    /// Takes the profile out of the index.
+    /// Takes the account out of the index, whatever its kind.
     pub fn forget(&self, id: &str) -> Result<(), String> {
         let mut index = self.read()?;
         let before = index.accounts.len();
@@ -255,7 +346,8 @@ impl Store {
         self.write(&index)
     }
 
-    /// Where a profile is moved before it is deleted: renamed in one step,
+    /// Where an account's folder is moved before it is deleted, whatever its
+    /// kind (ids are unique across kinds): renamed in one step,
     /// so a profile still in use (Windows refuses to rename a folder with a
     /// file open in it) stays whole instead of half deleted.
     pub fn trash(&self, id: &str, now: u64) -> PathBuf {
@@ -312,25 +404,26 @@ pub fn write_atomic(path: &Path, body: &[u8]) -> Result<(), String> {
 mod tests {
     use super::*;
     use crate::accounts::testing::Scratch;
+    use crate::agent::AgentKind::{Claude, Codex};
 
     #[test]
     fn ids_come_from_labels_and_never_collide() {
         let scratch = Scratch::new("store-ids");
         let store = Store::at(scratch.root.join("accounts"));
-        assert_eq!(store.add("Work", 1).unwrap().id, "work");
+        assert_eq!(store.add(Claude, "Work", 1).unwrap().id, "work");
         assert_eq!(
-            store.add("Société Générale", 2).unwrap().id,
+            store.add(Claude, "Société Générale", 2).unwrap().id,
             "societe-generale"
         );
         // The main account's id is never handed out, nor a folder left behind.
         assert_eq!(
-            store.add("main", 3).unwrap_err(),
+            store.add(Claude, "main", 3).unwrap_err(),
             "Another account already has this name."
         );
-        assert_eq!(store.add("Main pro", 4).unwrap().id, "main-pro");
-        fs::create_dir_all(store.dir_of("perso")).unwrap();
-        assert_eq!(store.add("Perso", 5).unwrap().id, "perso-2");
-        assert_eq!(store.add("!!!", 6).unwrap().id, "account");
+        assert_eq!(store.add(Claude, "Main pro", 4).unwrap().id, "main-pro");
+        fs::create_dir_all(store.dir_of(Claude, "perso")).unwrap();
+        assert_eq!(store.add(Claude, "Perso", 5).unwrap().id, "perso-2");
+        assert_eq!(store.add(Claude, "!!!", 6).unwrap().id, "account");
         let ids: Vec<String> = store
             .read()
             .unwrap()
@@ -348,18 +441,18 @@ mod tests {
     fn labels_are_trimmed_unique_and_renamable() {
         let scratch = Scratch::new("store-labels");
         let store = Store::at(scratch.root.join("accounts"));
-        let work = store.add("  Work ", 1).unwrap();
+        let work = store.add(Claude, "  Work ", 1).unwrap();
         assert_eq!(work.label, "Work");
-        assert!(store.add("WORK", 2).is_err());
-        assert!(store.add("   ", 2).is_err());
-        assert!(store.add(&"x".repeat(81), 2).is_err());
+        assert!(store.add(Claude, "WORK", 2).is_err());
+        assert!(store.add(Claude, "   ", 2).is_err());
+        assert!(store.add(Claude, &"x".repeat(81), 2).is_err());
 
-        assert_eq!(store.rename("work", "Pro").unwrap(), "Pro");
-        assert_eq!(store.rename("main", "Perso").unwrap(), "Perso");
-        assert!(store.rename("work", "perso").is_err());
-        assert!(store.rename("gone", "Other").is_err());
+        assert_eq!(store.rename(Claude, "work", "Pro").unwrap(), "Pro");
+        assert_eq!(store.rename(Claude, "main", "Perso").unwrap(), "Perso");
+        assert!(store.rename(Claude, "work", "perso").is_err());
+        assert!(store.rename(Claude, "gone", "Other").is_err());
         let index = store.read().unwrap();
-        assert_eq!(index.main_label(), "Perso");
+        assert_eq!(index.main_label(Claude), "Perso");
         assert_eq!(index.accounts[0].label, "Pro");
         assert_eq!(index.accounts[0].id, "work");
     }
@@ -386,17 +479,20 @@ mod tests {
             .to_string(),
         );
         let index = store.read().unwrap();
-        assert_eq!(index.main_label(), MAIN_LABEL);
+        assert_eq!(index.main_label(Claude), MAIN_LABEL);
         let ids: Vec<&str> = index.accounts.iter().map(|e| e.id.as_str()).collect();
         assert_eq!(ids, ["work", "perso"]);
         // Its folder is always the store's, whatever the file says.
-        assert_eq!(PathBuf::from(&index.accounts[0].dir), store.dir_of("work"));
+        assert_eq!(
+            PathBuf::from(&index.accounts[0].dir),
+            store.dir_of(Claude, "work")
+        );
         assert_eq!(index.accounts[1].label, "perso");
 
         // Broken JSON is an error, and nothing is written over it.
         scratch.file("accounts/accounts.json", "{ not json");
         assert!(store.read().is_err());
-        assert!(store.add("New", 1).is_err());
+        assert!(store.add(Claude, "New", 1).is_err());
         assert_eq!(
             fs::read_to_string(scratch.root.join("accounts/accounts.json")).unwrap(),
             "{ not json"
@@ -407,8 +503,8 @@ mod tests {
     fn forgetting_takes_only_the_entry() {
         let scratch = Scratch::new("store-forget");
         let store = Store::at(scratch.root.join("accounts"));
-        store.add("Work", 1).unwrap();
-        store.add("Perso", 2).unwrap();
+        store.add(Claude, "Work", 1).unwrap();
+        store.add(Claude, "Perso", 2).unwrap();
         store.forget("work").unwrap();
         assert!(store.forget("work").is_err());
         let ids: Vec<String> = store
@@ -419,5 +515,94 @@ mod tests {
             .map(|e| e.id)
             .collect();
         assert_eq!(ids, ["perso"]);
+    }
+
+    #[test]
+    fn an_entry_without_a_kind_is_claudes_and_is_written_as_before() {
+        let scratch = Scratch::new("store-kind-compat");
+        let store = Store::at(scratch.root.join("accounts"));
+        let before = json!({
+            "mainLabel": "Perso",
+            "accounts": [
+                { "id": "work", "label": "Work", "dir": "x", "addedAt": 5 }
+            ]
+        });
+        scratch.file("accounts/accounts.json", &before.to_string());
+        let index = store.read().unwrap();
+        assert_eq!(index.accounts[0].kind, Claude);
+        assert_eq!(index.of(Codex).count(), 0);
+
+        // Written back by this Hangar, a Claude-only index has no `kind`,
+        // nor a Codex main label: what an older Hangar reads.
+        store.write(&index).unwrap();
+        let written =
+            crate::accounts::testing::read_json(&scratch.root.join("accounts/accounts.json"));
+        assert!(written["accounts"][0].get("kind").is_none());
+        assert!(written.get("codexMainLabel").is_none());
+        assert_eq!(written["mainLabel"], "Perso");
+        assert_eq!(written["accounts"][0]["id"], "work");
+    }
+
+    #[test]
+    fn codex_accounts_live_beside_claudes_with_their_own_names() {
+        let scratch = Scratch::new("store-kind-codex");
+        let store = Store::at(scratch.root.join("accounts"));
+        let work = store.add(Claude, "Work", 1).unwrap();
+        // A label per kind; an id for all.
+        let team = store.add(Codex, "Work", 2).unwrap();
+        assert_eq!((team.id.as_str(), team.kind), ("work-2", Codex));
+        assert_eq!(
+            PathBuf::from(&team.dir),
+            scratch.root.join("accounts/codex/work-2")
+        );
+        assert_eq!(PathBuf::from(&work.dir), scratch.root.join("accounts/work"));
+        assert!(store.add(Codex, "work", 3).is_err());
+        // `codex` is the Codex homes' folder, never an id.
+        assert_eq!(store.add(Claude, "Codex", 4).unwrap().id, "codex-2");
+
+        assert_eq!(store.rename(Codex, "main", "Pro").unwrap(), "Pro");
+        assert_eq!(store.rename(Claude, "main", "Pro").unwrap(), "Pro");
+        assert!(store.rename(Claude, "work-2", "Team").is_err());
+        assert_eq!(store.rename(Codex, "work-2", "Team").unwrap(), "Team");
+
+        let index = store.read().unwrap();
+        assert_eq!(index.main_label(Codex), "Pro");
+        let codex: Vec<&str> = index.of(Codex).map(|e| e.label.as_str()).collect();
+        assert_eq!(codex, ["Team"]);
+        assert_eq!(index.find(Codex, "work"), None);
+        let written =
+            crate::accounts::testing::read_json(&scratch.root.join("accounts/accounts.json"));
+        assert_eq!(written["codexMainLabel"], "Pro");
+        assert_eq!(written["accounts"][1]["kind"], "codex");
+        assert!(written["accounts"][0].get("kind").is_none());
+    }
+
+    #[test]
+    fn a_kind_from_a_newer_hangar_is_kept_and_its_id_taken() {
+        let scratch = Scratch::new("store-kind-unknown");
+        let store = Store::at(scratch.root.join("accounts"));
+        let future = json!({ "id": "work", "label": "Work", "kind": "gemini", "x": [1] });
+        scratch.file(
+            "accounts/accounts.json",
+            &json!({ "accounts": [future.clone()] }).to_string(),
+        );
+        assert!(store.read().unwrap().accounts.is_empty());
+        assert_eq!(store.add(Claude, "Work", 1).unwrap().id, "work-2");
+        let written =
+            crate::accounts::testing::read_json(&scratch.root.join("accounts/accounts.json"));
+        assert_eq!(written["accounts"][1], future);
+    }
+
+    #[test]
+    fn a_claude_account_in_the_codex_folder_keeps_codex_accounts_out() {
+        let scratch = Scratch::new("store-kind-clash");
+        let store = Store::at(scratch.root.join("accounts"));
+        scratch.file(
+            "accounts/accounts.json",
+            &json!({ "accounts": [{ "id": "codex", "label": "Codex" }] }).to_string(),
+        );
+        assert_eq!(store.read().unwrap().accounts[0].kind, Claude);
+        assert!(store.add(Codex, "Team", 1).is_err());
+        assert_eq!(store.add(Claude, "Team", 1).unwrap().id, "team");
     }
 }

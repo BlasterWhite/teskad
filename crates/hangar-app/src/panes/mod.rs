@@ -64,7 +64,7 @@ use crate::services::{CoreEvent, Services, TerminalAccess};
 use crate::shell::{Focus, Region, View, WindowKind};
 use crate::state::layout;
 use crate::state::live::{PaneMcp, PaneStatus};
-use crate::state::types::{DropZone, Pane, SplitDir};
+use crate::state::types::{DropZone, Pane, SplitDir, SplitNode};
 use crate::state::{Model, PaneId, Patch, StoreAction, Workspace, WsId};
 
 use controller::{PaneRt, SpawnReport};
@@ -186,11 +186,12 @@ impl Live {
 
     /// The direction to split pane `near` of workspace `ws` in: along its
     /// longer side on screen (`layout::preferred_dir`), from its share of the
-    /// grid as the grid last measured itself; a row before it has.
+    /// grid as the grid last measured itself, and draws it; a row before it
+    /// has.
     pub fn split_dir(&self, ws: &Workspace, near: Option<&str>) -> SplitDir {
         let size = near.and_then(|near| {
             let grid = self.grid_sizes.get(&ws.id)?;
-            let rect = *layout::compute_layout(&layout::grid_tree(ws))
+            let rect = *layout::compute_layout(&drawn_tree(&self.grid_sizes, ws))
                 .rects
                 .get(near)?;
             Some((
@@ -265,7 +266,13 @@ pub enum Msg {
     CancelQueue(PaneId),
     DismissNote(PaneId, String),
     GridSized(WsId, Size),
+    /// A boundary dragged or moved by the keys to this ratio: the engine
+    /// keeps it, a pinned pane's in pixels (`StoreAction::ResizeSplit`).
     SetRatio(WsId, layout::Path, f64),
+    /// Pins a pane, a terminal or a view, to the edge of the grid it lies
+    /// along at the size it has on screen (on), or lets it go (off): see
+    /// [`pin`].
+    Pin(WsId, PaneId, bool),
     Move {
         ws: WsId,
         drag: PaneId,
@@ -552,11 +559,11 @@ fn handle(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Messag
             Task::none()
         }
         Msg::SetRatio(ws, path, ratio) => {
-            if let Some(workspace) = m.workspace(&ws) {
-                let tree = layout::grid_tree(workspace);
-                let next = layout::with_ratio(&tree, &path, ratio);
-                m.apply(StoreAction::SetTree(ws, next));
-            }
+            set_ratio(&st.grid_sizes, m, ws, path, ratio);
+            Task::none()
+        }
+        Msg::Pin(ws, pane, on) => {
+            pin(&st.grid_sizes, m, ws, pane, on);
             Task::none()
         }
         Msg::Move {
@@ -610,6 +617,52 @@ fn zoom_to(ws: WsId, target: Option<PaneId>) -> Task<Message> {
         None => Task::none(),
     };
     Task::batch([focus, intent(Intent::SetZoom { ws, on })])
+}
+
+/// Grid `ws`'s size in logical pixels, once it has measured itself: what a
+/// pinned pane's pixels are kept against.
+fn grid_px(sizes: &HashMap<WsId, Size>, ws: &str) -> Option<(f32, f32)> {
+    sizes.get(ws).map(|size| (size.width, size.height))
+}
+
+/// Workspace `ws`'s grid as it is drawn: its pinned panes at the pixels the
+/// engine keeps them at, within its bounds, once the grid has measured
+/// itself (`layout::drawn_tree`). The rectangles a pane is laid out in, its
+/// header folded by, and a split's direction is read off.
+fn drawn_tree(sizes: &HashMap<WsId, Size>, ws: &Workspace) -> SplitNode {
+    layout::drawn_tree(ws, grid_px(sizes, &ws.id))
+}
+
+/// The boundary at `path` of grid `ws` dragged, or moved by the keys, to
+/// `ratio`. The engine keeps it: a pinned pane's boundary sets the pixels it
+/// keeps, at that share of its room in the grid as it last measured itself.
+fn set_ratio(sizes: &HashMap<WsId, Size>, m: &mut Model, ws: WsId, path: layout::Path, ratio: f64) {
+    let grid = grid_px(sizes, &ws);
+    m.apply(StoreAction::ResizeSplit {
+        ws,
+        path,
+        ratio,
+        grid,
+    });
+}
+
+/// Pins pane `pane` of grid `ws` to the edge it lies along, at the size it
+/// is drawn at (in pixels once the grid has measured itself), or with `on`
+/// false lets it go: it stays where it is, laid out with the others from
+/// then on.
+fn pin(sizes: &HashMap<WsId, Size>, m: &mut Model, ws: WsId, pane: PaneId, on: bool) {
+    let action = if on {
+        let grid = grid_px(sizes, &ws);
+        StoreAction::PinPane {
+            ws,
+            pane,
+            edge: None,
+            grid,
+        }
+    } else {
+        StoreAction::UnpinPane { ws, pane }
+    };
+    m.apply(action);
 }
 
 /// Whether what a terminal widget did can change what the sync and the
@@ -1831,7 +1884,7 @@ fn publish(st: &State, m: &mut Model) {
         };
         let layout = layouts
             .entry(ws.id.as_str())
-            .or_insert_with(|| layout::compute_layout(&layout::grid_tree(ws)));
+            .or_insert_with(|| layout::compute_layout(&drawn_tree(&st.grid_sizes, ws)));
         let width = pane_width(st, m, ws, layout, id);
         reports.insert(
             id.clone(),
@@ -1876,6 +1929,9 @@ mod focus_tests;
 
 #[cfg(test)]
 mod output_tests;
+
+#[cfg(test)]
+mod pin_tests;
 
 #[cfg(test)]
 mod tests {

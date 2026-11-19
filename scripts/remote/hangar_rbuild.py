@@ -48,7 +48,7 @@ def env_float(name, default):
 GUARD = env_float("HANGAR_RBUILD_GUARD", 5)               # $ a day, this tool's spend
 IDLE_MIN = env_float("HANGAR_RBUILD_IDLE_MIN", 60)        # destroyed after this long without a run
 BUSY_MAX_MIN = env_float("HANGAR_RBUILD_BUSY_MAX_MIN", 240)  # a "busy" label older than this is a lost run
-DISK_GB = int(env_float("HANGAR_RBUILD_DISK", 70))
+DISK_GB = int(env_float("HANGAR_RBUILD_DISK", 150))  # 4 lanes of ~20 GB each, the seed, and room to grow
 MAX_DPH = env_float("HANGAR_RBUILD_MAX_DPH", 0.32)
 MAX_STORAGE = env_float("HANGAR_RBUILD_MAX_STORAGE", 0.40)  # $ per GB-month
 MIN_THREADS = int(env_float("HANGAR_RBUILD_MIN_THREADS", 32))
