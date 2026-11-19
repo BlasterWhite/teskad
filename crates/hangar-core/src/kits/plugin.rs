@@ -15,6 +15,18 @@
 //! that list before enabling a kit, so the reading leans the way the hooks' does:
 //! whatever may run gets listed, and what cannot be read is listed as such. The
 //! hash a workspace accepts covers it: `permission`.
+//!
+//! The same plugin reaches Codex in parts (docs/native/agents.md §6.4, D18):
+//! its MCP servers with each launch, named `<kit>_<server>` and written in
+//! Codex's own keys for the pane's `-c mcp_servers` (`codex_servers`,
+//! mcp_scope.rs); its skills and hooks once the person adds the Codex plugin
+//! Hangar builds from the kit; its commands, agents and output styles not at
+//! all. `AgentParts` lists, for each agent, what loads and what does not, and
+//! why. It is read from the very files whose hash the person accepts, so
+//! accepting the kit covers what reaches either agent. Codex 0.170 has no
+//! folder to load a plugin or skills from for one launch, as Claude Code's
+//! `CLAUDE_CODE_PLUGIN_DIRS`: its `[[skills.config]]` only turns skills it
+//! found on or off (`config/src/skills_config.rs`), hence the install.
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -30,6 +42,8 @@ use super::hooks::{self, Hook};
 use super::manifest::{self, Tab};
 use super::setup::sha256_hex;
 use super::store::Loaded;
+use crate::agent::{AgentKind, KitPart};
+use crate::mcp_scope::{self, NotForCodex as ServerNotForCodex};
 
 /// What a kit brings, as the person is shown it before enabling it.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -58,6 +72,210 @@ pub struct Inspection {
     /// `commands:<hash>` of that list, null without any: what accepting these
     /// very commands stores on a workspace.
     pub commands_permission: Option<String>,
+    /// What the plugin brings to each kind of agent, in the order the pickers
+    /// list them; empty parts without a plugin.
+    pub by_agent: Vec<AgentParts>,
+}
+
+/// What a kit's plugin brings to one kind of agent, part by part.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentParts {
+    pub agent: AgentKind,
+    /// The manifest's `agents` names this agent. When it does not, nothing
+    /// of the plugin reaches it, and every part lists what it holds as left
+    /// out.
+    pub meant_for: bool,
+    /// By their names in the plugin's configuration, not prefixed.
+    pub mcp_servers: Part<String>,
+    pub skills: Part<String>,
+    pub hooks: Part<Hook>,
+    pub commands: Part<String>,
+    pub agents: Part<String>,
+    pub output_styles: Part<String>,
+}
+
+/// One part of a plugin for one agent.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Part<T> {
+    /// How the agent takes this part (its `Capabilities::extensions`): with
+    /// each launch, once installed (« Add to Codex »), or not at all.
+    pub how: KitPart,
+    /// What reaches it.
+    pub loads: Vec<T>,
+    /// What does not, listed as another agent's only.
+    pub left_out: Vec<LeftOut<T>>,
+}
+
+/// Something of a plugin that does not reach an agent, and why.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct LeftOut<T> {
+    pub item: T,
+    pub why: Why,
+}
+
+/// Why something of a plugin does not reach an agent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Why {
+    /// The manifest's `agents` leaves this agent out.
+    NotMeantFor,
+    /// The agent has no such part: Codex has no plugin commands, agents or
+    /// output styles.
+    NoSuchPart,
+    /// A hook on an event the agent has no hooks for (hooks.rs).
+    Event,
+    /// A hook that is not a command, or a hooks module.
+    Handler,
+    /// A tool hook whose matcher selects none of the agent's tools.
+    Tool,
+    /// An MCP server over a transport the agent does not speak.
+    Transport,
+    /// An MCP server naming a variable the agent would not fill in.
+    Variables,
+}
+
+impl From<hooks::NotForCodex> for Why {
+    fn from(why: hooks::NotForCodex) -> Self {
+        match why {
+            hooks::NotForCodex::Event => Why::Event,
+            hooks::NotForCodex::Handler => Why::Handler,
+            hooks::NotForCodex::Tool => Why::Tool,
+        }
+    }
+}
+
+impl From<ServerNotForCodex> for Why {
+    fn from(why: ServerNotForCodex) -> Self {
+        match why {
+            ServerNotForCodex::Transport => Why::Transport,
+            ServerNotForCodex::Variables => Why::Variables,
+        }
+    }
+}
+
+impl<T> Part<T> {
+    /// `items`, each loading unless `why_not` says why it does not; all of
+    /// them left out when the agent is not meant for the plugin or has no
+    /// such part.
+    fn of(
+        how: KitPart,
+        meant_for: bool,
+        items: Vec<T>,
+        why_not: impl Fn(&T) -> Option<Why>,
+    ) -> Self {
+        let mut part = Part {
+            how,
+            loads: Vec::new(),
+            left_out: Vec::new(),
+        };
+        for item in items {
+            let why = if !meant_for {
+                Some(Why::NotMeantFor)
+            } else if how == KitPart::None {
+                Some(Why::NoSuchPart)
+            } else {
+                why_not(&item)
+            };
+            match why {
+                Some(why) => part.left_out.push(LeftOut { item, why }),
+                None => part.loads.push(item),
+            }
+        }
+        part
+    }
+}
+
+/// What the plugin in `plugin_dir` (none: nothing) brings to each kind of
+/// agent, for a kit meant for `meant_for`.
+fn by_agent(
+    plugin_dir: Option<&Path>,
+    meant_for: impl Fn(AgentKind) -> bool,
+    contents: &Contents,
+) -> Vec<AgentParts> {
+    let root = plugin_dir.map(|dir| dir.to_string_lossy().into_owned());
+    AgentKind::ALL
+        .into_iter()
+        .map(|kind| {
+            let ext = kind.info().caps.extensions;
+            let meant = meant_for(kind);
+            let names = |items: &[String]| items.to_vec();
+            AgentParts {
+                agent: kind,
+                meant_for: meant,
+                mcp_servers: Part::of(
+                    ext.mcp_servers,
+                    meant,
+                    contents
+                        .servers
+                        .iter()
+                        .map(|(name, _)| name.clone())
+                        .collect(),
+                    |name| {
+                        let (_, definition) =
+                            contents.servers.iter().find(|(found, _)| found == name)?;
+                        server_reaches(kind, definition, root.as_deref(), plugin_dir)
+                    },
+                ),
+                skills: Part::of(ext.skills, meant, names(&contents.skills), |_| None),
+                hooks: Part::of(ext.hooks, meant, contents.hooks.clone(), |hook| {
+                    hook_reaches(kind, hook)
+                }),
+                commands: Part::of(ext.commands, meant, names(&contents.commands), |_| None),
+                agents: Part::of(ext.agents, meant, names(&contents.agents), |_| None),
+                output_styles: Part::of(
+                    ext.output_styles,
+                    meant,
+                    names(&contents.output_styles),
+                    |_| None,
+                ),
+            }
+        })
+        .collect()
+}
+
+/// What a plugin holds, as `inspect` reads it once for every agent.
+#[derive(Default)]
+struct Contents {
+    servers: Vec<(String, Value)>,
+    skills: Vec<String>,
+    hooks: Vec<Hook>,
+    commands: Vec<String>,
+    agents: Vec<String>,
+    output_styles: Vec<String>,
+}
+
+/// Why a hook does not run in `kind`; `None` when it does. Claude Code runs
+/// every hook its plugin declares; Codex what hooks.rs says it runs.
+fn hook_reaches(kind: AgentKind, hook: &Hook) -> Option<Why> {
+    match kind {
+        AgentKind::Claude => None,
+        AgentKind::Codex => hooks::not_for_codex(hook).map(Why::from),
+    }
+}
+
+/// Why a server of the plugin does not start in `kind`; `None` when it
+/// does. Claude Code starts its plugin's servers as written; Codex the ones
+/// `codex_entry` can write in its keys, the plugin's folder written out.
+fn server_reaches(
+    kind: AgentKind,
+    definition: &Value,
+    root: Option<&str>,
+    plugin_dir: Option<&Path>,
+) -> Option<Why> {
+    match kind {
+        AgentKind::Claude => None,
+        AgentKind::Codex => {
+            let mut definition = definition.clone();
+            if let Some(root) = root {
+                expand(&mut definition, root);
+            }
+            mcp_scope::codex_entry(&definition, plugin_dir)
+                .err()
+                .map(Why::from)
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -215,17 +433,34 @@ pub fn inspect(kit: &Loaded, os: &str) -> Inspection {
         name: plugin_name(dir).unwrap_or_else(|| kit.manifest.id.clone()),
         dir: dir.to_string_lossy().into_owned(),
     });
-    let (skills, commands, agents, mcp_servers, hooks, running) = match plugin_dir.as_deref() {
+    let (contents, running) = match plugin_dir.as_deref() {
         Some(dir) => (
-            skills(dir),
-            markdown_names(&dir.join("commands")),
-            markdown_names(&dir.join("agents")),
-            servers(dir).into_iter().map(|(name, _)| name).collect(),
-            hooks::read(dir),
+            Contents {
+                servers: servers(dir),
+                skills: skills(dir),
+                hooks: hooks::read(dir),
+                commands: markdown_names(&dir.join("commands")),
+                agents: markdown_names(&dir.join("agents")),
+                output_styles: markdown_names(&dir.join("output-styles")),
+            },
             self::running(dir),
         ),
         None => Default::default(),
     };
+    let by_agent = by_agent(
+        plugin_dir.as_deref(),
+        |kind| kit.manifest.meant_for(kind),
+        &contents,
+    );
+    let Contents {
+        servers,
+        skills,
+        hooks,
+        commands,
+        agents,
+        output_styles: _,
+    } = contents;
+    let mcp_servers = servers.into_iter().map(|(name, _)| name).collect();
     let hooks_permission = plugin_dir
         .as_deref()
         .and_then(|dir| grant(&hooks, &running, &code_of(dir, &hooks, &running)));
@@ -254,6 +489,7 @@ pub fn inspect(kit: &Loaded, os: &str) -> Inspection {
             .collect(),
         declared_commands: commands::for_os(&kit.manifest, os),
         commands_permission: commands::grant(&kit.manifest, &kit.root, os),
+        by_agent,
     }
 }
 
@@ -1039,11 +1275,14 @@ fn unknown_keys(manifest: &Value, found: &mut Vec<Running>) {
     }
 }
 
-/// Every server of the kits' plugins, named and written out as a
-/// `--mcp-config` file holds them.
+/// Every server of the kits' plugins meant for Claude Code, named and written
+/// out as a `--mcp-config` file holds them.
 pub fn scoped_servers(kits: &[Loaded]) -> Vec<(String, Value)> {
     let mut out = Vec::new();
-    for kit in kits {
+    for kit in kits
+        .iter()
+        .filter(|kit| kit.manifest.meant_for(AgentKind::Claude))
+    {
         let Some(dir) = kit.plugin_dir() else {
             continue;
         };
@@ -1056,6 +1295,53 @@ pub fn scoped_servers(kits: &[Loaded]) -> Vec<(String, Value)> {
         }
     }
     out
+}
+
+/// Every server of the kits' plugins meant for Codex that Codex can take
+/// (`mcp_scope::codex_entry`), in its own keys, named [`codex_name`], in the
+/// order of the kits then of their servers; a name already given keeps its
+/// first server. The plugin's folder is written out as the operating system
+/// spells it: Codex is a native program, and reads no `${…}`.
+pub fn codex_servers(kits: &[Loaded]) -> Vec<(String, Value)> {
+    let mut out: Vec<(String, Value)> = Vec::new();
+    for kit in kits
+        .iter()
+        .filter(|kit| kit.manifest.meant_for(AgentKind::Codex))
+    {
+        let Some(dir) = kit.plugin_dir() else {
+            continue;
+        };
+        let root = dir.to_string_lossy().into_owned();
+        for (server, mut definition) in servers(&dir) {
+            expand(&mut definition, &root);
+            let Ok(entry) = mcp_scope::codex_entry(&definition, Some(&dir)) else {
+                continue;
+            };
+            let name = codex_name(&kit.manifest.id, &server);
+            if !out.iter().any(|(taken, _)| taken == &name) {
+                out.push((name, entry));
+            }
+        }
+    }
+    out
+}
+
+/// The name Codex gets a kit's server under, `<kit>_<server>`: the kit's id,
+/// unique on the machine, then the server's name with what is not a letter,
+/// a digit, `_` or `-` made `_`, as Codex names a server it adds itself
+/// (`cli/src/mcp_cmd.rs`). Its tools are `mcp__<kit>_<server>__<tool>`.
+pub fn codex_name(kit: &str, server: &str) -> String {
+    let server: String = server
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    format!("{kit}_{server}")
 }
 
 fn expand(value: &mut Value, root: &str) {
@@ -1880,5 +2166,213 @@ mod tests {
             frontmatter_hooks("---\r\n\"hooks\": { Stop: [] }\r\nname: x\r\n---\r\n").as_deref(),
             Some("\"hooks\": { Stop: [] }")
         );
+    }
+
+    // Per agent (docs/native/agents.md §6.4, D18).
+
+    /// A kit meant for both agents, with something of every part, and what
+    /// Codex cannot take of each.
+    fn kit_for_both(tag: &str, agents: Value) -> Folder {
+        let kit = Folder::new(tag);
+        kit.kit(".", "studio", "1.0.0");
+        kit.file(
+            manifest::FILE,
+            &json!({
+                "schema": 1, "id": "studio", "name": "Studio", "version": "1.0.0",
+                "description": "d", "agents": agents
+            })
+            .to_string(),
+        )
+        .file("commands/build.md", "Build.")
+        .file("agents/scripter.md", "An agent.")
+        .file("output-styles/terse.md", "Terse.")
+        .file(
+            ".mcp.json",
+            &json!({ "mcpServers": {
+                "studio": { "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/server.js"] },
+                "keyed": { "command": "node", "env": { "STUDIO_KEY": "${STUDIO_KEY}" } },
+                "events": { "type": "sse", "url": "http://127.0.0.1:44755/sse" },
+                "templated": { "command": "node", "args": ["--key=${STUDIO_KEY}"] }
+            } })
+            .to_string(),
+        )
+        .file(
+            "hooks/hooks.json",
+            &json!({ "hooks": {
+                "PostToolUse": [{ "matcher": "Bash", "hooks": [{ "type": "command", "command": "log.sh" }] }],
+                "PreToolUse": [{ "matcher": "Read", "hooks": [{ "type": "command", "command": "read.sh" }] }],
+                "Notification": [{ "hooks": [{ "type": "command", "command": "ping.sh" }] }]
+            } })
+            .to_string(),
+        );
+        kit
+    }
+
+    fn parts(found: &Inspection, kind: AgentKind) -> &AgentParts {
+        found
+            .by_agent
+            .iter()
+            .find(|parts| parts.agent == kind)
+            .unwrap()
+    }
+
+    fn left<T: Clone>(part: &Part<T>) -> Vec<(T, Why)> {
+        part.left_out
+            .iter()
+            .map(|left| (left.item.clone(), left.why))
+            .collect()
+    }
+
+    #[test]
+    fn a_kit_for_both_agents_lists_what_reaches_each() {
+        let home = Folder::new("by-agent");
+        let store = Store::at(home.root.join("kits"));
+        let kit = kit_for_both("by-agent-src", json!(["claude", "codex"]));
+        let found = inspect(&loaded(&kit, &store), "linux");
+        assert_eq!(
+            found.by_agent.iter().map(|p| p.agent).collect::<Vec<_>>(),
+            AgentKind::ALL
+        );
+
+        let claude = parts(&found, AgentKind::Claude);
+        assert!(claude.meant_for);
+        for part in [&claude.mcp_servers, &claude.commands, &claude.agents] {
+            assert_eq!(part.how, KitPart::PerLaunch);
+            assert!(part.left_out.is_empty());
+        }
+        assert_eq!(
+            claude.mcp_servers.loads,
+            ["events", "keyed", "studio", "templated"]
+        );
+        assert_eq!(claude.hooks.loads.len(), 3);
+        assert_eq!(claude.output_styles.loads, ["terse"]);
+
+        let codex = parts(&found, AgentKind::Codex);
+        assert!(codex.meant_for);
+        assert_eq!(codex.mcp_servers.how, KitPart::PerLaunch);
+        assert_eq!(codex.mcp_servers.loads, ["keyed", "studio"]);
+        assert_eq!(
+            left(&codex.mcp_servers),
+            [
+                ("events".to_string(), Why::Transport),
+                ("templated".to_string(), Why::Variables)
+            ]
+        );
+        assert_eq!(codex.skills.how, KitPart::Installed);
+        assert_eq!(codex.skills.loads, ["hello"]);
+        assert_eq!(codex.hooks.how, KitPart::Installed);
+        assert_eq!(
+            codex.hooks.loads,
+            [hooks::Hook {
+                event: "PostToolUse".into(),
+                matcher: "Bash".into(),
+                command: "log.sh".into()
+            }]
+        );
+        let hooks_left: Vec<(String, Why)> = left(&codex.hooks)
+            .into_iter()
+            .map(|(hook, why)| (hook.command, why))
+            .collect();
+        assert_eq!(
+            hooks_left,
+            [
+                ("ping.sh".to_string(), Why::Event),
+                ("read.sh".to_string(), Why::Tool)
+            ]
+        );
+        for (part, item) in [
+            (&codex.commands, "build"),
+            (&codex.agents, "scripter"),
+            (&codex.output_styles, "terse"),
+        ] {
+            assert_eq!(part.how, KitPart::None);
+            assert!(part.loads.is_empty());
+            assert_eq!(left(part), [(item.to_string(), Why::NoSuchPart)]);
+        }
+
+        let sent = serde_json::to_value(&found).unwrap();
+        assert_eq!(sent["byAgent"][1]["agent"], "codex");
+        assert_eq!(sent["byAgent"][1]["skills"]["how"], "installed");
+        assert_eq!(
+            sent["byAgent"][1]["mcpServers"]["leftOut"][0],
+            json!({ "item": "events", "why": "transport" })
+        );
+        assert_eq!(
+            sent["byAgent"][1]["commands"]["leftOut"][0]["why"],
+            "noSuchPart"
+        );
+    }
+
+    /// A manifest without `agents` is Claude Code's alone, as before; one
+    /// for Codex alone keeps Claude Code out.
+    #[test]
+    fn a_kit_reaches_only_the_agents_its_manifest_names() {
+        let home = Folder::new("by-agent-one");
+        let store = Store::at(home.root.join("kits"));
+        let kit = Folder::new("by-agent-one-src");
+        kit.kit(".", "studio", "1.0.0");
+        let found = inspect(&loaded(&kit, &store), "linux");
+        let codex = parts(&found, AgentKind::Codex);
+        assert!(!codex.meant_for);
+        assert!(codex.skills.loads.is_empty() && codex.mcp_servers.loads.is_empty());
+        assert_eq!(
+            left(&codex.skills),
+            [("hello".to_string(), Why::NotMeantFor)]
+        );
+        assert_eq!(
+            left(&codex.mcp_servers),
+            [("studio".to_string(), Why::NotMeantFor)]
+        );
+        assert_eq!(parts(&found, AgentKind::Claude).skills.loads, ["hello"]);
+        assert!(codex_servers(&[loaded_again(&store, "studio")]).is_empty());
+
+        let only = kit_for_both("by-agent-codex-src", json!(["codex"]));
+        let home_codex = Folder::new("by-agent-codex");
+        let store_codex = Store::at(home_codex.root.join("kits"));
+        let found = inspect(&loaded(&only, &store_codex), "linux");
+        let claude = parts(&found, AgentKind::Claude);
+        assert!(!claude.meant_for && claude.mcp_servers.loads.is_empty());
+        assert!(scoped_servers(&[loaded_again(&store_codex, "studio")]).is_empty());
+        assert!(!codex_servers(&[loaded_again(&store_codex, "studio")]).is_empty());
+    }
+
+    /// Codex gets a kit's servers per launch, named `<kit>_<server>`, in its
+    /// own keys, the plugin's folder written out as the system spells it.
+    #[test]
+    fn codex_gets_the_kits_servers_in_its_own_keys() {
+        let home = Folder::new("codex-servers");
+        let store = Store::at(home.root.join("kits"));
+        let kit = kit_for_both("codex-servers-src", json!(["claude", "codex"]));
+        let servers = codex_servers(&[loaded(&kit, &store)]);
+        let root = kit.root.to_string_lossy();
+        assert_eq!(
+            servers,
+            vec![
+                (
+                    "studio_keyed".to_string(),
+                    json!({ "command": "node", "env_vars": ["STUDIO_KEY"] })
+                ),
+                (
+                    "studio_studio".to_string(),
+                    json!({ "command": "node", "args": [format!("{root}/server.js")] })
+                ),
+            ]
+        );
+        // Claude Code's names stay as they were.
+        let claude: Vec<String> = scoped_servers(&[loaded_again(&store, "studio")])
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect();
+        assert!(
+            claude.contains(&"plugin:studio:studio".to_string()),
+            "{claude:?}"
+        );
+    }
+
+    #[test]
+    fn a_codex_name_is_the_kit_then_the_server_in_codex_s_letters() {
+        assert_eq!(codex_name("studio", "studio"), "studio_studio");
+        assert_eq!(codex_name("roblox", "my.server x"), "roblox_my_server_x");
+        assert_eq!(codex_name("ci-status", "gh-runs_2"), "ci-status_gh-runs_2");
     }
 }
