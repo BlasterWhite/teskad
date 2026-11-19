@@ -217,7 +217,8 @@ pub enum Msg {
     Sync,
     /// The terminal had its time to measure itself: start the shell.
     SpawnDue(PaneId),
-    Spawned(PaneId, Result<SpawnReport, String>),
+    /// The spawn answered: boxed, a launch is a big message, and a rare one.
+    Spawned(PaneId, Box<Result<SpawnReport, String>>),
     /// The shell is ready for the agent: whether the session to resume exists, and
     /// the transcripts known before the launch.
     LaunchReady(PaneId, Option<bool>, HashSet<String>),
@@ -346,36 +347,39 @@ fn handle(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Messag
             Some(rt) => controller::start(rt, m, sv, &st.channel, st.shells_known),
             None => Task::none(),
         },
-        Msg::Spawned(pane, result) => match st.panes.get_mut(&pane) {
-            Some(rt) => controller::spawned(rt, m, &st.channel, result),
-            // The pane went while its shell was starting: the shell would
-            // outlive it.
-            None if result.as_ref().is_ok_and(|report| report.remote.is_some()) => {
-                // But one its node runs itself, which was only found there.
-                let hosted = result
-                    .as_ref()
-                    .is_ok_and(|report| report.remote.is_some_and(|start| start.hosted));
-                match m
-                    .find_pane(&pane)
-                    .filter(|(ws, _)| !hosted && !ws.is_hosted())
-                    .and_then(|(ws, entry)| crate::nodes::away::node_of(ws, entry))
-                {
-                    Some(node) => controller::kill_remote(node, pane),
-                    // Its workspace is gone too: its node is not known.
-                    None => Task::none(),
+        Msg::Spawned(pane, result) => {
+            let result = *result;
+            match st.panes.get_mut(&pane) {
+                Some(rt) => controller::spawned(rt, m, &st.channel, result),
+                // The pane went while its shell was starting: the shell would
+                // outlive it.
+                None if result.as_ref().is_ok_and(|report| report.remote.is_some()) => {
+                    // But one its node runs itself, which was only found there.
+                    let hosted = result
+                        .as_ref()
+                        .is_ok_and(|report| report.remote.is_some_and(|start| start.hosted));
+                    match m
+                        .find_pane(&pane)
+                        .filter(|(ws, _)| !hosted && !ws.is_hosted())
+                        .and_then(|(ws, entry)| crate::nodes::away::node_of(ws, entry))
+                    {
+                        Some(node) => controller::kill_remote(node, pane),
+                        // Its workspace is gone too: its node is not known.
+                        None => Task::none(),
+                    }
                 }
+                None if result.is_ok() => {
+                    let pty = sv.core().pty().clone();
+                    Task::perform(
+                        tokio::task::spawn_blocking(move || {
+                            hangar_core::pty::pty_kill(&pty, pane, None)
+                        }),
+                        |_| Message::Noop,
+                    )
+                }
+                None => Task::none(),
             }
-            None if result.is_ok() => {
-                let pty = sv.core().pty().clone();
-                Task::perform(
-                    tokio::task::spawn_blocking(move || {
-                        hangar_core::pty::pty_kill(&pty, pane, None)
-                    }),
-                    |_| Message::Noop,
-                )
-            }
-            None => Task::none(),
-        },
+        }
         Msg::LaunchReady(pane, exists, known) => {
             let Some(rt) = st.panes.get_mut(&pane) else {
                 return Task::none();

@@ -723,7 +723,7 @@ pub fn start(
         if spawn.hosted {
             let (looking, handle) =
                 Task::perform(attach_hosted(node, label, id.clone()), move |result| {
-                    Message::Panes(Msg::Spawned(id.clone(), result))
+                    Message::Panes(Msg::Spawned(id.clone(), Box::new(result)))
                 })
                 .abortable();
             rt.attach = Some(handle.abort_on_drop());
@@ -733,7 +733,7 @@ pub fn start(
         let tr = Translator::new(m.locale());
         return Task::perform(
             start_remote(node, label, asked, spawn.launch, tr),
-            move |result| Message::Panes(Msg::Spawned(id.clone(), result)),
+            move |result| Message::Panes(Msg::Spawned(id.clone(), Box::new(result))),
         );
     }
     spawn.resolve_shell(m, &rt.ws);
@@ -748,7 +748,7 @@ pub fn start(
                 .await
                 .unwrap_or_else(|error| Err(format!("the spawn stopped: {error}")))
         },
-        move |result| Message::Panes(Msg::Spawned(id.clone(), result)),
+        move |result| Message::Panes(Msg::Spawned(id.clone(), Box::new(result))),
     )
 }
 
