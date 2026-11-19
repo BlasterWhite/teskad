@@ -10,6 +10,8 @@ Every release, with its installers, is on the
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-11-19
+
 ### Added
 - Codex (beta). HangarAI runs OpenAI's Codex CLI beside Claude Code, or on its own: Hangar works with either one installed, or both.
   - Setup: both agents on the first-run sheet, installed by their official installers and signed in from a pane; either one is enough.
@@ -881,6 +883,7 @@ statistics, workspace sleep and per-workspace MCP servers.
 - Automatic updates from signed GitHub releases.
 - An interface in English and French (0.1.1).
 
+[2.5.0]: https://github.com/simnJS/hangar-ai/releases/tag/v2.5.0
 [2.4.6]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.6
 [2.4.5]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.5
 [2.4.4]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.4
