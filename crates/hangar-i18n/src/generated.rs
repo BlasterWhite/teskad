@@ -3052,8 +3052,18 @@ pub enum Key {
     PaneActions,
     /// `pane.agent`
     PaneAgent,
+    /// `pane.agentBeta`
+    PaneAgentBeta,
+    /// `pane.agentBetaHint`
+    PaneAgentBetaHint,
     /// `pane.agentRetired`
     PaneAgentRetired,
+    /// `pane.attached`
+    PaneAttached,
+    /// `pane.attachedHint`
+    PaneAttachedHint,
+    /// `pane.attachedQuietHint`
+    PaneAttachedQuietHint,
     /// `pane.attention`
     PaneAttention,
     /// `pane.close`
@@ -3126,6 +3136,22 @@ pub enum Key {
     PaneEventTurnEnd,
     /// `pane.event.turnStart`
     PaneEventTurnStart,
+    /// `pane.floorDetail`
+    PaneFloorDetail,
+    /// `pane.floorExitCode`
+    PaneFloorExitCode,
+    /// `pane.floorExited`
+    PaneFloorExited,
+    /// `pane.floorFolder`
+    PaneFloorFolder,
+    /// `pane.floorNotStarted`
+    PaneFloorNotStarted,
+    /// `pane.floorTimeout`
+    PaneFloorTimeout,
+    /// `pane.floorUnsupported`
+    PaneFloorUnsupported,
+    /// `pane.floorUntypable`
+    PaneFloorUntypable,
     /// `pane.inherited`
     PaneInherited,
     /// `pane.jump`
@@ -3200,6 +3226,12 @@ pub enum Key {
     PaneStateYours,
     /// `pane.state.yoursShort`
     PaneStateYoursShort,
+    /// `pane.unattached`
+    PaneUnattached,
+    /// `pane.unattachedHint`
+    PaneUnattachedHint,
+    /// `pane.unattachedOffHint`
+    PaneUnattachedOffHint,
     /// `pane.unpin`
     PaneUnpin,
     /// `pane.zoomIn`
@@ -6197,7 +6229,12 @@ impl Key {
         Key::PaletteSuggestions,
         Key::PaneActions,
         Key::PaneAgent,
+        Key::PaneAgentBeta,
+        Key::PaneAgentBetaHint,
         Key::PaneAgentRetired,
+        Key::PaneAttached,
+        Key::PaneAttachedHint,
+        Key::PaneAttachedQuietHint,
         Key::PaneAttention,
         Key::PaneClose,
         Key::PaneCloseLast,
@@ -6234,6 +6271,14 @@ impl Key {
         Key::PaneEventResumed,
         Key::PaneEventTurnEnd,
         Key::PaneEventTurnStart,
+        Key::PaneFloorDetail,
+        Key::PaneFloorExitCode,
+        Key::PaneFloorExited,
+        Key::PaneFloorFolder,
+        Key::PaneFloorNotStarted,
+        Key::PaneFloorTimeout,
+        Key::PaneFloorUnsupported,
+        Key::PaneFloorUntypable,
         Key::PaneInherited,
         Key::PaneJump,
         Key::PaneLabel,
@@ -6271,6 +6316,9 @@ impl Key {
         Key::PaneStateWorking,
         Key::PaneStateYours,
         Key::PaneStateYoursShort,
+        Key::PaneUnattached,
+        Key::PaneUnattachedHint,
+        Key::PaneUnattachedOffHint,
         Key::PaneUnpin,
         Key::PaneZoomIn,
         Key::PaneBranchBranch,
@@ -8529,7 +8577,12 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "palette.suggestions", en: Text::plain("Suggestions"), fr: Text::plain("Suggestions") },
     Message { id: "pane.actions", en: Text::plain("Actions of pane {name}"), fr: Text::plain("Actions du panneau {name}") },
     Message { id: "pane.agent", en: Text::plain("Agent running in this pane"), fr: Text::plain("Agent lancé dans ce panneau") },
+    Message { id: "pane.agentBeta", en: Text::plain("beta"), fr: Text::plain("bêta") },
+    Message { id: "pane.agentBetaHint", en: Text::plain("Support for {agent} is in beta"), fr: Text::plain("La prise en charge de {agent} est en bêta") },
     Message { id: "pane.agentRetired", en: Text::plain("{agent} is no longer supported: Hangar now runs Claude Code only, so this pane is a plain shell in the same folder."), fr: Text::plain("{agent} n'est plus pris en charge\u{202f}: Hangar ne lance plus que Claude Code, ce panneau est donc un simple shell dans le même dossier.") },
+    Message { id: "pane.attached", en: Text::plain("attached"), fr: Text::plain("attaché") },
+    Message { id: "pane.attachedHint", en: Text::plain("Hangar follows this {agent} through its own server: its states are reported, its approvals held until you answer, its usage exact."), fr: Text::plain("Hangar suit ce {agent} par son propre serveur\u{202f}: ses états sont rapportés, ses autorisations attendent ta réponse, son usage est exact.") },
+    Message { id: "pane.attachedQuietHint", en: Text::plain("Hangar started this {agent}'s own server and has not heard from it yet: until it does, its states are read from the terminal."), fr: Text::plain("Hangar a lancé le serveur de ce {agent} et ne l'a pas encore entendu\u{202f}: d'ici là, ses états sont lus dans le terminal.") },
     Message { id: "pane.attention", en: Text::plain("Finished while you were away"), fr: Text::plain("A terminé pendant ton absence") },
     Message { id: "pane.close", en: Text::plain("Close pane"), fr: Text::plain("Fermer le panneau") },
     Message { id: "pane.closeLast", en: Text::plain("The last pane cannot be closed"), fr: Text::plain("Le dernier panneau ne peut pas être fermé") },
@@ -8566,6 +8619,14 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "pane.event.resumed", en: Text::plain("Session {id} resumed"), fr: Text::plain("Session {id} reprise") },
     Message { id: "pane.event.turnEnd", en: Text::plain("Finished"), fr: Text::plain("Terminé") },
     Message { id: "pane.event.turnStart", en: Text::plain("Prompt received"), fr: Text::plain("Prompt reçu") },
+    Message { id: "pane.floorDetail", en: Text::plain("{reason}: {detail}"), fr: Text::plain("{reason}\u{202f}: {detail}") },
+    Message { id: "pane.floorExitCode", en: Text::plain("{reason} (exit {code})"), fr: Text::plain("{reason} (code {code})") },
+    Message { id: "pane.floorExited", en: Text::plain("its server stopped before it listened"), fr: Text::plain("son serveur s'est arrêté avant d'écouter") },
+    Message { id: "pane.floorFolder", en: Text::plain("its socket's folder is not usable"), fr: Text::plain("le dossier de son socket n'est pas utilisable") },
+    Message { id: "pane.floorNotStarted", en: Text::plain("“{program} app-server” could not start"), fr: Text::plain("«\u{202f}{program} app-server\u{202f}» n'a pas pu démarrer") },
+    Message { id: "pane.floorTimeout", en: Text::plain("its server did not listen within {seconds}\u{a0}s"), fr: Text::plain("son serveur n'a pas écouté dans les {seconds}\u{a0}s") },
+    Message { id: "pane.floorUnsupported", en: Text::plain("Hangar does not attach to it on this system yet"), fr: Text::plain("Hangar ne s'y attache pas encore sur ce système") },
+    Message { id: "pane.floorUntypable", en: Text::plain("this shell cannot type its socket's path"), fr: Text::plain("ce shell ne peut pas taper le chemin de son socket") },
     Message { id: "pane.inherited", en: Text::plain("{name} (inherited)"), fr: Text::plain("{name} (hérité)") },
     Message { id: "pane.jump", en: Text::plain("Focus with {keys}"), fr: Text::plain("Activer avec {keys}") },
     Message { id: "pane.label", en: Text::plain("Pane {name}"), fr: Text::plain("Panneau {name}") },
@@ -8603,6 +8664,9 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "pane.state.working", en: Text::plain("Working"), fr: Text::plain("Travaille") },
     Message { id: "pane.state.yours", en: Text::plain("Finished — your turn"), fr: Text::plain("Terminé — à toi") },
     Message { id: "pane.state.yoursShort", en: Text::plain("Your turn"), fr: Text::plain("À toi") },
+    Message { id: "pane.unattached", en: Text::plain("not attached"), fr: Text::plain("non attaché") },
+    Message { id: "pane.unattachedHint", en: Text::plain("Hangar could not attach to this {agent}: {reason}. It reads it from its terminal and its files instead."), fr: Text::plain("Hangar n'a pas pu s'attacher à ce {agent}\u{202f}: {reason}. Il le lit à la place dans son terminal et ses fichiers.") },
+    Message { id: "pane.unattachedOffHint", en: Text::plain("“{setting}” is off in the settings: Hangar reads this {agent} from its terminal and its files."), fr: Text::plain("«\u{202f}{setting}\u{202f}» est désactivé dans les réglages\u{202f}: Hangar lit ce {agent} dans son terminal et ses fichiers.") },
     Message { id: "pane.unpin", en: Text::plain("Unpin this pane"), fr: Text::plain("Désépingler ce panneau") },
     Message { id: "pane.zoomIn", en: Text::plain("Fill the grid with this pane"), fr: Text::plain("Afficher ce panneau sur toute la grille") },
     Message { id: "paneBranch.branch", en: Text::plain("Git branch {branch}"), fr: Text::plain("Branche git {branch}") },

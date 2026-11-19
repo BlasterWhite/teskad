@@ -6,30 +6,41 @@
 //! as them, through P18's `pane_send` and `pane_read` run as the person:
 //! agents' pane control being turned off does not stop it.
 //!
-//! A permission the pane's hangar-bridge mod holds open is answered through
-//! it, as the decision itself (`held`). Otherwise Claude Code's permission
-//! prompt takes one key: Enter accepts the highlighted "1. Yes", Escape is
-//! "No, and tell Claude what to do differently". The mod reports what the
-//! call would do, never which choices the prompt offers, so those two keys
-//! are all that is sent.
+//! A permission the pane's side channel holds open — Claude Code's
+//! hangar-bridge mod, Hangar's client of a Codex pane's server — is answered
+//! through it, as the decision itself (`held`). Otherwise the keys of the
+//! agent's own dialog. Claude Code's permission prompt takes one key: Enter
+//! accepts the highlighted "1. Yes", Escape is "No, and tell Claude what to
+//! do differently"; the mod reports what the call would do, never which
+//! choices the prompt offers, so those two keys are all that is sent.
+//! Codex's approval dialog is read on the screen first, and answered only
+//! when the screen shows it as Codex draws it, the cursor on the option the
+//! person chose (answer.rs).
+//!
+//! What a pane's agent can take follows its capabilities, never its name
+//! (docs/native/agents.md D3); only whether its side channel is turned on is
+//! a setting of each kind's (`side_channel`).
 
 use serde_json::{Map, Value, json};
 
+use hangar_core::agent::AgentKind;
 use hangar_i18n::{Key, Locale, t};
 
 use crate::control::port::{ModelCmd, Port, activity_of, is_asleep, is_open};
 use crate::control::run_as_person;
 use crate::control::types::same;
 use crate::state::roles::{manager_of, orchestrator_of};
-use crate::state::{AgentActivity, AgentId, AppState, Pane, Snapshot, Workspace};
+use crate::state::{AgentActivity, AgentId, AppState, Pane, Settings, Snapshot, Workspace};
 
+use super::answer::{self, Answering, Dialogs, PaneIo};
 use super::contract::{
-    ChatPending, NamedActivity, REMOTE_KEYS, RemoteHistory, RemoteManager, RemotePane,
-    RemoteProject, RemoteScreen, RemoteSent, RemoteState, RemoteWaiting, RemoteWoken,
+    ChatPending, NamedActivity, REMOTE_KEYS, RemoteAnswered, RemoteHistory, RemoteManager,
+    RemotePane, RemoteProject, RemoteScreen, RemoteSent, RemoteState, RemoteWaiting, RemoteWoken,
     RemoteWorkspace, WaitingKind,
 };
 use super::desk::pending_now;
 use super::engine::Mobile;
+use super::held::{self, Permit};
 use crate::orchestration::manager_feed::{ManagerEvent, ManagerJournalEntry};
 
 const SCREEN_DEFAULT: f64 = 80.0;
@@ -39,9 +50,12 @@ pub const NO_MANAGER: &str = "Open the project manager on the PC";
 /// the 12 s the phone gives the server, past which the phone tries again.
 pub const OPEN_WAIT_MS: u64 = 8_000;
 const OPEN_POLL_MS: u64 = 250;
-/// Past this, a Claude Code woken from the phone that never said hello is
-/// taken to run without the mod.
+/// Past this, an agent woken from the phone whose side channel never said
+/// hello is taken to run without it.
 pub const RESUME_MS: u64 = 120_000;
+/// How long a dialog gets to go down after the no that closes it, before
+/// the words said with the no are typed at the prompt it leaves.
+const WORDS_AFTER_MS: u64 = 300;
 
 /// A string argument, trimmed; empty when it is anything else.
 fn text_arg(args: &Value, key: &str) -> String {
@@ -332,38 +346,66 @@ pub async fn remote_screen(
 
 /* ── Typing as the person ─────────────────────────────────────── */
 
-/// The hangar-bridge queue drains only where the mod runs (Settings › Agents).
-fn queues(port: &Port) -> bool {
-    port.snapshot().state.settings.claude_bridge
+/// A pane's side channel as the settings have it: what drains the queue
+/// Hangar keeps for the pane and holds its agent's asks open.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SideChannelSetting {
+    pub on: bool,
+    /// What is off when it is, as a refusal says it.
+    pub off: &'static str,
+}
+
+/// The side channel of the pane's agent: the hangar-bridge mod for Claude
+/// Code (Settings › Agents), Hangar attached to the pane's own Codex server
+/// (« Attach Hangar to Codex », D5), which delivers the queue too (D9). Whether
+/// it is on is a setting kept once per kind, read here as `state::types` reads
+/// its other fields kept per kind; the rest of this file reads only this.
+/// None for a shell.
+pub fn side_channel(settings: &Settings, pane: &Pane) -> Option<SideChannelSetting> {
+    Some(match pane.agent.kind()? {
+        AgentKind::Claude => SideChannelSetting {
+            on: settings.claude_bridge,
+            off: "The hangar-bridge mod is off",
+        },
+        AgentKind::Codex => SideChannelSetting {
+            on: settings.codex_attach,
+            off: "Hangar is not attached to Codex (« Attach Hangar to Codex » is off)",
+        },
+    })
+}
+
+/// The queue Hangar keeps for the pane drains: its agent's side channel is
+/// on.
+fn queues(port: &Port, pane: &Pane) -> bool {
+    side_channel(&port.snapshot().state.settings, pane).is_some_and(|channel| channel.on)
 }
 
 /// Wakes a workspace asleep, or opens one closed, as a click on the PC does:
-/// its terminals mount, each Claude Code resuming its session, and it counts
-/// as used, so hibernation leaves it alone for its whole delay.
+/// its terminals mount, each agent resuming its session, and it counts as
+/// used, so hibernation leaves it alone for its whole delay.
 pub async fn wake(port: &Port, mobile: &Mobile, ws: &Workspace) {
     let snapshot = port.snapshot();
     let starting = is_asleep(&snapshot, &ws.id) || !open(&snapshot, ws);
     let _ = port.apply(ModelCmd::OpenWorkspace(ws.id.clone())).await;
     let _ = port.apply(ModelCmd::Touch(ws.id.clone())).await;
-    if !starting || !queues(port) {
+    if !starting {
         return;
     }
     let at = port.now_ms();
     let mut book = mobile.book();
     for pane in &ws.panes {
-        if pane.agent == AgentId::Claude
-            && !book.resuming.contains_key(&pane.id)
-            && !bridged(&snapshot, &pane.id)
-        {
+        let says_hello =
+            side_channel(&snapshot.state.settings, pane).is_some_and(|channel| channel.on);
+        if says_hello && !book.resuming.contains_key(&pane.id) && !bridged(&snapshot, &pane.id) {
             book.resuming.insert(pane.id.clone(), at);
         }
     }
 }
 
-/// A Claude Code pane not up yet: no terminal — its workspace asleep or
-/// closed — or one woken from the phone whose Claude Code has not said hello.
+/// An agent pane not up yet: no terminal — its workspace asleep or closed —
+/// or one woken from the phone whose side channel has not said hello.
 pub fn resumes(port: &Port, mobile: &Mobile, pane: &Pane) -> bool {
-    if pane.agent != AgentId::Claude {
+    if pane.agent.kind().is_none() {
         return false;
     }
     if port.terminal(&pane.id).is_none() {
@@ -380,7 +422,7 @@ pub fn resumes(port: &Port, mobile: &Mobile, pane: &Pane) -> bool {
     true
 }
 
-/// Nothing was sent to a Claude Code not up yet: why, said before `wake`
+/// Nothing was sent to an agent not up yet: why, said before `wake`
 /// changes it.
 fn not_up(port: &Port, ws: &Workspace, pane: &Pane) -> String {
     let snapshot = port.snapshot();
@@ -405,10 +447,10 @@ fn not_started(pane: &Pane) -> String {
     )
 }
 
-/// What the person sent a Claude Code not up yet, put in the hangar-bridge
-/// queue, which the session takes once it is ready, as their own words; the
-/// workspace is woken for it. Without text to queue, or without the mod to
-/// take it, nothing is sent (`hold`).
+/// What the person sent an agent not up yet, put in the pane's queue, which
+/// the session takes once it is ready, as their own words; the workspace is
+/// woken for it. Without text to queue, or without the side channel to take
+/// it, nothing is sent (`hold`).
 pub async fn hold(
     port: &Port,
     mobile: &Mobile,
@@ -416,7 +458,7 @@ pub async fn hold(
     pane: &Pane,
     text: Option<&str>,
 ) -> Result<(), String> {
-    let Some(text) = text.filter(|_| queues(port)) else {
+    let Some(text) = text.filter(|_| queues(port, pane)) else {
         let error = not_up(port, ws, pane);
         wake(port, mobile, ws).await;
         return Err(error);
@@ -426,16 +468,27 @@ pub async fn hold(
     Ok(())
 }
 
-/// The person's words for a pane whose Claude Code works and runs the mod:
-/// into its queue, which the session takes when the turn ends, rather than
-/// typed into the turn. What waits there can be taken back (`unqueue_pane`).
+/// The person's words for a pane whose agent works and runs its side
+/// channel: into its queue, which the session takes when the turn ends,
+/// rather than typed into the turn. What waits there can be taken back
+/// (`unqueue_pane`).
 pub async fn queue_pane(port: &Port, pane: &Pane, text: &str) -> Result<RemoteSent, String> {
     if text.trim().is_empty() {
         return Err("Nothing to send: give text.".into());
     }
-    if !queues(port) {
+    let channel = side_channel(&port.snapshot().state.settings, pane);
+    if let Some(off) = channel
+        .filter(|channel| !channel.on)
+        .map(|channel| channel.off)
+    {
         return Err(format!(
-            "The hangar-bridge mod is off: nothing can wait for \"{}\". Nothing was sent.",
+            "{off}: nothing can wait for \"{}\". Nothing was sent.",
+            pane.name
+        ));
+    }
+    if channel.is_none() {
+        return Err(format!(
+            "\"{}\" runs no agent: nothing can wait for it. Nothing was sent.",
             pane.name
         ));
     }
@@ -532,8 +585,8 @@ pub trait Tell: Send + Sync {
 }
 
 /// The person's words for a worker sent back from the phone: through the
-/// queue, which its Claude Code session takes once it is ready, its project
-/// woken for it; typed as `remote_send` does where the mod does not run
+/// queue, which its agent's session takes once it is ready, its project
+/// woken for it; typed as `remote_send` does where no side channel runs
 /// (`toWorker`).
 pub struct ToWorker;
 
@@ -547,7 +600,7 @@ impl Tell for ToWorker {
         text: &'a str,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>> + Send + 'a>> {
         Box::pin(async move {
-            if !queues(port) {
+            if !queues(port, pane) {
                 let input = Input {
                     text: Some(text.to_string()),
                     ..Input::default()
@@ -611,13 +664,14 @@ pub async fn remote_wake(
 /// Refuses, with nothing typed, unless the prompt open now is the one the
 /// phone showed (`prompt`, from `remote_chat` or `remote_screen`): Enter
 /// approves whatever is open, and the phone's look at the pane is a second or
-/// more old — the person may have answered at the PC, Claude Code moved on to
+/// more old — the person may have answered at the PC, the agent moved on to
 /// its next call (MOB-02). A question is not a permission: Enter would pick
 /// its highlighted option.
 ///
-/// A pane the PC can name no prompt of (an agent other than Claude Code, a
-/// session without a transcript or the mod) is answered as asked, as
+/// A pane the PC can name no prompt of (a session without a transcript or a
+/// side channel: Codex's plain TUI reports none) is answered as asked, as
 /// before: the phone has nothing to name either, and showed only its screen.
+/// Codex's dialog is then read on the screen before any key (answer.rs).
 async fn shown_prompt(
     port: &Port,
     mobile: &Mobile,
@@ -646,19 +700,51 @@ async fn shown_prompt(
     }
 }
 
-/// `remote_permission {pane, allow, prompt?}`: Enter or Escape to a pane
-/// that waits, on the prompt the phone showed (`permit_pane`).
+/// `remote_permission {pane, allow, forSession?, message?, prompt?}`: the
+/// permission a pane waits on, answered on the prompt the phone showed —
+/// allowed, for the rest of the session with `forSession`, or denied with
+/// the person's words in `message` (`permit_as`).
 pub async fn remote_permission(
     port: &Port,
     mobile: &Mobile,
     args: &Value,
-) -> Result<super::contract::RemoteAnswered, String> {
+) -> Result<RemoteAnswered, String> {
     let Some(allow) = args.get("allow").and_then(Value::as_bool) else {
         return Err("Say whether to allow: \"allow\" is true or false.".into());
     };
+    let session = match args.get("forSession") {
+        None | Some(Value::Null) => false,
+        Some(Value::Bool(session)) => *session,
+        Some(_) => return Err("\"forSession\" is true or false.".into()),
+    };
+    let words = match args.get("message") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(words)) => Some(words.as_str()),
+        Some(_) => return Err("\"message\" is the person's words, as text.".into()),
+    };
+    let permit = permit_of(allow, session, words)?;
     let (ws, pane) = find_pane(&port.snapshot().state, args.get("pane"))?;
     let shown = args.get("prompt").and_then(Value::as_str);
-    permit_pane(port, mobile, &ws, &pane, allow, shown).await
+    permit_as(port, mobile, &ws, &pane, permit, shown).await
+}
+
+/// The phone's answer to a permission, checked: words go with a no, the
+/// session with a yes.
+pub fn permit_of(allow: bool, session: bool, words: Option<&str>) -> Result<Permit, String> {
+    let words = words
+        .map(str::trim)
+        .filter(|words| !words.is_empty())
+        .map(str::to_string);
+    match (allow, session, words) {
+        (true, session, None) => Ok(Permit::Allow { session }),
+        (true, _, Some(_)) => {
+            Err("Words go with a no: \"message\" is what to do instead of what was denied.".into())
+        }
+        (false, true, _) => Err(
+            "Only an allow is for the session: \"forSession\" goes with \"allow\": true.".into(),
+        ),
+        (false, false, words) => Ok(Permit::Deny { words }),
+    }
 }
 
 /// Enter (`allow`) or Escape to a pane that waits, on the prompt shown
@@ -670,10 +756,34 @@ pub async fn permit_pane(
     pane: &Pane,
     allow: bool,
     shown: Option<&str>,
-) -> Result<super::contract::RemoteAnswered, String> {
-    let decision = super::held::permission_decision(allow);
-    let key = if allow { "enter" } else { "escape" };
-    answer_dialog(port, mobile, ws, pane, shown, decision, key).await
+) -> Result<RemoteAnswered, String> {
+    permit_as(port, mobile, ws, pane, Permit::of(allow), shown).await
+}
+
+/// The person's answer to the permission a pane waits on, on the prompt
+/// shown: through the ask its side channel holds, for either agent; else
+/// with the keys of its agent's own dialog. A no stops the turn, as the
+/// dialogs' "No, and tell … what to do differently" does, and the words said
+/// with it then reach the session as the person's next message — through
+/// its queue, which the side channel delivers once the turn is over, or
+/// typed at the prompt the dialog leaves.
+pub async fn permit_as(
+    port: &Port,
+    mobile: &Mobile,
+    ws: &Workspace,
+    pane: &Pane,
+    permit: Permit,
+    shown: Option<&str>,
+) -> Result<RemoteAnswered, String> {
+    let decision = held::permit_decision(&permit);
+    let way = answer_dialog(port, mobile, ws, pane, shown, decision, &permit).await?;
+    if let Permit::Deny { words: Some(words) } = &permit {
+        say_after(port, mobile, ws, pane, words, way).await?;
+    }
+    Ok(RemoteAnswered {
+        answered: true,
+        queued: None,
+    })
 }
 
 /// The plan a pane's ExitPlanMode dialog shows, on the prompt shown:
@@ -688,14 +798,36 @@ pub async fn plan_pane(
     approve: bool,
     feedback: Option<&str>,
     shown: Option<&str>,
-) -> Result<super::contract::RemoteAnswered, String> {
-    let decision = super::held::plan_decision(approve, feedback);
-    let key = if approve { "enter" } else { "escape" };
-    answer_dialog(port, mobile, ws, pane, shown, decision, key).await
+) -> Result<RemoteAnswered, String> {
+    let decision = held::plan_decision(approve, feedback);
+    answer_dialog(
+        port,
+        mobile,
+        ws,
+        pane,
+        shown,
+        decision,
+        &Permit::of(approve),
+    )
+    .await?;
+    Ok(RemoteAnswered {
+        answered: true,
+        queued: None,
+    })
+}
+
+/// How a dialog was answered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Way {
+    /// Through the ask its side channel held.
+    Held,
+    /// With keys typed into it.
+    Keys,
 }
 
 /// Answers the dialog a pane waits on, when it is still the one shown:
-/// `decision` through the ask its mod holds open for it, else `key`.
+/// `decision` through the ask its side channel holds open for it, else the
+/// keys of `keys` in the agent's own dialog.
 async fn answer_dialog(
     port: &Port,
     mobile: &Mobile,
@@ -703,8 +835,8 @@ async fn answer_dialog(
     pane: &Pane,
     shown: Option<&str>,
     decision: Value,
-    key: &str,
-) -> Result<super::contract::RemoteAnswered, String> {
+    keys: &Permit,
+) -> Result<Way, String> {
     let snapshot = port.snapshot();
     if activity(&snapshot, &pane.id) != Some(AgentActivity::Waiting) {
         // A sleep stops the agents: no dialog outlives it, and Enter or
@@ -722,29 +854,84 @@ async fn answer_dialog(
         ));
     }
     let pending = shown_prompt(port, mobile, ws, pane, shown).await?;
-    // The ask the pane's mod holds open for this dialog takes the answer
-    // itself: no key to land anywhere else.
+    // The ask the pane's side channel holds open for this dialog takes the
+    // answer itself: no key to land anywhere else.
     if let Some(ChatPending::Permission { tool, .. }) = &pending {
         let input = mobile.book().chat.permission_input(&pane.id, tool);
-        let ask = super::held::permission(ws, pane, tool, input.as_ref());
+        let ask = held::permission(ws, pane, tool, input.as_ref());
         if let Some(ask) = ask
-            && super::held::give(port, pane, &ask, decision).await
+            && held::give(port, pane, &ask, decision).await
         {
-            return Ok(super::contract::RemoteAnswered {
-                answered: true,
-                queued: None,
-            });
+            return Ok(Way::Held);
         }
     }
+    if Dialogs::of(pane) == Some(Dialogs::Codex) {
+        press_codex(port, mobile, ws, pane, keys).await?;
+        return Ok(Way::Keys);
+    }
+    let key = if keys.allows() { "enter" } else { "escape" };
     let input = Input {
         keys: vec![key.into()],
         ..Input::default()
     };
     type_into(port, mobile, ws, pane, input).await?;
-    Ok(super::contract::RemoteAnswered {
-        answered: true,
-        queued: None,
-    })
+    Ok(Way::Keys)
+}
+
+/// Codex's approval dialog answered with its own keys, once the screen shows
+/// it as Codex draws it (answer.rs): the cursor moved to the option the
+/// person chose, then Enter; Escape for a no. Nothing typed into a pane
+/// another answer is being typed into (MOB-18), nor into one not up yet.
+async fn press_codex(
+    port: &Port,
+    mobile: &Mobile,
+    ws: &Workspace,
+    pane: &Pane,
+    permit: &Permit,
+) -> Result<(), String> {
+    if resumes(port, mobile, pane) {
+        // No dialog outlives a sleep, and keys cannot wait in the queue.
+        return hold(port, mobile, ws, pane, None).await;
+    }
+    if port.terminal(&pane.id).is_none() {
+        return Err(answer::CODEX_NOT_ON_SCREEN.into());
+    }
+    let Some(_answering) = Answering::start(mobile, &pane.id) else {
+        return Err(format!(
+            "An answer is being typed into \"{}\": wait for it. Nothing was sent.",
+            pane.name
+        ));
+    };
+    let io = PaneIo::new(port, ws, pane);
+    answer::press_codex_approval(&io, permit).await
+}
+
+/// The words said with a no, sent to the session as the person's next
+/// message once the dialog is down: into the pane's queue when its side
+/// channel took the no (it delivers them once the turn is over), else typed
+/// at the prompt the dialog leaves — Codex's checked to be gone first.
+async fn say_after(
+    port: &Port,
+    mobile: &Mobile,
+    ws: &Workspace,
+    pane: &Pane,
+    words: &str,
+    way: Way,
+) -> Result<(), String> {
+    if way == Way::Held {
+        return port.enqueue(&pane.id, words, None).await;
+    }
+    if Dialogs::of(pane) == Some(Dialogs::Codex) {
+        let io = PaneIo::new(port, ws, pane);
+        answer::codex_approval_gone(&io).await?;
+    } else {
+        port.sleep(WORDS_AFTER_MS).await;
+    }
+    let input = Input {
+        text: Some(words.to_string()),
+        ..Input::default()
+    };
+    type_into(port, mobile, ws, pane, input).await.map(|_| ())
 }
 
 /// `remote_manager {text}`: typed into the project manager's pane.
@@ -865,4 +1052,348 @@ pub fn remote_workspace(port: &Port, args: &Value) -> Result<RemoteWorkspace, St
         name: ws.name.clone(),
         cwd: ws.cwd.clone(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    //! A Codex pane's permissions and questions answered from the phone or
+    //! the chat: through the asks Hangar's client of its server holds
+    //! (hangar-core agent/codex_attach.rs), reported here in its shapes, and
+    //! never by keys unless the screen shows Codex's dialog. Claude Code's
+    //! own paths are the suites' of mobile/tests/.
+
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use hangar_core::bridge::{self as core_bridge, AskPoll};
+    use hangar_core::chat::ChatPage;
+    use hangar_core::git::{ChangedFile, Changes, FileDiff};
+    use hangar_core::mobile_data::ActivityEntry;
+    use hangar_core::stats::UsageStats;
+
+    use super::*;
+    use crate::control::fake::{Fake, lock};
+    use crate::control::port::BoxFuture;
+    use crate::live::BridgeEvent;
+    use crate::mobile::answer::{CODEX_NOT_ON_SCREEN, answer_pane, choices_of};
+    use crate::mobile::chat_live::pending_now as live_pending;
+    use crate::mobile::engine::{ChatRead, Sources};
+    use crate::orchestration::manager_feed::ManagerJournalEntry;
+    use crate::orchestration::projects::ProjectSummary;
+    use crate::state::PaneActivity;
+
+    /// What a Codex pane reads beyond the port: nothing here (its pages
+    /// come from its rollout, which a thread made up for a test has none of).
+    struct Nothing;
+
+    fn ready<T: Send + 'static>(value: T) -> BoxFuture<T> {
+        Box::pin(std::future::ready(value))
+    }
+
+    impl Sources for Nothing {
+        fn projects(&self) -> BoxFuture<Vec<ProjectSummary>> {
+            ready(Vec::new())
+        }
+        fn manager_journal(&self) -> Vec<ManagerJournalEntry> {
+            Vec::new()
+        }
+        fn history(&self, _: u64) -> BoxFuture<Result<Vec<ActivityEntry>, String>> {
+            ready(Ok(Vec::new()))
+        }
+        fn chat(&self, _: ChatRead) -> BoxFuture<Result<Option<ChatPage>, String>> {
+            ready(Err(
+                "no Claude Code transcript is read for a Codex pane".into()
+            ))
+        }
+        fn usage(&self) -> BoxFuture<Result<Arc<UsageStats>, String>> {
+            ready(Err("no statistics".into()))
+        }
+        fn worktrees(&self, _: &str) -> BoxFuture<Result<Vec<String>, String>> {
+            ready(Ok(Vec::new()))
+        }
+        fn stats_now(&self) -> i64 {
+            0
+        }
+        fn changes(&self, _: &str, _: &str) -> BoxFuture<Result<Changes, String>> {
+            ready(Err("no git".into()))
+        }
+        fn file_diff(
+            &self,
+            _: &str,
+            _: &ChangedFile,
+            _: &str,
+        ) -> BoxFuture<Result<FileDiff, String>> {
+            ready(Err("no git".into()))
+        }
+        fn wait(&self, _: u64) -> BoxFuture<()> {
+            ready(())
+        }
+        fn listening(&self, _: Vec<u16>) -> BoxFuture<Result<Vec<u16>, String>> {
+            ready(Ok(Vec::new()))
+        }
+        fn tasks(&self, _: &str) -> BoxFuture<Result<Vec<(String, String)>, String>> {
+            ready(Ok(Vec::new()))
+        }
+    }
+
+    const CWD: &str = "/repo";
+
+    /// One workspace with Codex pane `pane`, its thread made up, waiting,
+    /// its terminal showing a shell.
+    fn codex(pane: &str) -> (Arc<Fake>, Arc<Mobile>, Workspace, Pane) {
+        let cody = Pane {
+            id: pane.into(),
+            name: "Cody".into(),
+            agent: AgentId::Codex,
+            session_id: Some("019a7c2e-5b1d-7f43-9a61-000000000018".into()),
+            ..Pane::default()
+        };
+        let ws = Workspace {
+            id: "w1".into(),
+            name: "Repo".into(),
+            cwd: CWD.into(),
+            panes: vec![cody.clone()],
+            ..Workspace::default()
+        };
+        let fake = Fake::with_state(AppState {
+            workspaces: vec![ws.clone()],
+            ..AppState::default()
+        });
+        *lock(&fake.terminals) = vec![pane.to_string()];
+        lock(&fake.activity).insert(
+            pane.to_string(),
+            PaneActivity {
+                workspace_id: "w1".into(),
+                activity: AgentActivity::Waiting,
+                bridged: true,
+            },
+        );
+        (fake, Mobile::new(Arc::new(Nothing)), ws, cody)
+    }
+
+    /// What Hangar's client of the pane's server reports, to the window and
+    /// to core's held asks alike (bridge.rs, `report`).
+    fn report(mobile: &Mobile, pane: &str, event: Value) {
+        core_bridge::note_report(pane, &event);
+        if let Some(parsed) = BridgeEvent::parse(&event) {
+            mobile.note_bridge_event(pane, &parsed, 1_000);
+        }
+    }
+
+    /// Codex's command approval, held: `item/commandExecution/requestApproval`
+    /// as `describe` reports it.
+    fn command_asked(mobile: &Mobile, pane: &str, ask: &str) {
+        let input = json!({"command": "pnpm test", "cwd": CWD, "reason": "needs the network"});
+        report(
+            mobile,
+            pane,
+            json!({"kind": "tool", "phase": "start", "toolUseId": "item-7", "tool": "Bash",
+                   "input": {"command": "pnpm test", "cwd": CWD}}),
+        );
+        report(
+            mobile,
+            pane,
+            json!({"kind": "permission", "waiting": true, "tool": "Bash", "input": input,
+                   "askId": ask, "toolUseId": "item-7"}),
+        );
+    }
+
+    /// Codex's side of the held ask: what it is answered with.
+    fn codex_takes(pane: &str, ask: &str) -> tokio::task::JoinHandle<AskPoll> {
+        let (pane, ask) = (pane.to_string(), ask.to_string());
+        tokio::spawn(async move {
+            core_bridge::await_decision(&pane, &ask, Duration::from_secs(5)).await
+        })
+    }
+
+    async fn shown(port: &Port, mobile: &Mobile, ws: &Workspace, pane: &Pane) -> String {
+        match live_pending(port, mobile, ws, pane).await {
+            Ok(Some(ChatPending::Permission { prompt, .. })) => prompt,
+            other => panic!("no permission pending: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn each_agent_s_side_channel_is_its_own_setting() {
+        let mut settings = Settings::default();
+        let pane = |agent| Pane {
+            agent,
+            ..Pane::default()
+        };
+        let on = |settings: &Settings, agent| side_channel(settings, &pane(agent)).map(|c| c.on);
+        assert_eq!(on(&settings, AgentId::Claude), Some(true));
+        assert_eq!(on(&settings, AgentId::Codex), Some(true));
+        assert_eq!(on(&settings, AgentId::Shell), None);
+        settings.codex_attach = false;
+        assert_eq!(on(&settings, AgentId::Codex), Some(false));
+        assert_eq!(on(&settings, AgentId::Claude), Some(true));
+        settings.claude_bridge = false;
+        settings.codex_attach = true;
+        assert_eq!(on(&settings, AgentId::Claude), Some(false));
+        assert_eq!(on(&settings, AgentId::Codex), Some(true));
+    }
+
+    #[test]
+    fn the_phone_s_answer_to_a_permission_is_checked() {
+        assert_eq!(
+            permit_of(true, false, None),
+            Ok(Permit::Allow { session: false })
+        );
+        assert_eq!(
+            permit_of(true, true, Some("  ")),
+            Ok(Permit::Allow { session: true })
+        );
+        assert_eq!(
+            permit_of(false, false, Some("  use cargo  ")),
+            Ok(Permit::Deny {
+                words: Some("use cargo".into())
+            })
+        );
+        assert_eq!(
+            permit_of(false, false, None),
+            Ok(Permit::Deny { words: None })
+        );
+        assert!(permit_of(true, false, Some("why")).is_err());
+        assert!(permit_of(false, true, None).is_err());
+    }
+
+    #[tokio::test]
+    async fn a_codex_command_is_allowed_for_the_session_through_the_ask_held() {
+        const PANE: &str = "codex-held-session";
+        let (fake, mobile, ws, cody) = codex(PANE);
+        let port = fake.port();
+        command_asked(&mobile, PANE, "codex-1-7");
+        let codex = codex_takes(PANE, "codex-1-7");
+        let prompt = shown(&port, &mobile, &ws, &cody).await;
+        let answered = permit_as(
+            &port,
+            &mobile,
+            &ws,
+            &cody,
+            Permit::Allow { session: true },
+            Some(&prompt),
+        )
+        .await;
+        assert_eq!(
+            answered,
+            Ok(RemoteAnswered {
+                answered: true,
+                queued: None
+            })
+        );
+        assert_eq!(
+            codex.await.unwrap(),
+            AskPoll::Decision(json!({"behavior": "allow", "forSession": true}))
+        );
+        assert!(fake.typed().is_empty(), "no key typed");
+        assert!(core_bridge::held_asks(PANE).is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_codex_command_denied_with_words_stops_the_turn_and_queues_them() {
+        const PANE: &str = "codex-held-words";
+        let (fake, mobile, ws, cody) = codex(PANE);
+        let port = fake.port();
+        command_asked(&mobile, PANE, "codex-2-7");
+        let codex = codex_takes(PANE, "codex-2-7");
+        let prompt = shown(&port, &mobile, &ws, &cody).await;
+        let no = Permit::Deny {
+            words: Some("Run cargo test instead.".into()),
+        };
+        assert!(
+            permit_as(&port, &mobile, &ws, &cody, no, Some(&prompt))
+                .await
+                .is_ok()
+        );
+        assert_eq!(
+            codex.await.unwrap(),
+            AskPoll::Decision(json!({"behavior": "deny", "interrupt": true}))
+        );
+        // The person's own words, for the session to take once the turn is
+        // over (codex_attach.rs delivers them as the next turn).
+        assert_eq!(
+            fake.logged("enqueue:"),
+            [format!("enqueue:{PANE}:Run cargo test instead.")]
+        );
+        assert_eq!(
+            *lock(&fake.senders),
+            ["Run cargo test instead. <- the person"]
+        );
+        assert!(fake.typed().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_codex_pane_on_its_plain_tui_gets_no_key_unless_its_dialog_shows() {
+        const PANE: &str = "codex-floor";
+        let (fake, mobile, ws, cody) = codex(PANE);
+        let port = fake.port();
+        // No side channel: no prompt to name, no ask held. The terminal
+        // shows a shell, not Codex's dialog.
+        for permit in [
+            Permit::Allow { session: false },
+            Permit::Allow { session: true },
+            Permit::Deny {
+                words: Some("stop".into()),
+            },
+        ] {
+            assert_eq!(
+                permit_as(&port, &mobile, &ws, &cody, permit, None).await,
+                Err(CODEX_NOT_ON_SCREEN.to_string())
+            );
+        }
+        assert!(fake.typed().is_empty(), "nothing typed: {:?}", fake.typed());
+        assert!(fake.logged("enqueue:").is_empty());
+        assert!(mobile.book().answering.is_empty(), "the pane let go");
+    }
+
+    #[tokio::test]
+    async fn a_codex_question_is_answered_by_id_through_the_ask_held() {
+        const PANE: &str = "codex-held-question";
+        let (fake, mobile, ws, cody) = codex(PANE);
+        let port = fake.port();
+        let input = json!({"questions": [{
+            "id": "deploy", "question": "Deploy now?", "header": "Deploy", "multiSelect": false,
+            "options": [{"label": "Yes", "description": "Ship it"}, {"label": "No", "description": ""}],
+            "isOther": true, "isSecret": false,
+        }]});
+        report(
+            &mobile,
+            PANE,
+            json!({"kind": "tool", "phase": "start", "toolUseId": "item-11",
+                   "tool": "AskUserQuestion", "input": input}),
+        );
+        report(
+            &mobile,
+            PANE,
+            json!({"kind": "permission", "waiting": true, "tool": "AskUserQuestion", "input": input,
+                   "askId": "codex-3-21", "toolUseId": "item-11"}),
+        );
+        let codex = codex_takes(PANE, "codex-3-21");
+        let answers = json!([{"other": "after the freeze"}]);
+        let answered = answer_pane(&port, &mobile, &ws, &cody, "item-11", |questions| {
+            choices_of(questions, Some(&answers))
+        })
+        .await;
+        assert_eq!(
+            answered,
+            Ok(RemoteAnswered {
+                answered: true,
+                queued: None
+            })
+        );
+        assert_eq!(
+            codex.await.unwrap(),
+            AskPoll::Decision(json!({"behavior": "allow", "answers": {
+                "deploy": ["None of the above", "user_note: after the freeze"],
+            }}))
+        );
+        assert!(fake.typed().is_empty());
+
+        // Asked of a question Codex no longer waits on, Codex is named.
+        let gone = answer_pane(&port, &mobile, &ws, &cody, "item-99", |questions| {
+            choices_of(questions, Some(&answers))
+        })
+        .await;
+        assert_eq!(gone, Err("Codex now waits on another question.".into()));
+    }
 }

@@ -11,6 +11,7 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 
+use hangar_core::agent::AgentKind;
 use hangar_engine::control::port::ModelCmd;
 use hangar_engine::host::{Config, EngineHost, Spawn, TermEvent, TermSink, Terminals};
 use hangar_engine::orchestration::events::{DeliveryOutcome, OrchestratorEvent};
@@ -85,10 +86,14 @@ async fn eventually<T>(what: &str, mut found: impl FnMut() -> Option<T>) -> T {
 }
 
 fn pane(id: &str, name: &str, role: Option<PaneRole>) -> Pane {
+    pane_of(id, name, role, AgentId::Claude)
+}
+
+fn pane_of(id: &str, name: &str, role: Option<PaneRole>, agent: AgentId) -> Pane {
     Pane {
         id: id.into(),
         name: name.into(),
-        agent: AgentId::Claude,
+        agent,
         role,
         ..Pane::default()
     }
@@ -181,17 +186,29 @@ async fn rig() -> Rig {
 /// is the process's own, and the tests run side by side), its connector
 /// on a Discord of its own, paired with `owner` when given.
 async fn rig_with(leo: &str, owner: Option<&str>) -> Rig {
+    rig_of(leo, owner, AgentId::Claude, None).await
+}
+
+/// [`rig_with`], Leo running `agent`, the settings' default orchestrator
+/// agent `orchestrator`.
+async fn rig_of(
+    leo: &str,
+    owner: Option<&str>,
+    agent: AgentId,
+    orchestrator: Option<AgentKind>,
+) -> Rig {
     let root = tempfile::tempdir().unwrap();
     let state = AppState {
         workspaces: vec![Workspace {
             id: "shop".into(),
             name: "My Shop".into(),
             cwd: root.path().to_string_lossy().into_owned(),
-            panes: vec![pane(leo, "Leo", Some(PaneRole::Orchestrator))],
+            panes: vec![pane_of(leo, "Leo", Some(PaneRole::Orchestrator), agent)],
             ..Workspace::default()
         }],
         settings: Settings {
             locale: Some(Locale::Fr),
+            default_orchestrator_agent: orchestrator,
             ..Settings::default()
         },
         ..AppState::default()
@@ -1351,4 +1368,257 @@ async fn a_lightning_bolt_sends_a_waiting_message_now() {
             assert!(check(other).is_empty(), "{other} marked ✅ while it waits");
         }
     }
+}
+
+/* ── Codex panes ───────────────────────────────────────────────── */
+
+/// A Codex pane is followed as a Claude Code one is: the client Hangar
+/// attaches to it reports the same events (hangar-core's
+/// agent/codex_attach.rs; those below are written as it writes them), so
+/// its turn has its card under its name, its calls (a command, a patch)
+/// and its answer, and what the person writes while it works waits in its
+/// queue, the ⚡ on it sending it first.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_codex_orchestrator_is_followed_as_claude_code_is() {
+    const LEO: &str = "leo-codex";
+    let rig = rig_of(LEO, Some("u1"), AgentId::Codex, None).await;
+    let d = &rig.discord;
+    let channel = shop_channel(&rig).await;
+    let core = rig.host.core().clone();
+    let bridge = |event: Value| {
+        core.emit(hangar_core::Event::BridgeEvent {
+            pane_id: LEO.into(),
+            event,
+        })
+        .unwrap();
+    };
+    // The thread joined: its id, Codex's model and version.
+    bridge(
+        json!({ "kind": "hello", "sessionId": "thr-1", "model": "gpt-5.5-codex",
+        "version": "0.170.0" }),
+    );
+    bridge(json!({ "kind": "turn", "phase": "start" }));
+    let card = eventually("the turn's card", || d.find("POST", "travaille")).await;
+    assert!(card.path.starts_with("/webhooks/"), "{card:?}");
+    assert_eq!(card.body["username"], "Leo");
+    eventually("Leo working", || {
+        rig.host
+            .snapshot()
+            .activity
+            .get(LEO)
+            .is_some_and(|a| a.activity == hangar_engine::state::AgentActivity::Working)
+            .then_some(())
+    })
+    .await;
+
+    // Its calls on its card: a command as a shell command, a patch as the
+    // files it changes.
+    bridge(
+        json!({ "kind": "tool", "phase": "start", "toolUseId": "item-1", "tool": "Bash",
+        "input": { "command": "cargo test", "cwd": "/work/shop" } }),
+    );
+    bridge(json!({ "kind": "tool", "phase": "end", "toolUseId": "item-1" }));
+    bridge(
+        json!({ "kind": "tool", "phase": "start", "toolUseId": "item-2",
+        "tool": "apply_patch", "input": { "changes": [
+            { "path": "src/cart.rs", "kind": "update", "diff": "@@ -1 +1 @@" },
+            { "path": "src/pay.rs", "kind": "add", "diff": "+fn pay() {}" },
+        ] } }),
+    );
+    eventually("the card edited with both calls", || {
+        d.calls_to("PATCH", "/webhooks/").into_iter().find(|c| {
+            let body = c.body.to_string();
+            body.contains("Bash cargo test") && body.contains("apply_patch src/cart.rs +1")
+        })
+    })
+    .await;
+
+    // What the owner writes while Codex works waits in its queue (⏳, then
+    // ⚡ once its entry is found); the ⚡ on the second sends it first, and
+    // the turn is stopped.
+    for (id, word) in [("c1", "un"), ("c2", "deux")] {
+        d.send(
+            "MESSAGE_CREATE",
+            json!({ "id": id, "channel_id": channel, "guild_id": "g1",
+            "content": word, "author": { "id": "u1" } }),
+        );
+    }
+    let queue = || -> Vec<String> {
+        hangar_core::bridge::bridge_queue(LEO.into())
+            .into_iter()
+            .filter(|entry| entry.from.is_none())
+            .map(|entry| entry.text)
+            .collect()
+    };
+    eventually("both waiting", || (queue() == ["un", "deux"]).then_some(())).await;
+    eventually("each marked ⚡", || {
+        (d.count("PUT", "/reactions/%E2%9A%A1/@me") == 2).then_some(())
+    })
+    .await;
+    d.send(
+        "MESSAGE_REACTION_ADD",
+        json!({ "user_id": "u1", "channel_id": channel, "message_id": "c2",
+        "guild_id": "g1", "emoji": { "id": null, "name": "\u{26a1}" } }),
+    );
+    eventually("the second first", || {
+        (queue() == ["deux", "un"]).then_some(())
+    })
+    .await;
+    eventually("Codex's turn stopped", || {
+        rig.shells.typed_into(LEO).contains('\u{1b}').then_some(())
+    })
+    .await;
+
+    // The turn ends, interrupted: its card folded with its two calls, its
+    // answer posted under its name.
+    bridge(json!({ "kind": "tool", "phase": "end", "toolUseId": "item-2" }));
+    bridge(
+        json!({ "kind": "turn", "phase": "end", "reason": "aborted", "durationMs": 4000,
+        "answer": "Le panier est branché sur le paiement." }),
+    );
+    eventually("the turn folded", || d.find("PATCH", "2 actions")).await;
+    let answer = eventually("the answer", || {
+        d.find("POST", "Le panier est branché sur le paiement.")
+    })
+    .await;
+    assert_eq!(answer.body["username"], "Leo");
+
+    // Hangar's client takes the queue's first for Codex's next turn (as
+    // the mod does for Claude Code): the one the ⚡ sent, marked ✅.
+    let next = loop {
+        let next =
+            hangar_core::bridge::take_next(rig.host.core(), LEO, false).expect("a message waits");
+        if next.from.is_none() {
+            break next.text;
+        }
+    };
+    assert_eq!(next, "deux");
+    eventually("the one taken marked ✅", || {
+        d.calls_to(
+            "PUT",
+            &format!("/channels/{channel}/messages/c2/reactions/%E2%9C%85"),
+        )
+        .pop()
+    })
+    .await;
+}
+
+/// The dashboard of a workspace whose panes run both agents says which runs
+/// which; that of a workspace of one agent reads as it always did.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_dashboard_names_the_agents_of_a_mixed_workspace() {
+    let rig = rig_of("leo-mixed", Some("u1"), AgentId::Codex, None).await;
+    let d = &rig.discord;
+    let channel = shop_channel(&rig).await;
+    let dashboards = || {
+        d.calls()
+            .into_iter()
+            .filter(|c| c.path.starts_with(&format!("/channels/{channel}/messages")))
+            .filter(|c| c.body.to_string().contains("Tableau de bord"))
+            .collect::<Vec<_>>()
+    };
+    let first = eventually("the dashboard", || dashboards().first().cloned()).await;
+    assert!(
+        !first.body.to_string().contains("Codex"),
+        "a workspace of Codex alone: {first:?}"
+    );
+    // A Claude Code worker joins Codex's workspace.
+    rig.add_worker("Ada", "t1");
+    let mixed = eventually("the dashboard drawn again, naming both", || {
+        dashboards().into_iter().find(|c| {
+            let body = c.body.to_string();
+            body.contains("**Leo** · Codex") && body.contains("**Ada** · Claude Code")
+        })
+    })
+    .await;
+    assert_eq!(mixed.method, "PATCH");
+}
+
+/// `/workspace` makes its orchestrator with the agent a new workspace's
+/// orchestrator runs (D20): the settings' default, else Claude Code when it
+/// is there or neither is, else Codex. Through the model writes (the
+/// desktop's way, `add_workspace`), and through a host that makes it itself
+/// (a node's).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_workspace_made_from_discord_runs_the_default_orchestrator_agent() {
+    use hangar_discord::hangar::add_workspace_with;
+    let rig = rig().await;
+    let port = rig.host.port();
+    let orchestrator_of = |ws: &str| {
+        let snapshot = rig.host.snapshot();
+        let ws = snapshot
+            .state
+            .workspaces
+            .iter()
+            .find(|w| w.id == ws)
+            .unwrap();
+        assert_eq!(ws.panes.len(), 1);
+        assert_eq!(ws.panes[0].role, Some(PaneRole::Orchestrator));
+        ws.panes[0].agent
+    };
+    let folder = |name: &str| {
+        let folder = rig._root.path().join(name);
+        std::fs::create_dir_all(&folder).unwrap();
+        folder.to_string_lossy().into_owned()
+    };
+    let cases: [(&str, &[AgentKind], AgentId); 4] = [
+        (
+            "both",
+            &[AgentKind::Claude, AgentKind::Codex],
+            AgentId::Claude,
+        ),
+        ("claude", &[AgentKind::Claude], AgentId::Claude),
+        ("codex", &[AgentKind::Codex], AgentId::Codex),
+        ("none", &[], AgentId::Claude),
+    ];
+    for (name, installed, agent) in cases {
+        let ws = add_workspace_with(&port, name, &folder(name), |kind| installed.contains(&kind))
+            .await
+            .unwrap();
+        assert_eq!(orchestrator_of(&ws), agent, "{name}");
+    }
+
+    // The settings say Codex: a workspace made from Discord runs Codex,
+    // either way it is made, whatever is installed.
+    let rig = rig_of(
+        "leo-default",
+        Some("u1"),
+        AgentId::Claude,
+        Some(AgentKind::Codex),
+    )
+    .await;
+    let port = rig.host.port();
+    let made = rig._root.path().join("made");
+    std::fs::create_dir_all(&made).unwrap();
+    let ws = add_workspace_with(&port, "Made", &made.to_string_lossy(), |_| true)
+        .await
+        .unwrap();
+    let snapshot = rig.host.snapshot();
+    let pane = &snapshot
+        .state
+        .workspaces
+        .iter()
+        .find(|w| w.id == ws)
+        .unwrap()
+        .panes[0];
+    assert_eq!(pane.agent, AgentId::Codex);
+
+    let d = &rig.discord;
+    let channel = shop_channel(&rig).await;
+    let blog = rig._root.path().join("blog");
+    std::fs::create_dir_all(&blog).unwrap();
+    d.send("INTERACTION_CREATE", interaction("iw", "u1", &channel, 2, json!({
+        "name": "workspace",
+        "options": [{ "name": "folder", "value": blog.to_string_lossy() }, { "name": "name", "value": "Blog" }],
+    }), None));
+    eventually("the command answered", || d.find("PATCH", "Workspace créé")).await;
+    let snapshot = rig.host.snapshot();
+    let blog = snapshot
+        .state
+        .workspaces
+        .iter()
+        .find(|w| w.name == "Blog")
+        .unwrap();
+    assert_eq!(blog.panes[0].agent, AgentId::Codex);
+    assert_eq!(blog.panes[0].role, Some(PaneRole::Orchestrator));
 }

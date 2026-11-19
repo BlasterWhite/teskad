@@ -305,7 +305,7 @@ fn reads(fake: &Fake) -> Vec<String> {
 /* ── who gets a briefing ───────────────────────────────────────── */
 
 #[test]
-fn is_only_a_claude_code_pane_with_a_role() {
+fn is_only_an_agents_pane_with_a_role() {
     assert_eq!(build(&with_pane("p")), None);
     assert_eq!(build(&with_pane("s")), None);
     assert_eq!(build(&with_pane("b")), None);
@@ -714,7 +714,13 @@ fn is_found_by_its_title_or_by_the_folder_it_was_written_from() {
 #[test]
 fn carries_the_role_and_the_state_in_one_message() {
     let briefing = build(&setup()).unwrap();
-    let text = role_message(briefing.role, &briefing.system, &briefing.context, "Shop");
+    let text = role_message(
+        briefing.role,
+        &briefing.system,
+        &briefing.context,
+        "Shop",
+        RoleBriefing::SystemPrompt,
+    );
     assert!(
         text.starts_with("Hangar has just pinned you as the orchestrator of workspace \"Shop\".")
     );
@@ -858,7 +864,13 @@ async fn is_told_its_role_mid_session_and_when_it_loses_it() {
         .await
         .unwrap()
         .unwrap();
-    let text = role_message(briefing.role, &briefing.system, &briefing.context, "HQ");
+    let text = role_message(
+        briefing.role,
+        &briefing.system,
+        &briefing.context,
+        "HQ",
+        RoleBriefing::SystemPrompt,
+    );
     assert!(text.starts_with("Hangar has just pinned you as the person's project manager"));
     assert!(text.contains(&briefing.context));
     assert!(
@@ -949,4 +961,156 @@ async fn the_briefing_reads_the_last_check_from_its_port() {
         "{}",
         briefing.context
     );
+}
+
+/* ── either agent ──────────────────────────────────────────────── */
+
+/// The setup with pane `id` running `agent`.
+fn running(id: &str, agent: AgentId) -> Setup {
+    let mut setup = setup();
+    for pane in &mut setup.state.workspaces[0].panes {
+        if pane.id == id {
+            pane.agent = agent;
+        }
+    }
+    setup
+}
+
+/// A Codex orchestrator is briefed as a Claude Code one is, in its own
+/// agent's words; its workers run Codex unless the workspace chose another,
+/// and the Claude Code worker it has is named for what it runs.
+#[test]
+fn briefs_a_codex_orchestrator_in_its_own_agents_words() {
+    let briefing = build(&running("o", AgentId::Codex)).expect("a Codex orchestrator is briefed");
+    assert_eq!(briefing.role, PaneRole::Orchestrator);
+    assert!(
+        briefing.system.contains(
+            "HangarAI pinned this Codex session as the orchestrator of workspace \"Shop\"."
+        )
+    );
+    assert!(!briefing.system.contains("this Claude Code session"));
+    for needed in [
+        "workers run Codex (its default model).",
+        "- worker-1 (Claude Code) on \"Login form\" [t1]: working",
+    ] {
+        assert!(
+            briefing.context.contains(needed),
+            "{needed}\n---\n{}",
+            briefing.context
+        );
+    }
+}
+
+/// A Codex worker under a Claude Code orchestrator: its role names Codex,
+/// its state is the one a Claude Code worker gets, and its orchestrator
+/// sees which agent it runs.
+#[test]
+fn briefs_a_codex_worker_under_a_claude_code_orchestrator() {
+    let mixed = running("w1", AgentId::Codex);
+    let worker = build(&Setup {
+        pane_id: "w1".into(),
+        ..mixed.clone()
+    })
+    .expect("a Codex worker is briefed");
+    assert_eq!(worker.role, PaneRole::Worker);
+    assert!(
+        worker
+            .system
+            .contains("HangarAI started this Codex session to do one board task"),
+        "{}",
+        worker.system
+    );
+    assert!(!worker.system.contains("Claude Code"));
+    assert!(worker.context.contains("Orchestrator: pane \"orch\"."));
+    assert!(
+        worker
+            .context
+            .contains("Owns: src/login/**, src/login.test.ts.")
+    );
+
+    let orchestrator = build(&mixed).expect("its orchestrator");
+    assert!(
+        orchestrator
+            .system
+            .contains("pinned this Claude Code session")
+    );
+    for needed in [
+        "workers run Claude Code (sonnet).",
+        "- worker-1 (Codex) on \"Login form\" [t1]: working",
+    ] {
+        assert!(
+            orchestrator.context.contains(needed),
+            "{needed}\n---\n{}",
+            orchestrator.context
+        );
+    }
+}
+
+/// The workspace's worker agent, and its model on that agent, are what the
+/// orchestrator is told its workers run.
+#[test]
+fn tells_the_orchestrator_which_agent_its_workers_run() {
+    let mut codex_workers = setup();
+    let orchestration = codex_workers.state.workspaces[0]
+        .orchestration
+        .as_mut()
+        .unwrap();
+    orchestration.worker_agent = Some(hangar_core::agent::AgentKind::Codex);
+    orchestration.codex_models.worker = Some("gpt-5.5".into());
+    let context = build(&codex_workers).unwrap().context;
+    assert!(
+        context.contains("workers run Codex (gpt-5.5)."),
+        "{context}"
+    );
+    // Its Claude Code worker is not what a new one runs: named.
+    assert!(context.contains("- worker-1 (Claude Code) on"), "{context}");
+}
+
+/// A Codex pane takes its role on its launch, as developer instructions; a
+/// Claude Code pane gets its own from its mod, so its launch carries none.
+#[tokio::test]
+async fn hands_the_role_to_the_launch_of_an_agent_that_takes_it_there() {
+    let deps = fake(running("w1", AgentId::Codex));
+    let role = launch_role("w1", &deps)
+        .await
+        .unwrap()
+        .expect("Codex takes its role on its launch");
+    assert!(role.contains("started this Codex session"), "{role}");
+    assert_eq!(launch_role("o", &deps).await, Ok(None));
+    assert_eq!(launch_role("p", &deps).await, Ok(None));
+    assert_eq!(launch_role("gone", &deps).await, Ok(None));
+}
+
+/// A role given to a running Codex session reaches it as a message, and says
+/// it comes back as developer instructions; Claude Code's says, as before,
+/// that it comes back in its system prompt. A session its side channel does
+/// not reach is sent nothing, whatever its agent.
+#[tokio::test]
+async fn announces_a_role_to_a_session_of_either_agent_its_side_channel_reaches() {
+    let deps = fake(running("w1", AgentId::Codex));
+    assert_eq!(announce_role("shop", "w1", None, &deps).await, Ok(true));
+    let sent = deps.sent.lock().unwrap()[0].1.clone();
+    assert!(sent.starts_with("Hangar has just made you a worker in workspace \"Shop\"."));
+    assert!(
+        sent.contains(
+            "Hangar gives it to you as developer instructions when this pane starts again."
+        )
+    );
+    assert!(sent.contains("started this Codex session"));
+
+    let claude = fake(setup());
+    assert_eq!(announce_role("shop", "w1", None, &claude).await, Ok(true));
+    assert!(
+        claude.sent.lock().unwrap()[0]
+            .1
+            .contains("Hangar adds it to your system prompt at the next compaction.")
+    );
+
+    // The orchestrator's session is not bridged in this world.
+    let codex_led = fake(running("o", AgentId::Codex));
+    assert_eq!(
+        announce_role("shop", "o", None, &codex_led).await,
+        Ok(false)
+    );
+    assert!(codex_led.sent.lock().unwrap().is_empty());
 }
