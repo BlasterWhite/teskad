@@ -1,0 +1,4 @@
+# Agents' transcripts and rollouts as they write them, with LF line ends on
+# every platform: the readers count bytes (an item's id is its line's offset),
+# so a Windows checkout's CRLF would move every id.
+* text eol=lf
