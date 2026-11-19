@@ -2,10 +2,10 @@
 //! shell starts with (docs/native/agents.md §4.2.1, the Claude Code column).
 //!
 //! Moved from hangar-engine's `panes/agents.rs` (`launchCommand` of
-//! lib/agents.ts), which keeps typing its own copy until the engine calls
-//! [`launch::build`](super::launch::build) (task T14a). The tests below are
-//! that file's, and the desktop's that go through it, with the very same
-//! lines: Claude Code starts byte for byte as it did.
+//! lib/agents.ts), which now asks [`launch::build`](super::launch::build)
+//! for it (task T14a). The tests below are that file's, and the desktop's
+//! that go through it, with the very same lines: Claude Code starts byte for
+//! byte as it did.
 
 use std::ffi::OsString;
 

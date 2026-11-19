@@ -4,9 +4,11 @@
 //!
 //! The line is core's (`hangar_core::agent::launch`, docs/native/agents.md
 //! §3.4, D4): this file says what the pane asks of its agent's launch, in
-//! words no agent owns ([`request`]), and types what the builder answers, for
-//! Claude Code and Codex alike. What a pane gets follows its kind's
-//! capabilities, not its name:
+//! words no agent owns ([`request`]), and the PTY starts the shell with it
+//! (`pty_spawn_launch`, through [`Terminals::spawn_agent`]): the launch
+//! completed from the shell as it really starts, its variables in the
+//! shell's environment, and the line to type. What a pane gets follows its
+//! kind's capabilities, not its name:
 //!
 //! - the account its pane, workspace, folder or settings chose for that kind,
 //!   which the PTY brings level with main and names in the shell's
@@ -16,27 +18,33 @@
 //!   for a workspace that chose its servers or a pane with a role, named by
 //!   the variable the shell is handed; for a kind that takes overrides
 //!   (Codex, D8), Hangar's executable on every pane's launch;
-//! - its session resumed when its transcript is there;
+//! - its session resumed when the conversation is still there
+//!   (`session_watch::session_to_resume`);
 //! - for an orchestrator's or a worker's pane, the orchestration's permission
 //!   mode and Hangar's tools let through.
 //!
 //! A Claude Code pane gets the hangar-bridge mod too (the settings'
 //! `claude_bridge`). A Codex pane runs attached to a server of its own when
-//! « Attach Hangar to Codex » is on and the server starts (D5), its plain TUI
-//! otherwise (the floor, D6): [`attached_server`] is the one place that says
-//! which.
+//! « Attach Hangar to Codex » is on and the server starts (D5), Codex's plain
+//! TUI otherwise (the floor, D6), with its settings in the shell's
+//! `HANGAR_CODEX_*` variables; the host keeps which, and why
+//! (`EngineHost::agent_server`).
+//!
+//! [`Terminals::spawn_agent`]: super::terminals::Terminals::spawn_agent
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use hangar_core::agent::launch::{self, LaunchRequest, McpRequest, ShellSyntax};
+use hangar_core::agent::launch::{LaunchRequest, McpRequest};
 use hangar_core::agent::{AgentKind, McpInjection};
+use hangar_core::pty::AgentLaunch;
 
-use super::terminals::{Spawn, TermEvent, TermSink};
+use super::terminals::{AgentStart, Spawn, TermEvent, TermSink};
 use super::{EngineHost, locked};
 use crate::accounts::AccountLevels;
 use crate::live::PaneStatus;
 use crate::panes::agents::permission_mode;
+use crate::panes::session_watch::session_to_resume;
 use crate::panes::wall_clock_ms;
 use crate::state::roles::{ORCHESTRATION_ALLOWED_TOOLS, orchestration_of};
 use crate::state::types::{AppState, McpMode, Pane, Settings, Workspace};
@@ -140,22 +148,31 @@ fn hangar_executable(pane: &Pane) -> Option<String> {
     }
 }
 
-/// What the pane's launch was made of.
-struct Prepared {
-    spawn: Spawn,
-    /// The `--mcp-config` file was written ([`Spawn::mcp_config`]), and
-    /// whether it replaces the agent's own servers.
-    mcp: Option<bool>,
+/// What `prepare` found on the disk for the agent's launch.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct Found {
+    /// The `--mcp-config` file written for the launch, and whether it
+    /// replaces the agent's own servers.
+    mcp: Option<(String, bool)>,
     /// Hangar's executable, for a kind that takes Hangar's server as
     /// overrides ([`Servers::Overrides`]).
     hangar_mcp: Option<String>,
+    /// The session to resume.
     resume: Option<String>,
+}
+
+/// What the pane's start was made of.
+struct Prepared {
+    spawn: Spawn,
+    /// Its agent's launch; `None` for a plain shell, left at its prompt.
+    agent: Option<AgentLaunch>,
 }
 
 /// Off tokio's async threads: the accounts, the MCP scope and the
 /// transcripts are files.
 fn prepare(host: &EngineHost, ws: &Workspace, pane: &Pane) -> Prepared {
     let snapshot = host.snapshot();
+    let settings = &snapshot.state.settings;
     let cwd = folder_of(ws, pane);
     let kind = pane.agent.kind();
     let account = kind.map(|kind| {
@@ -163,7 +180,7 @@ fn prepare(host: &EngineHost, ws: &Workspace, pane: &Pane) -> Prepared {
             .launch_with(|| Ok(hangar_core::accounts::accounts_of(kind)))
             .id
     });
-    let (scope, hangar_mcp) = match servers(ws, pane, kind) {
+    let (mcp, hangar_mcp) = match servers(ws, pane, kind) {
         Servers::Own => (None, None),
         Servers::File { enabled, strict } => (
             write_scope(host, ws, &cwd, enabled, account.clone()).map(|path| (path, strict)),
@@ -180,28 +197,24 @@ fn prepare(host: &EngineHost, ws: &Workspace, pane: &Pane) -> Prepared {
     } else {
         Vec::new()
     };
-    // A session whose transcript is not found is not resumed.
-    let resume = kind.and_then(|kind| {
-        pane.session_id
-            .clone()
-            .filter(|id| !id.is_empty())
-            .filter(|id| hangar_core::sessions::session_exists_for(kind, id.clone()) != Some(false))
-    });
+    let found = Found {
+        mcp,
+        hangar_mcp,
+        resume: session_to_resume(pane.agent, pane.session_id.as_deref()),
+    };
     Prepared {
         spawn: Spawn {
             id: pane.id.clone(),
             cwd,
             name: pane.name.clone(),
             agent: pane.agent.as_str().to_string(),
-            bridge: snapshot.state.settings.claude_bridge,
+            bridge: settings.claude_bridge,
             port_base: pane.port_base.and_then(|port| u16::try_from(port).ok()),
             build_env,
-            mcp_config: scope.as_ref().map(|(path, _)| path.clone()),
+            mcp_config: found.mcp.as_ref().map(|(path, _)| path.clone()),
             claude_account: account,
         },
-        mcp: scope.map(|(_, strict)| strict),
-        hangar_mcp,
-        resume,
+        agent: agent_launch(ws, pane, settings, &found),
     }
 }
 
@@ -246,9 +259,12 @@ pub(super) async fn start(host: EngineHost, ws: Workspace, pane: Pane, launch: u
         let (host, ws, pane) = (host.clone(), ws.clone(), pane.clone());
         tokio::task::spawn_blocking(move || prepare(&host, &ws, &pane)).await
     };
-    let Ok(prepared) = prepared else {
+    let Ok(Prepared { spawn, agent }) = prepared else {
         return failed(&host, &pane, launch, "the launch stopped");
     };
+    let resumed = agent
+        .as_ref()
+        .and_then(|agent| agent.request.resume.clone());
     let terminals = host.terminals().clone();
     // What the pane prints is noted where its reader thread stands, with
     // no lock; only its end goes through the host.
@@ -260,10 +276,14 @@ pub(super) async fn start(host: EngineHost, ws: Workspace, pane: Pane, launch: u
             exit @ TermEvent::Exit(_) => host.on_term(exit),
         })
     };
-    let spawn = prepared.spawn.clone();
-    let started = tokio::task::spawn_blocking(move || terminals.spawn(spawn, sink)).await;
-    match started {
-        Ok(Ok(())) if !host.held_by(&pane.id, launch) => {
+    // Blocking, a Codex server's wait included: on tokio's blocking pool.
+    let started = tokio::task::spawn_blocking(move || match agent {
+        Some(agent) => terminals.spawn_agent(spawn, agent, sink).map(Some),
+        None => terminals.spawn(spawn, sink).map(|()| None),
+    })
+    .await;
+    let agent = match started {
+        Ok(Ok(_)) if !host.held_by(&pane.id, launch) => {
             // Removed meanwhile: the kill that came with the removal found
             // no shell yet.
             let (terminals, id) = (host.terminals().clone(), pane.id.clone());
@@ -275,73 +295,49 @@ pub(super) async fn start(host: EngineHost, ws: Workspace, pane: Pane, launch: u
             }
             return;
         }
-        Ok(Ok(())) => host.set_status(&pane.id, PaneStatus::Running),
+        Ok(Ok(agent)) => {
+            host.set_status(&pane.id, PaneStatus::Running);
+            agent
+        }
         Ok(Err(error)) => return failed(&host, &pane, launch, &error),
         Err(error) => return failed(&host, &pane, launch, &error.to_string()),
-    }
+    };
+    // A plain shell is left at its prompt.
+    let Some(AgentStart { line, server }) = agent else {
+        return;
+    };
+    host.set_server(&pane.id, server);
     let snapshot = host.snapshot();
-    let Some(ws) = snapshot.state.workspaces.iter().find(|w| w.id == ws.id) else {
+    let here = snapshot
+        .state
+        .workspaces
+        .iter()
+        .find(|w| w.id == ws.id)
+        .is_some_and(|w| w.panes.iter().any(|p| p.id == pane.id));
+    if !here {
         return;
-    };
-    let Some(pane) = ws.panes.iter().find(|p| p.id == pane.id) else {
-        return;
-    };
-    let settings = &snapshot.state.settings;
-    let shell = attached_server(settings, pane);
-    let Some(line) = command_line(ws, pane, settings, &prepared, shell) else {
-        return;
-    };
+    }
     settle(&host, &pane.id).await;
     let terminals = host.terminals().clone();
     let id = pane.id.clone();
     let typed =
         tokio::task::spawn_blocking(move || terminals.write(&id, &format!("{line}\r"))).await;
     match typed {
-        Ok(Ok(())) => host.launched(&pane.id, prepared.resume.as_deref()),
+        Ok(Ok(())) => host.launched(&pane.id, resumed.as_deref()),
         Ok(Err(error)) => eprintln!("pane {}: its agent could not be started: {error}", pane.id),
         Err(error) => eprintln!("pane {}: its agent could not be started: {error}", pane.id),
     }
 }
 
-/// What the shell of a pane was started with for its agent's line, beyond
-/// what every pane gets: the socket of the server its agent attaches to, and
-/// how the shell reads the variables the line names (`LaunchSpec::env`,
-/// which the shell then holds).
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-struct LaunchShell {
-    socket: Option<String>,
-    syntax: Option<ShellSyntax>,
-}
-
-/// **The attached mode's seam** (docs/native/agents.md D5, D6): how the
-/// shell of `pane` was started for a kind that runs attached to a server of
-/// its own (Codex) — the server's socket when « Attach Hangar to Codex »
-/// (`settings.codex_attach`) is on and the pane's server started, nothing
-/// for the floor.
-///
-/// Nothing yet, whatever the setting says: hangar-core's PTY neither starts
-/// a pane's server nor hands its shell the launch's variables until task
-/// T4b lands (`pty_spawn_launch`, `codex_socket`). Every Codex pane runs the
-/// floor meanwhile, its line carrying the settings typed as they are
-/// (permission policy, model, images); those that travel in a variable of
-/// the shell — Hangar's MCP server, the role, the writable roots, the
-/// trusted folders (`agent::codex::{MCP_VAR, ROLE_VAR, ROOTS_VAR,
-/// TRUST_VAR}`) — reach it with T4b, through this function and nowhere
-/// else. A shell whose syntax is not known gets none of them rather than a
-/// variable it does not hold.
-fn attached_server(settings: &Settings, pane: &Pane) -> LaunchShell {
-    let _ = (settings.codex_attach, &pane.id);
-    LaunchShell::default()
-}
-
 /// What `pane` asks of its agent's launch, in words no agent owns: `None`
-/// for a plain shell.
+/// for a plain shell. The spawn completes it from the pane as it really
+/// starts (`pty_spawn_launch`): the shell's syntax, the account's folder,
+/// the server's socket.
 fn request(
     ws: &Workspace,
     pane: &Pane,
     settings: &Settings,
-    prepared: &Prepared,
-    shell: LaunchShell,
+    found: &Found,
 ) -> Option<LaunchRequest> {
     let kind = pane.agent.kind()?;
     let (permission_mode, allowed_tools) = if pane.role.is_some() {
@@ -363,46 +359,39 @@ fn request(
         command: settings.agent_commands.of(kind).map(str::to_string),
         cwd: folder_of(ws, pane),
         extra_roots: ws.extra_roots.clone(),
-        resume: prepared.resume.clone(),
+        resume: found.resume.clone(),
         name: Some(crate::state::pane_names::session_name(&pane.name, &ws.name)),
         model: pane.model.clone(),
         permission_mode,
         allowed_tools,
-        mcp: prepared.mcp.map(|strict| McpRequest {
-            file: prepared.spawn.mcp_config.clone().unwrap_or_default(),
+        mcp: found.mcp.as_ref().map(|(file, strict)| McpRequest {
+            file: file.clone(),
             arg: MCP_ARG.to_string(),
-            strict,
+            strict: *strict,
         }),
-        hangar_mcp: prepared.hangar_mcp.clone(),
-        shell: shell.syntax,
-        server_socket: shell.socket,
-        // Not chosen here: the account's folder, which the PTY resolves and
-        // names in the shell's environment (`pty_spawn_with`); the brief of a
-        // kind briefed at launch, the orchestration's to give (T16a); an
-        // effort per pane, which nothing chooses yet; the trust of a worker's
-        // worktree, until core reads the person's Codex configuration.
+        hangar_mcp: found.hangar_mcp.clone(),
+        // Not chosen here: the brief of a kind briefed at launch, the
+        // orchestration's to give (T16a); an effort per pane, which nothing
+        // chooses yet; the trust of a worker's worktree, until core reads
+        // the person's Codex configuration.
         ..LaunchRequest::default()
     })
 }
 
-/// The line typed into the shell, without the Enter: `None` for a plain
-/// shell. Only the line is taken from the spec: the variables the shell
-/// starts with are the PTY's (`pty_spawn_with`: the MCP file, the account).
-fn command_line(
+/// The pane's agent launch: its [`request`], run attached to a server of its
+/// own when « Attach Hangar to Codex » is on (`settings.codex_attach`, D5) —
+/// for a kind that has one; the spawn falls back to the floor when the
+/// server cannot start, and says why.
+fn agent_launch(
     ws: &Workspace,
     pane: &Pane,
     settings: &Settings,
-    prepared: &Prepared,
-    shell: LaunchShell,
-) -> Option<String> {
-    let request = request(ws, pane, settings, prepared, shell)?;
-    match launch::build(&request) {
-        Ok(spec) => Some(spec.command_line()),
-        Err(error) => {
-            eprintln!("pane {}: {error}", pane.id);
-            None
-        }
-    }
+    found: &Found,
+) -> Option<AgentLaunch> {
+    Some(AgentLaunch {
+        request: request(ws, pane, settings, found)?,
+        attach: settings.codex_attach,
+    })
 }
 
 /// Waits for the shell to print its prompt and fall quiet, or for
@@ -435,6 +424,9 @@ fn failed(host: &EngineHost, pane: &Pane, launch: u64, error: &str) {
 
 #[cfg(test)]
 mod tests {
+    use hangar_core::agent::codex::MCP_VAR;
+    use hangar_core::agent::launch::{self, ShellSyntax};
+
     use super::*;
     use crate::state::types::{
         AgentId, OrchestrationSettings, PaneRole, WorkspaceFolder, WorkspaceMcp,
@@ -442,6 +434,7 @@ mod tests {
 
     const THREAD: &str = "0199a5c4-7b3e-7c51-a2f4-6d0e8c1b9f20";
     const HANGAR: &str = "/home/Ann Lee/.local/bin/hangar-ai";
+    const MCP_FILE: &str = "/home/Ann Lee/.hangar/mcp/shop.json";
 
     fn shop(permission_mode: Option<&str>) -> Workspace {
         Workspace {
@@ -468,33 +461,23 @@ mod tests {
         }
     }
 
-    /// What `prepare` made of a pane: its MCP file and whether it is strict,
-    /// Hangar's executable, the session to resume.
-    fn prepared(mcp: Option<bool>, hangar_mcp: Option<&str>, resume: Option<&str>) -> Prepared {
-        Prepared {
-            spawn: Spawn {
-                mcp_config: mcp.map(|_| "/home/Ann Lee/.hangar/mcp/shop.json".into()),
-                ..Spawn::default()
-            },
-            mcp,
+    /// What `prepare` found: the MCP file and whether it is strict, Hangar's
+    /// executable, the session to resume.
+    fn found(mcp: Option<bool>, hangar_mcp: Option<&str>, resume: Option<&str>) -> Found {
+        Found {
+            mcp: mcp.map(|strict| (MCP_FILE.to_string(), strict)),
             hangar_mcp: hangar_mcp.map(str::to_string),
             resume: resume.map(str::to_string),
         }
     }
 
-    fn line(
-        ws: &Workspace,
-        pane: &Pane,
-        settings: &Settings,
-        prepared: &Prepared,
-    ) -> Option<String> {
-        command_line(
-            ws,
-            pane,
-            settings,
-            prepared,
-            attached_server(settings, pane),
-        )
+    /// The line core builds for the pane's launch before the spawn completes
+    /// it: the very line of Claude Code, which no shell, account or server
+    /// changes; for Codex, what terminals that cannot hand a shell the
+    /// launch's variables type (`Terminals::spawn_agent`'s default).
+    fn line(ws: &Workspace, pane: &Pane, settings: &Settings, found: &Found) -> Option<String> {
+        agent_launch(ws, pane, settings, found)
+            .map(|agent| launch::build(&agent.request).unwrap().command_line())
     }
 
     // Claude Code, byte for byte as the engine typed it before core's
@@ -504,16 +487,18 @@ mod tests {
     fn an_orchestrator_s_claude_code_starts_as_it_always_did() {
         let ws = shop(Some("auto"));
         let leo = pane(AgentId::Claude, Some(PaneRole::Orchestrator), Some("opus"));
+        let found = found(Some(false), None, Some("abc"));
         assert_eq!(
-            line(
-                &ws,
-                &leo,
-                &Settings::default(),
-                &prepared(Some(false), None, Some("abc"))
-            )
-            .unwrap(),
+            line(&ws, &leo, &Settings::default(), &found).unwrap(),
             "claude --resume abc --name \"Leo (Shop)\" --model opus --permission-mode auto \
              --allowedTools mcp__hangar --mcp-config \"$HANGAR_MCP_CONFIG\" --add-dir \"/srv/shared\""
+        );
+        // The file the variable names, which the spawn hands the shell.
+        let agent = agent_launch(&ws, &leo, &Settings::default(), &found).unwrap();
+        assert_eq!(agent.request.cwd, "/srv/shop");
+        assert_eq!(
+            agent.request.mcp.map(|mcp| mcp.file).as_deref(),
+            Some(MCP_FILE)
         );
     }
 
@@ -525,36 +510,23 @@ mod tests {
         settings.agent_commands.claude = Some("  ccr code ".into());
         settings.agent_commands.codex = Some("codex --oss".into());
         assert_eq!(
-            line(&ws, &leo, &settings, &prepared(Some(true), None, None)).unwrap(),
+            line(&ws, &leo, &settings, &found(Some(true), None, None)).unwrap(),
             "ccr code --name \"Leo (Shop)\" --mcp-config \"$HANGAR_MCP_CONFIG\" \
              --strict-mcp-config --add-dir \"/srv/shared\""
         );
         // Without a file of Hangar's: its own servers.
         assert_eq!(
-            line(&ws, &leo, &settings, &prepared(None, None, None)).unwrap(),
+            line(&ws, &leo, &settings, &found(None, None, None)).unwrap(),
             "ccr code --name \"Leo (Shop)\" --add-dir \"/srv/shared\""
         );
     }
 
     #[test]
-    fn a_shell_types_nothing() {
+    fn a_shell_has_no_launch() {
         let ws = shop(None);
         let sh = pane(AgentId::Shell, None, None);
-        let settings = Settings::default();
-        assert_eq!(
-            line(&ws, &sh, &settings, &prepared(None, None, Some("abc"))),
-            None
-        );
-        assert_eq!(
-            request(
-                &ws,
-                &sh,
-                &settings,
-                &prepared(None, None, None),
-                LaunchShell::default()
-            ),
-            None
-        );
+        let found = found(None, None, Some("abc"));
+        assert!(agent_launch(&ws, &sh, &Settings::default(), &found).is_none());
     }
 
     // Codex.
@@ -568,21 +540,115 @@ mod tests {
         )
     }
 
-    /// Until the PTY starts a pane's server (T4b), a Codex pane runs the
-    /// floor whatever « Attach Hangar to Codex » says: Codex's own command,
-    /// the orchestration's policy, its model and images on the line, its
-    /// session resumed — nothing of Claude Code's, nothing that would name a
-    /// variable its shell does not hold.
+    /// A Codex pane asks to run attached exactly when « Attach Hangar to
+    /// Codex » is on, with everything its server and its line need: Codex's
+    /// own command, Hangar's executable and its tools let through, the
+    /// policy, the roots, the model, its session.
     #[test]
-    fn a_codex_pane_runs_the_floor_until_its_server_can_start() {
+    fn a_codex_launch_attaches_as_the_setting_says_with_all_it_asks() {
         let ws = shop(Some("bypassPermissions"));
         let worker = codex_worker();
         let mut settings = Settings::default();
         assert!(settings.codex_attach, "on by default (D5)");
         settings.agent_commands.claude = Some("ccr code".into());
-        let prepared = prepared(None, Some(HANGAR), Some(THREAD));
-        assert_eq!(attached_server(&settings, &worker), LaunchShell::default());
-        let typed = line(&ws, &worker, &settings, &prepared).unwrap();
+        let found = found(None, Some(HANGAR), Some(THREAD));
+        let agent = agent_launch(&ws, &worker, &settings, &found).unwrap();
+        assert!(agent.attach);
+        let request = agent.request;
+        assert_eq!(request.kind, AgentKind::Codex);
+        assert_eq!(request.command, None);
+        assert_eq!(request.cwd, "/srv/shop");
+        assert_eq!(request.hangar_mcp.as_deref(), Some(HANGAR));
+        assert_eq!(request.allowed_tools, ["mcp__hangar"]);
+        assert_eq!(request.mcp, None);
+        assert_eq!(request.extra_roots, ["/srv/shared"]);
+        assert_eq!(request.resume.as_deref(), Some(THREAD));
+        // The spawn's to fill in.
+        assert_eq!(request.shell, None);
+        assert_eq!(request.server_socket, None);
+        assert_eq!(request.account_dir, None);
+
+        settings.codex_attach = false;
+        let agent = agent_launch(&ws, &worker, &settings, &found).unwrap();
+        assert!(!agent.attach);
+    }
+
+    /// Completed as the spawn completes it (`pty_spawn_launch`): attached,
+    /// the line points at the pane's server, which gets the settings; on the
+    /// floor, the line names the shell's variables, which hold them. Either
+    /// way, its session resumed.
+    #[test]
+    fn a_codex_line_attaches_to_its_server_or_names_the_floor_s_variables() {
+        let ws = shop(Some("bypassPermissions"));
+        let worker = codex_worker();
+        let found = found(None, Some(HANGAR), Some(THREAD));
+        let request = agent_launch(&ws, &worker, &Settings::default(), &found)
+            .unwrap()
+            .request;
+
+        let socket = "/run/user/1000/hangar/codex-0123456789ab.sock";
+        let attached = LaunchRequest {
+            shell: Some(ShellSyntax::Posix),
+            server_socket: Some(socket.into()),
+            ..request.clone()
+        };
+        let typed = launch::build(&attached).unwrap().command_line();
+        assert_eq!(
+            typed,
+            format!(
+                "codex --remote unix://{socket} -c approval_policy=never \
+                 -c sandbox_mode=danger-full-access -c model=gpt-5.1-codex resume {THREAD}"
+            )
+        );
+        let server = launch::server(&attached).expect("a server").args.join(" ");
+        for wanted in [
+            format!("command='{HANGAR}'"),
+            "default_tools_approval_mode='approve'".to_string(),
+            "sandbox_workspace_write.writable_roots=['/srv/shared']".to_string(),
+        ] {
+            assert!(server.contains(&wanted), "{wanted}: {server}");
+        }
+
+        let floor = LaunchRequest {
+            shell: Some(ShellSyntax::Posix),
+            ..request
+        };
+        let spec = launch::build(&floor).unwrap();
+        let typed = spec.command_line();
+        assert!(
+            typed.starts_with("codex -c \"$HANGAR_CODEX_MCP\""),
+            "{typed}"
+        );
+        assert!(typed.ends_with(&format!("resume {THREAD}")), "{typed}");
+        assert!(!typed.contains("Ann Lee"), "{typed}");
+        let held = spec
+            .env
+            .iter()
+            .find(|(name, _)| name == MCP_VAR)
+            .and_then(|(_, value)| value.clone())
+            .expect("Hangar's server in the shell's variable");
+        assert!(
+            held.to_string_lossy()
+                .starts_with(&format!("mcp_servers.hangar={{command='{HANGAR}'")),
+            "{held:?}"
+        );
+    }
+
+    /// For no shell in particular (terminals that cannot hand one the
+    /// launch's variables): the floor's plain settings, nothing of Claude
+    /// Code's, no variable named.
+    #[test]
+    fn a_codex_line_for_no_shell_carries_the_plain_settings_only() {
+        let ws = shop(Some("bypassPermissions"));
+        let mut settings = Settings::default();
+        settings.agent_commands.claude = Some("ccr code".into());
+        let typed = line(
+            &ws,
+            &codex_worker(),
+            &settings,
+            &found(None, Some(HANGAR), Some(THREAD)),
+        )
+        .unwrap();
         assert_eq!(
             typed,
             format!(
@@ -590,66 +656,12 @@ mod tests {
                  -c model=gpt-5.1-codex -c features.image_generation=true resume {THREAD}"
             )
         );
-        assert!(!typed.contains("$HANGAR"), "{typed}");
-        let request = request(&ws, &worker, &settings, &prepared, LaunchShell::default()).unwrap();
-        assert_eq!(launch::server(&request), None);
-        // Off, the same.
-        settings.codex_attach = false;
-        assert_eq!(line(&ws, &worker, &settings, &prepared).unwrap(), typed);
-    }
-
-    #[test]
-    fn a_codex_pane_types_codex_s_own_command() {
-        let ws = shop(None);
-        let leo = pane(AgentId::Codex, None, None);
-        let mut settings = Settings::default();
         settings.agent_commands.codex = Some(" codex --oss ".into());
+        let plain = pane(AgentId::Codex, None, None);
         assert_eq!(
-            line(&ws, &leo, &settings, &prepared(None, Some(HANGAR), None)).unwrap(),
+            line(&ws, &plain, &settings, &found(None, Some(HANGAR), None)).unwrap(),
             "codex --oss -c features.image_generation=true"
         );
-    }
-
-    /// Once the seam answers (T4b): the pane's line attaches to its server,
-    /// which gets everything the launch asks — Hangar's server and its tools
-    /// let through, the policy, the roots, the model.
-    #[test]
-    fn a_codex_pane_whose_server_started_attaches_to_it() {
-        let ws = shop(Some("bypassPermissions"));
-        let worker = codex_worker();
-        let started = LaunchShell {
-            socket: Some("/run/user/1000/hangar/codex-p1.sock".into()),
-            syntax: Some(ShellSyntax::Posix),
-        };
-        let request = request(
-            &ws,
-            &worker,
-            &Settings::default(),
-            &prepared(None, Some(HANGAR), Some(THREAD)),
-            started,
-        )
-        .unwrap();
-        assert_eq!(request.hangar_mcp.as_deref(), Some(HANGAR));
-        assert_eq!(request.allowed_tools, ["mcp__hangar"]);
-        assert_eq!(request.mcp, None);
-        let typed = launch::build(&request).unwrap().command_line();
-        assert!(
-            typed.starts_with("codex --remote unix:///run/user/1000/hangar/codex-p1.sock "),
-            "{typed}"
-        );
-        assert!(typed.ends_with(&format!("resume {THREAD}")), "{typed}");
-        let server = launch::server(&request).expect("a server");
-        let args = server.args.join(" ");
-        for wanted in [
-            "app-server --listen unix:///run/user/1000/hangar/codex-p1.sock",
-            &format!("command='{HANGAR}'"),
-            "default_tools_approval_mode='approve'",
-            "approval_policy=never",
-            "sandbox_workspace_write.writable_roots=['/srv/shared']",
-            "model=gpt-5.1-codex",
-        ] {
-            assert!(args.contains(wanted), "{wanted}: {args}");
-        }
     }
 
     // What `prepare` reads.

@@ -10,6 +10,7 @@ use std::collections::HashSet;
 use hangar_core::agent::launch::{self, LaunchRequest, McpRequest};
 use hangar_core::agent::{AgentKind, McpInjection, PermissionMode};
 
+use super::session_watch;
 use crate::state::types::AgentId;
 
 /// What Claude Code is started with when nothing was customised: its
@@ -126,9 +127,10 @@ pub fn launch_command(
 }
 
 /// Whether a pane's agent can be started again on the session it was in:
-/// Claude Code can, a shell has no session.
+/// its agent resumes a session by id (`sessions.resume`, read by
+/// [`session_watch::resumes`]); a shell has no session.
 pub fn is_resumable(agent: AgentId) -> bool {
-    agent == AgentId::Claude
+    session_watch::resumes(agent)
 }
 
 /// Session ids already handed to a pane during this app run. Without this,
@@ -159,16 +161,18 @@ impl Claims {
 }
 
 /// The session ids an agent already has under this folder, read before a
-/// launch so that a brand new transcript stands out afterwards. Empty for an
-/// agent that keeps none, and when they cannot be listed.
+/// launch so that a brand new conversation stands out afterwards: where its
+/// kind keeps them ([`session_watch::hunt_listing`]: Claude Code's
+/// transcripts, Codex's rollouts). Empty for an agent that resumes none, and
+/// when they cannot be listed.
 pub async fn known_session_ids(agent: AgentId, cwd: String) -> HashSet<String> {
-    if !is_resumable(agent) {
+    let Some(kind) = agent.kind().filter(|_| is_resumable(agent)) else {
         return HashSet::new();
-    }
+    };
     tokio::task::spawn_blocking(move || {
-        hangar_core::sessions::list_session_ids(cwd)
+        session_watch::hunt_listing(kind, cwd)
             .into_iter()
-            .map(|(id, _)| id)
+            .map(|session| session.id)
             .collect()
     })
     .await
@@ -519,9 +523,11 @@ mod tests {
         }
     }
 
+    /// Either agent resumes its session by id; a shell has none.
     #[test]
-    fn only_claude_code_resumes() {
+    fn an_agent_resumes_and_a_shell_does_not() {
         assert!(is_resumable(AgentId::Claude));
+        assert!(is_resumable(AgentId::Codex));
         assert!(!is_resumable(AgentId::Shell));
     }
 

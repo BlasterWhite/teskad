@@ -11,10 +11,10 @@
 //!
 //! What a pane gets whatever runs in it stays with the PTY (`pty.rs`): its
 //! identity and API token, the hangar-bridge mod and the kits' plugin
-//! folders, its ports, the build cache. The engine and the desktop still type
-//! their own copy of Claude Code's line (`hangar-engine/src/panes/agents.rs`)
-//! until they call [`build`] (task T14a); the tests of `claude.rs` hold this
-//! one to the very same lines.
+//! folders, its ports, the build cache. The engine's panes, and the desktop's
+//! Claude Code panes through `hangar-engine/src/panes/agents.rs`, type the
+//! line [`build`] answers (task T14a); the tests of `claude.rs` hold it to the
+//! lines Claude Code was always typed.
 
 use std::ffi::OsString;
 use std::fmt;
