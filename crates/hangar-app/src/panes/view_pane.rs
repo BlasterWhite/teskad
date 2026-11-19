@@ -3,8 +3,9 @@
 //!
 //! Its header is a terminal pane's in shape and in what it answers: the same
 //! height and look, the drag handle the grid reads off the header's band
-//! (`grid.rs`), a double click that zooms, and the zoom and close buttons
-//! on the focused pane and the one under the pointer. What it says (the mark
+//! (`grid.rs`), a double click that zooms, the pin of a pinned pane, and the
+//! pin, zoom and close buttons on the focused pane and the one under the
+//! pointer (a view has no « … » menu to pin it from). What it says (the mark
 //! of the entry's kind, its title, who opened it or the kit page's word for
 //! its state) is the preview's (`preview::head`), and so is its body
 //! (`preview::view_entry`): the viewers, the 3D view, the kit tab, or the
@@ -18,8 +19,8 @@ use iced::{Alignment, Element, Length, Padding};
 
 use crate::ctx::Ctx;
 use crate::message::Message;
-use crate::panes::Msg;
-use crate::panes::terminal_pane::Placing;
+use crate::panes::terminal_pane::{Placing, slot_id};
+use crate::panes::{Msg, header};
 use crate::preview::store::Entry;
 use crate::state::types::Workspace;
 
@@ -90,6 +91,10 @@ pub fn view<'a>(
             }),
         title_tip(ctx, &ws.id, entry, placing.index),
     ));
+    // Pinned to an edge of the grid, as a terminal can be.
+    if let Some(pin) = ws.pin_of(id) {
+        bar = bar.push(header::pin_glyph(ctx, &ws.id, id, pin.edge));
+    }
     if let Some(aside) = entry.and_then(|entry| crate::preview::head::aside(ctx, &ws.id, entry)) {
         bar = bar.push(
             text(aside)
@@ -130,14 +135,20 @@ pub fn view<'a>(
         header,
         container(body).width(Length::Fill).height(Length::Fill)
     ])
+    .id(slot_id(id))
     .width(Length::Fill)
     .height(Length::Fill)
     .style(style::container::window(t))
     .into()
 }
 
-/// The zoom and close buttons, as a terminal pane's: a view pane may always
-/// close, whatever is left beside it.
+/// The id of the button that pins a view pane or lets it go.
+pub fn pin_toggle_id(id: &str) -> iced::widget::Id {
+    iced::widget::Id::from(format!("pane-pin-toggle-{id}"))
+}
+
+/// The pin, zoom and close buttons, as a terminal pane's: a view pane may
+/// always close, whatever is left beside it.
 fn actions<'a>(
     ctx: Ctx<'a>,
     ws: &'a Workspace,
@@ -152,6 +163,21 @@ fn actions<'a>(
         22.0
     };
     let mut group = row![].spacing(1).align_y(Alignment::Center);
+    // A view has no « … » menu: it pins and lets go from here, as a
+    // terminal does from its menu.
+    let pinned = ws.pin_of(id).is_some();
+    group = group.push(
+        container(
+            button::toggle_button(t, Icon::Pin, pinned)
+                .side(side)
+                .tip(
+                    ctx.t(if pinned { Key::PaneUnpin } else { Key::PanePin })
+                        .into_owned(),
+                )
+                .on_press(wrap(Msg::Pin(ws.id.clone(), id.to_owned(), !pinned))),
+        )
+        .id(pin_toggle_id(id)),
+    );
     if placing.can_zoom {
         let words = ctx
             .t(if placing.zoomed {
