@@ -1,8 +1,9 @@
 //! Where each pane's agent stands (`lib/agentState.ts`).
 //!
-//! The pane works its own state out, from the hangar-bridge mod when its
-//! Claude Code loaded it and from the shape of its output otherwise
-//! (`pane_agent`), and publishes it here. The navigator, the toolbar, the
+//! The pane works its own state out, from its side channel when one speaks
+//! (the hangar-bridge mod in a Claude Code, Hangar's client of a Codex
+//! pane's server) and from its terminal otherwise (`pane_agent`), and
+//! publishes it here. The navigator, the toolbar, the
 //! needs-you list and the engines read it from nowhere near the pane.
 //!
 //! - `working`: a turn is running.
@@ -26,9 +27,11 @@ use crate::state::types::{PaneId, WsId};
 /// on a glance at the grid, short of becoming noise.
 pub const OVERLAP_SHOWN_MS: u64 = 2 * 60 * 1000;
 
-/// A pane's activity once its Claude Code's mod says hello. The session has
-/// just started and runs no turn yet, so a "working" guessed from its
-/// startup output goes: guesses stop once the mod speaks, and nothing else
+/// A pane's activity once its side channel says hello (the mod's, or the
+/// one Hangar's client of a Codex server says for the thread it joins, which
+/// reports a turn already running right after). The session has just
+/// started and runs no turn yet, so a "working" guessed from its startup
+/// output goes: guesses stop once the side channel speaks, and nothing else
 /// would take it back before the first turn. A wait or a hand-back is left
 /// as it is.
 pub fn activity_at_hello(activity: AgentActivity) -> AgentActivity {
@@ -213,7 +216,8 @@ impl AgentStates {
         roster
     }
 
-    /// How many of these panes have a Claude Code that loaded the mod.
+    /// How many of these panes have a side channel that spoke: the mod in a
+    /// Claude Code, Hangar's client of a Codex server.
     pub fn bridged_count<'a>(&self, pane_ids: impl IntoIterator<Item = &'a PaneId>) -> usize {
         pane_ids
             .into_iter()

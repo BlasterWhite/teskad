@@ -1064,6 +1064,9 @@ impl EngineHost {
             }
             model.panes.unmount_pane(pane, false);
             model.servers.remove(pane);
+            // Hangar's client of its Codex server, if it had one, goes with
+            // it, whatever its terminals do on the way out.
+            hangar_core::agent::codex_attach::detach(pane);
             release_unheld_sessions(&mut model);
         }
         locked(&self.0.printed).remove(pane);
@@ -1084,8 +1087,10 @@ impl EngineHost {
         locked(&self.0.printed).get(pane).and_then(|p| p.last())
     }
 
-    /// The watchers' checks that came due, and the trust question looked
-    /// for on the screens of the panes that print.
+    /// The watchers' checks that came due, the titles of the panes that
+    /// printed (an agent's own title tells its turns where no side channel
+    /// does), and the trust question looked for on the screens of the panes
+    /// that print.
     fn tick(&self) {
         let now = wall_clock_ms();
         // What the panes printed since the last look, each as one burst.
@@ -1097,8 +1102,8 @@ impl EngineHost {
             })
             .collect();
         let mut model = locked(&self.0.model);
-        for (pane, first, last) in bursts {
-            model.panes.note_printed(&pane, first, last);
+        for (pane, first, last) in &bursts {
+            model.panes.note_printed(pane, *first, *last);
         }
         let idle_ms = model.store.settings().notify_idle_ms;
         let panes: Vec<Arc<PaneInfo>> = model
@@ -1115,7 +1120,13 @@ impl EngineHost {
         let mut notices = Vec::new();
         for info in panes {
             let before = model.panes.pane_state_mark(&info.id);
-            let mut effects = model.panes.poll_pane(&info, idle_ms, &amb);
+            let mut effects = Vec::new();
+            if bursts.iter().any(|(pane, _, _)| *pane == info.id)
+                && let Some(title) = self.0.terminals.title(&info.id)
+            {
+                effects.extend(model.panes.terminal_title(&info, &title, &amb));
+            }
+            effects.extend(model.panes.poll_pane(&info, idle_ms, &amb));
             if model.panes.trust_look_due(&info.id, now) {
                 let screen = self
                     .0
@@ -1624,6 +1635,65 @@ mod agent_tests {
             .map(|(_, launch)| launch.attach);
         assert_eq!(leo, Some(false));
         assert_eq!(host.agent_server("p1"), None);
+        host.shutdown().await;
+    }
+
+    /// An attached Codex pane is followed by Hangar's client of its server
+    /// from its launch on (`agent::codex_attach`), and let go of when it
+    /// closes; its machine knows how each agent was started.
+    #[cfg(unix)]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_attached_codex_pane_is_followed_until_it_closes() {
+        use crate::live::SideChannel;
+        use hangar_core::agent::codex_attach::is_attached;
+
+        let root = scratch("engine-host-follow");
+        let file = root.join("engine").join("state.json");
+        let state = AppState {
+            workspaces: vec![Workspace {
+                id: "follow".into(),
+                name: "Follow".into(),
+                cwd: root.to_string_lossy().into_owned(),
+                panes: vec![
+                    pane("t14b-codex", "Cody", AgentId::Codex),
+                    pane("t14b-claude", "Ada", AgentId::Claude),
+                ],
+                ..Workspace::default()
+            }],
+            ..AppState::default()
+        };
+        write_state_file(&file, &serde_json::to_value(&state).unwrap()).unwrap();
+        let terminals = Arc::new(Launches {
+            server: ServerState::Attached {
+                socket: root.join("codex.sock").to_string_lossy().into_owned(),
+            },
+            launched: Mutex::default(),
+            typed: Mutex::default(),
+            alive: Mutex::default(),
+        });
+        let host = EngineHost::load(Config {
+            core: hangar_core::Host::with_paths(hangar_core::paths::Paths::rooted(&root)),
+            terminals: terminals.clone(),
+            state_file: file,
+        })
+        .unwrap();
+        host.start();
+        eventually("Cody followed", || is_attached("t14b-codex")).await;
+        let channel = |pane: &str| locked(&host.0.model).panes.side_channel(pane).cloned();
+        assert_eq!(channel("t14b-codex"), Some(SideChannel::Attached));
+        eventually("Ada typed", || {
+            !typed_into(&terminals, "t14b-claude").is_empty()
+        })
+        .await;
+        assert!(!is_attached("t14b-claude"), "Claude Code has its mod");
+        assert_eq!(channel("t14b-claude"), Some(SideChannel::Attached));
+
+        host.apply(ModelCmd::ClosePane {
+            ws: "follow".into(),
+            pane: "t14b-codex".into(),
+        })
+        .unwrap();
+        eventually("Cody let go of", || !is_attached("t14b-codex")).await;
         host.shutdown().await;
     }
 }
