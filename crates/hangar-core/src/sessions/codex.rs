@@ -30,7 +30,7 @@ use std::fs;
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
-use std::time::UNIX_EPOCH;
+use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use serde::Deserialize;
 use serde_json::value::RawValue;
@@ -149,6 +149,48 @@ pub(crate) fn find_rollout(roots: &[PathBuf], thread_id: &str) -> Option<PathBuf
         .filter(|r| thread_id_of(&r.path).as_deref() == Some(thread_id))
         .min_by_key(|r| (std::cmp::Reverse(r.modified_ms), is_compressed(&r.path)))
         .map(|r| r.path)
+}
+
+/// How long a found rollout is trusted before the folders are walked again:
+/// a revert moves a thread on to a new file while the old one stays.
+const LOCATED_FOR: Duration = Duration::from_secs(60);
+
+/// The paths found so far, by thread, with when each was found.
+type Located = HashMap<String, (PathBuf, Instant)>;
+
+/// The rollout a thread is written to now under Codex's home (`sessions/`,
+/// then `archived_sessions/`), for the chat (chat/codex.rs), which asks every
+/// second a phone has the chat open. Walking every dated folder is done once
+/// a minute at most: in between, the path found is used while it exists — a
+/// compressed one giving way to its plain twin when the thread is resumed.
+pub(crate) fn locate(thread_id: &str) -> Option<PathBuf> {
+    static FOUND: OnceLock<Mutex<Located>> = OnceLock::new();
+    let mut found = FOUND.get_or_init(Default::default).lock().ok()?;
+    let roots = home().map(|home| vec![home.join(SESSIONS), home.join(ARCHIVED_SESSIONS)]);
+    locate_under(roots.as_deref().unwrap_or_default(), thread_id, &mut found)
+}
+
+/// `locate` under `roots`, with what was found before in `found`.
+fn locate_under(roots: &[PathBuf], thread_id: &str, found: &mut Located) -> Option<PathBuf> {
+    let mut known = None;
+    if let Some((path, at)) = found.get(thread_id) {
+        let plain = is_compressed(path).then(|| path.with_extension(""));
+        known = match plain {
+            Some(plain) if plain.is_file() => Some(plain),
+            _ => path.is_file().then(|| path.clone()),
+        };
+        if at.elapsed() < LOCATED_FOR && known.is_some() {
+            return known;
+        }
+    }
+    // A walk that finds nothing (the home unreadable for a moment) does not
+    // lose a file that is still there.
+    let path = find_rollout(roots, thread_id).or(known);
+    match &path {
+        Some(path) => found.insert(thread_id.to_string(), (path.clone(), Instant::now())),
+        None => found.remove(thread_id),
+    };
+    path
 }
 
 /// Whether a thread has a rollout under `root`; `None` when `root` cannot be
@@ -786,6 +828,32 @@ pub(crate) mod tests {
             .read_to_string(&mut text)
             .unwrap();
         assert_eq!(text, LEGACY);
+        fs::remove_dir_all(&root).ok();
+    }
+
+    /// The chat finds a thread's rollout once, then follows it as Codex
+    /// compresses it and writes it back plain, without walking again.
+    #[test]
+    fn a_located_rollout_is_followed_through_compression() {
+        let root = temp_dir("locate");
+        let roots = [root.clone()];
+        let mut found = Located::new();
+        assert_eq!(locate_under(&roots, LEGACY_ID, &mut found), None);
+
+        let plain = put(&root, LEGACY_NAME, LEGACY.as_bytes());
+        assert_eq!(
+            locate_under(&roots, LEGACY_ID, &mut found),
+            Some(plain.clone())
+        );
+
+        // Compressed: the plain file goes, the walk finds the other.
+        fs::remove_file(&plain).unwrap();
+        let zst = put(&root, &format!("{LEGACY_NAME}.zst"), &compress(LEGACY));
+        assert_eq!(locate_under(&roots, LEGACY_ID, &mut found), Some(zst));
+
+        // Resumed: its plain twin is back, and wins without a walk.
+        fs::write(&plain, LEGACY).unwrap();
+        assert_eq!(locate_under(&[], LEGACY_ID, &mut found), Some(plain));
         fs::remove_dir_all(&root).ok();
     }
 
