@@ -7,8 +7,58 @@
 //! moves, never edited by hand (scripts/codex-protocol/README.md). Its decoding is lenient: a newer
 //! Codex's unknown fields are ignored, and its unknown variants, notifications and requests are kept
 //! as `Unrecognized` instead of failing.
+//!
+//! [`client`] speaks it: spawn a server on stdio, or attach to a pane's server socket (directly,
+//! or through `codex app-server proxy`); the handshake; typed requests with time limits; the
+//! notifications; the server's requests, answered with typed responses; a clean shutdown.
+//! [`gate`] says which Codex releases it speaks to (D12).
+//!
+//! ```ignore
+//! use hangar_core::codex_app::generated::*;
+//! use hangar_core::codex_app::{app_server_command, Client, Endpoint, Event, Incoming, Options};
+//!
+//! // A headless child: Hangar is the server's only client.
+//! let (client, mut events) =
+//!     Client::connect(Endpoint::Stdio(app_server_command("codex")), Options::default()).await?;
+//! let thread = client
+//!     .request::<requests::ThreadStart>(ThreadStartParams { cwd: Some(dir), ..Default::default() })
+//!     .await?
+//!     .thread;
+//! while let Some(event) = events.next().await {
+//!     match event {
+//!         Event::Notification(notification) => { /* turn/started, item/completed… */ }
+//!         Event::Request(Incoming::CommandExecutionApproval(ask)) => {
+//!             ask.respond(CommandExecutionRequestApprovalResponse {
+//!                 decision: CommandExecutionApprovalDecision::Decline,
+//!             })?
+//!         }
+//!         Event::Request(other) => { /* held for the person, answered later */ }
+//!         Event::Closed(closed) => break,
+//!     }
+//! }
+//! client.shutdown().await;
+//! ```
+//!
+//! An attached pane (§4.1) connects with `Endpoint::Socket` (or `Endpoint::Proxy` for a WSL pane)
+//! and `Unhandled::Leave`, since the pane's TUI answers what Hangar does not.
+//!
+//! What the client relies on that the schema does not say comes from OpenAI's source at the pinned
+//! tag, named where it is used: it is not observed behaviour (§4.0, "code blind"), and the tests'
+//! fixtures (crates/hangar-core/tests/fixtures/codex/app-server/) say so on their first line.
 
+pub mod client;
+pub mod gate;
 pub mod generated;
+mod websocket;
 
+pub use client::{
+    app_server_command, proxy_command, Cause, Client, Closed, Endpoint, Error, Event, Events,
+    Framing, Incoming, Options, Pending, Report, RpcError, Server, Unhandled,
+};
+pub use gate::{Refusal, Verdict, CODEX_ATTACH_MIN, CODEX_BROKEN, CODEX_PINNED};
+pub use generated::{notifications, requests, server_requests};
+
+#[cfg(test)]
+mod client_tests;
 #[cfg(test)]
 mod tests;
