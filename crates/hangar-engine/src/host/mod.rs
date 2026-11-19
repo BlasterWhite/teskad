@@ -52,6 +52,7 @@ use serde_json::Value;
 use tokio::sync::{Notify, broadcast};
 
 use hangar_core::Event;
+use hangar_core::agent::SessionId;
 use hangar_core::pty::ServerState;
 use hangar_i18n::{Locale, Translator};
 
@@ -59,7 +60,7 @@ use crate::control::delivery::Deliveries;
 use crate::control::port::{CmdOut, MobileHooks, ModelCmd, Port};
 use crate::control::run::{self, Gate};
 use crate::control::types::ControlEvent;
-use crate::live::{BridgeEvent, Delivering, PaneStatus};
+use crate::live::{BridgeEvent, Delivering, PaneStatus, SideChannel};
 use crate::mobile::engine::{Hook as DeskHook, Mobile};
 use crate::orchestration::runtime::{self as orchestration_runtime, EngineMsg};
 use crate::panes::bridge_events::carry_key;
@@ -1028,9 +1029,12 @@ impl EngineHost {
             if let Some(id) = resumed {
                 model.panes.claim_session(id);
             }
-            // A Claude Code with the mod says it all in its hello.
-            let says_itself = info.agent == AgentId::Claude && model.store.settings().claude_bridge;
-            if !says_itself && info.agent != AgentId::Shell {
+            // An agent its side channel speaks for says its session itself
+            // (the mod's hello, the Codex client's); any other's starts as
+            // its line is typed. A shell has no session.
+            if let Some(kind) = info.agent.kind()
+                && !says_itself(kind, model.panes.side_channel(pane))
+            {
                 model.panes.launched(&info, resumed, now);
             }
         }
@@ -1172,6 +1176,15 @@ fn same_runs(published: &Delivering, now: &HashMap<WsId, HashMap<String, usize>>
                 said.len() == tasks.len() && tasks.keys().all(|t| said.contains(t))
             })
         })
+}
+
+/// Whether a pane's agent of `kind` says its session itself: its kind's side
+/// channel reports the session's id (`caps.sessions.id`, Reported) and the
+/// pane's launch set that side channel up (`channel`, Attached) — Claude
+/// Code with the hangar-bridge mod on, Codex attached to its own server.
+/// On the floor, the session is noted as the agent's line is typed.
+fn says_itself(kind: AgentKind, channel: Option<&SideChannel>) -> bool {
+    kind.info().caps.sessions.id == SessionId::Reported && channel == Some(&SideChannel::Attached)
 }
 
 /// The claims no pane holds any more, released (a pane closed, or moved on
@@ -1638,13 +1651,73 @@ mod agent_tests {
         host.shutdown().await;
     }
 
+    /// An agent says its session itself where its kind's side channel
+    /// reports it (`caps.sessions.id`) and its launch set that side channel
+    /// up: Codex attached to its own server, Claude Code with the mod on.
+    /// On the floor, or for a pane not mounted, it does not.
+    #[test]
+    fn an_agent_says_its_session_itself_where_its_side_channel_is_set_up() {
+        let timed_out = SideChannel::Floor {
+            reason: Some("the server did not listen".into()),
+        };
+        let plain = SideChannel::Floor { reason: None };
+        for kind in [Claude, Codex] {
+            assert!(says_itself(kind, Some(&SideChannel::Attached)), "{kind:?}");
+            assert!(!says_itself(kind, Some(&timed_out)), "{kind:?}");
+            assert!(!says_itself(kind, Some(&plain)), "{kind:?}");
+            assert!(!says_itself(kind, Some(&SideChannel::Unknown)), "{kind:?}");
+            assert!(!says_itself(kind, None), "{kind:?}");
+        }
+    }
+
+    /// A pane's session starts with its typed line only where no side
+    /// channel says it: a Codex pane on the floor, a Claude Code pane with
+    /// the mod off. One attached to its server, or with the mod on, says it
+    /// in its hello; a shell has none.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_session_starts_with_the_typed_line_only_where_no_side_channel_says_it() {
+        let since = |host: &EngineHost, pane: &str| {
+            locked(&host.0.model).panes.insights.get(pane).session_since
+        };
+
+        let attached = ServerState::Attached {
+            socket: "/run/user/1000/hangar/codex-0123456789ab.sock".into(),
+        };
+        let (host, terminals) = launching(attached, Settings::default());
+        host.start();
+        eventually("Leo and Ada typed", || {
+            !typed_into(&terminals, "p1").is_empty() && !typed_into(&terminals, "p2").is_empty()
+        })
+        .await;
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        assert_eq!(since(&host, "p1"), None, "Codex attached says it");
+        assert_eq!(since(&host, "p2"), None, "Claude Code with the mod says it");
+        assert_eq!(since(&host, "p3"), None, "a shell");
+        host.shutdown().await;
+
+        let floor = ServerState::Floor {
+            reason: FloorReason::Timeout { seconds: 10 },
+        };
+        let no_mod = Settings {
+            claude_bridge: false,
+            ..Settings::default()
+        };
+        let (host, _) = launching(floor, no_mod);
+        host.start();
+        eventually("Leo's and Ada's sessions started", || {
+            since(&host, "p1").is_some() && since(&host, "p2").is_some()
+        })
+        .await;
+        assert_eq!(since(&host, "p3"), None, "a shell");
+        host.shutdown().await;
+    }
+
     /// An attached Codex pane is followed by Hangar's client of its server
     /// from its launch on (`agent::codex_attach`), and let go of when it
     /// closes; its machine knows how each agent was started.
     #[cfg(unix)]
     #[tokio::test(flavor = "multi_thread")]
     async fn an_attached_codex_pane_is_followed_until_it_closes() {
-        use crate::live::SideChannel;
         use hangar_core::agent::codex_attach::is_attached;
 
         let root = scratch("engine-host-follow");

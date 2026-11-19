@@ -37,7 +37,6 @@ use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize}
 use serde::Serialize;
 
 use crate::agent::launch::{self, LaunchRequest, ShellSyntax};
-use crate::agent::AgentKind;
 
 mod codex_server;
 mod jobs;
@@ -1004,11 +1003,12 @@ struct StartedAgent {
     state: Option<ServerState>,
 }
 
-/// The pane's agent as `launch` asks: for a Codex pane to run attached, its
-/// server started first, with the pane's environment as `cmd` holds it —
-/// `wait` at most for it to listen — then the line, attached to that server
-/// when it listens and the floor's otherwise. The launch's variables
-/// (`LaunchSpec::env`) are applied to `cmd`, for the line to find them.
+/// The pane's agent as `launch` asks: for a pane to run attached
+/// ([`runs_attached`]: Codex), its server started first, with the pane's
+/// environment as `cmd` holds it — `wait` at most for it to listen — then
+/// the line, attached to that server when it listens and the floor's
+/// otherwise. The launch's variables (`LaunchSpec::env`) are applied to
+/// `cmd`, for the line to find them.
 ///
 /// The request is completed from the pane as it really starts: the syntax of
 /// `shell` (the one found, which may not be the one asked for), the folder of
@@ -1028,7 +1028,7 @@ fn start_agent(
     request.shell = ShellSyntax::of(shell);
     request.account_dir = account_dir;
     request.server_socket = None;
-    let (server, state) = if attach && request.kind == AgentKind::Codex {
+    let (server, state) = if runs_attached(&request, attach) {
         let pane_env: &CommandBuilder = cmd;
         let (server, state) = codex_server::attach_pane(
             id,
@@ -1052,6 +1052,15 @@ fn start_agent(
         server,
         state,
     })
+}
+
+/// Whether a pane launched with `request` starts a server of its own first
+/// and runs attached to it (D5): its launch asked to (`AgentLaunch::attach`)
+/// and its kind is one Hangar reaches through a protocol server
+/// (`caps.headless.app_server`: Codex). Any other runs its program alone,
+/// whatever `attach` says.
+fn runs_attached(request: &LaunchRequest, attach: bool) -> bool {
+    attach && request.kind.info().caps.headless.app_server
 }
 
 /// The whole environment of a pane's Codex server: the pane's shell's, as
@@ -1527,6 +1536,7 @@ pub fn kill_all(manager: &PtyManager) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agent::AgentKind;
 
     fn args(list: &[&str]) -> Vec<String> {
         list.iter().map(|a| a.to_string()).collect()
@@ -3006,5 +3016,29 @@ while True:
         .command_line();
         assert_eq!(spawned.line, Some(expected));
         kill_all(&manager);
+    }
+
+    /// A pane starts a server of its own exactly when its launch asks to
+    /// attach and its kind is reached through one
+    /// (`caps.headless.app_server`): a Codex pane with « Attach Hangar to
+    /// Codex » on, never a Claude Code pane, nor a Codex one with it off.
+    #[test]
+    fn a_pane_runs_attached_when_its_launch_asks_and_its_kind_has_a_server() {
+        for (kind, attach, expected) in [
+            (AgentKind::Codex, true, true),
+            (AgentKind::Codex, false, false),
+            (AgentKind::Claude, true, false),
+            (AgentKind::Claude, false, false),
+        ] {
+            let request = LaunchRequest {
+                kind,
+                ..Default::default()
+            };
+            assert_eq!(
+                runs_attached(&request, attach),
+                expected,
+                "{kind:?}, attach {attach}"
+            );
+        }
     }
 }
