@@ -747,6 +747,9 @@ fn repo(tag: &str) -> PathBuf {
     let repo = crate::testdir::scratch(tag).join("repo");
     std::fs::create_dir_all(&repo).unwrap();
     git(&repo, &["init", "-q"]);
+    // Checkouts byte for byte: Git for Windows turns LF into CRLF by default
+    // (core.autocrlf), and the worktree's checkout is the production helper's.
+    git(&repo, &["config", "core.autocrlf", "false"]);
     std::fs::write(repo.join("README.md"), "Hangar\n").unwrap();
     git(&repo, &["add", "README.md"]);
     git(&repo, &["commit", "-q", "-m", "init"]);
