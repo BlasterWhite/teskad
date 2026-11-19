@@ -10,6 +10,10 @@ Every release, with its installers, is on the
 
 ## [Unreleased]
 
+### Fixed
+
+- hangarai.dev also shows in the title bar with the navigator hidden and in workspace windows.
+
 ## [2.4.5] - 2026-11-19
 
 ### Added

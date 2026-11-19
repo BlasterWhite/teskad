@@ -41,9 +41,11 @@
 //!
 //! The band always says where the software lives: its name, `hangarai.dev`
 //! (a link, in the secondary colour) and its version ([`brand`]), so that
-//! whoever watches a stream finds the site. The domain goes before the name
-//! when the room runs short ([`Brand::fit`]); with the system's title bar the
-//! window's own title carries it ([`window_title`]).
+//! whoever watches a stream finds the site. The version goes first when the
+//! room runs short, then the domain ([`Brand::fit`]). It is at the navigator's
+//! top, and at the toolbar's lead where the navigator is not drawn (hidden, or
+//! a workspace's own window: [`toolbar_brand`]); with the system's title bar
+//! the window's own title carries it ([`window_title`]).
 
 use std::collections::HashSet;
 use std::sync::OnceLock;
@@ -55,7 +57,7 @@ use hangar_theme::{Theme, fonts, tokens};
 use hangar_ui::{Icon, icon, tip};
 use iced::border::Radius;
 use iced::mouse::Interaction;
-use iced::widget::{Space, button, column, container, mouse_area, responsive, row, text};
+use iced::widget::{Row, Space, button, column, container, mouse_area, responsive, row, text};
 use iced::window::{self, Direction};
 use iced::{Alignment, Background, Border, Color, Element, Font, Length, Padding};
 
@@ -220,7 +222,7 @@ fn maximized(ctx: Ctx<'_>) -> bool {
 }
 
 /// Whether the navigator is drawn in this window, at the band's left end.
-fn navigator_drawn(ctx: Ctx<'_>) -> bool {
+pub fn navigator_drawn(ctx: Ctx<'_>) -> bool {
     ctx.model.live.windows.get(&ctx.window) == Some(&WindowKind::Main) && ctx.panels().navigator
 }
 
@@ -571,13 +573,40 @@ impl Brand {
 /// The name, then the domain (a link), then the version, in the room the
 /// parent leaves: it takes all of it, which is the band's give.
 pub fn brand<'a>(ctx: Ctx<'a>) -> Element<'a, Message> {
-    let version = env!("CARGO_PKG_VERSION");
-    responsive(move |size| brand_in(ctx, version, size.width)).into()
+    responsive(move |size| brand_in(ctx, VERSION, size.width)).into()
+}
+
+/// The version the band shows.
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Whether the toolbar carries the brand: Hangar draws the title bar, and no
+/// navigator draws it at the band's left end (it is hidden, or the window is
+/// a workspace's own). Where the navigator is drawn, its top does.
+pub fn toolbar_shows_brand(ctx: Ctx<'_>) -> bool {
+    drawn(ctx.model.settings()) && !navigator_drawn(ctx)
+}
+
+/// The brand for the toolbar's lead, when [`toolbar_shows_brand`]: the same
+/// parts as [`brand`], but a row of its own size rather than one that fills
+/// what the parent leaves (the lead shrinks to its content, so the toolbar
+/// says how much `room` it has for the brand). As in [`brand`], the version
+/// goes first when that runs short, then the domain, and the name stays; when
+/// there is no room even for the name the toolbar keeps its controls, and
+/// nothing is drawn.
+pub fn toolbar_brand<'a>(ctx: Ctx<'a>, room: f32) -> Option<Element<'a, Message>> {
+    (toolbar_shows_brand(ctx) && room >= NAME_WIDTH)
+        .then(|| brand_parts(ctx, VERSION, Brand::fit(room, VERSION)).into())
 }
 
 fn brand_in<'a>(ctx: Ctx<'a>, version: &'static str, room: f32) -> Element<'a, Message> {
+    container(brand_parts(ctx, version, Brand::fit(room, version)))
+        .center_y(Length::Fill)
+        .into()
+}
+
+/// The parts of the brand that `shown` keeps, in a row of their own width.
+fn brand_parts<'a>(ctx: Ctx<'a>, version: &'static str, shown: Brand) -> Row<'a, Message> {
     let t = ctx.theme;
-    let shown = Brand::fit(room, version);
     let name = tip::bottom(
         t,
         text(NAME)
@@ -601,7 +630,7 @@ fn brand_in<'a>(ctx: Ctx<'a>, version: &'static str, room: f32) -> Element<'a, M
                 .wrapping(text::Wrapping::None),
         );
     }
-    container(parts).center_y(Length::Fill).into()
+    parts
 }
 
 /// The domain in the secondary text colour, in the text colour under the
