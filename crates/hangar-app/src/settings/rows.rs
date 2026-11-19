@@ -51,6 +51,7 @@ pub fn snap(raw: f32, step: f64) -> f64 {
 pub fn text_of<'a>(settings: &'a Settings, target: &Target) -> &'a str {
     match target {
         Target::ClaudeCommand => settings.agent_commands.claude.as_deref().unwrap_or(""),
+        Target::CodexCommand => settings.agent_commands.codex.as_deref().unwrap_or(""),
         Target::VoiceCleanupModel => &settings.voice_cleanup_model,
         Target::VoiceCleanupHint => &settings.voice_cleanup_hint,
         Target::DiscordAppId => &settings.discord_app_id,
