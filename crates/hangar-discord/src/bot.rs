@@ -85,6 +85,9 @@ pub(crate) struct Queued {
     pub channel: String,
     pub text: String,
     pub id: Option<String>,
+    /// The bot's ⚡ is on the message: put once its entry was found, the
+    /// person's ⚡ sending it now from then on.
+    pub zap: bool,
 }
 
 /// A card waiting on the person, and what it asked.

@@ -349,7 +349,7 @@ impl Bot {
         };
         match sent {
             Ok(sent) if sent.queued == Some(true) || working => {
-                self.state().queued.insert(
+                let found = self.state().note_queued(
                     message.clone(),
                     crate::bot::Queued {
                         ws: ws.id.clone(),
@@ -357,40 +357,31 @@ impl Bot {
                         channel: channel.clone(),
                         text: text.clone(),
                         id: None,
+                        zap: false,
                     },
                 );
-                // core may have told the queue before this was noted.
-                let known = self.state().queues.get(&pane.id).cloned();
-                if let Some(pending) = known {
-                    self.match_queue(&pane.id, &pending);
-                }
-                // ⏳ while it waits, and ⚡: put by the person too, it is
-                // sent now (`on_reaction`).
+                // ⏳ while it waits, and ⚡ once its entry is found: put by
+                // the person too, it is sent now (`on_reaction`). Found when
+                // core tells the queue instead, it gets its ⚡ then
+                // (`on_queue`): put before, a click on it would send nothing.
                 self.react(&channel, &message, HOURGLASS).await;
-                self.react(&channel, &message, ZAP).await
+                if found {
+                    self.react(&channel, &message, ZAP).await;
+                }
             }
             Ok(_) => self.react(&channel, &message, CHECK).await,
             Err(error) => self.say(&channel, Some(&message), &error).await,
         }
     }
 
-    /// The agent's queue changed: what the person wrote finds its entry,
-    /// and what left the queue was taken (⏳ and ⚡ become ✅).
+    /// The agent's queue changed: what the person wrote finds its entry
+    /// (and its ⚡), and what left the queue was taken (⏳ and ⚡ become ✅).
     pub(crate) async fn on_queue(&self, pane: &str, pending: &[hangar_core::bridge::Queued]) {
-        {
-            let mut state = self.state();
-            state.queues.insert(pane.to_string(), pending.to_vec());
-            // An entry put behind a ⚡'s message that left the queue never
-            // comes back to it.
-            if let Some(retired) = state.retired.get_mut(pane) {
-                retired.retain(|id| pending.iter().any(|entry| &entry.id == id));
-                if retired.is_empty() {
-                    state.retired.remove(pane);
-                }
-            }
+        let told = self.state().queue_told(pane, pending);
+        for (message, channel) in told.found {
+            self.react(&channel, &message, ZAP).await;
         }
-        let taken = self.match_queue(pane, pending);
-        for (message, channel) in taken {
+        for (message, channel) in told.taken {
             for emoji in [HOURGLASS, ZAP] {
                 let _ = self
                     .http()
@@ -403,50 +394,6 @@ impl Bot {
             }
             self.react(&channel, &message, CHECK).await;
         }
-    }
-
-    /// What the person wrote, matched with the queue's entries; what left
-    /// the queue, by its message and channel.
-    fn match_queue(
-        &self,
-        pane: &str,
-        pending: &[hangar_core::bridge::Queued],
-    ) -> Vec<(String, String)> {
-        let mut taken = Vec::new();
-        {
-            let mut guard = self.state();
-            let state = &mut *guard;
-            let mut claimed: HashSet<String> =
-                state.queued.values().filter_map(|q| q.id.clone()).collect();
-            // The old entries of what a ⚡ put behind its message: queued
-            // again, they are found under their new ids.
-            if let Some(retired) = state.retired.get(pane) {
-                claimed.extend(retired.iter().cloned());
-            }
-            for (message, queued) in state.queued.iter_mut().filter(|(_, q)| q.pane == pane) {
-                match &queued.id {
-                    None => {
-                        let found = pending.iter().find(|entry| {
-                            entry.from.is_none()
-                                && entry.text.trim() == queued.text.trim()
-                                && !claimed.contains(&entry.id)
-                        });
-                        if let Some(entry) = found {
-                            claimed.insert(entry.id.clone());
-                            queued.id = Some(entry.id.clone());
-                        }
-                    }
-                    Some(id) if !pending.iter().any(|entry| &entry.id == id) => {
-                        taken.push((message.clone(), queued.channel.clone()));
-                    }
-                    Some(_) => {}
-                }
-            }
-            for (message, _) in &taken {
-                state.queued.remove(message);
-            }
-        }
-        taken
     }
 
     /// A reaction put on a message: ⚡ from the paired account on what it
@@ -1342,10 +1289,180 @@ impl Bot {
     }
 }
 
+/// What core's telling of a pane's queue came to: by message and channel.
+#[derive(Debug, Default, PartialEq)]
+pub(crate) struct Told {
+    /// What the person wrote, found in the queue now: the bot's ⚡ goes on.
+    pub found: Vec<(String, String)>,
+    /// What left the queue: taken, no longer noted.
+    pub taken: Vec<(String, String)>,
+}
+
+impl crate::bot::State {
+    /// What the person wrote for pane `queued.pane`, queued: noted, and
+    /// found at once when core told its entry before (the queue as last
+    /// told). Whether it was found; if not, core's telling finds it
+    /// (`queue_told`).
+    pub(crate) fn note_queued(&mut self, message: String, queued: crate::bot::Queued) -> bool {
+        let pane = queued.pane.clone();
+        self.queued.insert(message.clone(), queued);
+        if let Some(known) = self.queues.get(&pane).cloned() {
+            self.find_in(&pane, &known);
+        }
+        match self.queued.get_mut(&message) {
+            Some(noted) if noted.id.is_some() => {
+                noted.zap = true;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Core told pane `pane`'s queue (`pending`): kept as known, what the
+    /// person wrote found in it, what left it taken.
+    pub(crate) fn queue_told(
+        &mut self,
+        pane: &str,
+        pending: &[hangar_core::bridge::Queued],
+    ) -> Told {
+        self.queues.insert(pane.to_string(), pending.to_vec());
+        // An entry put behind a ⚡'s message that left the queue never
+        // comes back to it.
+        if let Some(retired) = self.retired.get_mut(pane) {
+            retired.retain(|id| pending.iter().any(|entry| &entry.id == id));
+            if retired.is_empty() {
+                self.retired.remove(pane);
+            }
+        }
+        let taken = self.match_queue(pane, pending, true);
+        let found = self
+            .queued
+            .iter_mut()
+            .filter(|(_, noted)| noted.pane == pane && noted.id.is_some() && !noted.zap)
+            .map(|(message, noted)| {
+                noted.zap = true;
+                (message.clone(), noted.channel.clone())
+            })
+            .collect();
+        Told { found, taken }
+    }
+
+    /// What the person wrote for pane `pane` found in `pending`, a copy of
+    /// its queue that may be older than an entry found since: found only.
+    /// What is not in an older copy has not left the queue for that, and
+    /// dropped as taken it would lose its ⚡ (sending nothing) and its ✅.
+    pub(crate) fn find_in(&mut self, pane: &str, pending: &[hangar_core::bridge::Queued]) {
+        self.match_queue(pane, pending, false);
+    }
+
+    /// What the person wrote for pane `pane`, matched with the entries of
+    /// `pending`; with `settle`, what left the queue too: taken, by message
+    /// and channel, no longer noted.
+    fn match_queue(
+        &mut self,
+        pane: &str,
+        pending: &[hangar_core::bridge::Queued],
+        settle: bool,
+    ) -> Vec<(String, String)> {
+        let mut claimed: HashSet<String> =
+            self.queued.values().filter_map(|q| q.id.clone()).collect();
+        // The old entries of what a ⚡ put behind its message: queued again,
+        // they are found under their new ids.
+        if let Some(retired) = self.retired.get(pane) {
+            claimed.extend(retired.iter().cloned());
+        }
+        let mut taken = Vec::new();
+        for (message, queued) in self.queued.iter_mut().filter(|(_, q)| q.pane == pane) {
+            match &queued.id {
+                None => {
+                    let found = pending.iter().find(|entry| {
+                        entry.from.is_none()
+                            && entry.text.trim() == queued.text.trim()
+                            && !claimed.contains(&entry.id)
+                    });
+                    if let Some(entry) = found {
+                        claimed.insert(entry.id.clone());
+                        queued.id = Some(entry.id.clone());
+                    }
+                }
+                Some(id) if settle && !pending.iter().any(|entry| &entry.id == id) => {
+                    taken.push((message.clone(), queued.channel.clone()));
+                }
+                Some(_) => {}
+            }
+        }
+        for (message, _) in &taken {
+            self.queued.remove(message);
+        }
+        taken
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bot::State;
     use hangar_core::chat::QuestionOption;
+
+    fn entry(id: &str, text: &str) -> hangar_core::bridge::Queued {
+        hangar_core::bridge::Queued {
+            id: id.into(),
+            text: text.into(),
+            from: None,
+        }
+    }
+
+    fn noted(text: &str) -> crate::bot::Queued {
+        crate::bot::Queued {
+            ws: "shop".into(),
+            pane: "leo".into(),
+            channel: "c1".into(),
+            text: text.into(),
+            id: None,
+            zap: false,
+        }
+    }
+
+    fn by(message: &str) -> (String, String) {
+        (message.into(), "c1".into())
+    }
+
+    /// A message's handler reads the queue as core told it so far, and
+    /// core's next telling may be heard before it matches with that copy:
+    /// what that telling found must stay found (its ⚡ sends it, its ✅
+    /// comes when it is taken).
+    #[test]
+    fn an_older_copy_of_the_queue_finds_but_never_drops() {
+        let mut state = State::default();
+        let older = vec![entry("e1", "un")];
+        assert!(!state.note_queued("q1".into(), noted("un")));
+        assert!(!state.note_queued("q2".into(), noted("deux")));
+        let told = state.queue_told("leo", &[entry("e1", "un"), entry("e2", "deux")]);
+        assert_eq!(told.found.len(), 2);
+        assert!(told.taken.is_empty());
+        state.find_in("leo", &older);
+        assert_eq!(state.queued["q1"].id.as_deref(), Some("e1"));
+        assert_eq!(state.queued["q2"].id.as_deref(), Some("e2"));
+        // Taken when core's telling says so, once.
+        let told = state.queue_told("leo", &[entry("e2", "deux")]);
+        assert_eq!(told.taken, [by("q1")]);
+        assert!(told.found.is_empty());
+        assert!(!state.queued.contains_key("q1"));
+    }
+
+    /// Whether core tells the entry before the message is noted or after,
+    /// the message is found once: its ⚡ put once.
+    #[test]
+    fn a_message_is_found_once_whether_core_tells_it_first_or_not() {
+        let mut state = State::default();
+        state.queue_told("leo", &[entry("e1", "un")]);
+        assert!(state.note_queued("q1".into(), noted("un")));
+        assert!(!state.note_queued("q2".into(), noted("deux")));
+        let told = state.queue_told("leo", &[entry("e1", "un"), entry("e2", "deux")]);
+        assert_eq!(told.found, [by("q2")]);
+        let told = state.queue_told("leo", &[entry("e1", "un"), entry("e2", "deux")]);
+        assert_eq!(told, Told::default());
+    }
 
     fn question(options: &[&str]) -> Question {
         Question {
