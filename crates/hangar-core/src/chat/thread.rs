@@ -16,8 +16,8 @@ use serde_json::Value;
 use super::tools::{self, clip, TEXT_BYTES};
 use super::{Body, CallResult, CallState, ChatItem, OpenCall, PendingQuestion, Question, Sender};
 
-const COMPACTED: &str = "Conversation compacted";
-const INTERRUPTED: &str = "Turn interrupted";
+pub(super) const COMPACTED: &str = "Conversation compacted";
+pub(super) const INTERRUPTED: &str = "Turn interrupted";
 const RESUMED: &str = "Session resumed";
 
 /// What Claude Code writes around a message a plugin sends between turns.
@@ -25,7 +25,7 @@ const PLUGIN_HEAD: &str = "plugin sent a message:";
 const PLUGIN_TAIL: &str = "This is how Claude Code surfaces";
 /// Hangar's own plugin: what it sends is Hangar's, not the person's.
 const HANGAR_PLUGIN: &str = "hangar-bridge";
-const HANGAR_MARK: &str = "[Hangar]";
+pub(super) const HANGAR_MARK: &str = "[Hangar]";
 
 /// Messages that open with one of these were written by Claude Code or a
 /// tool, not typed: command output, notifications, reminders.
