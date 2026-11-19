@@ -4,6 +4,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use hangar_core::agent::AgentKind;
 use serde_json::{Value, json};
 
 use super::super::fake::{Fake, lock, pane, workspace};
@@ -12,7 +13,7 @@ use super::super::port::{BoxFuture, OrchestrationHooks, Port, ProjectView, Proje
 use super::super::types::{Caller, OrchestratorEvent};
 use super::contains;
 use crate::state::roles::orchestrator_of;
-use crate::state::types::PaneRole;
+use crate::state::types::{OrchestrationSettings, PaneRole};
 use crate::state::{AgentId, AppState, Workspace, WsId};
 
 /// P19's engine as project_* reaches it: every project but the HQ, its
@@ -313,5 +314,59 @@ async fn project_send_refuses_an_empty_text() {
         .await
         .unwrap_err(),
         "Nothing to send",
+    );
+}
+
+// Codex (docs/native/agents.md T16b, D20): the manager says which agent a
+// workspace's orchestrator runs, and relays to either.
+
+#[tokio::test]
+async fn project_send_names_the_agent_the_workspace_s_orchestrator_runs_when_it_has_none() {
+    let fake = opened();
+    lock(&fake.state).settings.default_orchestrator_agent = Some(AgentKind::Codex);
+    let blog = || {
+        ask(
+            "project_send",
+            json!({"workspace": "Blog", "text": "go"}),
+            manager(),
+            &fake,
+        )
+    };
+    let refused = blog().await.unwrap_err();
+    contains(&refused, "from the menu of a Codex pane");
+    contains(&refused, "Only the person can pin one");
+    // The workspace's own choice before the settings' default.
+    fake.patch("blog", |ws| {
+        ws.orchestration = Some(OrchestrationSettings {
+            orchestrator_agent: Some(AgentKind::Claude),
+            ..OrchestrationSettings::default()
+        });
+    });
+    contains(
+        &blog().await.unwrap_err(),
+        "from the menu of a Claude Code pane",
+    );
+    assert!(fake.logged("enqueue:").is_empty());
+}
+
+#[tokio::test]
+async fn project_send_queues_for_a_codex_orchestrator_as_for_a_claude_code_one() {
+    let fake = opened();
+    fake.patch("shop", |ws| ws.panes[0].agent = AgentId::Codex);
+    let answer = ask(
+        "project_send",
+        json!({"workspace": "Shop", "text": "ship the cart first"}),
+        manager(),
+        &fake,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        *lock(&fake.senders),
+        vec![format!("{RELAY_PREFIX} ship the cart first <- boss")]
+    );
+    super::matches(
+        &answer,
+        json!({"queued": true, "workspace": "Shop", "orchestrator": "Jack"}),
     );
 }

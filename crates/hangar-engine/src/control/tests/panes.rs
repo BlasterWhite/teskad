@@ -6,6 +6,7 @@ use super::super::fake::{Fake, lock};
 use super::super::run::{DISABLED, caller_workspace};
 use super::super::types::Caller;
 use super::{contains, control, from_ava, from_shop, matches, refusal, with};
+use crate::state::AgentId;
 use crate::state::layout::preset_tree;
 use crate::state::types::{PanePin, PinEdge};
 
@@ -316,7 +317,7 @@ async fn sends_nothing_at_all_when_a_key_is_unknown() {
 }
 
 #[tokio::test]
-async fn queues_for_an_idle_claude_code_session_only() {
+async fn queues_for_an_idle_agent_session_but_not_for_a_shell() {
     let fake = Fake::setup();
     control(
         "pane_send",
@@ -566,4 +567,205 @@ async fn focuses_a_pane_in_its_workspace() {
     .unwrap();
     assert_eq!(out, json!({"focused": "Max", "workspace": "Hangar"}));
     assert!(fake.log().contains(&"activate:w1:p2".into()));
+}
+
+// Codex, as any agent whose capabilities allow it (docs/native/agents.md
+// T16b): created, restarted and queued for as Claude Code is.
+
+#[tokio::test]
+async fn creates_a_codex_pane_with_a_queued_prompt_as_it_does_a_claude_code_one() {
+    let fake = Fake::setup();
+    let result = control(
+        "pane_create",
+        with(
+            from_ava(),
+            json!({"agent": "codex", "name": "Cody", "prompt": "Port the parser"}),
+        ),
+        &fake,
+    )
+    .await
+    .unwrap();
+    matches(
+        &result,
+        json!({"workspace": "Hangar", "pane": {"name": "Cody", "agent": "codex", "id": "p10"}}),
+    );
+    contains(
+        result["prompt"].as_str().unwrap(),
+        "as soon as the Codex session is ready",
+    );
+    let added = fake.logged("add:w1:");
+    assert_eq!(added.len(), 1);
+    contains(&added[0], "\"agent\":\"codex\"");
+    // Queued, not typed: the session reads it once it is up, from the agent
+    // that asked for the pane.
+    assert!(fake.log().contains(&"enqueue:p10:Port the parser".into()));
+    assert_eq!(*lock(&fake.senders), vec!["Port the parser <- Ava"]);
+    assert!(fake.typed().is_empty());
+    assert!(fake.log().contains(&"announce:created:Cody:Ava".into()));
+}
+
+#[tokio::test]
+async fn a_claude_code_pane_s_prompt_is_queued_and_said_as_before() {
+    let fake = Fake::setup();
+    let result = control(
+        "pane_create",
+        with(from_ava(), json!({"agent": "claude", "prompt": "Review"})),
+        &fake,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        result["prompt"],
+        "queued: submitted as soon as the Claude Code session is ready"
+    );
+}
+
+#[tokio::test]
+async fn a_new_pane_beside_a_codex_one_takes_a_prompt() {
+    let fake = Fake::setup();
+    fake.patch("w1", |ws| ws.panes[1].agent = AgentId::Codex);
+    control(
+        "pane_create",
+        with(from_ava(), json!({"near": "Max", "prompt": "Go on"})),
+        &fake,
+    )
+    .await
+    .unwrap();
+    assert!(fake.log().contains(&"enqueue:p10:Go on".into()));
+}
+
+#[tokio::test]
+async fn names_every_agent_it_starts_when_one_is_unknown_and_refuses_a_shell_a_prompt() {
+    let fake = Fake::setup();
+    for op in ["pane_create", "pane_restart"] {
+        let refused = refusal(
+            op,
+            with(from_ava(), json!({"pane": "Max", "agent": "gemini"})),
+            &fake,
+        )
+        .await;
+        contains(&refused, "Unknown agent \"gemini\"");
+        contains(&refused, "One of: shell, claude, codex.");
+    }
+    contains(
+        &refusal(
+            "pane_create",
+            with(from_ava(), json!({"agent": "shell", "prompt": "hi"})),
+            &fake,
+        )
+        .await,
+        "to a Claude Code or Codex pane, not to a shell one",
+    );
+    assert!(fake.logged("add:").is_empty());
+    assert!(fake.logged("respawn:").is_empty());
+}
+
+#[tokio::test]
+async fn restarts_a_pane_on_codex_on_a_fresh_session() {
+    let fake = Fake::setup();
+    let answer = control(
+        "pane_restart",
+        with(from_ava(), json!({"pane": "Ava", "agent": "codex"})),
+        &fake,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        fake.logged("respawn:"),
+        vec!["respawn:w1:p1:{\"agent\":\"codex\",\"sessionId\":null}"]
+    );
+    assert_eq!(
+        answer,
+        json!({"pane": {"name": "Ava", "agent": "codex", "id": "fresh-id"}, "fresh": true})
+    );
+    assert!(fake.log().contains(&"announce:reset:Ava:Ava".into()));
+    // And back to Claude Code, as any switch of agent.
+    fake.patch("w1", |ws| ws.panes[0].agent = AgentId::Codex);
+    control(
+        "pane_restart",
+        with(from_ava(), json!({"pane": "Ava", "agent": "claude"})),
+        &fake,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        fake.logged("respawn:")[1],
+        "respawn:w1:p1:{\"agent\":\"claude\",\"sessionId\":null}"
+    );
+}
+
+#[tokio::test]
+async fn queues_for_an_idle_codex_session_as_for_a_claude_code_one() {
+    let fake = Fake::setup();
+    fake.patch("w1", |ws| ws.panes[1].agent = AgentId::Codex);
+    let answer = control(
+        "pane_send",
+        with(
+            from_ava(),
+            json!({"pane": "Max", "text": "next task", "when_idle": true}),
+        ),
+        &fake,
+    )
+    .await
+    .unwrap();
+    assert_eq!(answer, json!({"queued": true, "pane": "Max"}));
+    assert!(fake.log().contains(&"enqueue:p2:next task".into()));
+    assert_eq!(*lock(&fake.senders), vec!["next task <- Ava"]);
+    assert!(
+        fake.typed().is_empty(),
+        "the queue delivers it, not the keys"
+    );
+    contains(
+        &refusal(
+            "pane_send",
+            with(
+                from_ava(),
+                json!({"pane": "Max", "keys": ["enter"], "when_idle": true}),
+            ),
+            &fake,
+        )
+        .await,
+        "Keys cannot be queued",
+    );
+}
+
+#[tokio::test]
+async fn refuses_when_idle_for_a_shell_naming_the_agents_that_take_it() {
+    let fake = Fake::setup();
+    let refused = refusal(
+        "pane_send",
+        with(
+            from_ava(),
+            json!({"pane": "Max", "text": "x", "when_idle": true}),
+        ),
+        &fake,
+    )
+    .await;
+    assert_eq!(
+        refused,
+        "when_idle only works with Claude Code or Codex panes, and \"Max\" runs shell."
+    );
+    assert!(fake.logged("enqueue:").is_empty());
+}
+
+#[tokio::test]
+async fn starts_a_closed_workspace_for_a_prompt_queued_until_its_codex_is_free() {
+    let fake = Fake::setup();
+    fake.patch("w2", |ws| ws.panes[0].agent = AgentId::Codex);
+    let out = control(
+        "pane_send",
+        with(
+            from_ava(),
+            json!({"workspace": "Shop", "pane": "Ava", "text": "go", "when_idle": true}),
+        ),
+        &fake,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        out,
+        json!({"queued": true, "pane": "Ava", "starting": true})
+    );
+    let log = fake.log();
+    assert!(log.contains(&"enqueue:p3:go".into()) && log.contains(&"open:w2".into()));
 }

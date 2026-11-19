@@ -8,9 +8,11 @@
 
 use serde_json::{Value, json};
 
+use hangar_core::agent::detect;
+
 use crate::state::Workspace;
 use crate::state::roles::orchestrator_of;
-use crate::state::types::PaneRole;
+use crate::state::types::{OrchestrationRole, PaneRole};
 
 use super::panes::tell;
 use super::port::{ModelCmd, Port, Projects, is_asleep, is_open};
@@ -119,10 +121,20 @@ pub async fn control(
                 return Err("Nothing to send: give the person's instruction in text.".into());
             };
             let Some(orchestrator) = orchestrator_of(&ws) else {
+                // The agent its orchestrator runs (D20): the workspace's
+                // choice, else the settings' default, else the one installed.
+                let agent = port.snapshot().state.settings.agent_for(
+                    OrchestrationRole::Orchestrator,
+                    ws.orchestration.as_ref(),
+                    None,
+                    detect::installed,
+                );
                 return Err(format!(
                     "\"{}\" has no orchestrator, so there is nobody to relay to. Only the person can pin one, \
-                     from the menu of a Claude Code pane; tell them, and ask whether they want one.",
-                    ws.name
+                     from the menu of a {} pane, the agent this workspace's orchestrator runs; tell them, and ask \
+                     whether they want one.",
+                    ws.name,
+                    agent.info().label
                 ));
             };
             // An agent acting on a workspace is using it: its sleep waits.
@@ -133,9 +145,9 @@ pub async fn control(
                 Some(&me),
             )
             .await?;
-            // Held for a Claude Code that is not running, it would wait for
-            // good: an asleep or unopened workspace is opened, as pane_send
-            // does.
+            // Held for an orchestrator that is not running, it would wait
+            // for good: an asleep or unopened workspace is opened, as
+            // pane_send does.
             let snapshot = port.snapshot();
             let woke = is_asleep(&snapshot, &ws.id);
             let starting = !is_open(&snapshot, &ws);

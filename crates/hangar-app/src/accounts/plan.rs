@@ -11,6 +11,13 @@
 //! A window whose reset has passed since it was reported counts as empty: the
 //! plan started that window over, and the figure on file is from before
 //! (`navigator::plan::shown_pct`, which the plain block follows too).
+//!
+//! Codex's accounts are listed after Claude Code's once one of them is
+//! logged in or has figures: their windows (5 hours, the week, or the plan's
+//! own) come from the usage reports of their attached panes
+//! (`account/rateLimits/*`, docs/native/agents.md §6.2), kept like Claude's
+//! under the account's `key`. With accounts of both kinds listed, each line
+//! names its agent: both have a « Main ».
 
 use iced::widget::{Space, column, container, row, text, tooltip};
 use iced::{Alignment, Element, Length, Padding};
@@ -25,9 +32,10 @@ use crate::navigator::plan::{meter, next_reset, reset_text, rule, shown_pct, win
 use crate::panes_logic::wall_clock_ms;
 use crate::state::live::RateLimit;
 
-use super::live;
-use super::model::ClaudeAccount;
+use super::model::Account;
 use super::switch::{AccountUsage, FIVE_HOUR, WEEKLY};
+use super::{key, live};
+use crate::state::types::AgentKind;
 
 /// An account's windows as the plain block reads a session's: the plan's
 /// two, then a gateway's, by kind. The same functions then draw them and
@@ -53,28 +61,47 @@ pub fn limits(usage: &AccountUsage) -> Vec<RateLimit> {
         .collect()
 }
 
+/// One line of the block: an account of a kind, and its figures.
+pub type Line<'a> = (AgentKind, &'a Account, Option<&'a AccountUsage>);
+
 /// The accounts the block lists: every one with figures, and the logged-in
-/// ones without, which say so. `None` when the per-account block has nothing
-/// to add to the plain one: a single account, or no figures at all yet.
+/// ones without, which say so. `kinds` holds each kind's accounts, in the
+/// order they are shown; Claude Code's count as before, another kind's only
+/// those logged in or with figures, so a machine without Codex sees the
+/// block it always saw. `None` when the per-account block has nothing to add
+/// to the plain one: a single account, or no figures at all yet.
 pub fn shown<'a>(
-    accounts: &'a [ClaudeAccount],
+    kinds: &[(AgentKind, &'a [Account])],
     usage: &'a super::switch::Usage,
-) -> Option<Vec<(&'a ClaudeAccount, Option<&'a AccountUsage>)>> {
-    if accounts.len() < 2 || usage.is_empty() {
+) -> Option<Vec<Line<'a>>> {
+    if usage.is_empty() {
         return None;
     }
-    let listed: Vec<_> = accounts
+    let figures = |kind: AgentKind, account: &Account| usage.get(&key(kind, &account.id));
+    let pool: Vec<(AgentKind, &'a Account)> = kinds
         .iter()
-        .map(|account| (account, usage.get(&account.id)))
-        .filter(|(account, figures)| figures.is_some() || account.logged_in)
+        .flat_map(|(kind, accounts)| accounts.iter().map(move |account| (*kind, account)))
+        .filter(|(kind, account)| {
+            *kind == AgentKind::default() || account.logged_in || figures(*kind, account).is_some()
+        })
+        .collect();
+    if pool.len() < 2 {
+        return None;
+    }
+    let listed: Vec<Line<'a>> = pool
+        .into_iter()
+        .map(|(kind, account)| (kind, account, figures(kind, account)))
+        .filter(|(_, account, figures)| figures.is_some() || account.logged_in)
         .collect();
     (!listed.is_empty()).then_some(listed)
 }
 
 /// The block, or `None` when the plain one should show instead.
 pub fn view<'a>(ctx: Ctx<'a>) -> Option<Element<'a, Message>> {
-    let accounts = live(ctx).accounts.as_deref()?;
-    let listed = shown(accounts, &live(ctx).usage)?;
+    let kinds: Vec<(AgentKind, &[Account])> = live(ctx).kinds().collect();
+    let listed = shown(&kinds, &live(ctx).usage)?;
+    // Named by their agent when accounts of several kinds are listed.
+    let named = listed.iter().any(|(kind, ..)| *kind != listed[0].0);
     let t = ctx.theme;
     let tr: Translator = ctx.i18n;
     let locale = tr.locale();
@@ -88,11 +115,20 @@ pub fn view<'a>(ctx: Ctx<'a>) -> Option<Element<'a, Message>> {
     ]
     .spacing(space::XS);
 
-    for (account, figures) in listed {
+    for (kind, account, figures) in listed {
         let windows = figures.map(limits).unwrap_or_default();
+        let name = if named {
+            tr.t_with(
+                Key::AccountsPlanAgentAccount,
+                &hangar_i18n::args!("agent" => kind.info().label, "name" => account.label.as_str()),
+            )
+            .into_owned()
+        } else {
+            account.label.clone()
+        };
         let mut head = row![
             container(
-                text(account.label.clone())
+                text(name)
                     .size(font_size::MICRO)
                     .wrapping(text::Wrapping::None)
                     .color(t.colors.fg_secondary),
@@ -142,8 +178,7 @@ pub fn view<'a>(ctx: Ctx<'a>) -> Option<Element<'a, Message>> {
             tooltip(
                 block,
                 container(
-                    text(tr.t(Key::SidebarPlanAccountsHint).into_owned())
-                        .size(font_size::CAPTION_LG)
+                    text(tr.t(Key::AccountsPlanHint).into_owned()).size(font_size::CAPTION_LG)
                 )
                 .padding([space::XS - 1.0, space::MD - 1.0])
                 .style(style::container::tooltip(t)),
@@ -159,8 +194,8 @@ mod tests {
     use super::super::switch::{Usage, WindowUsage};
     use super::*;
 
-    fn account(id: &str, logged_in: bool) -> ClaudeAccount {
-        ClaudeAccount {
+    fn account(id: &str, logged_in: bool) -> Account {
+        Account {
             id: id.into(),
             label: id.into(),
             is_main: id == "main",
@@ -185,13 +220,70 @@ mod tests {
         }
     }
 
+    fn claude(accounts: &[Account]) -> Vec<(AgentKind, &[Account])> {
+        vec![(AgentKind::Claude, accounts)]
+    }
+
     #[test]
     fn a_single_account_or_no_figures_leaves_the_plain_block() {
         let usage = Usage::from([("main".to_string(), five_hours(10.0))]);
-        assert!(shown(&[account("main", true)], &usage).is_none());
+        assert!(shown(&claude(&[account("main", true)]), &usage).is_none());
         let both = [account("main", true), account("perso", true)];
-        assert!(shown(&both, &Usage::new()).is_none());
-        assert!(shown(&both, &usage).is_some());
+        assert!(shown(&claude(&both), &Usage::new()).is_none());
+        assert!(shown(&claude(&both), &usage).is_some());
+    }
+
+    /// A Codex account counts once it is logged in or has figures, kept
+    /// under its own key: Codex's « main » is not Claude's.
+    #[test]
+    fn codex_accounts_are_listed_with_their_own_figures_once_they_count() {
+        let usage = Usage::from([
+            ("main".to_string(), five_hours(10.0)),
+            ("codex:main".to_string(), five_hours(70.0)),
+        ]);
+        let one = [account("main", true)];
+        // Codex not logged in and without figures: the plain block, as
+        // before there was Codex.
+        let silent = [account("main", false)];
+        let quiet = Usage::from([("main".to_string(), five_hours(10.0))]);
+        assert!(
+            shown(
+                &[
+                    (AgentKind::Claude, &one[..]),
+                    (AgentKind::Codex, &silent[..])
+                ],
+                &quiet
+            )
+            .is_none()
+        );
+        // With its figures, it is listed after Claude's, with them.
+        let lines = shown(
+            &[
+                (AgentKind::Claude, &one[..]),
+                (AgentKind::Codex, &silent[..]),
+            ],
+            &usage,
+        )
+        .expect("listed");
+        let read: Vec<_> = lines
+            .iter()
+            .map(|(kind, account, figures)| {
+                (
+                    *kind,
+                    account.id.as_str(),
+                    figures
+                        .and_then(|usage| usage.five_hour.as_ref())
+                        .map(|w| w.percent_used),
+                )
+            })
+            .collect();
+        assert_eq!(
+            read,
+            [
+                (AgentKind::Claude, "main", Some(10.0)),
+                (AgentKind::Codex, "main", Some(70.0))
+            ]
+        );
     }
 
     #[test]
@@ -205,10 +297,10 @@ mod tests {
             account("pro", false),
             account("idle", false),
         ];
-        let ids: Vec<_> = shown(&all, &usage)
+        let ids: Vec<_> = shown(&claude(&all), &usage)
             .expect("listed")
             .into_iter()
-            .map(|(account, figures)| (account.id.as_str(), figures.is_some()))
+            .map(|(_, account, figures)| (account.id.as_str(), figures.is_some()))
             .collect();
         assert_eq!(ids, [("main", false), ("pro", true)]);
     }

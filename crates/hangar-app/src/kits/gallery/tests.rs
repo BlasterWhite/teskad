@@ -17,6 +17,7 @@ fn entry() -> GalleryKit {
         permissions_summary: "Runs gh.".into(),
         tags: vec!["ci".into(), "github".into()],
         verified: true,
+        agents: Vec::new(),
     }
 }
 

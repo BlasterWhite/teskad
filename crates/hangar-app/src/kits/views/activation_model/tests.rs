@@ -27,6 +27,7 @@ struct Case<'a> {
     can_run: bool,
     running: Option<&'a str>,
     ran: Option<StepRun>,
+    codex: Option<CodexEntry>,
 }
 
 impl<'a> Case<'a> {
@@ -41,6 +42,7 @@ impl<'a> Case<'a> {
             can_run: true,
             running: None,
             ran: None,
+            codex: None,
         }
     }
 
@@ -67,6 +69,7 @@ impl<'a> Case<'a> {
             running: self.running,
             ran: self.ran.as_ref(),
             error: None,
+            codex: self.codex.as_ref(),
         };
         ActivationModel::build_with(Translator::new(locale), &input, self.groups)
     }
@@ -782,7 +785,7 @@ fn counts_the_commands_among_what_a_kit_brings() {
         ..shown_commands()
     };
     let out = Case::new(&kit).shown(shown).en().text();
-    assert!(!out.contains("Nothing for Claude Code and no tab."));
+    assert!(!out.contains("Nothing for an agent and no tab."));
 }
 
 #[test]
@@ -900,7 +903,11 @@ fn lists_what_the_kit_brings_its_permissions_in_plain_words_and_the_exact_comman
     assert!(out.contains("studio"));
     assert!(out.contains("send messages to your agents"));
     assert!(out.contains("npm install --prefix server"));
-    assert!(out.contains("Kits reach Claude Code panes only"));
+    // Without a plugin nothing differs from one agent to another.
+    assert!(
+        out.contains("Its tabs and setup commands are Hangar's own: they work whatever the agent.")
+    );
+    assert!(!out.contains("Not for Codex"));
     assert!(out.contains("Accept and enable"));
     assert_eq!(model.commands_shown(), ["npm install --prefix server"]);
 }
@@ -1117,4 +1124,265 @@ fn says_the_tab_kinds_in_french() {
     };
     assert_eq!(groups[0].chips[0].kind.as_deref(), Some("Natif"));
     assert!(plain(model.text()).contains("Un onglet natif est un module WebAssembly"));
+}
+
+/// What reaches Claude Code and what reaches Codex (docs/native/agents.md
+/// §6.4), and « Add to Codex » under what Codex takes once installed.
+mod by_agent {
+    use hangar_core::agent::{AgentKind, KitPart};
+    use hangar_core::kits::{AgentParts, CodexPlugin, CodexState, LeftOut, Part, PluginInfo, Why};
+
+    use super::*;
+    use crate::kits::codex::{CodexEntry, CodexOp};
+    use crate::kits::views::codex::CodexActions;
+
+    fn names(items: &[&str]) -> Vec<String> {
+        items.iter().map(|item| (*item).to_owned()).collect()
+    }
+
+    fn part<T: Clone>(how: KitPart, loads: Vec<T>, left: Vec<(T, Why)>) -> Part<T> {
+        Part {
+            how,
+            loads,
+            left_out: left
+                .into_iter()
+                .map(|(item, why)| LeftOut { item, why })
+                .collect(),
+        }
+    }
+
+    fn ping() -> Hook {
+        hook("Notification", "", "ping.sh")
+    }
+
+    fn log() -> Hook {
+        hook("PostToolUse", "Bash", "log.sh")
+    }
+
+    /// `studio`'s plugin: a server, a skill, two hooks, a command; Codex
+    /// takes the server with each launch, the skill and one hook once added,
+    /// not the command nor the other hook. `for_codex`: its manifest names
+    /// Codex.
+    fn studio(for_codex: bool) -> Inspection {
+        let claude = AgentParts {
+            agent: AgentKind::Claude,
+            meant_for: true,
+            mcp_servers: part(KitPart::PerLaunch, names(&["studio"]), vec![]),
+            skills: part(KitPart::PerLaunch, names(&["hello"]), vec![]),
+            hooks: part(KitPart::PerLaunch, vec![log(), ping()], vec![]),
+            commands: part(KitPart::PerLaunch, names(&["build"]), vec![]),
+            agents: part(KitPart::PerLaunch, vec![], vec![]),
+            output_styles: part(KitPart::PerLaunch, vec![], vec![]),
+        };
+        let codex = if for_codex {
+            AgentParts {
+                agent: AgentKind::Codex,
+                meant_for: true,
+                mcp_servers: part(KitPart::PerLaunch, names(&["studio"]), vec![]),
+                skills: part(KitPart::Installed, names(&["hello"]), vec![]),
+                hooks: part(KitPart::Installed, vec![log()], vec![(ping(), Why::Event)]),
+                commands: part(
+                    KitPart::None,
+                    vec![],
+                    vec![("build".into(), Why::NoSuchPart)],
+                ),
+                agents: part(KitPart::None, vec![], vec![]),
+                output_styles: part(KitPart::None, vec![], vec![]),
+            }
+        } else {
+            AgentParts {
+                agent: AgentKind::Codex,
+                meant_for: false,
+                mcp_servers: part(
+                    KitPart::PerLaunch,
+                    vec![],
+                    vec![("studio".into(), Why::NotMeantFor)],
+                ),
+                skills: part(
+                    KitPart::Installed,
+                    vec![],
+                    vec![("hello".into(), Why::NotMeantFor)],
+                ),
+                hooks: part(KitPart::Installed, vec![], vec![(log(), Why::NotMeantFor)]),
+                commands: part(
+                    KitPart::None,
+                    vec![],
+                    vec![("build".into(), Why::NotMeantFor)],
+                ),
+                agents: part(KitPart::None, vec![], vec![]),
+                output_styles: part(KitPart::None, vec![], vec![]),
+            }
+        };
+        Inspection {
+            plugin: Some(PluginInfo {
+                name: "studio".into(),
+                dir: "D:\\kits\\hello-kit".into(),
+            }),
+            skills: names(&["hello"]),
+            commands: names(&["build"]),
+            mcp_servers: names(&["studio"]),
+            by_agent: vec![claude, codex],
+            ..default_inspection()
+        }
+    }
+
+    fn status(state: CodexState) -> CodexPlugin {
+        CodexPlugin {
+            state,
+            plugin: "hello-kit@hangar-kits".into(),
+            skills: names(&["hello"]),
+            hooks: vec![log()],
+            codex: true,
+            add: names(&[
+                "codex plugin marketplace add C:/Users/me/.hangar/codex-plugins",
+                "codex plugin add hello-kit@hangar-kits",
+            ]),
+            remove: names(&[
+                "codex plugin remove hello-kit@hangar-kits",
+                "codex plugin marketplace remove hangar-kits",
+            ]),
+        }
+    }
+
+    fn case(kit: &KitInfo, for_codex: bool, codex: Option<CodexEntry>) -> Case<'_> {
+        Case {
+            codex,
+            ..Case::new(kit).shown(studio(for_codex))
+        }
+    }
+
+    fn blocks(model: &ActivationModel) -> &[AgentBlock] {
+        match &model.agents.body {
+            Loadable::Ready(blocks) => blocks,
+            other => panic!("the agents are listed, not {other:?}"),
+        }
+    }
+
+    #[test]
+    fn lists_what_reaches_each_agent_and_how() {
+        let kit = kit("1.0.0", vec![]);
+        let model = case(&kit, true, None).en();
+        let shown = blocks(&model);
+        assert_eq!(
+            shown.iter().map(|b| b.title.as_str()).collect::<Vec<_>>(),
+            ["Claude Code", "Codex"]
+        );
+        let out = model.text();
+        assert!(out.contains("What reaches each agent"));
+        assert!(out.contains("MCP servers with each launch"));
+        assert!(out.contains("Skills once added to Codex"));
+        assert!(out.contains("Hooks once added to Codex\nPostToolUse · Bash"));
+        assert!(out.contains("Not in Codex"));
+        assert!(out.contains("Commands (Codex has none): build"));
+        assert!(out.contains("Hooks (an event Codex has no hooks for): Notification"));
+        assert!(out.contains(
+            "Its tabs and setup commands are Hangar's own: they work whatever the agent."
+        ));
+        // Claude Code takes it all, and leaves nothing out.
+        assert!(shown[0].left_out.is_empty());
+        assert!(!out.contains("Not in Claude Code"));
+    }
+
+    #[test]
+    fn a_kit_its_manifest_keeps_for_claude_code_is_not_for_codex() {
+        let kit = kit("1.0.0", vec![]);
+        let model = case(&kit, false, None).en();
+        let codex = &blocks(&model)[1];
+        assert_eq!(
+            codex.not_meant.as_deref(),
+            Some(
+                "Not for Codex: the kit's manifest leaves it out, so Codex panes get nothing of its plugin."
+            )
+        );
+        // Not listed part by part: once, for the agent.
+        assert!(codex.loads.is_empty() && codex.left_out.is_empty());
+        assert_eq!(codex.nothing, None);
+    }
+
+    #[test]
+    fn says_it_in_french() {
+        let kit = kit("1.0.0", vec![]);
+        let out = plain(case(&kit, true, None).draw(Locale::Fr).text());
+        assert!(out.contains("Ce que reçoit chaque agent"));
+        assert!(out.contains("Serveurs MCP à chaque lancement"));
+        assert!(out.contains("Skills une fois ajoutés à Codex"));
+        assert!(out.contains("Commandes (Codex n'en a pas) : build"));
+        assert!(out.contains("Absent de Codex"));
+        let out = plain(case(&kit, false, None).draw(Locale::Fr).text());
+        assert!(out.contains("Pas pour Codex : le manifeste du kit l'écarte"));
+    }
+
+    #[test]
+    fn offers_add_to_codex_under_codex_alone() {
+        let kit = kit("1.0.0", vec![]);
+        let entry = CodexEntry {
+            status: Some(status(CodexState::NotAdded)),
+            ..CodexEntry::default()
+        };
+        let model = case(&kit, true, Some(entry)).en();
+        let shown = blocks(&model);
+        assert_eq!(
+            shown[0].codex, None,
+            "Claude Code loads it with each launch"
+        );
+        let control = shown[1].codex.as_ref().expect("Codex takes it once added");
+        assert_eq!(control.status.label, "Not added to Codex");
+        assert!(matches!(
+            &control.actions,
+            CodexActions::Offer { add: Some(add), remove: None, enabled: true } if add == "Add to Codex"
+        ));
+        assert!(
+            model
+                .text()
+                .contains("once added, they reach every Codex session on this machine")
+        );
+        // Accepting the kit is as it was: nothing of Codex in it.
+        assert!(
+            matches!(&model.footer, Footer::Decide { accept, .. } if accept == "Accept and enable")
+        );
+    }
+
+    #[test]
+    fn the_confirmation_shows_what_is_added_and_the_commands_it_runs() {
+        let kit = kit("1.0.0", vec![]);
+        let entry = CodexEntry {
+            status: Some(status(CodexState::NotAdded)),
+            asking: Some(CodexOp::Add),
+            ..CodexEntry::default()
+        };
+        let model = case(&kit, true, Some(entry)).en();
+        let control = blocks(&model)[1].codex.clone().unwrap();
+        assert_eq!(
+            control.text(),
+            [
+                "Not added to Codex",
+                "Codex cannot load a kit's skills and hooks for one session: once added, they reach every Codex session on this machine, whatever the workspace, until you remove them.",
+                "Add Hello kit to Codex? Hangar builds a Codex plugin from what is listed here, then runs these commands:",
+                "Skills: hello",
+                "Hooks: PostToolUse · Bash",
+                "codex plugin marketplace add C:/Users/me/.hangar/codex-plugins",
+                "codex plugin add hello-kit@hangar-kits",
+                "Codex runs these hooks only once you trust them in its /hooks.",
+                "Cancel",
+                "Add to Codex",
+            ]
+            .join("\n")
+        );
+    }
+
+    #[test]
+    fn a_kit_with_nothing_for_codex_offers_nothing() {
+        let kit = kit("1.0.0", vec![]);
+        let entry = CodexEntry {
+            status: Some(CodexPlugin {
+                skills: vec![],
+                hooks: vec![],
+                ..status(CodexState::Nothing)
+            }),
+            ..CodexEntry::default()
+        };
+        let model = case(&kit, false, Some(entry)).en();
+        assert_eq!(blocks(&model)[1].codex, None);
+        assert!(!model.text().contains("Add to Codex"));
+    }
 }
