@@ -19,7 +19,7 @@
 //!   durations, the sizes of the window's parts.
 //! - [`to_iced`] and [`style`]: the theme for iced, and the style functions
 //!   with which views name a role instead of a colour.
-//! - [`fonts`]: Inter, as bytes for iced to load and `Font`s to ask for.
+//! - [`fonts`]: Inter, Space Grotesk and JetBrains Mono, as bytes for iced to load and `Font`s to ask for.
 //! - [`kit_tokens`]: what kits are told of the theme.
 //! - [`contrast`] and [`derive_colors`]: the colour arithmetic and the rules
 //!   that turn a palette into a window, ported from `src/lib/contrast.ts` and

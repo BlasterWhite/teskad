@@ -7,21 +7,22 @@
 //! app multiplied each by `--ui-scale`, and the app does the same by handing
 //! iced a scale factor, so nothing here is ever multiplied again.
 
-/// Corner radii. "Small, consistent radii: controls 4, cards 6 to 8, floating
-/// panels 10. Panes themselves stay square and share 1px separators."
+/// Corner radii, as the Teskad brand pack has them (`docs/teskad-brand`):
+/// controls 6, cards and fields 8, panels and modals 12, and no pill but a
+/// badge. Panes themselves stay square and share 1px separators.
 pub mod radius {
     /// `--radius-xs`: a segment of a segmented control, a checkbox.
     pub const XS: f32 = 4.0;
-    /// `--radius-sm`: a field, a menu item, a tab.
-    pub const SM: f32 = 5.0;
+    /// `--radius-sm`: a menu item, a tab. A control: 6.
+    pub const SM: f32 = 6.0;
     /// `--radius`: a button.
     pub const MD: f32 = 6.0;
-    /// `--radius-lg`: a card, a context menu.
+    /// `--radius-lg`: a card, a field, a context menu.
     pub const LG: f32 = 8.0;
-    /// `--radius-xl`: a dialog, the command palette.
-    pub const XL: f32 = 10.0;
-    /// The track of a switch, a pill, a progress bar: any radius larger than
-    /// half the shortest side, which iced clamps.
+    /// `--radius-xl`: a dialog, the command palette: a panel or a modal, 12.
+    pub const XL: f32 = 12.0;
+    /// The track of a switch, a badge, a progress bar: any radius larger than
+    /// half the shortest side, which iced clamps. Nothing else is a pill.
     pub const FULL: f32 = 999.0;
     /// A pane, a column: the panes are square.
     pub const NONE: f32 = 0.0;
@@ -198,7 +199,15 @@ mod tests {
     #[test]
     fn the_radii_step_up() {
         let steps = [radius::XS, radius::SM, radius::MD, radius::LG, radius::XL];
-        assert!(steps.windows(2).all(|pair| pair[0] < pair[1]));
+        assert!(steps.windows(2).all(|pair| pair[0] <= pair[1]));
+    }
+
+    #[test]
+    fn the_radii_are_the_brand_packs() {
+        assert_eq!(
+            [radius::XS, radius::SM, radius::MD, radius::LG, radius::XL],
+            [4.0, 6.0, 6.0, 8.0, 12.0]
+        );
     }
 
     #[test]

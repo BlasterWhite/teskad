@@ -9,7 +9,7 @@ use iced::Color;
 use crate::data::THEMES;
 
 /// The theme the app starts with, and falls back on for an id it does not know.
-pub const DEFAULT_ID: &str = "graphite";
+pub const DEFAULT_ID: &str = "teskad-dark";
 
 /// Whether a theme sits on a dark or a light background. It decides which way
 /// the chrome's surfaces step away from the terminal background, and the
@@ -428,7 +428,7 @@ pub fn by_id_or_default(id: &str) -> &'static Theme {
     by_id(id).unwrap_or_else(default_theme)
 }
 
-/// Graphite, the default.
+/// Teskad Dark, the default.
 pub fn default_theme() -> &'static Theme {
-    &THEMES[0]
+    by_id(DEFAULT_ID).expect("the default theme is bundled")
 }

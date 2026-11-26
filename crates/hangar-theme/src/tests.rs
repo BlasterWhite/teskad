@@ -75,7 +75,7 @@ mod the_bundled_themes {
 
     #[test]
     fn cover_every_theme() {
-        assert_eq!(themes().len(), 33);
+        assert_eq!(themes().len(), 35);
     }
 
     #[test]
@@ -103,8 +103,8 @@ mod the_bundled_themes {
     }
 
     #[test]
-    fn start_with_graphite_which_is_the_default() {
-        assert_eq!(DEFAULT_ID, "graphite");
+    fn start_with_teskad_dark_which_is_the_default() {
+        assert_eq!(DEFAULT_ID, "teskad-dark");
         assert_eq!(themes()[0].id, DEFAULT_ID);
         assert_eq!(default_theme().id, DEFAULT_ID);
     }
@@ -185,6 +185,43 @@ mod the_bundled_themes {
             let lightness = perceived_lightness(Rgb::from(theme.terminal.background));
             assert_eq!(theme.is_dark(), lightness < 0.5, "{}", theme.id);
         }
+    }
+}
+
+mod the_teskad_themes {
+    use super::*;
+
+    fn pack(hex: &str) -> Color {
+        Rgb::hex(hex).to_color()
+    }
+
+    #[test]
+    fn take_the_brand_packs_accent_terminal_background_and_state_colours() {
+        for (id, sunken, failed, completed) in [
+            ("teskad-dark", "#0B0A0E", "#FF6A55", "#4FD8A4"),
+            ("teskad-light", "#F1EDF6", "#C9382A", "#0F7A55"),
+        ] {
+            let theme = by_id(id).unwrap();
+            assert_eq!(theme.colors.accent, pack("#8A4DFF"), "{id}");
+            assert_eq!(theme.terminal.background, pack(sunken), "{id}");
+            // ANSI red is the failure coral and green the completed green; the
+            // brand magenta is the dark theme's ANSI magenta and nothing else's.
+            assert_eq!(theme.terminal.ansi[1], pack(failed), "{id}");
+            assert_eq!(theme.terminal.ansi[2], pack(completed), "{id}");
+            assert_ne!(theme.terminal.ansi[1], pack("#E040B0"), "{id}");
+            assert_ne!(theme.colors.danger, pack("#E040B0"), "{id}");
+        }
+        assert_eq!(by_id("teskad-dark").unwrap().terminal.ansi[5], pack("#E040B0"));
+    }
+
+    #[test]
+    fn are_the_first_of_their_appearance_and_the_default_is_the_dark_one() {
+        assert_eq!(themes()[0].id, "teskad-dark");
+        let first_light = themes().iter().find(|theme| !theme.is_dark()).unwrap();
+        assert_eq!(first_light.id, "teskad-light");
+        assert_eq!(DEFAULT_ID, "teskad-dark");
+        // Nothing was removed: the old default is still there to be chosen.
+        assert!(by_id("graphite").is_some());
     }
 }
 

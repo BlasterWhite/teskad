@@ -60,11 +60,11 @@ pub fn subtle<'a>(t: &'a Theme, content: impl IntoFragment<'a>) -> Text<'a> {
         .style(style::text::subtle(t))
 }
 
-/// A dialog's or a page's title: 15 px, semibold.
+/// A dialog's or a page's title: Space Grotesk, semibold.
 pub fn title<'a>(t: &'a Theme, content: impl IntoFragment<'a>) -> Text<'a> {
     text::Text::new(content)
         .size(font_size::TITLE)
-        .font(fonts::ui_semibold())
+        .font(fonts::display())
         .style(style::text::primary(t))
 }
 

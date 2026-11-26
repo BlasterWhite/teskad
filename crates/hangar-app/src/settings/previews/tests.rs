@@ -8,7 +8,7 @@ fn the_shipped_stack_is_the_first_font_card_so_a_fresh_install_is_not_custom() {
     assert_eq!(FONT_STACKS[0].1, Settings::default().font_family);
     let cards = font_cards(&Settings::default().font_family, "Custom");
     assert_eq!(cards.len(), FONT_STACKS.len());
-    assert_eq!(cards[0].0, "Cascadia Code");
+    assert_eq!(cards[0].0, "JetBrains Mono");
 }
 
 #[test]
@@ -29,8 +29,8 @@ fn the_font_cards_are_those_of_the_web_app() {
             .map(|(name, _)| *name)
             .collect::<Vec<_>>(),
         [
-            "Cascadia Code",
             "JetBrains Mono",
+            "Cascadia Code",
             "Fira Code",
             "Consolas",
             "Hack",
@@ -41,13 +41,13 @@ fn the_font_cards_are_those_of_the_web_app() {
 }
 
 #[test]
-fn there_are_twenty_five_dark_themes_and_eight_light_ones_to_pick_from() {
+fn there_are_twenty_six_dark_themes_and_nine_light_ones_to_pick_from() {
     let themes = hangar_theme::themes();
     let dark = themes
         .iter()
         .filter(|theme| theme.appearance == Appearance::Dark)
         .count();
-    assert_eq!((dark, themes.len() - dark), (25, 8));
+    assert_eq!((dark, themes.len() - dark), (26, 9));
 }
 
 #[test]

@@ -19,7 +19,7 @@ pub const WINDOW: Size = Size::new(800.0, 600.0);
 /// interface font loaded so that text is measured as it is in the app.
 pub fn simulate<'a, M>(element: impl Into<Element<'a, M>>) -> Simulator<'a, M> {
     let settings = Settings {
-        fonts: vec![Cow::Borrowed(fonts::INTER_VARIABLE)],
+        fonts: hangar_theme::fonts::ALL.map(Cow::Borrowed).to_vec(),
         default_font: fonts::ui(),
         ..Settings::default()
     };

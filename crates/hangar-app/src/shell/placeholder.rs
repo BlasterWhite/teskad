@@ -29,7 +29,7 @@ pub fn no_workspace<'a>(ctx: Ctx<'a>) -> Element<'a, Message> {
     let content = column![
         text(ctx.t(Key::PlaceholderTitle))
             .size(tokens::font_size::TITLE)
-            .font(hangar_theme::fonts::ui_semibold()),
+            .font(hangar_theme::fonts::display()),
         text(body)
             .size(tokens::font_size::BODY)
             .align_x(iced::Center)
@@ -66,7 +66,7 @@ pub fn elsewhere<'a>(ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, Message> {
     let content = column![
         text(title)
             .size(tokens::font_size::TITLE)
-            .font(hangar_theme::fonts::ui_semibold()),
+            .font(hangar_theme::fonts::display()),
         text(ctx.t(Key::WindowElsewhereBody))
             .size(tokens::font_size::BODY)
             .align_x(iced::Center)

@@ -13,7 +13,7 @@ use crate::tokens::radius;
 pub fn field(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
     move |_, status| {
         let c = &t.colors;
-        let border = |color: Color| hairline(color, radius::SM);
+        let border = |color: Color| hairline(color, radius::LG);
         let base = |border: Border| Style {
             background: Background::Color(c.bg),
             border,
@@ -51,7 +51,7 @@ pub fn field_invalid(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
         match status {
             Status::Disabled => style,
             _ => Style {
-                border: hairline(t.colors.danger, radius::SM),
+                border: hairline(t.colors.danger, radius::LG),
                 ..style
             },
         }

@@ -15,8 +15,9 @@ use iced::font::{Family, Style, Weight};
 #[derive(Debug, Clone, PartialEq)]
 pub struct Font {
     /// Families in order of preference. The first one installed on the machine
-    /// is used, and the system's monospace font when none is, which is how a
-    /// CSS font stack behaves.
+    /// is used, then JetBrains Mono, which the app embeds, and the system's
+    /// monospace font when the app has not loaded it: a CSS font stack ending
+    /// in the brand's own face.
     pub families: Vec<String>,
     /// The size of the text in logical pixels.
     pub size: f32,
@@ -50,7 +51,8 @@ impl Default for Font {
 }
 
 impl Font {
-    /// The system monospace font at `size` logical pixels.
+    /// The default font, JetBrains Mono (or the system's monospace font where
+    /// it is not loaded), at `size` logical pixels.
     pub fn monospace(size: f32) -> Self {
         Self {
             size,
@@ -142,9 +144,17 @@ impl Font {
                 return Family::Name(intern(name));
             }
         }
+        if installed(DEFAULT_FAMILY) {
+            return Family::Name(DEFAULT_FAMILY);
+        }
         Family::Monospace
     }
 }
+
+/// The face a terminal is drawn in when the person has not named one that is
+/// installed: the one the app embeds (`hangar_theme::fonts::MONO_FAMILY`; the
+/// terminal does not depend on the themes).
+const DEFAULT_FAMILY: &str = "JetBrains Mono";
 
 /// Whether the font system has a family called `name`.
 fn installed(name: &str) -> bool {
@@ -227,6 +237,13 @@ mod tests {
         );
         assert_eq!(font.clone().with_letter_spacing(-50.0).letter_spacing, -4.0);
         assert_eq!(font.with_letter_spacing(500.0).letter_spacing, 12.0);
+    }
+
+    #[test]
+    fn a_font_with_no_family_of_its_own_falls_back_on_the_systems_without_the_brand_face() {
+        // Nothing is loaded in a test: the brand face is not installed, and
+        // the system's monospace font is what is left.
+        assert_eq!(Font::monospace(13.0).family(), Family::Monospace);
     }
 
     #[test]

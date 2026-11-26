@@ -205,7 +205,7 @@ fn appearance_terminal_shell_and_notifications_have_every_row_too() {
     if crate::shell::title_bar::has_own_bar() {
         appearance.push("systemTitleBar: toggle SystemTitleBar = false");
     }
-    appearance.push(r#"themePick: custom Themes { active: "graphite" }"#);
+    appearance.push(r#"themePick: custom Themes { active: "teskad-dark" }"#);
     // Linux's, the platform of the world these tests build.
     appearance.push(r#"windowOpacity: slider WindowOpacity = 100 [50..100 by 1] "100 %""#);
     assert_eq!(table(&built, SettingsCategory::Appearance), appearance);

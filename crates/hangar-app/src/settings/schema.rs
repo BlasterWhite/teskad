@@ -240,14 +240,14 @@ pub const HIBERNATE_DELAYS: [f64; 5] = [5.0, 10.0, 20.0, 30.0, 60.0];
 /// The shipped terminal font, verbatim: a fresh install must land on a named
 /// card rather than on "Custom".
 pub const DEFAULT_FONT_STACK: &str =
-    r#""Cascadia Code", "JetBrains Mono", Consolas, "Courier New", monospace"#;
+    r#""JetBrains Mono", "Cascadia Code", Consolas, "Courier New", monospace"#;
 
 /// The font cards, in order: a name and the stack it stands for.
 pub const FONT_STACKS: [(&str, &str); 7] = [
-    ("Cascadia Code", DEFAULT_FONT_STACK),
+    ("JetBrains Mono", DEFAULT_FONT_STACK),
     (
-        "JetBrains Mono",
-        r#""JetBrains Mono", "Fira Code", Consolas, monospace"#,
+        "Cascadia Code",
+        r#""Cascadia Code", "JetBrains Mono", Consolas, "Courier New", monospace"#,
     ),
     (
         "Fira Code",

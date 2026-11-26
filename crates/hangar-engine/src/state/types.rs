@@ -28,7 +28,7 @@ use hangar_i18n::Locale;
 /// The theme new settings name: hangar-theme's default (`hangar_theme::DEFAULT_ID`,
 /// which the app's tests hold equal to this; the engine draws nothing and
 /// does not depend on the themes).
-pub const DEFAULT_THEME_ID: &str = "graphite";
+pub const DEFAULT_THEME_ID: &str = "teskad-dark";
 
 /// A workspace's id, as the TS made it (`crypto.randomUUID()` or older
 /// formats): any string.
@@ -1105,7 +1105,7 @@ impl Default for Settings {
             theme_id: DEFAULT_THEME_ID.into(),
             locale: None,
             shell_id: None,
-            font_family: r#""Cascadia Code", "JetBrains Mono", Consolas, "Courier New", monospace"#
+            font_family: r#""JetBrains Mono", "Cascadia Code", Consolas, "Courier New", monospace"#
                 .into(),
             font_size: 13.0,
             line_height: 1.3,

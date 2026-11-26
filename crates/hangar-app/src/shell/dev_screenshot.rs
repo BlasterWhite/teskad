@@ -243,10 +243,13 @@ mod tests {
     /// The renderer the tests are drawn with (`ICED_TEST_BACKEND`, as
     /// iced_test reads it), with Inter loaded as the app loads it.
     fn backend() -> Option<String> {
-        iced::advanced::graphics::text::font_system()
+        let mut system = iced::advanced::graphics::text::font_system()
             .write()
-            .expect("the font system")
-            .load_font(Cow::Borrowed(hangar_theme::fonts::INTER_VARIABLE));
+            .expect("the font system");
+        for font in hangar_theme::fonts::ALL {
+            system.load_font(Cow::Borrowed(font));
+        }
+        drop(system);
         std::env::var("ICED_TEST_BACKEND").ok()
     }
 

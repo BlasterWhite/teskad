@@ -579,7 +579,7 @@ fn brand_parts<'a>(ctx: Ctx<'a>, version: &'static str, shown: Brand) -> Row<'a,
         t,
         text(NAME)
             .size(font_size::UI_LG)
-            .font(fonts::ui_semibold())
+            .font(fonts::display())
             .wrapping(text::Wrapping::None),
         ctx.i18n
             .t_with(Key::SidebarVersion, &args!("version" => version))

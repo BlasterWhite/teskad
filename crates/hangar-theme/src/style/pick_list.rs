@@ -30,7 +30,7 @@ pub fn field(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
             placeholder_color: c.fg_subtle,
             handle_color: c.fg_muted,
             background: Background::Color(c.bg),
-            border: hairline(border, radius::SM),
+            border: hairline(border, radius::LG),
         }
     }
 }

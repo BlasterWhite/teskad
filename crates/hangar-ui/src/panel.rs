@@ -90,7 +90,7 @@ impl<'a, M: 'a> From<Header<'a, M>> for Element<'a, M> {
         line = line.push(
             text(h.title)
                 .size(font_size::UI)
-                .font(fonts::ui_semibold())
+                .font(fonts::display())
                 .style(style::text::primary(t)),
         );
         if let Some(sub) = h.sub {

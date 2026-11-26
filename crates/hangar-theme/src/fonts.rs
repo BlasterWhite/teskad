@@ -1,5 +1,9 @@
 //! The fonts of the window. Inter is the interface's face on every platform,
-//! so that the window reads the same everywhere.
+//! so that the window reads the same everywhere. Space Grotesk (600) sets the
+//! titles of views and the heads of panels, and JetBrains Mono the terminals
+//! and the technical texts: branches, hashes, paths, key hints. All three are
+//! the Teskad brand pack's (`docs/teskad-brand/fonts`), embedded with their
+//! licences.
 //!
 //! iced draws text with cosmic-text, which reads TrueType and OpenType and not
 //! WOFF2, so the `inter.woff2` the kits are served cannot be loaded; that
@@ -14,6 +18,8 @@
 //! ```ignore
 //! iced::application(App::new, App::update, App::view)
 //!     .font(hangar_theme::fonts::INTER_VARIABLE)
+//!     .font(hangar_theme::fonts::SPACE_GROTESK_VARIABLE)
+//!     .font(hangar_theme::fonts::JETBRAINS_MONO_VARIABLE)
 //!     .default_font(hangar_theme::fonts::ui())
 //! ```
 
@@ -25,6 +31,29 @@ pub const INTER_VARIABLE: &[u8] = include_bytes!("../fonts/InterVariable.ttf");
 
 /// The licence of the font above, to show in an about page.
 pub const INTER_LICENSE: &str = include_str!("../fonts/Inter-LICENSE.txt");
+
+/// Space Grotesk Variable (TTF), weights 300 to 700.
+pub const SPACE_GROTESK_VARIABLE: &[u8] = include_bytes!("../fonts/SpaceGrotesk-Variable.ttf");
+
+/// JetBrains Mono Variable (TTF), weights 100 to 800.
+pub const JETBRAINS_MONO_VARIABLE: &[u8] = include_bytes!("../fonts/JetBrainsMono-Variable.ttf");
+
+/// The licences of the two fonts above (SIL OFL 1.1), to show in an about page.
+pub const SPACE_GROTESK_LICENSE: &str = include_str!("../fonts/SpaceGrotesk-LICENSE.txt");
+pub const JETBRAINS_MONO_LICENSE: &str = include_str!("../fonts/JetBrainsMono-LICENSE.txt");
+
+/// Every font file the window embeds: what the app loads at start.
+pub const ALL: [&[u8]; 3] = [
+    INTER_VARIABLE,
+    SPACE_GROTESK_VARIABLE,
+    JETBRAINS_MONO_VARIABLE,
+];
+
+/// Space Grotesk's family name as its file declares it.
+pub const DISPLAY_FAMILY: &str = "Space Grotesk";
+
+/// JetBrains Mono's family name as its file declares it.
+pub const MONO_FAMILY: &str = "JetBrains Mono";
 
 /// Inter's family name as the font file declares it, what `font-family`
 /// said in the web app (`"Inter Variable"`).
@@ -66,10 +95,26 @@ pub const fn ui_weight(css_weight: u16) -> Font {
     })
 }
 
-/// What the interface sets in mono: versions, key hints, paths. The terminals
-/// have a font of their own, from the settings.
+/// Titles of views and heads of panels: Space Grotesk at weight 600.
+pub const fn display() -> Font {
+    Font {
+        family: Family::Name(DISPLAY_FAMILY),
+        weight: Weight::Semibold,
+        stretch: Stretch::Normal,
+        style: Style::Normal,
+    }
+}
+
+/// What the interface sets in mono: branches, hashes, paths, versions, key
+/// hints. The terminals have a font of their own, from the settings, which
+/// is JetBrains Mono until the person picks another.
 pub const fn mono() -> Font {
-    Font::MONOSPACE
+    Font {
+        family: Family::Name(MONO_FAMILY),
+        weight: Weight::Normal,
+        stretch: Stretch::Normal,
+        style: Style::Normal,
+    }
 }
 
 #[cfg(test)]
@@ -92,8 +137,30 @@ mod tests {
     }
 
     #[test]
+    fn the_brand_fonts_are_truetype_files_with_the_families_the_window_asks_for() {
+        for (bytes, family) in [
+            (SPACE_GROTESK_VARIABLE, DISPLAY_FAMILY),
+            (JETBRAINS_MONO_VARIABLE, MONO_FAMILY),
+        ] {
+            assert_eq!(&bytes[..4], &[0, 1, 0, 0], "{family}");
+            let needle = family
+                .encode_utf16()
+                .flat_map(u16::to_be_bytes)
+                .collect::<Vec<_>>();
+            assert!(
+                bytes.windows(needle.len()).any(|window| window == needle),
+                "{family}"
+            );
+        }
+        assert_eq!(display().weight, Weight::Semibold);
+        assert_eq!(mono().family, Family::Name("JetBrains Mono"));
+    }
+
+    #[test]
     fn the_licence_travels_with_the_font() {
-        assert!(INTER_LICENSE.contains("SIL OPEN FONT LICENSE Version 1.1"));
+        for licence in [INTER_LICENSE, SPACE_GROTESK_LICENSE, JETBRAINS_MONO_LICENSE] {
+            assert!(licence.contains("SIL OPEN FONT LICENSE Version 1.1"));
+        }
     }
 
     #[test]

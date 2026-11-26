@@ -12,7 +12,14 @@ Every release, with its installers, is on the
 
 This fork is independent and not affiliated with the original HangarAI project: the app no longer points at that project's services.
 
+### Added
+- Two themes from the Teskad brand pack, **Teskad Dark** and **Teskad Light**, in Settings › Appearance. The terminals follow: their background is the pack's sunken surface, ANSI red is the failure coral, green the « completed » green, and the brand magenta is only ever ANSI magenta.
+- Space Grotesk and JetBrains Mono ship with the app, with their SIL Open Font licences.
+
 ### Changed
+- **Teskad Dark is the theme of a new install.** Whoever has chosen a theme keeps it, the other 33 stay, and nothing is removed.
+- JetBrains Mono is the terminals' font until you pick another (it leads the default stack; a stack you saved keeps its order), and the font of branches, hashes, paths, versions and key hints. Space Grotesk, semibold, sets the titles of views and dialogs, the heads of panels and the name in the title bar.
+- Corner radii follow the pack: 6 px for controls, 8 px for cards and fields, 12 px for dialogs and the command palette.
 - The app is called **Teskad**, and the phone app **Teskad Mobile**: the interface, the agents' briefs and playbook (`CLAUDE.md`, `AGENTS.md`, the line added to `.gitignore`), the MCP tools' descriptions, the error messages, the docs and the issue forms say so. The name is one constant (`hangar_i18n::APP_NAME`, which the strings write as `{app}`), so a future change is a one-line edit. What agents' configurations already know keeps its name: the `hangar` MCP server and its `mcp__hangar__*` tools, the `HANGAR_*` variables, the `.hangar/` folder, the `[Hangar]` prefix of the messages it sends, and the crates. The app identifier, the installers' names and the data folders are unchanged for now.
 - New logo and icons (the Teskad brand pack, `docs/teskad-brand/`): the window and packaging icons, the mark in the sidebar and the voice bar (the variant for the theme, the small one under 24 px), `assets/logo.*`, the README's lockup, and Teskad Mobile's icons. `scripts/logo.ps1`, which drew the old mark, is gone.
 - The title bar shows the name and the version, with no domain and no link. With the system's title bar, the window's title is « HangarAI <version> ».

@@ -471,7 +471,7 @@ mod tests {
     /// `element` in a window the size the shell opens the main one at.
     fn show<'a>(element: Element<'a, Message>) -> Simulator<'a, Message> {
         let settings = Settings {
-            fonts: vec![Cow::Borrowed(hangar_theme::fonts::INTER_VARIABLE)],
+            fonts: hangar_theme::fonts::ALL.map(Cow::Borrowed).to_vec(),
             default_font: hangar_theme::fonts::ui(),
             ..Settings::default()
         };

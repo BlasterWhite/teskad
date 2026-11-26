@@ -111,7 +111,7 @@ fn sheet_of(
         now: std::time::Instant::now(),
     };
     let window = WindowSettings {
-        fonts: vec![Cow::Borrowed(hangar_theme::fonts::INTER_VARIABLE)],
+        fonts: hangar_theme::fonts::ALL.map(Cow::Borrowed).to_vec(),
         default_font: hangar_theme::fonts::ui(),
         ..WindowSettings::default()
     };

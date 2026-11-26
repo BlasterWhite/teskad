@@ -423,6 +423,19 @@ mod tests {
     /// A document that holds no state at all is told apart from an empty
     /// one: the boot sets the file aside rather than saving over it.
     #[test]
+    fn a_state_with_no_theme_starts_on_teskad_dark_and_one_with_a_theme_keeps_it() {
+        // A fresh install, and a file written before the person ever chose.
+        let (fresh, _) = read(json!({"settings": {}}));
+        assert_eq!(fresh.settings.theme_id, "teskad-dark");
+        assert_eq!(AppState::default().settings.theme_id, "teskad-dark");
+        // Whoever has chosen a theme keeps it, the old default included.
+        for chosen in ["graphite", "nord", "teskad-light"] {
+            let (state, _) = read(json!({"settings": {"themeId": chosen}}));
+            assert_eq!(state.settings.theme_id, chosen);
+        }
+    }
+
+    #[test]
     fn a_document_that_is_not_an_object_is_turned_down_not_read_as_empty() {
         for root in [json!([]), json!(null), json!("state"), json!(3)] {
             assert!(read_checked(root.clone()).is_err(), "{root}");
