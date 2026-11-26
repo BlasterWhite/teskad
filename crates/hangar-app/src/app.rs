@@ -622,7 +622,7 @@ impl App {
         }
     }
 
-    /// A window's title: the name, with the domain when the system draws the
+    /// A window's title: the name, with the version when the system draws the
     /// title bar (shell/title_bar.rs: Hangar's own band shows it itself).
     fn title(&self, window: window::Id) -> String {
         let workspace = match self.model.live.windows.get(&window) {
