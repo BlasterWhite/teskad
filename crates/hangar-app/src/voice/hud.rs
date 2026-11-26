@@ -11,10 +11,10 @@ use std::time::Duration;
 use iced::widget::{Space, container, row, tooltip};
 use iced::{Alignment, Element, Length, Padding};
 
+use crate::shell::brand_logo::logo;
 use hangar_i18n::Key;
 use hangar_theme::style;
 use hangar_theme::tokens::radius;
-use crate::shell::brand_logo::logo;
 
 use super::{BARS, Phase, State};
 use crate::ctx::Ctx;

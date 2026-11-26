@@ -292,7 +292,9 @@ async fn answer(op: &str, args: Value, channel: Channel, port: &Port) -> Result<
             }
             match port.mobile() {
                 Some(mobile) => mobile.remote(port.clone(), op.to_string(), args).await,
-                None => Err(format!("{APP_NAME} Mobile is not ready in this window yet.")),
+                None => Err(format!(
+                    "{APP_NAME} Mobile is not ready in this window yet."
+                )),
             }
         }
         Channel::Internal => Err(run::unknown(op)),

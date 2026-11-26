@@ -357,7 +357,13 @@ pub fn worker_role(
     shared_folder: bool,
     label: &str,
 ) -> String {
-    brand(worker_role_raw(workspace, task, orchestrator, shared_folder, label))
+    brand(worker_role_raw(
+        workspace,
+        task,
+        orchestrator,
+        shared_folder,
+        label,
+    ))
 }
 
 pub fn role_message(

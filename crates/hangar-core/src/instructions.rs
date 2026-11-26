@@ -325,7 +325,9 @@ fn update_gitignore(root: &Path) -> InstructionReport {
     if !updated.is_empty() {
         updated.push('\n');
     }
-    updated.push_str(&format!("# {APP_NAME} — tableau de tâches local\n.hangar/\n"));
+    updated.push_str(&format!(
+        "# {APP_NAME} — tableau de tâches local\n.hangar/\n"
+    ));
 
     match write_atomic(&path, updated.as_bytes(), Access::AsBefore) {
         Ok(()) => InstructionReport {

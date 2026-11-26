@@ -285,7 +285,9 @@ fn delivery_words(outcome: DeliveryOutcome) -> String {
     match outcome {
         DeliveryOutcome::Landed => "landed: merged on the branch, task done".into(),
         // A worker in a workspace that is not a git repository: nothing to merge.
-        DeliveryOutcome::Done => "is in: its changes are in the workspace's folder, task done".into(),
+        DeliveryOutcome::Done => {
+            "is in: its changes are in the workspace's folder, task done".into()
+        }
         DeliveryOutcome::Ready => {
             "passed its check and review; it waits for the person to land it".into()
         }
