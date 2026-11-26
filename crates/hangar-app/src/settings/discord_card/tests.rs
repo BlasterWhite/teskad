@@ -81,7 +81,10 @@ fn a_missing_application_id_reads_off_and_not_waiting() {
             (Tone::Off, Key::DiscordStatusNeedsAppId)
         );
     }
-    assert_eq!(status(true, false, false), (Tone::Off, Key::DiscordStatusOff));
+    assert_eq!(
+        status(true, false, false),
+        (Tone::Off, Key::DiscordStatusOff)
+    );
     assert_eq!(
         status(true, true, false),
         (Tone::Waiting, Key::DiscordStatusWaiting)

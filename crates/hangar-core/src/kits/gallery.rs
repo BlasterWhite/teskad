@@ -27,7 +27,8 @@ use super::source;
 use crate::agent::AgentKind;
 
 /// The one source of this version.
-pub const INDEX_URL: &str = "https://raw.githubusercontent.com/BlasterWhite/catalog/main/index.json";
+pub const INDEX_URL: &str =
+    "https://raw.githubusercontent.com/BlasterWhite/catalog/main/index.json";
 /// The only schema read. An older or a newer file lists nothing here.
 const SCHEMA: u64 = 2;
 /// Hangar reviews what this owner publishes, and nobody else's: the catalog's word

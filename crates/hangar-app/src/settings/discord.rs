@@ -34,7 +34,8 @@ pub const REPO_URL: &str = "https://github.com/BlasterWhite/hangar";
 /// no such option (agent art has to be uploaded under these keys), but
 /// Discord drops the keys it cannot resolve without complaining, so a card
 /// missing its art is still a card.
-const LARGE_IMAGE: &str = "https://raw.githubusercontent.com/BlasterWhite/hangar/main/assets/logo.png";
+const LARGE_IMAGE: &str =
+    "https://raw.githubusercontent.com/BlasterWhite/hangar/main/assets/logo.png";
 
 fn agent_image(agent: AgentId) -> String {
     format!("agent-{}", agent.as_str())
