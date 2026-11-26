@@ -29,7 +29,6 @@ rustPlatform.buildRustPackage {
         (lib.fileset.maybeMissing ../node_modules)
         (lib.fileset.maybeMissing ../dist-mobile)
         (lib.fileset.maybeMissing ../result)
-        ../site
         ../docs
         ../nix
         ../flake.nix
