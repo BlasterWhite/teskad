@@ -161,6 +161,8 @@ pub fn run() -> iced::Result {
         .subscription(App::subscription)
         .scale_factor(App::scale_factor)
         .font(hangar_theme::fonts::INTER_VARIABLE)
+        .font(hangar_theme::fonts::SPACE_GROTESK_VARIABLE)
+        .font(hangar_theme::fonts::JETBRAINS_MONO_VARIABLE)
         .default_font(hangar_theme::fonts::ui())
         .run()
 }

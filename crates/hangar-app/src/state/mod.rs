@@ -476,11 +476,11 @@ mod tests {
             tokyo.colors,
             hangar_theme::by_id_or_default("tokyo-night").colors
         );
-        // The workspace follows the global theme: Graphite, at 0.85 too.
+        // The workspace follows the global theme: Teskad Dark, at 0.85 too.
         state.workspaces[0].theme_id = None;
         m.hydrate(state);
-        let graphite = m.theme();
-        assert_eq!((graphite.id, graphite.window_opacity), ("graphite", 0.85));
-        assert_eq!(graphite.accent(), hangar_theme::default_theme().accent());
+        let teskad = m.theme();
+        assert_eq!((teskad.id, teskad.window_opacity), ("teskad-dark", 0.85));
+        assert_eq!(teskad.accent(), hangar_theme::default_theme().accent());
     }
 }

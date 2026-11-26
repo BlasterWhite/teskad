@@ -211,7 +211,10 @@ mod the_teskad_themes {
             assert_ne!(theme.terminal.ansi[1], pack("#E040B0"), "{id}");
             assert_ne!(theme.colors.danger, pack("#E040B0"), "{id}");
         }
-        assert_eq!(by_id("teskad-dark").unwrap().terminal.ansi[5], pack("#E040B0"));
+        assert_eq!(
+            by_id("teskad-dark").unwrap().terminal.ansi[5],
+            pack("#E040B0")
+        );
     }
 
     #[test]

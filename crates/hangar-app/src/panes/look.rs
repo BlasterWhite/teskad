@@ -407,7 +407,7 @@ mod tests {
         let font = font(&Settings::default());
         assert_eq!(
             font.families.first().map(String::as_str),
-            Some("Cascadia Code")
+            Some("JetBrains Mono")
         );
         assert_eq!(font.size, 13.0);
     }
