@@ -12,10 +12,18 @@ Every release, with its installers, is on the
 
 This fork is independent and not affiliated with the original HangarAI project: the app no longer points at that project's services.
 
+### Added
+- Two themes from the Teskad brand pack, **Teskad Dark** and **Teskad Light** (Settings › Appearance). Terminals follow: their background is the pack's sunken surface, ANSI red is the failure coral, green the « done » green, and the brand magenta is ANSI magenta only.
+- Space Grotesk and JetBrains Mono are bundled, with their SIL Open Font License.
+- Teskad Mobile wears the brand: the pack's colour tokens (dark by default, light when the phone asks for it), Inter, Space Grotesk and JetBrains Mono served from the app itself (no CDN, it works offline over Tailscale), and one status icon, with a shape as well as a colour, for agents and tasks.
+
 ### Changed
+- **Teskad Dark is the theme of a new install.** A theme you chose stays yours; the 33 other themes are all still there.
+- JetBrains Mono is the terminals' font until you choose one (first in the default stack; a stack you already saved keeps its order), and the font of branches, hashes, paths, versions and shortcuts. Space Grotesk 600 sets view and dialog titles, panel headers and the name in the title bar.
+- Corner radii follow the brand pack: 6 px for controls, 8 px for cards and fields, 12 px for dialogs and the command palette.
 - The app is called **Teskad**, and the phone app **Teskad Mobile**: the interface, the agents' briefs and playbook (`CLAUDE.md`, `AGENTS.md`, the line added to `.gitignore`), the MCP tools' descriptions, the error messages, the docs and the issue forms say so. The name is one constant (`hangar_i18n::APP_NAME`, which the strings write as `{app}`), so a future change is a one-line edit. What agents' configurations already know keeps its name: the `hangar` MCP server and its `mcp__hangar__*` tools, the `HANGAR_*` variables, the `.hangar/` folder, the `[Hangar]` prefix of the messages it sends, and the crates. The app identifier, the installers' names and the data folders are unchanged for now.
 - New logo and icons (the Teskad brand pack, `docs/teskad-brand/`): the window and packaging icons, the mark in the sidebar and the voice bar (the variant for the theme, the small one under 24 px), `assets/logo.*`, the README's lockup, and Teskad Mobile's icons. `scripts/logo.ps1`, which drew the old mark, is gone.
-- The title bar shows the name and the version, with no domain and no link. With the system's title bar, the window's title is « HangarAI <version> ».
+- The title bar shows the name and the version, with no domain and no link. With the system's title bar, the window's title is « Teskad <version> ».
 - Discord Rich Presence ships with no Discord application: it publishes nothing until you enter the ID of your own in Settings › Discord. The original project's application ID, if you had entered it, is ignored. The card's button, « View on GitHub », opens this fork's repository.
 - Phone notifications are signed with this fork's repository address as their contact.
 
