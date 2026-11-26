@@ -18,7 +18,7 @@ const UPSTREAM_APP_ID: &str = "1534592584045957282";
 
 /// The application the person set in the settings, if there is one to publish
 /// as.
-fn app_id(settings: &Settings) -> Option<&str> {
+pub fn app_id(settings: &Settings) -> Option<&str> {
     let id = settings.discord_app_id.trim();
     (!id.is_empty() && id != UPSTREAM_APP_ID).then_some(id)
 }
@@ -54,9 +54,22 @@ pub struct PresenceInput<'a> {
     pub started_at: i64,
 }
 
-/// Builds the card, or `None` when the feature is off or no application ID is
-/// set, which is also what tells the worker to take the presence down.
+/// What to publish: the card, or `None` when the feature is off or no
+/// application ID is set, which is also what tells the worker to take the
+/// presence down.
 pub fn build_presence(input: &PresenceInput) -> Option<Presence> {
+    if !input.settings.discord_presence {
+        return None;
+    }
+    app_id(input.settings)?;
+    Some(card_content(input))
+}
+
+/// What the card says, whether or not it can be published: Settings previews
+/// it before the feature is on and before there is an application ID. Only
+/// [`build_presence`] decides what is sent; without a usable ID, `app_id` is
+/// empty here.
+pub fn card_content(input: &PresenceInput) -> Presence {
     let PresenceInput {
         settings,
         workspace,
@@ -64,11 +77,6 @@ pub fn build_presence(input: &PresenceInput) -> Option<Presence> {
         t,
         started_at,
     } = input;
-    if !settings.discord_presence {
-        return None;
-    }
-    let app_id = app_id(settings)?;
-
     let panes: &[Pane] = workspace.map_or(&[], |ws| &ws.panes);
     // A shell is a terminal, not an agent: counting it would claim five
     // agents are running on a workspace where nothing was launched. Named,
@@ -125,8 +133,8 @@ pub fn build_presence(input: &PresenceInput) -> Option<Presence> {
         None
     };
 
-    Some(Presence {
-        app_id: app_id.to_string(),
+    Presence {
+        app_id: app_id(settings).unwrap_or_default().to_string(),
         details,
         state,
         large_image: LARGE_IMAGE.to_string(),
@@ -139,7 +147,7 @@ pub fn build_presence(input: &PresenceInput) -> Option<Presence> {
         started_at: Some(*started_at),
         button_label: Some(t.t(Key::DiscordButton).into_owned()),
         button_url: Some(REPO_URL.to_string()),
-    })
+    }
 }
 
 /// Decides when the presence goes to core (`useDiscordPresence`): whenever

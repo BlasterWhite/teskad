@@ -305,6 +305,7 @@
   "discord.cardHead": "Playing a game",
   "discord.elapsed": "{time} elapsed",
   "discord.statusOff": "Off",
+  "discord.statusNeedsAppId": "Off: an application ID is required to publish",
   "discord.statusConnected": "Connected to Discord",
   "discord.statusWaiting": "Waiting for Discord…",
   "discord.statusWaitingHint": "Retrying every 15 s; the presence appears on its own",

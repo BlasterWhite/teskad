@@ -23,7 +23,7 @@ use hangar_theme::tokens::{font_size, radius, space};
 use hangar_theme::{fonts, style};
 use hangar_ui::text as typography;
 
-use super::discord::{PresenceInput, build_presence, now_ms};
+use super::discord::{PresenceInput, app_id, card_content, now_ms};
 use crate::ctx::Ctx;
 use crate::message::Message;
 use crate::services::Services;
@@ -133,26 +133,40 @@ pub fn subscription(enabled: bool) -> Subscription<Message> {
     }
 }
 
-/// The card, built as if it were on so that the toggles can be judged before
-/// publishing anything; it greys out while off. `started_at` is the launch of
-/// the app, which is what the presence counts from.
+/// How the line under the card reads, and the words it says. Without an
+/// application ID nothing can be published, whatever the toggle says: that is
+/// off, and the words say what is missing rather than that Discord is awaited.
+pub fn status(has_app_id: bool, enabled: bool, connected: bool) -> (Tone, Key) {
+    if !has_app_id {
+        return (Tone::Off, Key::DiscordStatusNeedsAppId);
+    }
+    let tone = tone(enabled, connected);
+    let words = match tone {
+        Tone::Off => Key::DiscordStatusOff,
+        Tone::On => Key::DiscordStatusConnected,
+        Tone::Waiting => Key::DiscordStatusWaiting,
+    };
+    (tone, words)
+}
+
+/// The card as it would be published, so that the toggles can be judged
+/// before publishing anything, with or without an application ID; it greys out
+/// while nothing can be published (off, or no ID). `started_at` is the launch
+/// of the app, which is what the presence counts from.
 pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, started_at: i64) -> Element<'a, Message> {
     let settings = ctx.model.settings();
     let enabled = settings.discord_presence;
-    let mut preview_settings = settings.clone();
-    preview_settings.discord_presence = true;
-    let Some(presence) = build_presence(&PresenceInput {
-        settings: &preview_settings,
+    let has_app_id = app_id(settings).is_some();
+    let presence = card_content(&PresenceInput {
+        settings,
         workspace: ctx.model.active_workspace(),
         focused_pane: None,
         t: ctx.i18n,
         started_at,
-    }) else {
-        return column![].into();
-    };
+    });
     column![
-        card(ctx, &presence, st.now, enabled),
-        status_line(st, ctx, enabled)
+        card(ctx, &presence, st.now, enabled && has_app_id),
+        status_line(st, ctx, status(has_app_id, enabled, st.connected))
     ]
     .spacing(space::LG)
     .width(Length::Fill)
@@ -251,16 +265,10 @@ fn card<'a>(ctx: Ctx<'a>, presence: &Presence, now: i64, enabled: bool) -> Eleme
     .into()
 }
 
-fn status_line<'a>(st: &'a State, ctx: Ctx<'a>, enabled: bool) -> Element<'a, Message> {
+fn status_line<'a>(st: &'a State, ctx: Ctx<'a>, (tone, key): (Tone, Key)) -> Element<'a, Message> {
     let t = ctx.theme;
     let c = &t.colors;
-    let tone = tone(enabled, st.connected);
-    let label = match tone {
-        Tone::Off => ctx.t(Key::DiscordStatusOff),
-        Tone::On => ctx.t(Key::DiscordStatusConnected),
-        Tone::Waiting => ctx.t(Key::DiscordStatusWaiting),
-    }
-    .into_owned();
+    let label = ctx.t(key).into_owned();
     let dot_color = match tone {
         Tone::Off => c.fg_subtle,
         Tone::On => c.success,

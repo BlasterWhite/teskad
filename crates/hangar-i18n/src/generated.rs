@@ -1100,6 +1100,8 @@ pub enum Key {
     DiscordShellOnly,
     /// `discord.statusConnected`
     DiscordStatusConnected,
+    /// `discord.statusNeedsAppId`
+    DiscordStatusNeedsAppId,
     /// `discord.statusOff`
     DiscordStatusOff,
     /// `discord.statusWaiting`
@@ -5177,6 +5179,7 @@ impl Key {
         Key::DiscordPanes,
         Key::DiscordShellOnly,
         Key::DiscordStatusConnected,
+        Key::DiscordStatusNeedsAppId,
         Key::DiscordStatusOff,
         Key::DiscordStatusWaiting,
         Key::DiscordStatusWaitingHint,
@@ -7487,6 +7490,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "discord.panes", en: Text::plural("{n} pane", "{n} panes"), fr: Text::plural("{n} panneau", "{n} panneaux") },
     Message { id: "discord.shellOnly", en: Text::plain("Shell only"), fr: Text::plain("Shell uniquement") },
     Message { id: "discord.statusConnected", en: Text::plain("Connected to Discord"), fr: Text::plain("Connecté à Discord") },
+    Message { id: "discord.statusNeedsAppId", en: Text::plain("Off: an application ID is required to publish"), fr: Text::plain("Désactivé\u{202f}: saisis un identifiant d'application pour publier") },
     Message { id: "discord.statusOff", en: Text::plain("Off"), fr: Text::plain("Désactivé") },
     Message { id: "discord.statusWaiting", en: Text::plain("Waiting for Discord…"), fr: Text::plain("En attente de Discord…") },
     Message { id: "discord.statusWaitingHint", en: Text::plain("Retrying every 15\u{a0}s; the presence appears on its own"), fr: Text::plain("Nouvelle tentative toutes les 15\u{a0}s\u{202f}; la présence apparaîtra d'elle-même") },

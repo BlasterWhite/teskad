@@ -305,6 +305,7 @@
   "discord.cardHead": "Joue à",
   "discord.elapsed": "{time} écoulées",
   "discord.statusOff": "Désactivé",
+  "discord.statusNeedsAppId": "Désactivé : saisis un identifiant d'application pour publier",
   "discord.statusConnected": "Connecté à Discord",
   "discord.statusWaiting": "En attente de Discord…",
   "discord.statusWaitingHint": "Nouvelle tentative toutes les 15 s ; la présence apparaîtra d'elle-même",
