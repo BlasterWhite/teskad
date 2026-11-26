@@ -526,7 +526,7 @@ fn says_plainly_when_each_kind_runs() {
             "Other plugins",
             "Claude Code enables these along with this one",
         ),
-        ("Not understood", "Hangar does not know what these are"),
+        ("Not understood", "Teskad does not know what these are"),
     ] {
         assert!(out.contains(title), "{title}");
         assert!(out.contains(sentence), "{sentence}");
@@ -538,7 +538,7 @@ fn says_what_hangar_cannot_read_and_the_sentence_of_each_kind_in_french_with_acc
     let git = git_kit(Some(HOOKS), true);
     let out = text_of(&with_running(Case::new(&git)).draw(Locale::Fr));
     assert!(
-        out.contains("Ne peut pas être lu par Hangar : ce que cela lance n'est pas montré ici.")
+        out.contains("Ne peut pas être lu par Teskad : ce que cela lance n'est pas montré ici.")
     );
     assert!(out.contains("Non compris"));
     assert!(out.contains("Moniteurs"));
@@ -555,7 +555,7 @@ fn says_it_of_each_bundle_remote_grammar_download_other_plugin_and_broken_file()
     let git = git_kit(Some(HOOKS), true);
     let out = with_running(Case::new(&git)).en().text();
     let unreadable = running().iter().filter(|(_, item)| item.unreadable).count();
-    assert_eq!(out.matches("Cannot be read by Hangar").count(), unreadable);
+    assert_eq!(out.matches("Cannot be read by Teskad").count(), unreadable);
     // A broken file has nothing to show but its name, and its name is shown.
     let model = with_running(Case::new(&git)).en();
     let Loadable::Ready(body) = &model.runs.body else {
@@ -905,7 +905,7 @@ fn lists_what_the_kit_brings_its_permissions_in_plain_words_and_the_exact_comman
     assert!(out.contains("npm install --prefix server"));
     // Without a plugin nothing differs from one agent to another.
     assert!(
-        out.contains("Its tabs and setup commands are Hangar's own: they work whatever the agent.")
+        out.contains("Its tabs and setup commands are Teskad's own: they work whatever the agent.")
     );
     assert!(!out.contains("Not for Codex"));
     assert!(out.contains("Accept and enable"));
@@ -1026,7 +1026,7 @@ fn waits_to_accept_until_the_inspection_has_loaded_and_the_kit_is_usable() {
         }
     ));
     let mut broken = roblox();
-    broken.error = Some("needs a newer Hangar".into());
+    broken.error = Some("needs a newer Teskad".into());
     let model = setup_case(&broken).en();
     assert!(matches!(
         model.footer,
@@ -1041,10 +1041,10 @@ fn waits_to_accept_until_the_inspection_has_loaded_and_the_kit_is_usable() {
 fn says_why_a_kit_that_cannot_be_used_cannot_be_accepted() {
     // Accept is off for it: the dialog says why rather than leave it greyed.
     let mut broken = roblox();
-    broken.error = Some("needs a newer Hangar".into());
+    broken.error = Some("needs a newer Teskad".into());
     assert_eq!(
         setup_case(&broken).en().error.as_deref(),
-        Some("needs a newer Hangar")
+        Some("needs a newer Teskad")
     );
     let mut unread = roblox();
     unread.manifest = None;
@@ -1276,7 +1276,7 @@ mod by_agent {
         assert!(out.contains("Commands (Codex has none): build"));
         assert!(out.contains("Hooks (an event Codex has no hooks for): Notification"));
         assert!(out.contains(
-            "Its tabs and setup commands are Hangar's own: they work whatever the agent."
+            "Its tabs and setup commands are Teskad's own: they work whatever the agent."
         ));
         // Claude Code takes it all, and leaves nothing out.
         assert!(shown[0].left_out.is_empty());
@@ -1357,7 +1357,7 @@ mod by_agent {
             [
                 "Not added to Codex",
                 "Codex cannot load a kit's skills and hooks for one session: once added, they reach every Codex session on this machine, whatever the workspace, until you remove them.",
-                "Add Hello kit to Codex? Hangar builds a Codex plugin from what is listed here, then runs these commands:",
+                "Add Hello kit to Codex? Teskad builds a Codex plugin from what is listed here, then runs these commands:",
                 "Skills: hello",
                 "Hooks: PostToolUse · Bash",
                 "codex plugin marketplace add C:/Users/me/.hangar/codex-plugins",

@@ -16,7 +16,7 @@
 
 use std::borrow::Cow;
 
-use hangar_i18n::{Key, Locale, Translator, args};
+use hangar_i18n::{APP_NAME, Key, Locale, Translator, args};
 use hangar_ui::Icon;
 use hangar_ui::shortcut::Platform as KeyboardPlatform;
 
@@ -1446,7 +1446,7 @@ fn about(ctx: &Context, version: &str) -> Category {
     let tx = |key: Key| t.t(key).into_owned();
     let mut identity = vec![item(
         "appName",
-        Some("HangarAI".to_string()),
+        Some(APP_NAME.to_string()),
         Kind::Text {
             value: "hangar-ai".to_string(),
         },

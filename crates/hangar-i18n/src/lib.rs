@@ -1,4 +1,4 @@
-//! Hangar's interface strings, in English and French, and the functions that
+//! Teskad's interface strings, in English and French, and the functions that
 //! turn a key into text. Ported from the web app's `src/i18n.ts` (tag
 //! v1.12.1); see docs/native/PLAN.md, "hangar-i18n".
 //!
@@ -18,7 +18,7 @@
 //!
 //! // A sentence with a placeholder. Text is put in as it is.
 //! let hint = tr.t_with(Key::SidebarVersion, &args!("version" => "1.12.1"));
-//! assert_eq!(hint, "HangarAI 1.12.1");
+//! assert_eq!(hint, "Teskad 1.12.1");
 //!
 //! // A counted sentence: the language decides which form `n` takes. French
 //! // reads 0 and 1 as singular, English only 1, and `{n}` is written the way
@@ -91,4 +91,15 @@ pub use dictionary::{AsKey, KeyRef};
 pub use generated::{KEY_COUNT, Key};
 pub use locale::{LOCALES, Locale, LocaleOption, UnknownLocale};
 pub use plural::PluralCategory;
+/// The product's name as every string shows it: the one place to change it.
+/// A string writes `{app}` for it and needs no argument; Rust code that builds
+/// a text of its own takes it from here (hangar-core re-exports it).
+pub const APP_NAME: &str = "Teskad";
+
+/// A text written with `{app}` for the product's name, with the name in it:
+/// for the messages that are plain Rust strings, not dictionary entries.
+pub fn brand(text: &str) -> String {
+    text.replace("{app}", APP_NAME)
+}
+
 pub use translate::{Translator, t, t_with, tn};

@@ -1,8 +1,9 @@
-<p align="center">
-  <img src="assets/logo.png" alt="HangarAI logo" width="88" height="88">
-</p>
-
-<h1 align="center">HangarAI</h1>
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/teskad-lockup-color-on-dark.svg">
+    <img src="assets/teskad-lockup-color-on-light.svg" alt="Teskad" width="253" height="80">
+  </picture>
+</h1>
 
 <p align="center">
   An independent fork of HangarAI (https://hangarai.dev), not affiliated with it,
@@ -29,12 +30,12 @@
 
 ![The chat view of a Recipes workspace: you talk to Iris, the orchestrator, who split the app into four board tasks and started workers; the side panel shows each task's progress, and the inspector shows Iris's session and context use.](docs/images/chat-view.png)
 
-Hangar is an open-source native desktop app written in Rust (no Electron). It runs your coding
+Teskad is an open-source native desktop app written in Rust (no Electron). It runs your coding
 agents — **Claude Code** and **Codex** (beta) — side by side in real terminals, as many sessions
 as you need, and lets them work together: an orchestrator of either agent plans on a shared
 board and hands tasks to workers of either agent, with a shared memory. It starts the agents
 already on your machine, with your own accounts; one of them installed is enough, and a pane
-can also be a plain shell. No telemetry, ever. There is no Hangar account and no hosted
+can also be a plain shell. No telemetry, ever. There is no Teskad account and no hosted
 service behind the app: what goes online is listed on the
 [privacy page](docs/guide/privacy.md).
 
@@ -47,12 +48,12 @@ service behind the app: what goes online is listed on the
 - 🧭 **Orchestrator and workers, of either agent.** One agent plans, Claude Code or Codex;
   workers, of the same agent or the other, each get a git worktree and a branch. Every
   delivery is merged in a scratch worktree, run through your check command, read by a
-  reviewer agent, then landed locally. Hangar never pushes.
+  reviewer agent, then landed locally. Teskad never pushes.
 - 🤝 **Delegate.** An agent hands a sub-task to the other one — a review, a question about
   the repository, a set of images — and gets the result back, with no board task.
 - 🎨 **Images from Codex.** What a Codex session draws shows in the chat, on your phone and
   on Discord; a Claude Code orchestrator can ask Codex for images and use the files.
-- 📱 **Hangar Mobile.** See what waits for you, answer your agents' questions with a tap,
+- 📱 **Teskad Mobile.** See what waits for you, answer your agents' questions with a tap,
   allow or deny permissions — from your phone, over your own Tailscale network.
 - 🧩 **Kits and previews.** Kits add skills, MCP servers and tabs of their own; agents show
   you images, code, Markdown, PDFs, web pages, video and 3D models beside their terminal.
@@ -63,14 +64,14 @@ More: [features](docs/guide/features.md) · [orchestration](docs/guide/orchestra
 
 ## Claude Code and Codex
 
-Hangar asks each agent what it can do, never which agent it is, so every feature works with
+Teskad asks each agent what it can do, never which agent it is, so every feature works with
 either one alone, and says so where one does less:
 
 | | Claude Code | Codex (beta) |
 |---|---|---|
 | Orchestrator, workers, project manager | yes | yes |
 | Delivery reviewer | `claude -p` | `codex exec`, read-only |
-| Chat view, answers from Mobile and Discord | yes | yes; keys checked on screen when Hangar cannot attach |
+| Chat view, answers from Mobile and Discord | yes | yes; keys checked on screen when Teskad cannot attach |
 | Context gauge, plan limits | yes | yes, exact, with their reset times |
 | Several accounts | yes | yes |
 | Kits | everything | MCP servers; skills and hooks once added to Codex; commands and agents: Claude Code only |
@@ -79,13 +80,13 @@ either one alone, and says so where one does less:
 | `delegate`, as the one asked | yes | yes |
 
 The full table, read from the code (`AgentInfo` in `crates/hangar-core/src/agent.rs`), and
-what Hangar does when it cannot attach to Codex: [Codex (beta)](docs/guide/codex.md).
+what Teskad does when it cannot attach to Codex: [Codex (beta)](docs/guide/codex.md).
 
-Codex support is **beta** until its users confirm it. Hangar was written against the protocol
+Codex support is **beta** until its users confirm it. Teskad was written against the protocol
 OpenAI publishes for Codex, without a recorded session, and relies on a few things only
-Codex's source shows: that Codex's own terminal draws a turn Hangar started, that it resumes
-a session through Hangar's server, that the first of two answers to an approval wins, and how
-an image is written in its newer session files. On Windows, Codex panes run without Hangar
+Codex's source shows: that Codex's own terminal draws a turn Teskad started, that it resumes
+a session through Teskad's server, that the first of two answers to an approval wins, and how
+an image is written in its newer session files. On Windows, Codex panes run without Teskad
 attached for now ([what that changes](docs/guide/codex.md#attached-or-the-plain-terminal)).
 Something wrong in a Codex pane? Use the
 [Codex bug form](https://github.com/BlasterWhite/hangar/issues/new?template=codex-bug.yml).
@@ -104,20 +105,20 @@ again for a new version.
 | NixOS / Nix | `nix run github:BlasterWhite/hangar` (builds `main`), or the flake in your config: [NixOS](docs/guide/install.md#nixos-and-nix) |
 
 You also need [Claude Code](https://code.claude.com/docs/en/overview) or
-[Codex](https://learn.chatgpt.com/docs/codex/cli) (or both), installed and signed in; Hangar
+[Codex](https://learn.chatgpt.com/docs/codex/cli) (or both), installed and signed in; Teskad
 offers to install them with their makers' installers. Then create a workspace
 (`Ctrl`/`Cmd`+`Shift`+`N`): it starts with one agent pane, its orchestrator, Claude Code or
 Codex as you choose. Tell it what you want built.
 
 SmartScreen, Gatekeeper, WebKitGTK, upgrading from 1.x, first steps:
 [install guide](docs/guide/install.md). Phone setup (about a minute):
-[Hangar Mobile](docs/guide/mobile.md).
+[Teskad Mobile](docs/guide/mobile.md).
 
 ### Build from source
 
 ```bash
 git clone https://github.com/BlasterWhite/hangar && cd hangar
-scripts/native-dev.sh             # builds and runs Hangar on data of its own
+scripts/native-dev.sh             # builds and runs Teskad on data of its own
 cargo test --workspace
 ```
 
@@ -126,22 +127,22 @@ Requirements (Rust, cmake, clang, per-OS packages) and the repository layout:
 
 ### Build on macOS
 
-On a Mac (Apple Silicon or Intel, macOS 10.15+), build Hangar yourself:
+On a Mac (Apple Silicon or Intel, macOS 10.15+), build Teskad yourself:
 
 ```bash
 xcode-select --install                 # clang and the SDK
-brew install cmake node pnpm           # cmake for dictation; node + pnpm for Hangar Mobile
+brew install cmake node pnpm           # cmake for dictation; node + pnpm for Teskad Mobile
 curl https://sh.rustup.rs -sSf | sh    # Rust
 
 git clone https://github.com/BlasterWhite/hangar && cd hangar
-pnpm install && pnpm mobile:build      # optional: the phone app Hangar serves
+pnpm install && pnpm mobile:build      # optional: the phone app Teskad serves
 cargo build --profile dist --locked -p hangar-app
 cargo build --profile dist --locked -p hangar-webview --features engine
 ./target/dist/hangar-ai
 ```
 
 `--release` instead of `--profile dist` builds several times faster (a bigger, slightly
-slower app). To make a `Hangar.AI.app` and a `.dmg`: `crates/hangar-app/packaging/macos/build.sh`
+slower app). To make a `Teskad.app` and a `.dmg`: `crates/hangar-app/packaging/macos/build.sh`
 ([packaging guide](docs/native/PACKAGING.md)). A build of your own does not update itself:
 pull and build again for a new version.
 
@@ -150,11 +151,11 @@ pull and build again for a new version.
 Off by default, under **Settings › Experiments**:
 **chat view** (talk to the orchestrator instead of watching panes, shown above) ·
 **nodes** (a headless `hangar-node` on a Linux machine over SSH, [design](docs/native/nodes.md)) ·
-**pane scopes** (Linux: each pane in its own systemd scope, so a runaway build is stopped, not Hangar).
+**pane scopes** (Linux: each pane in its own systemd scope, so a runaway build is stopped, not Teskad).
 
 ## Performance
 
-Hangar 2.0 against 1.12.1, the last web-view release, on the same Linux machine: cold start
+Teskad 2.0 against 1.12.1, the last web-view release, on the same Linux machine: cold start
 0.57 s vs 0.96 s; 16 terminals printing non-stop take 249 MiB vs 8.1 GiB.
 [Benchmark](docs/native/BENCHMARK.md).
 
@@ -168,7 +169,7 @@ Security issues: [SECURITY.md](SECURITY.md).
 
 ## 💝 Contributors
 
-HangarAI was created by [simnJS](https://github.com/simnJS), its original author. This
+The project this one forks was created by [simnJS](https://github.com/simnJS), its original author. This
 fork is maintained by [BlasterWhite](https://github.com/BlasterWhite) ([how it
 differs](FORK.md)). The people below contributed to the original project.
 

@@ -66,7 +66,7 @@ fn main() -> iced::Result {
     app::run()
 }
 
-/// A development build refuses to start on the installed Hangar's data.
+/// A development build refuses to start on the installed {APP_NAME}'s data.
 ///
 /// The native app is written on machines where the released Hangar runs, and
 /// both use the same folders: `state.json`, the endpoint file agents find the
@@ -83,12 +83,12 @@ fn dev_guard() -> Result<(), String> {
     if set("HANGAR_DEV_USE_REAL_DATA") || (set("HANGAR_DATA_ROOT") && set("HANGAR_ENDPOINT_FILE")) {
         return Ok(());
     }
-    Err(
-        "This development build would use the installed Hangar's data \
+    let app = hangar_i18n::APP_NAME;
+    Err(format!(
+        "This development build would use the installed {app}'s data \
          (state.json, the agents' endpoint file).\n\
          Run it with scripts/native-dev.sh, which keeps it under target/dev-home/, \
          or set HANGAR_DATA_ROOT and HANGAR_ENDPOINT_FILE yourself \
          (HANGAR_DEV_USE_REAL_DATA=1 to use the real data on purpose)."
-            .into(),
-    )
+    ))
 }

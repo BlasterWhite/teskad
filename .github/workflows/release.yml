@@ -105,7 +105,7 @@ jobs:
             prerelease=false
             case "$TAG" in *-*) prerelease=true ;; esac
             id=$(jq -n --arg tag "$TAG" --arg body "$NOTES" --argjson pre "$prerelease" \
-                  '{ tag_name: $tag, name: ("HangarAI " + $tag),
+                  '{ tag_name: $tag, name: ("Teskad " + $tag),
                      body: $body, draft: true, prerelease: $pre }' \
                  | gh api --method POST "repos/$GITHUB_REPOSITORY/releases" \
                      --input - --jq .id)
@@ -364,7 +364,7 @@ jobs:
       # stays a draft and nothing reaches /releases/latest/. It is checked twice:
       # here that the folder is whole, and after the build that the executable
       # took it in.
-      - name: Build Hangar Mobile
+      - name: Build Teskad Mobile
         if: env.RELEASING == 'true'
         run: |
           pnpm install --frozen-lockfile

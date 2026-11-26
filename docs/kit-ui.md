@@ -1,16 +1,16 @@
-# Hangar UI
+# Teskad UI
 
-The interface library of kits' **HTML tabs**, so that a tab looks like a part of Hangar rather than
+The interface library of kits' **HTML tabs**, so that a tab looks like a part of Teskad rather than
 a page framed inside it. A stylesheet of tokens and components, a script of behaviours, both served
-by Hangar to every HTML tab, with no dependency and nothing to install.
+by Teskad to every HTML tab, with no dependency and nothing to install.
 
-A **native tab** (Hangar 2.0 and later, Rust compiled to WebAssembly) needs none of this: it
-describes its page as widgets of the kit SDK, and Hangar draws them with its own, in the person's
+A **native tab** (Teskad 2.0 and later, Rust compiled to WebAssembly) needs none of this: it
+describes its page as widgets of the kit SDK, and Teskad draws them with its own, in the person's
 theme. Its widgets and calls are in [native/kits-native.md](native/kits-native.md). The rules of
 [the rules a kit follows](#the-rules-a-kit-follows) hold for both kinds.
 
-It is **tied to Hangar, not copied from it**. Its colours, measures, icons and font are generated from
-Hangar's own sources, and a test fails when they no longer match: when Hangar changes a colour, a
+It is **tied to Teskad, not copied from it**. Its colours, measures, icons and font are generated from
+Teskad's own sources, and a test fails when they no longer match: when Teskad changes a colour, a
 radius or a size, the library follows, and so does every kit using it.
 
 The contract of a kit, its manifest and its messages, is in [kits.md](kits.md).
@@ -43,7 +43,7 @@ The contract of a kit, its manifest and its messages, is in [kits.md](kits.md).
 | Address               | What                                                                        |
 | --------------------- | --------------------------------------------------------------------------- |
 | `/_hangar/kit.css`    | Tokens and components. Enough on its own for a page without behaviours.     |
-| `/_hangar/kit.js`     | The [SDK](kits.md#the-sdk), `window.hangar`. It keeps the page in Hangar's theme. |
+| `/_hangar/kit.js`     | The [SDK](kits.md#the-sdk), `window.hangar`. It keeps the page in Teskad's theme. |
 | `/_hangar/kit-ui.js`  | Behaviours, `window.hangar.ui`. Load it after `kit.js`.                     |
 | `/_hangar/inter.woff2` | The face `kit.css` asks for: you never name it.                            |
 
@@ -52,17 +52,17 @@ what it is: a stylesheet, scripts, a font. A page's own files stay relative.
 
 ## Versions
 
-Hangar UI has no version of its own: it ships with Hangar. A kit says what it needs the usual way,
+Teskad UI has no version of its own: it ships with Teskad. A kit says what it needs the usual way,
 with `hangar` in its manifest:
 
 ```json
 { "hangar": ">=1.9.0" }
 ```
 
-A kit that does not say so may open on an older Hangar, which answers these addresses with a 404:
+A kit that does not say so may open on an older Teskad, which answers these addresses with a 404:
 its page then shows without a style.
 
-| Component                                                                                           | Since Hangar |
+| Component                                                                                           | Since Teskad |
 | --------------------------------------------------------------------------------------------------- | ------------ |
 | Layout: `.kit-page`, `.kit-fill`, `.kit-grow`, `.kit-stack`, `.kit-actions`, `.kit-bar`             | 1.9.0        |
 | Text: `.kit-dim`, `.kit-muted`, `.kit-small`, `.kit-mono`, `.kit-num`, `.kit-truncate`, `.kit-wrap`, `.kit-sr`, `.kit-code` | 1.9.0 |
@@ -103,7 +103,7 @@ A row is added here with the version that brings it.
 ## The rules a kit follows
 
 - **State is a small glyph and a word, never a coloured page.** A failure takes `.kit-state--failure`
-  in the header, not a red block across the tab. Colour in Hangar only ever means something, so
+  in the header, not a red block across the tab. Colour in Teskad only ever means something, so
   most of the page has none.
 - **One primary action per screen.** `.kit-btn--primary` is the one thing the page is for right
   now. Everything else is a default or a ghost button.
@@ -119,7 +119,7 @@ A row is added here with the version that brings it.
 - **Everything is reachable by keyboard.** Use real `button`, `a`, `input` and `select` elements. A
   block that scrolls inside itself takes `tabindex="0"`. A `title` is a convenience for the
   pointer: what only it says, a keyboard never reads, so an icon alone also takes `aria-label`.
-- **A page never takes the focus by itself.** Hangar hands the keyboard back to the terminal when
+- **A page never takes the focus by itself.** Teskad hands the keyboard back to the terminal when
   a page grabs it unasked.
 - **Write what the person can do, in the interface's voice.** "Install gh, then retry", not "An
   error occurred".
@@ -128,7 +128,7 @@ A row is added here with the version that brings it.
 
 Every token is a custom property of the root element, named after what it means. Use them for
 anything the components do not cover, and never write a colour of your own: a hex in a kit's sheet
-is wrong on most of Hangar's themes.
+is wrong on most of Teskad's themes.
 
 | Colour                                                                  | What it is                                                   |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------ |
@@ -150,10 +150,10 @@ is wrong on most of Hangar's themes.
 
 | Measure                                                                 | What it is                                                     |
 | ----------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `--kit-scale`                                                           | Hangar's interface size. Sizes below already follow it.        |
-| `--kit-font`, `--kit-mono`                                              | Hangar's interface face, Inter, and the terminals' own.        |
+| `--kit-scale`                                                           | Teskad's interface size. Sizes below already follow it.        |
+| `--kit-font`, `--kit-mono`                                              | Teskad's interface face, Inter, and the terminals' own.        |
 | `--kit-fs-title`, `-body`, `-row`, `-control`, `-small`, `-code`, `-meta`, `-label`, `-chip` | The type scale: 15, 13, 12.5, 12, 11.5, 11.5, 11, 10.5, 10 px. |
-| `--kit-h-row`, `-rich-row`, `-control`, `-small`, `-search`, `-filter`, `-head`, `-bar`, `-menu-item`, `-notice`, `-tabs` | Heights, from the rules of the same names in Hangar's stylesheets. |
+| `--kit-h-row`, `-rich-row`, `-control`, `-small`, `-search`, `-filter`, `-head`, `-bar`, `-menu-item`, `-notice`, `-tabs` | Heights, from the rules of the same names in Teskad's stylesheets. |
 | `--kit-radius-xs`, `-sm`, `--kit-radius`, `-lg`, `-xl`                  | 4, 5, 6, 8, 10 px.                                             |
 | `--kit-space-2` … `--kit-space-24`                                      | 2, 4, 6, 8, 10, 12, 16, 20, 24 px: named after their size.     |
 | `--kit-dur`, `--kit-ease`                                               | How long, and how, something responds.                         |
@@ -273,7 +273,7 @@ as the chosen one. Its title and second line truncate; `.kit-row--wrap` makes th
 
 ### Icon
 
-Hangar's own, drawn in the colour of the text around them.
+Teskad's own, drawn in the colour of the text around them.
 
 ```html
 <span class="kit-icon kit-icon--alert"></span>
@@ -347,7 +347,7 @@ A chip is a short word something is filed under. A filter chip is a toggle: `ari
 
 Shape and colour both say the state, so it reads for anyone who cannot tell green from amber. `running`
 moves, subtly, unless the person asked for less motion. The words are the same as `tab.setBadge`'s, and the
-glyphs are what the tab shows in Hangar's strip.
+glyphs are what the tab shows in Teskad's strip.
 
 `.kit-state` is a glyph and a word, and how a page says a state. `.kit-glyph` is the glyph alone, as at the
 head of a row. `.kit-dot` is the smallest, for what would crowd otherwise. Either alone takes `role="img"` and
@@ -468,7 +468,7 @@ name on what is only an icon. It answers the pointer, not the keyboard.
 ### Focus ring
 
 Everything that takes the keyboard shows it, with nothing to add: `:focus-visible`, 2 px, at 3:1 on every
-surface in every theme. Hangar's own ring is quieter, its accent at 45 %; kits' pages are held to the contrast.
+surface in every theme. Teskad's own ring is quieter, its accent at 45 %; kits' pages are held to the contrast.
 
 ## Behaviours
 
@@ -604,10 +604,10 @@ knows its log's format should say. Its parts are `.kit-logbox`, `.kit-logbox__ba
 
 ### Language
 
-`hangar.ui.i18n({ en: {…}, fr: {…} })` gives a `t(key, vars)` for the language Hangar is in, or the system's when
-Hangar has not said, English filling in what a language lacks. `hangar.ui.locale()` says which it is now. A count
-`n` picks `key_one` or `key_other` by the language's own rules, as in Hangar's dictionaries. Templates get
-the same typography as Hangar's: no-break spaces between a number and its unit, and before French's high
+`hangar.ui.i18n({ en: {…}, fr: {…} })` gives a `t(key, vars)` for the language Teskad is in, or the system's when
+Teskad has not said, English filling in what a language lacks. `hangar.ui.locale()` says which it is now. A count
+`n` picks `key_one` or `key_other` by the language's own rules, as in Teskad's dictionaries. Templates get
+the same typography as Teskad's: no-break spaces between a number and its unit, and before French's high
 punctuation. Only the template does: what fills it is shown as it was written.
 
 ```js
@@ -620,7 +620,7 @@ t("jobs", { n: 2 }); // "2 jobs"
 
 ### Formats
 
-`hangar.ui.format`, in the page's language, and written the way Hangar writes them.
+`hangar.ui.format`, in the page's language, and written the way Teskad writes them.
 
 | Call                                  | French                     | English                  |
 | ------------------------------------- | -------------------------- | ------------------------ |
@@ -635,12 +635,12 @@ t("jobs", { n: 2 }); // "2 jobs"
 
 ## The theme
 
-Until Hangar speaks, `prefers-color-scheme` decides between the sheet's two sets of values, Hangar's default
-dark theme and its default light one. So a page opened outside Hangar looks right too.
+Until Teskad speaks, `prefers-color-scheme` decides between the sheet's two sets of values, Teskad's default
+dark theme and its default light one. So a page opened outside Teskad looks right too.
 
 ### What the host sends
 
-The frame's page cannot read Hangar's theme, so the window tells it, by an event of the
+The frame's page cannot read Teskad's theme, so the window tells it, by an event of the
 [tab message protocol](kits.md#the-tab-message-protocol). `kit.js` applies it by itself, before any handler the
 page registered with `hangar.on("theme", …)`.
 
@@ -665,7 +665,7 @@ page registered with `hangar.on("theme", …)`.
 - **When**: at each `load` of the frame, so a reload is themed again, and whenever the active theme, the language,
   the interface size or the terminals' font changes. No permission is asked: it says nothing about the workspace.
 - **`scheme`**: `"dark"` or `"light"`, the theme's `appearance`.
-- **`locale`**: Hangar's language, `"en"` or `"fr"`, once the setting is resolved. It reaches `hangar.ui.locale`.
+- **`locale`**: Teskad's language, `"en"` or `"fr"`, once the setting is resolved. It reaches `hangar.ui.locale`.
 - **`tokens`**: all of these, as strings:
   - one entry per line of `colors` in `crates/hangar-core/kit-sdk/tokens.json`, the key being the token and the
     value the theme's chrome token named on that line (`hangar_theme::kit_tokens`). The map is included from
@@ -697,7 +697,7 @@ pub fn kit_theme_event(theme: &Theme, ui_scale: f64, mono: &str, locale: Locale)
 - A token the next event leaves out goes back to the sheet's value.
 - The root element gets `data-kit-scheme`, `color-scheme` and `data-kit-locale`. `kit.css` needs nothing else.
 - Between its first paint and the event, a page follows `prefers-color-scheme`. A person whose system and
-  Hangar disagree can see that for an instant, until the frame's `load`.
+  Teskad disagree can see that for an instant, until the frame's `load`.
 
 A page may force a scheme with `<html data-kit-scheme="dark">`, as the gallery does.
 
@@ -705,7 +705,7 @@ A page may force a scheme with `<html data-kit-scheme="dark">`, as the gallery d
 
 By the window's own rule (`hangar_theme::contrast`, `TEXT_CONTRAST` and `FILL_CONTRAST`): text at 4.5:1, a state's
 shape and the focus ring at 3:1. `hangar-theme`'s `kit::tests::contrast` checks every pair of the components, on
-all of Hangar's themes and not only the two the sheet writes, tints included: an error line, a banner, a filter
+all of Teskad's themes and not only the two the sheet writes, tints included: an error line, a banner, a filter
 left on. A component that writes a new pair adds it there.
 
 ## How it is made
@@ -715,10 +715,10 @@ left on. A component that writes a new pair adds it there.
 | Colours, in both schemes                | `hangar-theme`'s `graphite` and `github-light`, through `crates/hangar-core/kit-sdk/tokens.json` (`cargo run -p hangar-theme --example kit-tokens`). |
 | Measures, type scale, font stacks       | Written in `scripts/gen-hangar-ui.mjs`: the last values of the web app's stylesheets, which left with it (tag `v1.12.1`). A size moved in `hangar_theme::tokens` is moved there too. |
 | Icons                                   | The drawings of `hangar-ui`'s icon table (`crates/hangar-ui/src/icon/data.rs`).     |
-| The font and its `@font-face`           | `@fontsource-variable/inter`, the package Hangar Mobile loads it from (`pnpm install` first). |
-| The components, and the `--kit-space-*` | By hand. Hangar has no spacing scale of its own: these are the steps its sheets use. |
+| The font and its `@font-face`           | `@fontsource-variable/inter`, the package Teskad Mobile loads it from (`pnpm install` first). |
+| The components, and the `--kit-space-*` | By hand. Teskad has no spacing scale of its own: these are the steps its sheets use. |
 
-The generated part sits between two marked comments at the top of `kit.css`. After a change in Hangar that the test
+The generated part sits between two marked comments at the top of `kit.css`. After a change in Teskad that the test
 reports (a theme of the two, an icon, the font package):
 
 ```sh

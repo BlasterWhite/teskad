@@ -28,7 +28,7 @@ use hangar_model3d::{
 use hangar_theme::{fonts, to_iced};
 
 use super::scratch::Scratch;
-use super::snapshots::{Ask, GONE, Look, Snapshots};
+use super::snapshots::{Ask, Look, Snapshots, gone};
 use super::*;
 use crate::app::Packages;
 use crate::ctx::{Ctx, Metrics};
@@ -706,7 +706,7 @@ async fn a_snapshot_of_a_model_that_is_not_open_says_so() {
     let (ask, asked) = recording();
     let snapshots = Snapshots::new(h.st.registry.clone(), h.shared.clone(), ask);
     let said = snapshots.snapshot("nothing", AppAngle::Iso, (64, 64)).await;
-    assert_eq!(said.unwrap_err(), GONE);
+    assert_eq!(said.unwrap_err(), gone());
     assert!(asked.lock().unwrap().is_empty());
 }
 

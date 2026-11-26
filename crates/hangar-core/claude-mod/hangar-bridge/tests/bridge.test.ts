@@ -236,7 +236,7 @@ test("Hangar's no is the model's error, and stops the turn when the person asked
 
   expect(out.decision).toEqual({
     behavior: 'deny',
-    message: 'The person declined this from Hangar.',
+    message: 'The person declined this from Teskad.',
     interrupt: true,
   })
   expect(askWaits(sent)).toHaveLength(1)
@@ -739,7 +739,7 @@ test('mid-turn, a labelled message joins the turn once the model waits on its to
   expect(rows[0].message).toMatchObject({ type: 'user', isMeta: true })
   expect(rows[0].message.content).toEqual([{ type: 'text', text: FROM_HANGAR + '\n\nWorker "api" delivered.' }])
   // The row is hidden: the person sees what reached the agent in a dim line the model never reads.
-  expect(shown).toEqual(['Hangar passed on a message from Hangar: Worker "api" delivered.'])
+  expect(shown).toEqual(['Teskad passed on a message from Teskad: Worker "api" delivered.'])
 
   // The next request carries it, and the turn ends as usual.
   plan.tools = []

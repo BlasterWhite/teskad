@@ -203,7 +203,7 @@ fn shows_anything_else_as_a_community_kit_in_one_plain_sentence_installed_the_sa
     let model = draw.en();
     let out = model.text();
     assert!(out.contains("Community kit"));
-    assert!(out.contains("It was not reviewed by Hangar."));
+    assert!(out.contains("It was not reviewed by Teskad."));
     assert!(!out.contains("Verified"));
     assert!(matches!(
         &cards(&model)[0].action,

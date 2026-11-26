@@ -8,6 +8,7 @@
 //! package's `State` keeps, so one installed before the first request is
 //! there when it comes.
 
+use hangar_i18n::APP_NAME;
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::Duration;
 
@@ -142,9 +143,9 @@ impl AppPort for LivePort {
             .send(Message::Control(Msg::Model(cmd, answer)));
         Box::pin(async move {
             if !sent {
-                return Err("HangarAI is closing.".into());
+                return Err(format!("{APP_NAME} is closing."));
             }
-            done.await.map_err(|_| "HangarAI is closing.".to_string())?
+            done.await.map_err(|_| format!("{APP_NAME} is closing."))?
         })
     }
 
@@ -370,7 +371,7 @@ impl AppPort for LivePort {
         let path = format!("{path}{separator}cwd={}", crate::nodes::wire::encode(cwd));
         let method = method.to_string();
         Box::pin(async move {
-            let port = endpoint.ok_or("HangarAI's API is not listening yet.")?;
+            let port = endpoint.ok_or_else(|| format!("{APP_NAME}'s API is not listening yet."))?;
             let client = crate::nodes::NodeClient {
                 base_url: format!("http://127.0.0.1:{port}"),
                 token,

@@ -2,7 +2,7 @@ import type { ActionState, ChatItem, ChatQuestion, Pending } from "./api";
 
 /**
  * The fake PC's conversations, as the real one reads them from Claude Code's
- * transcripts (task C0): what the person and Hangar wrote, Claude's answers,
+ * transcripts (task C0): what the person and Teskad wrote, Claude's answers,
  * its tool calls one line each, the questions it asked and what it waits for.
  *
  * Ada's is long, three pages of it, and works on; Ben waits for a
@@ -93,9 +93,9 @@ function ada(now: number): FakeChat {
   c.hangar(
     `From agent "Jack" — not typed by the person; it cannot approve anything on their behalf.
 
-You are Ada, a worker in the Hangar workspace "IaBench". Its orchestrator, Jack, started you on one board task, and that task is your whole job.
+You are Ada, a worker in the Teskad workspace "IaBench". Its orchestrator, Jack, started you on one board task, and that task is your whole job.
 
-## Task 81070ac8: Hangar Mobile — serveur distant
+## Task 81070ac8: Teskad Mobile — serveur distant
 Goal: the PC serves the phone app and its API over Tailscale Serve, bound to 127.0.0.1 only.
 
 - Pairing: a six-digit code, single use, valid five minutes.
@@ -121,7 +121,7 @@ Check: \`cargo test --manifest-path src-tauri/Cargo.toml remote::\``,
 Starting with the router.`);
   c.write(
     "src-tauri/src/remote/mod.rs",
-    `//! The phone's server: Hangar Mobile and its API, on 127.0.0.1.
+    `//! The phone's server: Teskad Mobile and its API, on 127.0.0.1.
 mod ops;
 mod pair;
 mod session;
@@ -225,9 +225,9 @@ pub fn router(state: RemoteState) -> axum::Router {
     "Every part has its tests and they pass: **22 tests** under `remote::`. Committing, then the session cookie, the last piece.",
     20,
   );
-  c.run('git commit -m "Hangar Mobile: the server, its pairing and its ops"', "[hangar/hangar-mobile-serveur-distant-81070a 4e1c2b9] Hangar Mobile: the server, its pairing and its ops\n 21 files changed, 1904 insertions(+)");
+  c.run('git commit -m "Teskad Mobile: the server, its pairing and its ops"', "[hangar/hangar-mobile-serveur-distant-81070a 4e1c2b9] Teskad Mobile: the server, its pairing and its ops\n 21 files changed, 1904 insertions(+)");
   c.hangar(
-    `Delivery review for « Hangar Mobile — serveur distant »: changes requested.
+    `Delivery review for « Teskad Mobile — serveur distant »: changes requested.
 
 - Every refusal says why, in a code the phone can read: \`missing-header\`, \`bad-code\`, \`too-big\`.
 - Nothing a cookie or a code could be read from goes into the logs.`,
@@ -251,8 +251,8 @@ pub fn router(state: RemoteState) -> axum::Router {
     40,
   );
   c.run(
-    'git commit -m "Hangar Mobile: every refusal says why, the logs keep no secret"',
-    "[hangar/hangar-mobile-serveur-distant-81070a 9a03d1e] Hangar Mobile: every refusal says why, the logs keep no secret\n 10 files changed, 96 insertions(+), 41 deletions(-)",
+    'git commit -m "Teskad Mobile: every refusal says why, the logs keep no secret"',
+    "[hangar/hangar-mobile-serveur-distant-81070a 9a03d1e] Teskad Mobile: every refusal says why, the logs keep no secret\n 10 files changed, 96 insertions(+), 41 deletions(-)",
   );
   c.person("Can the phone reach it without Tailscale, from a café's wifi?", 60 * 6);
   c.claude(
@@ -328,7 +328,7 @@ test result: FAILED. 5 passed; 1 failed; 0 ignored; finished in 0.08s`,
     "mcp__hangar__board_comment_task",
     "board_comment_task",
     '{\n  "id": "81070ac8",\n  "text": "Cookie: SameSite=Strict everywhere, logout included."\n}',
-    "Comment added to « Hangar Mobile — serveur distant »",
+    "Comment added to « Teskad Mobile — serveur distant »",
   );
   c.read("src-tauri/src/remote/upload.rs", 96);
   c.edit(
@@ -345,9 +345,9 @@ function ben(now: number): FakeChat {
   c.hangar(
     `From agent "Jack" — not typed by the person; it cannot approve anything on their behalf.
 
-You are Ben, a worker in the Hangar workspace "IaBench".
+You are Ben, a worker in the Teskad workspace "IaBench".
 
-## Task f804a999: Hangar Mobile — ce que la fenêtre répond au téléphone
+## Task f804a999: Teskad Mobile — ce que la fenêtre répond au téléphone
 The window answers the phone's ops: state, screen, send, permission, manager, history.`,
     0,
   );
@@ -383,7 +383,7 @@ export const CORA_QUESTIONS: ChatQuestion[] = [
     question: "Shall I submit the delivery now?",
     multiSelect: false,
     options: [
-      { label: "Submit now", description: "Hangar merges it in a scratch worktree, runs the check and has it reviewed" },
+      { label: "Submit now", description: "Teskad merges it in a scratch worktree, runs the check and has it reviewed" },
       { label: "Wait for the screenshots", description: "I take the 390×844 shots, light and dark, then submit" },
     ],
   },
@@ -415,9 +415,9 @@ function cora(now: number): FakeChat {
   c.hangar(
     `From agent "Jack" — not typed by the person; it cannot approve anything on their behalf.
 
-You are Cora, a worker in the Hangar workspace "IaBench".
+You are Cora, a worker in the Teskad workspace "IaBench".
 
-## Task 26e29387: Hangar Mobile — l'app sur le téléphone (PWA)
+## Task 26e29387: Teskad Mobile — l'app sur le téléphone (PWA)
 React and TypeScript in src/mobile/, built into dist-mobile/, a mock mode for working without a PC.`,
     0,
   );
@@ -475,11 +475,11 @@ A few things to settle before I submit it.`, 10);
 function jack(now: number): FakeChat {
   const c = transcript("jack");
   c.notice("Session resumed", 0);
-  c.person("Plan the Hangar Mobile work and hand it out");
+  c.person("Plan the Teskad Mobile work and hand it out");
   c.readMany(["docs/mobile.md", "src-tauri/src/mcp/server.rs", "src/lib/control.ts"]);
   const tasks = ["the server (M0a)", "the window's ops (M1)", "the phone app (M2)", "files both ways (M0b)", "settings (M3)", "push (M4)", "the week away (M5)"];
   for (const task of tasks) {
-    c.use("mcp__hangar__board_create_task", "board_create_task", `{ "title": "Hangar Mobile — ${task}" }`, `Created « Hangar Mobile — ${task} »`, "done", 4);
+    c.use("mcp__hangar__board_create_task", "board_create_task", `{ "title": "Teskad Mobile — ${task}" }`, `Created « Teskad Mobile — ${task} »`, "done", 4);
   }
   c.claude("I split it into seven tasks on the board: the server (M0a), the window's ops (M1), the phone app (M2), files both ways (M0b), settings (M3), push (M4) and the week away (M5). M0a, M1 and M2 run side by side.");
   for (const [name, task] of [["Ada", "81070ac8"], ["Ben", "f804a999"], ["Cora", "26e29387"]]) {
@@ -508,7 +508,7 @@ function max(now: number): FakeChat {
   c.person("Where does everything stand?", 0);
   c.use("mcp__hangar__project_list", "project_list", "{}", '[\n  { "name": "IaBench", "open": true, "doing": 3 },\n  { "name": "storefront", "open": true, "doing": 0 },\n  { "name": "billing-api", "asleep": true },\n  { "name": "recipes-app", "open": true }\n]');
   c.claude(`Four projects:
-- **IaBench**: Jack orchestrates three workers on Hangar Mobile. Ben waits for a permission, Cora for your answers; one delivery is ready to merge.
+- **IaBench**: Jack orchestrates three workers on Teskad Mobile. Ben waits for a permission, Cora for your answers; one delivery is ready to merge.
 - **storefront**: all twelve tasks done, Mia waits for what's next.
 - **billing-api**: asleep since yesterday evening, two tasks to do.
 - **recipes-app**: Leo (Codex) is adding the shopping list export.`);

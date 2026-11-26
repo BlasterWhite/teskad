@@ -94,7 +94,7 @@
   function call(method, params) {
     return new Promise(function (resolve, reject) {
       if (host === window) {
-        reject(failure("unavailable", "this page is not open as a tab in Hangar"));
+        reject(failure("unavailable", "this page is not open as a tab in Teskad"));
         return;
       }
       if (typeof method !== "string" || !method) {
@@ -104,7 +104,7 @@
       var id = "k" + ++next;
       var timer = setTimeout(function () {
         pending.delete(id);
-        reject(failure("timeout", "Hangar did not answer " + method));
+        reject(failure("timeout", "Teskad did not answer " + method));
       }, method === "command.run" ? COMMAND_TIMEOUT_MS : TIMEOUT_MS);
       pending.set(id, { resolve: resolve, reject: reject, timer: timer });
       var request = { hangar: 1, id: id, method: method };

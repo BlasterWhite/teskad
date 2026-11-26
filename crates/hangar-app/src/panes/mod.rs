@@ -2001,7 +2001,7 @@ mod tests {
             None
         );
         // A web link still opens.
-        let web = ctrl_click("see https://hangar.ai/docs now\r\n", 8);
+        let web = ctrl_click("see https://example.com/docs now\r\n", 8);
         assert!(hangar_term::is_web_link(&web.expect("a link")));
     }
 

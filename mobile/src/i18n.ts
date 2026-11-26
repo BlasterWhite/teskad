@@ -1,5 +1,8 @@
 import { typeset } from "../lib/typography";
 
+/** The product's name, as every string of this dictionary says it. */
+export const APP_NAME = "Teskad";
+
 /**
  * The phone app's words, in English and French, picked from the phone's
  * languages (or `?lang=fr|en`). A dictionary of its own: the desktop's is
@@ -67,7 +70,7 @@ const en = {
 
   "projects.title": "Projects",
   "projects.empty": "No project yet",
-  "projects.emptyHint": "Create a workspace in Hangar on your PC: it shows up here.",
+  "projects.emptyHint": `Create a workspace in ${APP_NAME} on your PC: it shows up here.`,
   "project.orchestrator": "{name} orchestrates",
   "project.noOrchestrator": "No orchestrator",
   "project.workers_one": "{n} worker",
@@ -146,7 +149,7 @@ const en = {
   "chat.interrupted": "Interrupted",
   "chat.you": "You",
   "chat.claude": "Claude",
-  "chat.hangar": "Hangar",
+  "chat.hangar": `${APP_NAME}`,
   "chat.showAll": "Show all",
   "chat.showLess": "Show less",
   "chat.sending": "Sent, waiting for Claude",
@@ -237,7 +240,7 @@ const en = {
   "manager.title": "Project manager",
   "manager.none": "No project manager open",
   "manager.noneHint":
-    "The project manager follows every project for you. On the PC, click “Open the project manager” at the top of Hangar's left bar: it then shows up here.",
+    `The project manager follows every project for you. On the PC, click “Open the project manager” at the top of ${APP_NAME}'s left bar: it then shows up here.`,
   "manager.placeholder": "Message the project manager",
 
   "history.title": "Since your last visit",
@@ -250,7 +253,7 @@ const en = {
 
   "pair.title": "Pair this phone",
   "pair.hint":
-    "On the PC, open Hangar's Settings, then Mobile, and show a pairing code. Scan its QR code with the camera, or type its 6 digits here.",
+    `On the PC, open ${APP_NAME}'s Settings, then Mobile, and show a pairing code. Scan its QR code with the camera, or type its 6 digits here.`,
   "pair.again": "This phone is no longer paired with the PC. Pair it again to carry on.",
   "pair.code": "Pairing code",
   "pair.submit": "Pair",
@@ -261,7 +264,7 @@ const en = {
   "install.dismiss": "Got it",
 
   "push.title": "Notifications on this phone",
-  "push.body": "Know when something waits for you or an agent sends you a file, even with HangarAI closed.",
+  "push.body": `Know when something waits for you or an agent sends you a file, even with ${APP_NAME} closed.`,
   "push.turnOn": "Turn on notifications",
   "push.turnOnShort": "Turn on",
   "push.turningOn": "Turning on…",
@@ -270,17 +273,17 @@ const en = {
   "push.on": "On for this phone",
   "push.off": "Off",
   "push.blocked": "Blocked in the phone's settings",
-  "push.needsInstall": "Add HangarAI to the Home Screen first",
+  "push.needsInstall": `Add ${APP_NAME} to the Home Screen first`,
   "push.needsUpdate": "Need iOS 16.4 or later",
   "push.notHere": "Not available in this browser",
   "push.turnOff": "Turn off",
   "push.why": "Learn more",
-  "push.installTitle": "First, add HangarAI to your Home Screen",
+  "push.installTitle": `First, add ${APP_NAME} to your Home Screen`,
   "push.install":
-    "On an iPhone, only apps on the Home Screen get notifications, from iOS 16.4. In Safari, tap Share, then “Add to Home Screen”. Open HangarAI from there: it runs full screen, like an app, and you can turn them on.",
+    `On an iPhone, only apps on the Home Screen get notifications, from iOS 16.4. In Safari, tap Share, then “Add to Home Screen”. Open ${APP_NAME} from there: it runs full screen, like an app, and you can turn them on.`,
   "push.oldIos": "Notifications need iOS 16.4 or later. Update the iPhone in Settings, then turn them on here.",
-  "push.unsupported": "This browser cannot receive notifications. Open HangarAI in Safari, Chrome, Edge or Firefox.",
-  "push.denied": "Notifications are blocked for HangarAI. Allow them in the phone's settings, then come back here.",
+  "push.unsupported": `This browser cannot receive notifications. Open ${APP_NAME} in Safari, Chrome, Edge or Firefox.`,
+  "push.denied": `Notifications are blocked for ${APP_NAME}. Allow them in the phone's settings, then come back here.`,
   "push.failed": "Notifications could not be turned on. {reason}",
   "push.browserFailed": "The phone's browser could not subscribe: try again in a moment.",
 
@@ -502,7 +505,7 @@ const fr: Record<Key, string> = {
 
   "projects.title": "Projets",
   "projects.empty": "Aucun projet",
-  "projects.emptyHint": "Créez un workspace dans Hangar, sur le PC : il apparaîtra ici.",
+  "projects.emptyHint": `Créez un workspace dans ${APP_NAME}, sur le PC : il apparaîtra ici.`,
   "project.orchestrator": "{name} orchestre",
   "project.noOrchestrator": "Pas d'orchestrateur",
   "project.workers_one": "{n} worker",
@@ -581,7 +584,7 @@ const fr: Record<Key, string> = {
   "chat.interrupted": "Interrompu",
   "chat.you": "Vous",
   "chat.claude": "Claude",
-  "chat.hangar": "Hangar",
+  "chat.hangar": `${APP_NAME}`,
   "chat.showAll": "Tout afficher",
   "chat.showLess": "Réduire",
   "chat.sending": "Envoyé, en attente de Claude",
@@ -672,7 +675,7 @@ const fr: Record<Key, string> = {
   "manager.title": "Chef de projet",
   "manager.none": "Aucun chef de projet ouvert",
   "manager.noneHint":
-    "Le chef de projet suit tous vos projets pour vous. Sur le PC, cliquez sur « Ouvrir le chef de projet » en haut de la barre de gauche de Hangar : il apparaîtra ici.",
+    `Le chef de projet suit tous vos projets pour vous. Sur le PC, cliquez sur « Ouvrir le chef de projet » en haut de la barre de gauche de ${APP_NAME} : il apparaîtra ici.`,
   "manager.placeholder": "Écrire au chef de projet",
 
   "history.title": "Depuis votre dernière visite",
@@ -685,7 +688,7 @@ const fr: Record<Key, string> = {
 
   "pair.title": "Associer ce téléphone",
   "pair.hint":
-    "Sur le PC, ouvrez les Réglages de Hangar, puis Mobile, et affichez un code d'appairage. Scannez son QR code avec l'appareil photo, ou tapez ses 6 chiffres ici.",
+    `Sur le PC, ouvrez les Réglages de ${APP_NAME}, puis Mobile, et affichez un code d'appairage. Scannez son QR code avec l'appareil photo, ou tapez ses 6 chiffres ici.`,
   "pair.again": "Ce téléphone n'est plus associé au PC. Associez-le de nouveau pour continuer.",
   "pair.code": "Code d'appairage",
   "pair.submit": "Associer",
@@ -696,7 +699,7 @@ const fr: Record<Key, string> = {
   "install.dismiss": "Compris",
 
   "push.title": "Notifications sur ce téléphone",
-  "push.body": "Sachez quand quelque chose vous attend ou qu'un agent vous envoie un fichier, même HangarAI fermé.",
+  "push.body": `Sachez quand quelque chose vous attend ou qu'un agent vous envoie un fichier, même ${APP_NAME} fermé.`,
   "push.turnOn": "Activer les notifications",
   "push.turnOnShort": "Activer",
   "push.turningOn": "Activation…",
@@ -705,20 +708,20 @@ const fr: Record<Key, string> = {
   "push.on": "Activées sur ce téléphone",
   "push.off": "Désactivées",
   "push.blocked": "Bloquées dans les réglages du téléphone",
-  "push.needsInstall": "Ajoutez d'abord HangarAI à l'écran d'accueil",
+  "push.needsInstall": `Ajoutez d'abord ${APP_NAME} à l'écran d'accueil`,
   "push.needsUpdate": "iOS 16.4 ou plus récent requis",
   "push.notHere": "Indisponibles dans ce navigateur",
   "push.turnOff": "Désactiver",
   "push.why": "En savoir plus",
-  "push.installTitle": "D'abord, ajoutez HangarAI à l'écran d'accueil",
+  "push.installTitle": `D'abord, ajoutez ${APP_NAME} à l'écran d'accueil`,
   "push.install":
-    "Sur iPhone, seules les apps de l'écran d'accueil reçoivent des notifications, à partir d'iOS 16.4. Dans Safari, touchez Partager, puis « Sur l'écran d'accueil ». Ouvrez HangarAI depuis l'écran d'accueil : il s'ouvre en plein écran, comme une app, et vous pourrez les activer.",
+    `Sur iPhone, seules les apps de l'écran d'accueil reçoivent des notifications, à partir d'iOS 16.4. Dans Safari, touchez Partager, puis « Sur l'écran d'accueil ». Ouvrez ${APP_NAME} depuis l'écran d'accueil : il s'ouvre en plein écran, comme une app, et vous pourrez les activer.`,
   "push.oldIos":
     "Les notifications demandent iOS 16.4 ou plus récent. Mettez l'iPhone à jour dans les Réglages, puis activez-les ici.",
   "push.unsupported":
-    "Ce navigateur ne peut pas recevoir de notifications. Ouvrez HangarAI dans Safari, Chrome, Edge ou Firefox.",
+    `Ce navigateur ne peut pas recevoir de notifications. Ouvrez ${APP_NAME} dans Safari, Chrome, Edge ou Firefox.`,
   "push.denied":
-    "Les notifications sont bloquées pour HangarAI. Autorisez-les dans les réglages du téléphone, puis revenez ici.",
+    `Les notifications sont bloquées pour ${APP_NAME}. Autorisez-les dans les réglages du téléphone, puis revenez ici.`,
   "push.failed": "Impossible d'activer les notifications. {reason}",
   "push.browserFailed": "Le navigateur du téléphone n'a pas pu s'abonner : réessayez dans un instant.",
 

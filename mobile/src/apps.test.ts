@@ -101,9 +101,9 @@ describe("opening an app", () => {
   });
 
   it("keeps the window's words when it refused", () => {
-    expect(openFailure(refusal("refused", 400, "HangarAI is still starting."), 5173, en)).toEqual({
+    expect(openFailure(refusal("refused", 400, "Teskad is still starting."), 5173, en)).toEqual({
       kind: "refused",
-      reason: "HangarAI is still starting.",
+      reason: "Teskad is still starting.",
     });
   });
 

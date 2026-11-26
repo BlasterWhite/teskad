@@ -5,13 +5,13 @@ body:
   - type: markdown
     attributes:
       value: |
-        Describe the problem first: agreeing on it saves rewriting a finished pull request. Hangar runs entirely on your machine, so ideas that need a hosted service, accounts or telemetry are out of scope.
+        Describe the problem first: agreeing on it saves rewriting a finished pull request. Teskad runs entirely on your machine, so ideas that need a hosted service, accounts or telemetry are out of scope.
 
   - type: textarea
     id: problem
     attributes:
       label: The problem
-      description: What are you trying to do, and where does Hangar get in the way today?
+      description: What are you trying to do, and where does Teskad get in the way today?
     validations:
       required: true
 
@@ -37,7 +37,7 @@ body:
       options:
         - Claude Code panes
         - Shell panes
-        - Hangar Mobile
+        - Teskad Mobile
         - Kits
         - The app itself
 

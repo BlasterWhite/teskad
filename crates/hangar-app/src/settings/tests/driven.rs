@@ -79,7 +79,7 @@ fn clicking_a_switch_flips_it() {
 #[test]
 fn clicking_attach_hangar_to_codex_turns_it_off() {
     let words = said(SettingsCategory::General, State::default(), |ui| {
-        ui.click("Attach Hangar to Codex (beta)")
+        ui.click("Attach Teskad to Codex (beta)")
             .expect("the row is on the page");
     });
     // Attached by default (D5): the click is the way out.

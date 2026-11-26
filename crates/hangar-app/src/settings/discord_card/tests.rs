@@ -67,7 +67,7 @@ fn the_preview_is_drawn_by_default_and_says_an_application_id_is_needed() {
     let h = Harness::new(Locale::En, "graphite");
     let st = State::default();
     let mut ui = h.show(view(&st, h.ctx(), 0));
-    assert!(ui.find("HangarAI").is_ok(), "the card");
+    assert!(ui.find("Teskad").is_ok(), "the card");
     assert!(ui.find("View on GitHub").is_ok(), "its button");
     let note = Translator::new(Locale::En).t(Key::DiscordStatusNeedsAppId);
     assert!(ui.find(note.as_ref()).is_ok(), "{note}");

@@ -14,7 +14,7 @@ use iced::{Alignment, Element, Length, Padding};
 use hangar_i18n::Key;
 use hangar_theme::style;
 use hangar_theme::tokens::radius;
-use hangar_ui::logo::logo;
+use crate::shell::brand_logo::logo;
 
 use super::{BARS, Phase, State};
 use crate::ctx::Ctx;

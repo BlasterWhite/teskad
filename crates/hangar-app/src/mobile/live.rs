@@ -11,6 +11,7 @@
 //! state does, and whether a folder is a git repository is asked of git once
 //! every 5 minutes.
 
+use hangar_i18n::APP_NAME;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -250,7 +251,7 @@ impl Inner {
 fn write_log(log: &Mutex<ActivityLog>, remote: Option<&Remote>) {
     locked(log).write(&|entries: &[ActivityEntry]| match remote {
         Some(remote) => remote.activity_append(entries),
-        None => Err("Hangar Mobile is unavailable.".into()),
+        None => Err(format!("{APP_NAME} Mobile is unavailable.")),
     });
 }
 
@@ -258,7 +259,7 @@ fn write_log(log: &Mutex<ActivityLog>, remote: Option<&Remote>) {
 async fn refresh(push: &Mutex<Push>, remote: Option<Arc<Remote>>) {
     let answer = match remote {
         Some(remote) => hangar_core::remote::remote_push_subscribers(remote).await,
-        None => Err("Hangar Mobile is unavailable.".into()),
+        None => Err(format!("{APP_NAME} Mobile is unavailable.")),
     };
     locked(push).refreshed(answer);
 }
@@ -281,7 +282,7 @@ async fn send(remote: Option<Arc<Remote>>, message: PushMessage) {
     )
     .await;
     if let Some(error) = newly_failing(&LAST_PUSH_ERROR, pushed.err()) {
-        eprintln!("Hangar Mobile could not push a notification: {error}");
+        eprintln!("{APP_NAME} Mobile could not push a notification: {error}");
     }
 }
 
@@ -466,7 +467,7 @@ impl Sources for LiveSources {
                 write_log(&log, remote.as_deref());
                 match remote {
                     Some(remote) => Ok(remote.activity_read(Some(since), None)),
-                    None => Err("Hangar Mobile is unavailable.".to_string()),
+                    None => Err(format!("{APP_NAME} Mobile is unavailable.")),
                 }
             })
             .await?

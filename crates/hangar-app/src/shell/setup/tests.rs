@@ -680,7 +680,7 @@ fn the_offer_shows_both_agents_codex_in_beta_and_the_way_out() {
                 "Not installed",
                 "Install Claude Code",
                 "Install Codex",
-                "Use Hangar with shells only",
+                "Use Teskad with shells only",
             ],
             "setup-offer-en-graphite",
         ),
@@ -693,7 +693,7 @@ fn the_offer_shows_both_agents_codex_in_beta_and_the_way_out() {
                 "Pas installé",
                 "Installer Claude Code",
                 "Installer Codex",
-                "Utiliser Hangar avec des shells uniquement",
+                "Utiliser Teskad avec des shells uniquement",
             ],
             "setup-offer-fr-graphite",
         ),
@@ -748,7 +748,7 @@ fn a_failure_shows_the_output_and_the_guide() {
         "Open the install guide",
         "Try again",
         "Install Claude Code",
-        "Use Hangar with shells only",
+        "Use Teskad with shells only",
     ] {
         assert!(ui.find(text).is_ok(), "{text}");
     }
@@ -767,7 +767,7 @@ fn an_install_that_found_nothing_names_the_command() {
     st.codex.step = Step::Failed(Failure::NotFound);
     let mut ui = h.show(view(&st, h.ctx()));
     assert!(
-        ui.find("The installer finished, but Hangar still cannot find codex on this machine.")
+        ui.find("The installer finished, but Teskad still cannot find codex on this machine.")
             .is_ok()
     );
 }
@@ -804,7 +804,7 @@ fn with_codex_alone_the_sheet_closes_and_offers_claude_code() {
             assert!(ui.find(text).is_ok(), "{text}");
         }
         assert!(ui.find("Install Codex").is_err());
-        assert!(ui.find("Use Hangar with shells only").is_err());
+        assert!(ui.find("Use Teskad with shells only").is_err());
         h.shot(&mut ui, name);
     }
 
@@ -872,7 +872,7 @@ fn an_agent_found_off_the_path_asks_for_a_restart() {
     }
     let mut ui = h.show(view(&st, h.ctx()));
     assert!(
-        ui.find("Found in /home/me/.local/bin/codex: restart Hangar so that its panes find it.")
+        ui.find("Found in /home/me/.local/bin/codex: restart Teskad so that its panes find it.")
             .is_ok()
     );
 }
@@ -963,7 +963,7 @@ fn on_nixos_claude_code_comes_from_nixpkgs_and_codex_from_its_installer() {
                 "Check again",
                 "Use Anthropic's installer anyway",
                 "Install Codex",
-                "Use Hangar with shells only",
+                "Use Teskad with shells only",
             ],
             "setup-nixos-en-graphite",
         ),
@@ -973,7 +973,7 @@ fn on_nixos_claude_code_comes_from_nixpkgs_and_codex_from_its_installer() {
                 "Vérifier à nouveau",
                 "Utiliser quand même l'installeur d'Anthropic",
                 "Installer Codex",
-                "Utiliser Hangar avec des shells uniquement",
+                "Utiliser Teskad avec des shells uniquement",
             ],
             "setup-nixos-fr-graphite",
         ),
@@ -1016,7 +1016,7 @@ fn on_nixos_check_again_and_shells_only_are_clicks() {
         sent(&messages, |m| matches!(m, Msg::Recheck(AgentKind::Claude))),
         "{messages:?}"
     );
-    let messages = clicked("Use Hangar with shells only");
+    let messages = clicked("Use Teskad with shells only");
     assert!(
         sent(&messages, |m| matches!(m, Msg::ShellsOnly)),
         "{messages:?}"
@@ -1116,7 +1116,7 @@ fn check_again_looks_for_claude_and_moves_on_once_found() {
         let mut ui = h.show(view(&st, h.ctx()));
         assert!(
             ui.find(
-                "Hangar still cannot find claude on this machine. Once the rebuild or the install is done, check again."
+                "Teskad still cannot find claude on this machine. Once the rebuild or the install is done, check again."
             )
             .is_ok()
         );
@@ -1129,7 +1129,7 @@ fn check_again_looks_for_claude_and_moves_on_once_found() {
     {
         let mut ui = h.show(view(&st, h.ctx()));
         assert!(ui.find("Checking…").is_ok());
-        assert!(ui.find("Use Hangar with shells only").is_err());
+        assert!(ui.find("Use Teskad with shells only").is_err());
         assert!(ui.find("Use Anthropic's installer anyway").is_err());
     }
     // A second click while it looks, an install of the other agent, and an

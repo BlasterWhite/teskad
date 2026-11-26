@@ -1,4 +1,4 @@
-# Contributing to HangarAI
+# Contributing to Teskad
 
 Thanks for taking the time to contribute. Bug reports, fixes, translations and feature
 ideas are all welcome. Please follow the [code of conduct](CODE_OF_CONDUCT.md) in every
@@ -7,7 +7,7 @@ interaction.
 - **Question, or want to talk it through first?** Open an
   [issue](https://github.com/BlasterWhite/hangar/issues).
 - **Security issue?** Do not open a public issue. See [SECURITY.md](SECURITY.md).
-- **Bug?** Open an issue with the bug template: OS, Hangar version (2.0 and later are the
+- **Bug?** Open an issue with the bug template: OS, Teskad version (2.0 and later are the
   native app, 1.x the web-view one), what the pane ran, and steps.
 - **Idea?** Read [Proposing a feature](#proposing-a-feature) first.
 - **Small fix** (typo, obvious bug, missing translation)? Open a pull request directly.
@@ -17,7 +17,7 @@ interaction.
 Install the prerequisites listed in
 [README → Build from source](README.md#build-from-source): Rust stable with the
 `wasm32-unknown-unknown` target, cmake and LLVM/clang and your system's headers, and
-Node.js 22 with pnpm 10 if you work on Hangar Mobile. Then:
+Node.js 22 with pnpm 10 if you work on Teskad Mobile. Then:
 
 ```bash
 scripts/native-dev.sh
@@ -31,10 +31,10 @@ need the helper, built with its browser engine:
 executable). Native kit tabs are tried with
 `cargo run -p hangar-kit-host --example preview -- tab.wasm`.
 
-Hangar 2.0 is this native app. The Tauri and React app it replaced (1.x) is no longer in
+Teskad 2.0 is this native app. The Tauri and React app it replaced (1.x) is no longer in
 the repository; read it at tag `v1.12.1` (`git show v1.12.1:src/lib/board.ts`).
 
-For Hangar Mobile, the phone app under `mobile/`, the fastest loop needs no PC: it runs
+For Teskad Mobile, the phone app under `mobile/`, the fastest loop needs no PC: it runs
 against a fake one.
 
 ```bash
@@ -42,7 +42,7 @@ pnpm install
 pnpm mobile:dev      # http://localhost:4310, `--host` to open it from a phone
 ```
 
-### Running a dev build next to an installed Hangar
+### Running a dev build next to an installed Teskad
 
 A plain `cargo run -p hangar-app` is the same app as the installed one. It reads and
 writes the same workspaces and resumes the same agent sessions. It also takes over
@@ -61,7 +61,7 @@ HANGAR_DEV_HOME=/tmp/hangar-try scripts/native-dev.sh
 echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | scripts/native-dev.sh -- --mcp
 ```
 
-The last one calls the MCP server of the dev Hangar running on the same folder.
+The last one calls the MCP server of the dev Teskad running on the same folder.
 
 ## Checks
 
@@ -80,7 +80,7 @@ They all run on your own machine. `scripts/ci-check` runs the whole CI on GitHub
 instead, for the committed `HEAD`; it needs `gh` signed in with the right to run
 workflows.
 
-Hangar Mobile and the generated files:
+Teskad Mobile and the generated files:
 
 ```bash
 pnpm install
@@ -113,17 +113,17 @@ Some things to know:
 - **Comments explain why.** Most modules start with a comment about the decision behind
   them. Read it before you change the module, and update it if the reason changes.
 - **Tests.** Rust tests sit in a `tests` module at the end of each file, or in a
-  `tests.rs` beside it. Hangar Mobile's logic has a `*.test.ts` beside it (vitest).
+  `tests.rs` beside it. Teskad Mobile's logic has a `*.test.ts` beside it (vitest).
 - **Translations.** `crates/hangar-i18n/dict/en.json` holds English, the reference, and
   `fr.json` French, key for key in the same order; run
   `node crates/hangar-i18n/tools/generate.mjs` and commit what it writes. A key missing
   from one of them fails the generator. Add both. If you do not speak French, say so in
-  the PR and leave the English text in the French entry for review. Hangar Mobile has its
+  the PR and leave the English text in the French entry for review. Teskad Mobile has its
   own dictionary, `mobile/src/i18n.ts`.
 - **Old names stay.** Some identifiers keep the project's former name `iabench` on
   purpose: the bundle identifier `com.simnjs.iabench` and the fallbacks that read files
   written before the rename. Do not rename them. Give anything new a `hangar` name.
-- **Local first.** Hangar runs on the user's machine and works without an account. This
+- **Local first.** Teskad runs on the user's machine and works without an account. This
   project runs no hosted service, collects no telemetry, and has nothing that depends on
   an account. Changes that add a hosted service, require an account or add telemetry will
   not be accepted. What goes online is listed in
@@ -165,9 +165,9 @@ Useful things to include:
 
 ## Agent instruction files
 
-`CLAUDE.md` and `AGENTS.md` are gitignored in this repository. Hangar's MCP panel writes a
+`CLAUDE.md` and `AGENTS.md` are gitignored in this repository. Teskad's MCP panel writes a
 board playbook into `CLAUDE.md` for any workspace (1.x wrote `AGENTS.md` too). If you
-drive agents on this repository with Hangar, generate your own; they stay on your machine.
+drive agents on this repository with Teskad, generate your own; they stay on your machine.
 
 ## License
 

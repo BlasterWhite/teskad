@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in HangarAI does not work as it should.
+description: Something in Teskad does not work as it should.
 labels: ["bug"]
 body:
   - type: markdown
@@ -10,7 +10,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: Hangar version
+      label: Teskad version
       description: Shown at the top of the navigator, and in Settings.
       placeholder: "2.0.0"
     validations:
@@ -20,10 +20,10 @@ body:
     id: generation
     attributes:
       label: Native app or 1.x
-      description: Hangar 2.0 and later are the native app, rewritten in Rust; 1.x is the web-view app it replaced.
+      description: Teskad 2.0 and later are the native app, rewritten in Rust; 1.x is the web-view app it replaced.
       options:
-        - Hangar 2.0 or later (native)
-        - Hangar 1.x
+        - Teskad 2.0 or later (native)
+        - Teskad 1.x
     validations:
       required: true
 
@@ -82,7 +82,7 @@ body:
         - File previews, PDFs or web pages
         - 3D preview
         - Dictation
-        - Hangar Mobile
+        - Teskad Mobile
         - Install or update, or data coming from 1.x
         - Something else
 

@@ -6,6 +6,7 @@
 //! surface; what is inside a region is the package's own view (the slot
 //! table of PACKAGES.md).
 
+pub mod brand_logo;
 pub mod dev_screenshot;
 pub mod drawer;
 pub mod frame;

@@ -9,7 +9,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Hangar UI</title>
+    <title>Teskad UI</title>
     <link rel="stylesheet" href="kit.css" />
     <style>
       /* The gallery's own frame: nothing here is part of the library. */
@@ -695,7 +695,7 @@
           <div class="kit-toast"><span class="kit-toast__text">Actualisé.</span></div>
           <div class="kit-toast kit-toast--success"><span class="kit-toast__text">Réservation libérée.</span><button class="kit-btn kit-btn--small kit-btn--ghost" type="button">Annuler</button><button class="kit-btn kit-btn--small kit-btn--ghost kit-btn--icon" type="button" title="Fermer" aria-label="Fermer"><span class="kit-icon kit-icon--close"></span></button></div>
           <div class="kit-toast kit-toast--warning"><span class="kit-toast__text">Encore 2 envois cette minute.</span></div>
-          <div class="kit-toast kit-toast--error"><span class="kit-toast__text">Pas envoyé : la session de cet agent n'a pas le pont de Hangar.</span><button class="kit-btn kit-btn--small kit-btn--ghost kit-btn--icon" type="button" title="Fermer" aria-label="Fermer"><span class="kit-icon kit-icon--close"></span></button></div>
+          <div class="kit-toast kit-toast--error"><span class="kit-toast__text">Pas envoyé : la session de cet agent n'a pas le pont de Teskad.</span><button class="kit-btn kit-btn--small kit-btn--ghost kit-btn--icon" type="button" title="Fermer" aria-label="Fermer"><span class="kit-icon kit-icon--close"></span></button></div>
         </div>
       </section>
 
@@ -777,7 +777,7 @@
           });
         });
         document.getElementById("do-toast-error").addEventListener("click", () => {
-          ui.toast("Pas envoyé : la session de cet agent n'a pas le pont de Hangar.", { kind: "error" });
+          ui.toast("Pas envoyé : la session de cet agent n'a pas le pont de Teskad.", { kind: "error" });
         });
         ui.copyButton(document.getElementById("do-copy"), "41222364482");
 

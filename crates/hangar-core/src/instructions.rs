@@ -25,6 +25,11 @@ use serde::Serialize;
 use crate::agent::AgentKind;
 use crate::store::{write_atomic, Access};
 
+/// The product's name, as every text written for a person or an agent says it.
+/// The same value as `hangar_i18n::APP_NAME` (hangar-core does not depend on
+/// hangar-i18n; a test in hangar-app holds the two equal): change both together.
+pub const APP_NAME: &str = "Teskad";
+
 const START: &str = "<!-- HANGAR:START - generated, do not edit by hand -->";
 const END: &str = "<!-- HANGAR:END -->";
 
@@ -64,12 +69,13 @@ pub struct InstructionReport {
 }
 
 fn playbook() -> String {
+    let app = APP_NAME;
     format!(
         r#"{START}
 
-## Shared task board (HangarAI)
+## Shared task board ({app})
 
-This project is driven from HangarAI. Several agents work **in parallel** in separate
+This project is driven from {app}. Several agents work **in parallel** in separate
 terminals on this same directory. A shared kanban board is the source of truth for
 who is doing what. Reach it through the MCP tools prefixed `board_`.
 
@@ -129,7 +135,7 @@ rather than editing the same files at the same time.
 
 ### Talking to the agent next door
 
-Claude Code sessions in HangarAI are named after their pane and its workspace, for
+Claude Code sessions in {app} are named after their pane and its workspace, for
 example `Ava (Shop)`. A pane's first name is unique across every workspace, so `Ava` is
 one agent and the workspace in brackets tells you which project it works on. When another
 agent needs to know something now (you changed a file it is working on, you answered its
@@ -150,7 +156,7 @@ of the workspace's grid, beside the terminals. An HTML page runs isolated, so in
 (its own `.js` and `.css` files do not load). Call `preview_close` once you are done, so it
 does not keep a part of their screen.
 
-To send a file to the user's phone (Hangar Mobile), use `phone_share {{path, caption?}}`, when
+To send a file to the user's phone ({app} Mobile), use `phone_share {{path, caption?}}`, when
 they ask for it or a result is clearly worth it, never for routine output.
 
 ### Opening a kit's tab
@@ -319,7 +325,7 @@ fn update_gitignore(root: &Path) -> InstructionReport {
     if !updated.is_empty() {
         updated.push('\n');
     }
-    updated.push_str("# HangarAI — tableau de tâches local\n.hangar/\n");
+    updated.push_str(&format!("# {APP_NAME} — tableau de tâches local\n.hangar/\n"));
 
     match write_atomic(&path, updated.as_bytes(), Access::AsBefore) {
         Ok(()) => InstructionReport {

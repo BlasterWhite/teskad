@@ -1,6 +1,6 @@
 # Changelog
 
-What changed in each Hangar.AI release, newest first. The format loosely follows
+What changed in each Teskad release, newest first. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follow
 [Semantic Versioning](https://semver.org/); before 1.0.0, a minor version could
 change behaviour as well as add to it. The 0.x history is grouped by minor version.
@@ -13,6 +13,8 @@ Every release, with its installers, is on the
 This fork is independent and not affiliated with the original HangarAI project: the app no longer points at that project's services.
 
 ### Changed
+- The app is called **Teskad**, and the phone app **Teskad Mobile**: the interface, the agents' briefs and playbook (`CLAUDE.md`, `AGENTS.md`, the line added to `.gitignore`), the MCP tools' descriptions, the error messages, the docs and the issue forms say so. The name is one constant (`hangar_i18n::APP_NAME`, which the strings write as `{app}`), so a future change is a one-line edit. What agents' configurations already know keeps its name: the `hangar` MCP server and its `mcp__hangar__*` tools, the `HANGAR_*` variables, the `.hangar/` folder, the `[Hangar]` prefix of the messages it sends, and the crates. The app identifier, the installers' names and the data folders are unchanged for now.
+- New logo and icons (the Teskad brand pack, `docs/teskad-brand/`): the window and packaging icons, the mark in the sidebar and the voice bar (the variant for the theme, the small one under 24 px), `assets/logo.*`, the README's lockup, and Teskad Mobile's icons. `scripts/logo.ps1`, which drew the old mark, is gone.
 - The title bar shows the name and the version, with no domain and no link. With the system's title bar, the window's title is « HangarAI <version> ».
 - Discord Rich Presence ships with no Discord application: it publishes nothing until you enter the ID of your own in Settings › Discord. The original project's application ID, if you had entered it, is ignored. The card's button, « View on GitHub », opens this fork's repository.
 - Phone notifications are signed with this fork's repository address as their contact.

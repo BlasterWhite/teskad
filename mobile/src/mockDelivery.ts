@@ -123,7 +123,7 @@ const PATCHES: Record<string, { status: DeliveryFile["status"]; oldPath?: string
   "src/i18n.ts": {
     status: "modified",
     patch: `@@ -1412,7 +1412,13 @@ const fr = {
-   "mobile.title": "Hangar Mobile",
+   "mobile.title": "Teskad Mobile",
 -  "mobile.pairHint": "Ouvrez l'adresse ci-dessous sur le téléphone, puis saisissez le code.",
 +  "mobile.pairTitle": "Associer un téléphone",
 +  "mobile.pairHint": "Scannez ce code avec l'appareil photo du téléphone : l'app s'ouvre déjà associée. Sinon, ouvrez l'adresse ci-dessous sur le téléphone et saisissez le code à six chiffres.",

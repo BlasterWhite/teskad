@@ -159,27 +159,32 @@ pub enum RestartText {
 /// What the pane's terminal says about the restart, in the person's language.
 /// It is written into the terminal, not drawn by the interface, so it is not
 /// in the dictionary (the TS kept it in `RESTART_TEXT` for the same reason).
-pub fn restart_text(locale: Locale, which: RestartText) -> &'static str {
+fn restart_template(locale: Locale, which: RestartText) -> &'static str {
     match (locale, which) {
         (Locale::En, RestartText::Restarting) => {
-            "Hangar is restarting this pane on the same conversation to give it Hangar's tools."
+            "{app} is restarting this pane on the same conversation to give it {app}'s tools."
         }
         (Locale::En, RestartText::Failed) => {
-            "Hangar could not restart this pane, so it has its role but not Hangar's tools: restart it yourself (it resumes the conversation)."
+            "{app} could not restart this pane, so it has its role but not {app}'s tools: restart it yourself (it resumes the conversation)."
         }
         (Locale::En, RestartText::Unresumable) => {
-            "This pane has no saved conversation to resume, so Hangar did not restart it: it has its role but not Hangar's tools until you restart it."
+            "This pane has no saved conversation to resume, so {app} did not restart it: it has its role but not {app}'s tools until you restart it."
         }
         (Locale::Fr, RestartText::Restarting) => {
-            "Hangar relance ce panneau sur la même conversation pour lui donner les outils Hangar."
+            "{app} relance ce panneau sur la même conversation pour lui donner les outils {app}."
         }
         (Locale::Fr, RestartText::Failed) => {
-            "Hangar n'a pas pu relancer ce panneau : il a son rôle mais pas les outils Hangar. Relancez-le vous-même (il reprend la conversation)."
+            "{app} n'a pas pu relancer ce panneau : il a son rôle mais pas les outils {app}. Relancez-le vous-même (il reprend la conversation)."
         }
         (Locale::Fr, RestartText::Unresumable) => {
-            "Ce panneau n'a pas de conversation enregistrée à reprendre, Hangar ne l'a donc pas relancé : il a son rôle mais pas les outils Hangar tant que vous ne le relancez pas."
+            "Ce panneau n'a pas de conversation enregistrée à reprendre, {app} ne l'a donc pas relancé : il a son rôle mais pas les outils {app} tant que vous ne le relancez pas."
         }
     }
+}
+
+/// [`restart_template`] with the product's name in it.
+pub fn restart_text(locale: Locale, which: RestartText) -> String {
+    hangar_i18n::brand(restart_template(locale, which))
 }
 
 /// The line a restart leaves for the pane that replaces it: the restart gives

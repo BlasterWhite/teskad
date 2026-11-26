@@ -496,7 +496,7 @@ pub fn bare_band<'a>(ctx: Ctx<'a>) -> Option<Element<'a, Message>> {
 /// The software's name, as a person reads it. The binary, the app identifier
 /// and the installers keep their own names: those are not read, they are
 /// found by installs and by agents' configurations.
-pub const NAME: &str = "HangarAI";
+pub const NAME: &str = hangar_i18n::APP_NAME;
 
 /// A window's own title, as the taskbar and the window list show it, and as
 /// the system's title bar draws it: with that bar, the version follows the
@@ -862,15 +862,24 @@ mod tests {
     }
 
     #[test]
+    fn the_name_is_one_word_in_every_crate_that_writes_it() {
+        // hangar-core cannot depend on hangar-i18n, so its constant (the
+        // agents' playbook, the MCP tools) is held equal to the interface's.
+        assert_eq!(NAME, "Teskad");
+        assert_eq!(hangar_core::instructions::APP_NAME, NAME);
+        assert_eq!(hangar_i18n::brand("{app} Mobile"), "Teskad Mobile");
+    }
+
+    #[test]
     fn with_the_systems_title_bar_the_window_title_carries_the_version() {
-        assert_eq!(window_title(None, true), format!("HangarAI {VERSION}"));
+        assert_eq!(window_title(None, true), format!("Teskad {VERSION}"));
         assert_eq!(
             window_title(Some("shop"), true),
-            format!("shop — HangarAI {VERSION}")
+            format!("shop — Teskad {VERSION}")
         );
         // Hangar's own band shows the version: the window's title is the name.
-        assert_eq!(window_title(None, false), "HangarAI");
-        assert_eq!(window_title(Some("shop"), false), "shop — HangarAI");
+        assert_eq!(window_title(None, false), "Teskad");
+        assert_eq!(window_title(Some("shop"), false), "shop — Teskad");
     }
 
     #[test]

@@ -15,7 +15,7 @@ use std::sync::LazyLock;
 use std::time::Duration;
 
 use hangar_core::discord::{self as core, Presence};
-use hangar_i18n::{Key, args};
+use hangar_i18n::{APP_NAME, Key, args};
 use iced::widget::{column, container, image, row, stack, text};
 use iced::{Alignment, Element, Length, Padding, Subscription, Task};
 
@@ -232,7 +232,7 @@ fn card<'a>(ctx: Ctx<'a>, presence: &Presence, now: i64, enabled: bool) -> Eleme
 
     let mut lines = column![
         typography::heading(t, ctx.t(Key::DiscordCardHead).into_owned()),
-        typography::ui(t, "HangarAI".to_string()).font(fonts::ui_semibold()),
+        typography::ui(t, APP_NAME.to_string()).font(fonts::ui_semibold()),
         typography::muted(t, presence.details.clone()),
         typography::muted(t, presence.state.clone()),
         typography::hint(

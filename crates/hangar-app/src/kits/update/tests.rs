@@ -152,7 +152,7 @@ fn enabling_everywhere_runs_setup_steps_in_the_active_workspace() {
 #[test]
 fn a_kit_that_cannot_be_used_cannot_be_enabled_everywhere() {
     let mut broken = kit("1.0.0", vec![]);
-    broken.error = Some("needs a newer Hangar".into());
+    broken.error = Some("needs a newer Teskad".into());
     let mut m = model_with(vec![broken]);
     let mut st = State::default();
     send(

@@ -11,6 +11,7 @@
 //! cannot be read (a board, the memory) is left empty, and every other
 //! project is summarized all the same.
 
+use hangar_core::instructions::APP_NAME;
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::{Arc, LazyLock};
@@ -600,9 +601,9 @@ fn overview_block(project: &ProjectSummary, form: &Form) -> String {
 /// left out when even their shortest form does not fit in about 6,000
 /// characters (`renderOverview`).
 pub fn render_overview(projects: &[ProjectSummary], now: u64) -> String {
-    let title = format!("# Hangar projects at {}", clock(now));
+    let title = format!("# {APP_NAME} projects at {}", clock(now));
     if projects.is_empty() {
-        return format!("{title}\nNo project: Hangar has no workspace besides the HQ.");
+        return format!("{title}\nNo project: {APP_NAME} has no workspace besides the HQ.");
     }
     let mut ordered: Vec<&ProjectSummary> = projects.iter().collect();
     // Stable: the store's order within a rank.

@@ -1,7 +1,7 @@
 {
-  "name": "HangarAI",
-  "short_name": "HangarAI",
-  "description": "Follow and steer your Hangar projects from your phone.",
+  "name": "Teskad Mobile",
+  "short_name": "Teskad",
+  "description": "Follow and steer your Teskad projects from your phone.",
   "id": "./",
   "start_url": "./",
   "scope": "./",

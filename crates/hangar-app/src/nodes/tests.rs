@@ -384,7 +384,7 @@ fn the_binary_comes_from_the_override_then_beside_the_executable() {
 #[test]
 fn the_binary_is_found_in_a_package_s_resources() {
     let dir = tempfile::tempdir().unwrap();
-    // macOS: Hangar.AI.app/Contents/{MacOS,Resources}.
+    // macOS: <the app>.app/Contents/{MacOS,Resources}.
     let contents = dir.path().join("Contents");
     std::fs::create_dir_all(contents.join("MacOS")).unwrap();
     std::fs::create_dir_all(contents.join("Resources")).unwrap();

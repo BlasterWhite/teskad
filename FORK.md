@@ -6,7 +6,7 @@ on the last open-source release, **2.5.1** (MIT, © simnJS), and builds on the e
 [OLIVIER-CG/hangar](https://github.com/OLIVIER-CG/hangar). Codex support is the original
 project's own, from 2.5.0.
 
-HangarAI is closed source and paid from 3.0, so there is nothing more to merge from
+The original project is closed source and paid from 3.0, so there is nothing more to merge from
 upstream: this fork goes its own way, on `main`.
 
 ## What differs from upstream 2.5.1
@@ -20,7 +20,7 @@ upstream: this fork goes its own way, on `main`.
 
 ## Your data
 
-The fork keeps Hangar's app identifier (`com.simnjs.iabench`), so it uses the same folders as
+The fork keeps the original's app identifier (`com.simnjs.iabench`), so it uses the same folders as
 the original app and needs no migration:
 
 - the app's data folder (`~/.local/share/com.simnjs.iabench/` on Linux,
@@ -29,7 +29,7 @@ the original app and needs no migration:
 - `~/.hangar/`: the endpoint file, the Claude Code bridge mod, kits;
 - your project folders, wherever they are.
 
-Run only one Hangar at a time: two would share `state.json` and the endpoint. To try a
+Run only one Teskad at a time: two would share `state.json` and the endpoint. To try a
 change without touching your real data, `scripts/native-dev.sh` runs the app on data of its
 own under `target/dev-home/` (see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
@@ -39,7 +39,7 @@ With Rust stable (and `rustup target add wasm32-unknown-unknown` for native kit 
 
 ```bash
 sudo dnf install gcc-c++ cmake clang-devel openssl-devel alsa-lib-devel webkit2gtk4.1-devel
-pnpm install && pnpm mobile:build      # optional (Node 22, pnpm 10): the phone app Hangar serves
+pnpm install && pnpm mobile:build      # optional (Node 22, pnpm 10): the phone app Teskad serves
 cargo build --profile dist --locked -p hangar-app
 cargo build --profile dist --locked -p hangar-webview --features engine
 ./target/dist/hangar-ai
@@ -59,7 +59,7 @@ scripts/fork/build.sh --release   # target/release: much faster to build, for tr
 
 ### Install over the original app, and back
 
-Close Hangar, then from PowerShell:
+Close Teskad, then from PowerShell:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\fork\install.ps1                # -BuildProfile release for a --release build

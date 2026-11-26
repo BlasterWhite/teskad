@@ -486,5 +486,5 @@ async fn a_folder_hangar_did_not_lay_out_is_not_brought_back() {
     )
     .await
     .unwrap_err();
-    assert!(refused.contains("not a worktree Hangar made"), "{refused}");
+    assert!(refused.contains("not a worktree Teskad made"), "{refused}");
 }

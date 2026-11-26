@@ -16,6 +16,7 @@
 //! a model, so it is English, and kept short — the context comes back with
 //! every compaction.
 
+use hangar_core::instructions::APP_NAME;
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
@@ -470,7 +471,7 @@ fn orchestrator_briefing(
     );
     let mut lines = vec![
         format!(
-            "# Hangar state at {}, workspace \"{}\" ({})",
+            "# {APP_NAME} state at {}, workspace \"{}\" ({})",
             clock(inputs.now),
             ws.name,
             ws.cwd
@@ -542,7 +543,7 @@ fn worker_briefing(
         None => "(no task given)".into(),
     };
     let mut lines = vec![format!(
-        "# Hangar state at {}, worker \"{}\", workspace \"{}\"",
+        "# {APP_NAME} state at {}, worker \"{}\", workspace \"{}\"",
         clock(inputs.now),
         pane.name,
         ws.name

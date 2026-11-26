@@ -190,7 +190,7 @@ fn the_menu_lists_the_tabs_of_the_enabled_kits_in_the_order_they_were_enabled() 
 fn a_kit_that_is_gone_or_cannot_be_used_lists_no_tab_but_keeps_the_button() {
     let mut m = model();
     let mut broken = kit("broken", "Broken", vec![tab("t", "T")]);
-    broken.error = Some("needs a newer Hangar".into());
+    broken.error = Some("needs a newer Teskad".into());
     let mut renamed = kit("renamed", "Renamed", vec![tab("t", "T")]);
     renamed.manifest.as_mut().unwrap().id = "another".into();
     m.live.kits.installed = Some(vec![broken, renamed]);

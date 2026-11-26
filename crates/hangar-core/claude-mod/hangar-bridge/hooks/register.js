@@ -1,5 +1,5 @@
-// hangar-bridge — tells HangarAI what the Claude Code session in one of its
-// panes is doing, and takes prompts Hangar queued for it.
+// hangar-bridge — tells Teskad what the Claude Code session in one of its
+// panes is doing, and takes prompts Teskad queued for it.
 //
 // Hangar loads this module through CLAUDE_CODE_PLUGIN_DIRS for the panes it
 // spawns, and gives each one its pane id and a loopback URL + token in the
@@ -71,7 +71,10 @@ const CONFLICT_WINDOW_MS = 15 * 60 * 1000
  */
 const ASK_WAIT_MS = 20000
 /** What the model reads when the person says no from Hangar. */
-const DECLINED = 'The person declined this from Hangar.'
+/** The product's name, as the model reads it. */
+const APP = 'Teskad'
+
+const DECLINED = 'The person declined this from ' + APP + '.'
 /** How long a session's start waits for its briefing before going on without. */
 const BRIEFING_WAIT_MS = 3000
 /** Who sends Hangar's own events (`Queued.from` in bridge.rs). */
@@ -350,8 +353,8 @@ async function relay($, message) {
     deliver($, message)
     return
   }
-  const who = message.from === HANGAR ? 'Hangar' : 'agent ' + JSON.stringify(message.from)
-  $.ui.log('Hangar passed on a message from ' + who + ': ' + headline(message.text))
+  const who = message.from === HANGAR ? APP : 'agent ' + JSON.stringify(message.from)
+  $.ui.log(APP + ' passed on a message from ' + who + ': ' + headline(message.text))
 }
 
 /**
@@ -705,7 +708,7 @@ export function register(on) {
 
     const minutes = Math.max(1, Math.round(shared.agoMs / 60000))
     const note =
-      'Hangar: the agent in pane "' + shared.name + '" also edited ' + file + ' ' + minutes +
+      APP + ': the agent in pane "' + shared.name + '" also edited ' + file + ' ' + minutes +
       ' min ago. Your change went through. Read the file again before changing it further, ' +
       'keep their changes, and if you are both working on the same part, agree on it with @' +
       shared.name + ' first.'

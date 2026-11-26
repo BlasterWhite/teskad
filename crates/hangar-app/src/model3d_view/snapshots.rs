@@ -14,6 +14,7 @@
 //! never loaded because its workspace is asleep) the snapshot asks the view
 //! to load it with `Msg::Ensure` and waits for the answer.
 
+use hangar_i18n::APP_NAME;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
@@ -37,7 +38,9 @@ const LOAD_WAIT: Duration = Duration::from_secs(40);
 
 /// Said when the model was closed while the agent waited
 /// (`That model is no longer open in Hangar.`).
-pub const GONE: &str = "That model is no longer open in Hangar.";
+pub fn gone() -> String {
+    format!("That model is no longer open in {APP_NAME}.")
+}
 
 struct Held {
     revision: u64,
@@ -219,7 +222,7 @@ impl Snapshots {
                     .map(|entry| (entry.revision, entry.title.clone()))
             });
             let Some((revision, title)) = entry else {
-                return Err(GONE.into());
+                return Err(gone());
             };
             match self.registry.look(id, revision) {
                 Look::Ready { model, theme } => return Ok((model, theme)),
