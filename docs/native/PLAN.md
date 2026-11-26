@@ -207,7 +207,8 @@ their TS is read at tag `v1.12.1`):
   `vite.demo.config.ts`, the root TypeScript and vitest configs, the browser demo
   (`demo/`, its models moved to `assets/models/`), the Tauri-only scripts, and the
   desktop parts of `package.json`.
-- [x] The site lost its demo section; its image serves `site/` as it is.
+- [x] The website lost its demo section (the website and its Docker image have
+  since left this repository).
 - [x] The generators that read the old sources: the strings' dictionaries live in
   `crates/hangar-i18n/dict/`; the themes' and icons' Rust tables are the source
   (`gen-themes.mjs`, `gen-icons.mjs` deleted); `scripts/gen-hangar-ui.mjs` reads

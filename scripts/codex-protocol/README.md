@@ -9,7 +9,7 @@ are regenerated when the pin moves, and never edited.
 | File | What it is |
 |---|---|
 | `subset.json` | The pin (`"codex"`), whether the experimental surface is included (`false`: Hangar sends `experimentalApi: false`), and the methods Hangar uses: requests it sends, notifications and requests it reads. `responseOverrides` names an answer type Codex's `…Params` → `…Response` naming does not give. |
-| `fetch-schema.sh` | Runs the pinned `codex app-server generate-json-schema` on the build machine (scripts/remote) and brings the schema back. Codex is not installed on the person's PC, and nothing here installs it there. |
+| `fetch-schema.sh` | Installs the pinned Codex from npm into a throwaway prefix, runs its `codex app-server generate-json-schema` into a new temporary folder and prints its path. Nothing is installed globally. |
 | `generate.mjs` | Reduces the schema to the subset and writes the outputs below. Node only, no dependencies; needs `rustfmt`. |
 | `diff-schema.mjs` | The schema watch's diff of two Codex releases' schemas, restricted to the subset (below). Node only, no dependencies; its reduction is `generate.mjs`'s. Tested by `diff-schema.test.mjs` (`node --test scripts/codex-protocol/`). |
 | `schema.subset.json` (generated) | The schema reduced to the subset's methods and every type they reach: what a bump's review reads, and what `generate.mjs` alone regenerates from. |
@@ -64,11 +64,10 @@ are regenerated when the pin moves, and never edited.
    scripts/codex-protocol/fetch-schema.sh --generate
    ```
 
-   It rents or reuses the build machine through `scripts/remote/rbuild ssh`, installs that Codex
-   there (its own Node and npm prefix in `/root/codex-protocol`, no login), runs
-   `codex app-server generate-json-schema`, checks the version it printed, brings the schema back
-   into a new temporary folder and runs `generate.mjs --schema <folder>` on it. Never install Codex
-   on the PC for this.
+   It installs that Codex from npm into a throwaway prefix, removed on exit (install scripts off,
+   no login, an empty `CODEX_HOME`), runs `codex app-server generate-json-schema` into a new
+   temporary folder, checks the version it printed and runs `generate.mjs --schema <folder>` on it.
+   It needs node, npm and the network; no Codex of yours is used or changed.
 4. Read what changed for Hangar: `git diff scripts/codex-protocol/schema.subset.json` (the protocol
    itself) and `git diff crates/hangar-core/src/codex_app/generated.rs` (the types).
 5. When the generator stops, it says why:
@@ -76,11 +75,11 @@ are regenerated when the pin moves, and never edited.
    - no response type for a method → add it to `responseOverrides`;
    - a type name is two different types (root and v2 namespaces) → name one in `flattenBundle`;
    - a union of a new shape → teach `Generator.union` that shape.
-6. Build and test on the build machine, never on the PC:
+6. Build and test:
 
    ```sh
-   scripts/remote/rcargo test -p hangar-core --lib codex_app
-   scripts/remote/rbuild check
+   cargo test -p hangar-core --lib codex_app
+   scripts/ci-check   # the whole CI on GitHub Actions, for the committed HEAD
    ```
 
    `every_shape_the_schema_allows_reads_and_writes_back_unchanged` reads every sample of the new
@@ -106,7 +105,7 @@ are regenerated when the pin moves, and never edited.
 
 Codex ships about three releases a week, and the pin only moves by hand. So that Hangar learns when a
 release changes what it uses, `.github/workflows/codex-schema-watch.yml` runs every Monday (05:23 UTC)
-and on demand, on a GitHub runner: no build machine, no secret, no login.
+and on demand, on a GitHub runner: no secret, no login.
 
 1. It reads the latest release (`npm view @openai/codex version`) and stops there when it is not newer
    than the pin.
@@ -128,10 +127,10 @@ when the release drops something Hangar needs, list it in `CODEX_BROKEN`
 (`crates/hangar-core/src/codex_app/gate.rs`) so Hangar runs the plain TUI for it meanwhile. Closing the
 issue is by hand.
 
-**By hand.** The PC never runs Codex, so either let the workflow do it for any release
-(`gh workflow run codex-schema-watch.yml -f version=0.171.0`, or Actions > Run workflow), or, from
-two schema folders written on a machine that has Codex (`fetch-schema.sh` brings the pinned one back
-from the build machine):
+**By hand.** Either let the workflow do it for any release
+(`gh workflow run codex-schema-watch.yml -f version=0.171.0`, or Actions > Run workflow), or compare
+two schema folders yourself: `fetch-schema.sh` writes the pinned release's, and a Codex of the other
+release writes its own:
 
 ```sh
 codex app-server generate-json-schema --out <folder>   # CODEX_HOME empty, no login

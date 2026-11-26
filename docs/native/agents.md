@@ -241,8 +241,9 @@ code does but the docs do not say.
 installed on the person's PC either, and the person has no Codex or ChatGPT
 subscription (2026-11-19). So everything the implementation tasks need the
 binary for — generating the protocol schema (T3a) and the weekly schema
-diff (T12) — runs on the Vast build box (or a GitHub runner), where Codex is
-installed with `npm i -g @openai/codex`. Neither needs a login. Nothing is
+diff (T12) — installs it from npm into a throwaway prefix, never globally
+(`scripts/codex-protocol/fetch-schema.sh`; the schema watch on a GitHub
+runner). Neither needs a login. Nothing is
 ever run against a logged-in Codex: no API key, no recorded session (§7,
 decision 1). So wherever this page says a task "checks" something about
 Codex, it means reading the pinned release's schema, source and docs.
@@ -595,7 +596,7 @@ the floor for it without waiting for an update.
 every protocol behaviour is OpenAI's own `codex app-server`, in
 `openai/codex` at the pinned tag (`rust-v0.170.0` to start) — the protocol
 crate `codex-rs/app-server-protocol` and its published schema (or the same
-schema from `codex app-server generate-json-schema`, on the Vast build box),
+schema from `scripts/codex-protocol/fetch-schema.sh`),
 the app-server's source, and the Codex docs (`app-server`,
 `config-reference`, `non-interactive-mode`, `hooks`, `environment-variables`).
 *Why:* the person's decision is to code without running Codex (§7), so the
@@ -989,9 +990,8 @@ What does **not** work with Codex alone, said where it shows:
 
 Each task below is one worker's: an outcome, the files it owns, what it waits
 for, and a size (changed lines, tests included, generated code excluded).
-The person's rules apply to every one: nothing compiled on the PC (checks on
-Vast through `scripts/remote`), nothing that needs the `codex` binary run on
-the PC either (it is not installed there: the Vast build box, §4.0), a PR per
+The person's rules apply to every one: no Codex installed on the PC (what
+needs the `codex` binary uses a throwaway prefix, §4.0), a PR per
 task, no CHANGELOG entry, no Claude attribution. Every task that speaks to
 Codex starts from the `openai/codex` files §4.7 names for it.
 
@@ -1009,7 +1009,7 @@ From `main`, 2026-11-19 (T31). ✓ marks a task landed on `main`.
 - **Not on `main` yet:** T20, the rule's test (§3.3).
 - **T31** (lands with these lines): the README, the guide (with
   `docs/guide/codex.md` and its capability table, written from `AgentInfo`),
-  `docs/kits.md` and the site.
+  `docs/kits.md` and the website (since removed from this repository).
 
 Where what landed differs from this page:
 
@@ -1053,7 +1053,7 @@ with its own kind type (a string or an enum), T1 adopts it as
 |---|---|---|---|---|---|
 | **T1** ✓ | `AgentKind`, `AgentInfo`, `Capabilities` (static levels per kind), `info(kind)`, detection facade (Claude's existing check, Codex's from c48c7086), PATH repair for npm's and Homebrew's global bins | `hangar-core/src/agent/{mod,caps}.rs`, `lib.rs` (one line), `path_env.rs` | c48c7086 for the Codex detection call | 300 | — (first) |
 | **T2** ✓ | One launch builder: `LaunchRequest` → `LaunchSpec`; Claude Code's flags moved here from `hangar-engine/src/panes/agents.rs` with their tests (the engine switches in T14a) | `hangar-core/src/agent/{launch,claude}.rs` | T1 | 400 | T3a, T5, T8 |
-| **T3a** ✓ | Protocol types: a generator script over `codex app-server generate-json-schema` at the pinned release, run on the Vast build box (no login needed), the checked-in subset Hangar uses, a README of how to bump | `scripts/codex-protocol/`, `hangar-core/src/codex_app/generated.rs` | T1 | 200 + generated | T2, T5, T8 |
+| **T3a** ✓ | Protocol types: a generator script over `codex app-server generate-json-schema` at the pinned release (no login needed), the checked-in subset Hangar uses, a README of how to bump | `scripts/codex-protocol/`, `hangar-core/src/codex_app/generated.rs` | T1 | 200 + generated | T2, T5, T8 |
 | **T3b** ✓ | The JSON-RPC client: spawn (stdio, or `proxy --sock`), `initialize`, requests, notification stream, server requests with responses, version gate, lenient decoding; tests on fixtures written from the protocol schema, docs and source (§4.7), each marked "from the protocol schema" | `hangar-core/src/codex_app/{mod,client,gate}.rs`, `hangar-core/tests/fixtures/codex/app-server/` | T3a | 400 | T4a, T5, T6 |
 | **T4a** ✓ | Codex launch spec: the pane server's arguments (`-c` MCP, role, permissions, roots, model, effort, trust of Hangar's worktrees), the typed `--remote` line, the floor's typed line, per-shell quoting; tests per shell | `hangar-core/src/agent/codex.rs` | T1, T2 | 350 | T3b, T5 |
 | **T4b** ✓ | The pane's Codex server lives with the pane: spawned with the pane's environment, socket in Hangar's runtime folder, killed and restarted with the pane (close, restart, hibernation, `worker_stop`), WSL through `proxy`; `pty/jobs.rs` walks its tree; `apply_account` for `CODEX_HOME` | `hangar-core/src/pty.rs` (Codex parts), `pty/jobs.rs`, `pty/codex_server.rs` (new) | T4a | 350 | T3b, T6 |
@@ -1066,7 +1066,7 @@ with its own kind type (a string or an enum), T1 adopts it as
 | **T10** | Generated images: `Event::ImageGenerated` from attached panes, headless children and the floor's rollout; an image chat item for Mobile | `hangar-core/src/agent/images.rs` (new), `host.rs` (event), `chat/` (item kind) after T9 | T4c, T9 | 250 | T11a |
 | **T11a** ✓ | `delegate` runner, Codex side: children as app-server threads, the delegation registry, `shared`/`worktree` isolation, results (message, files, images, branch), events to the caller's inbox | `hangar-core/src/delegate.rs`, `delegate/` (new) | T3b, T4c, T5 | 350 | T10 |
 | **T11b** | `delegate` runner, Claude side: `claude -p` stream-json children, their asks held for the person | `hangar-core/src/delegate/claude.rs` | T11a | 200 | T12 |
-| **T12** ✓ | The schema watch and the bug path: a weekly job (Vast build box or a GitHub runner, no login) that runs `codex app-server generate-json-schema` on the latest Codex release, diffs it against the pinned one restricted to the subset Hangar uses, and opens an issue when that subset changes; a GitHub issue template for Codex users (what happened, `codex --version`, Hangar's version, attached or floor, the pane's Hangar log) | `scripts/codex/`, `.github/workflows/codex-schema-watch.yml`, `.github/ISSUE_TEMPLATE/codex-bug.yml` | T3a | 250 | T3b–T11 |
+| **T12** ✓ | The schema watch and the bug path: a weekly job (on a GitHub runner, no login) that runs `codex app-server generate-json-schema` on the latest Codex release, diffs it against the pinned one restricted to the subset Hangar uses, and opens an issue when that subset changes; a GitHub issue template for Codex users (what happened, `codex --version`, Hangar's version, attached or floor, the pane's Hangar log) | `scripts/codex/`, `.github/workflows/codex-schema-watch.yml`, `.github/ISSUE_TEMPLATE/codex-bug.yml` | T3a | 250 | T3b–T11 |
 
 ### Wave B — hangar-engine, after Wren's pin-pane task lands
 
@@ -1102,7 +1102,7 @@ mechanical.
 | **T28** ✓ | Statistics page by agent | `hangar-app/src/stats/` | **Cleo landed**, T19 | 200 | T26, T27 |
 | **T29** | Nodes run Codex: `/node/info` both agents, node transcript routes take the kind, node workspaces use the default agent, node panes spawn their Codex server | `hangar-node/src/{api,own,panes,transcripts}.rs`, `hangar-app/src/nodes/` | **Cleo landed** (for the app part), T13, T4b, T4c, c48c7086 | 400 | Wave C |
 | **T30** ✓ | Discord follows either kind, `/workspace` uses the default agent, images attached to turn cards | `hangar-discord/src/{bot,follow,cards,hangar}.rs` | T13, T10 | 250 | Wave C |
-| **T31** ✓ | README, guide, site and `docs/kits.md` per D21, the capability table generated from `AgentInfo`, Codex marked beta with a link to the Codex bug template (T12) | `README.md`, `docs/guide/`, `docs/kits.md`, the site's pages | the features (last) | 300 | — |
+| **T31** ✓ | README, guide and `docs/kits.md` per D21, the capability table generated from `AgentInfo`, Codex marked beta with a link to the Codex bug template (T12) | `README.md`, `docs/guide/`, `docs/kits.md` | the features (last) | 300 | — |
 
 **Critical path to "a Codex orchestrator with Codex workers"**: T1 → T2 / T3a →
 T3b → T4a → T4b → T4c → (Wren) T13 → T14a, T14b → T16a, T16b → (Rex, Cleo) T22,
@@ -1123,7 +1123,7 @@ parallel at its widest.
    contained by the beta label, the schema watch and the users' reports (§8).
 2. **Canary — decided, as a schema watch:** weekly, the latest Codex
    release's `generate-json-schema` diffed against the pinned one (T12), on
-   the Vast build box or a GitHub runner, no login; an issue opens when the
+   a GitHub runner, no login; an issue opens when the
    subset Hangar uses changes.
 3. **README — decided:** neutral (D21).
 4. **Attached mode — decided:** on by default (D5), the plain TUI as the
@@ -1150,7 +1150,7 @@ parallel at its widest.
 | Codex on Windows | Native Windows is supported by Codex with its own sandbox. Whether `unix://` sockets work there is checked by T4b; if not, the attached mode uses a loopback WebSocket with a token (`--ws-auth`), or the pane runs on the floor, and the setup card says which. |
 | Licence | Codex CLI is Apache-2.0; Hangar generates types from its published schema and links nothing of it. Nothing is copied from another Codex client. |
 
-## 9. What the README and the site say
+## 9. What the README says
 
 **Decision D21.** Neutral, with an honest table. *Decided by the person,
 2026-11-19.*
