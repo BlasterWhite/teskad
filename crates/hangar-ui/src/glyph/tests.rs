@@ -14,27 +14,27 @@ mod gauge_level {
     }
 }
 
-mod pulse {
-    #[test]
-    fn starts_small_and_visible() {
-        let (scale, opacity) = super::super::pulse(0.0);
-        assert!((scale - 0.6).abs() < 1e-6);
-        assert!((opacity - 0.7).abs() < 1e-6);
-    }
+mod spin {
+    use super::super::spin_angle;
+    use std::f32::consts::TAU;
 
     #[test]
-    fn grows_and_fades_until_seven_tenths_of_the_turn() {
-        let (scale, opacity) = super::super::pulse(0.35);
-        assert!((scale - 0.975).abs() < 1e-4);
-        assert!((opacity - 0.35).abs() < 1e-4);
-        let (scale, opacity) = super::super::pulse(0.6999);
-        assert!(scale > 1.34 && opacity < 0.001);
+    fn turns_once_per_turn_in_a_straight_line() {
+        assert_eq!(spin_angle(0.0), 0.0);
+        assert!((spin_angle(0.25) - TAU / 4.0).abs() < 1e-6);
+        assert!((spin_angle(0.5) - TAU / 2.0).abs() < 1e-6);
     }
+}
+
+mod reduced_motion {
+    use super::*;
 
     #[test]
-    fn waits_invisible_for_the_rest_of_the_turn() {
-        assert_eq!(super::super::pulse(0.7), (1.35, 0.0));
-        assert_eq!(super::super::pulse(0.99), (1.35, 0.0));
+    fn is_a_switch_the_app_sets_from_the_system() {
+        set_reduced_motion(true);
+        assert!(reduced_motion());
+        set_reduced_motion(false);
+        assert!(!reduced_motion());
     }
 }
 
@@ -48,6 +48,8 @@ mod animation {
             GlyphState::Yours,
             GlyphState::Idle,
             GlyphState::Exited,
+            GlyphState::Completed,
+            GlyphState::Failed,
         ] {
             assert!(!state.animates(), "{state:?}");
         }
@@ -87,4 +89,13 @@ fn a_glyph_takes_its_fill_from_the_themes_state_colours() {
         Tint::of(t, GlyphState::Exited).fill,
         t.colors.state_idle_fill
     );
+}
+
+#[test]
+fn an_outcome_takes_the_themes_success_and_danger_and_draws_its_symbol_in_the_background() {
+    let t = hangar_theme::default_theme();
+    let done = Tint::of(t, GlyphState::Completed);
+    assert_eq!(done.fill, t.colors.success);
+    assert_eq!(done.ink, t.colors.bg);
+    assert_eq!(Tint::of(t, GlyphState::Failed).fill, t.colors.danger);
 }

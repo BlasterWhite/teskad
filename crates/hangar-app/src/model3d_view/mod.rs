@@ -247,6 +247,19 @@ fn step(st: &mut State, m: &mut Model, inbox: &Inbox, msg: Msg) -> Task<Message>
     Task::batch([asked, first, then])
 }
 
+/// Asks the system whether the person wants less motion, at start, so the
+/// state glyphs hold still before any 3D model is opened.
+pub fn ask_system_motion() -> Task<Message> {
+    Task::perform(
+        async {
+            tokio::task::spawn_blocking(motion::reduced_motion)
+                .await
+                .unwrap_or(false)
+        },
+        |reduced| Message::Model3d(Msg::ReducedMotion(reduced)),
+    )
+}
+
 /// Asks the system, once, whether the person wants less motion. The answer
 /// comes back as `Msg::ReducedMotion`.
 fn ask_motion(st: &mut State) -> Task<Message> {
@@ -327,6 +340,7 @@ fn handle(st: &mut State, m: &mut Model, msg: Msg) -> Task<Message> {
         Msg::Tick => Task::none(),
         Msg::ReducedMotion(reduced) => {
             st.reduced_motion = reduced;
+            hangar_ui::glyph::set_reduced_motion(reduced);
             for slot in st.slots.values() {
                 slot.viewer.set_reduced_motion(reduced);
             }

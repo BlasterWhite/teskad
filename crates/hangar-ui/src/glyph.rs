@@ -2,10 +2,13 @@
 //! context gauge of a pane (`PaneGauge.tsx`).
 //!
 //! Colour and shape both carry the state, so it reads without telling green
-//! from amber: a pulsing dot while working, a diamond while waiting for an
-//! answer, a solid dot when it is your turn, a ring when idle. `Starting` and
-//! `Exited` are the shell's own states, before or after there is an agent to
-//! report on.
+//! from amber, as the Teskad brand pack's status icons ask: an arc turning
+//! once every 1.4 s while working (still when the system asks for less
+//! motion), a solid dot when it is your turn (the pack's "active"), an empty
+//! ring when idle (its "inactive"), a ticked disc when completed and a crossed
+//! disc when failed. A diamond keeps "waiting for an answer", which the pack
+//! has no icon for. `Starting` and `Exited` are the shell's own states, before
+//! or after there is an agent to report on.
 //!
 //! ```ignore
 //! use hangar_ui::glyph::{self, GlyphState};
@@ -14,7 +17,9 @@
 //! glyph::gauge(t, 72).tip("72 % of 200k tokens")
 //! ```
 
+use std::f32::consts::TAU;
 use std::sync::LazyLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use hangar_theme::tokens::{font_size, space};
@@ -33,7 +38,8 @@ use iced::{
 
 use crate::tip;
 
-/// The states a glyph can show: an agent's four, and the shell's two.
+/// The states a glyph can show: an agent's four, the shell's two, and the
+/// outcome of a task or a step.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GlyphState {
     Working,
@@ -44,6 +50,10 @@ pub enum GlyphState {
     Starting,
     /// The process ended.
     Exited,
+    /// A task or a step that went through.
+    Completed,
+    /// A task or a step that did not.
+    Failed,
 }
 
 impl From<AgentState> for GlyphState {
@@ -67,8 +77,10 @@ impl GlyphState {
 /// The colours a glyph is drawn in, from the theme or from the row it sits on.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Tint {
-    /// The fill of the dot, the diamond or the ring.
+    /// The fill of the dot, the diamond, the ring or the disc.
     pub fill: Color,
+    /// The tick or the cross drawn inside a disc: the theme's background.
+    pub ink: Color,
 }
 
 impl Tint {
@@ -79,12 +91,28 @@ impl Tint {
             GlyphState::Waiting => c.state_waiting_fill,
             GlyphState::Yours => c.state_yours_fill,
             GlyphState::Idle | GlyphState::Exited | GlyphState::Starting => c.state_idle_fill,
+            GlyphState::Completed => c.success,
+            GlyphState::Failed => c.danger,
         };
-        Tint { fill }
+        Tint { fill, ink: c.bg }
     }
 }
 
-/// Where the pulse is in its turn, from 0 to 1. All glyphs on screen pulse
+/// Whether the person asked the system for less motion, as the app read it.
+static REDUCED_MOTION: AtomicBool = AtomicBool::new(false);
+
+/// Tells every glyph whether to hold still: the arc of a working glyph stops
+/// and a starting ring stays lit.
+pub fn set_reduced_motion(reduced: bool) {
+    REDUCED_MOTION.store(reduced, Ordering::Relaxed);
+}
+
+/// Whether glyphs hold still.
+pub fn reduced_motion() -> bool {
+    REDUCED_MOTION.load(Ordering::Relaxed)
+}
+
+/// Where a turn of `period` is, from 0 to 1. All glyphs on screen move
 /// together, which reads as one rhythm and not as a swarm.
 fn turn(period: Duration) -> f32 {
     static START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
@@ -92,17 +120,12 @@ fn turn(period: Duration) -> f32 {
     (start.elapsed().as_secs_f32() % period.as_secs_f32()) / period.as_secs_f32()
 }
 
-/// The pulse of a working glyph: 2.4 s, the ring growing from 0.6 to 1.35
-/// times the dot and fading as it goes, then waiting out the last 30 %.
-const PULSE: Duration = Duration::from_millis(2400);
+/// One turn of a working glyph's arc: 1.4 s, linear.
+const SPIN: Duration = Duration::from_millis(1400);
 
-/// The ring's scale and opacity at `turn` (0 to 1) of the pulse.
-pub fn pulse(turn: f32) -> (f32, f32) {
-    if turn >= 0.7 {
-        return (1.35, 0.0);
-    }
-    let progress = turn / 0.7;
-    (0.6 + 0.75 * progress, 0.7 * (1.0 - progress))
+/// The angle of the working arc at `turn` (0 to 1) of its spin, in radians.
+pub fn spin_angle(turn: f32) -> f32 {
+    turn * TAU
 }
 
 /// Whether a starting glyph is lit at `turn` of its 1.2 s blink.
@@ -123,6 +146,66 @@ static DIAMOND: LazyLock<svg::Handle> = LazyLock::new(|| {
         .to_vec(),
     )
 });
+
+/// A quarter of a ring, from twelve to three o'clock, on the pack's 16-unit
+/// box: the working glyph's arc, turned by the renderer.
+static ARC: LazyLock<svg::Handle> = LazyLock::new(|| {
+    svg::Handle::from_memory(
+        concat!(
+            r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none">"##,
+            r##"<path d="M8 1.2a6.8 6.8 0 0 1 6.8 6.8" stroke="#000" stroke-width="2.4" "##,
+            r##"stroke-linecap="round"/></svg>"##
+        )
+        .as_bytes()
+        .to_vec(),
+    )
+});
+
+/// The tick of a completed glyph, on the same box.
+static TICK: LazyLock<svg::Handle> = LazyLock::new(|| {
+    svg::Handle::from_memory(
+        concat!(
+            r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none">"##,
+            r##"<path d="M5 8.2 7.2 10.3 11 6" stroke="#000" stroke-width="1.8" "##,
+            r##"stroke-linecap="round" stroke-linejoin="round"/></svg>"##
+        )
+        .as_bytes()
+        .to_vec(),
+    )
+});
+
+/// The cross of a failed glyph.
+static CROSS: LazyLock<svg::Handle> = LazyLock::new(|| {
+    svg::Handle::from_memory(
+        concat!(
+            r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none">"##,
+            r##"<path d="M5.5 5.5l5 5m0-5l-5 5" stroke="#000" stroke-width="1.8" "##,
+            r##"stroke-linecap="round"/></svg>"##
+        )
+        .as_bytes()
+        .to_vec(),
+    )
+});
+
+/// Draws `handle` in `color` over `rect`, turned by `angle` about its centre.
+fn symbol<R: svg::Renderer>(
+    renderer: &mut R,
+    handle: &svg::Handle,
+    rect: Rectangle,
+    color: Color,
+    angle: f32,
+) {
+    renderer.draw_svg(
+        svg::Svg {
+            handle: handle.clone(),
+            color: Some(Color { a: 1.0, ..color }),
+            rotation: Radians(angle),
+            opacity: color.a,
+        },
+        rect,
+        rect,
+    );
+}
 
 /// Draws the glyph of `state` in the square `bounds`.
 ///
@@ -171,19 +254,22 @@ pub fn draw<R: iced::advanced::Renderer + svg::Renderer>(
 
     match state {
         GlyphState::Working => {
+            // A faint track and the arc on it, turning while it can.
+            ring(renderer, dot, side * 0.15, tint.fill.scale_alpha(0.25));
+            let angle = if animate && !reduced_motion() {
+                spin_angle(turn(SPIN))
+            } else {
+                0.0
+            };
+            symbol(renderer, &ARC, dot, tint.fill, angle);
+        }
+        GlyphState::Completed => {
             disc(renderer, dot, tint.fill);
-            if animate {
-                // A ring that grows and fades: something is happening, quietly.
-                let (scale, opacity) = pulse(turn(PULSE));
-                let grown = (side + 6.0) * scale;
-                let rect = Rectangle::new(
-                    Point::new(centre.x - grown / 2.0, centre.y - grown / 2.0),
-                    Size::new(grown, grown),
-                );
-                if opacity > 0.01 {
-                    ring(renderer, rect, 1.5, tint.fill.scale_alpha(opacity));
-                }
-            }
+            symbol(renderer, &TICK, dot, tint.ink, 0.0);
+        }
+        GlyphState::Failed => {
+            disc(renderer, dot, tint.fill);
+            symbol(renderer, &CROSS, dot, tint.ink, 0.0);
         }
         GlyphState::Yours => disc(renderer, dot, tint.fill),
         GlyphState::Waiting => {
@@ -209,7 +295,7 @@ pub fn draw<R: iced::advanced::Renderer + svg::Renderer>(
         }
         GlyphState::Idle | GlyphState::Exited => ring(renderer, dot, 1.5, tint.fill),
         GlyphState::Starting => {
-            let lit = !animate || blink_lit(turn(Duration::from_millis(1200)));
+            let lit = !animate || reduced_motion() || blink_lit(turn(Duration::from_millis(1200)));
             ring(
                 renderer,
                 dot,
@@ -229,6 +315,7 @@ pub struct StateGlyph {
     state: GlyphState,
     side: f32,
     tint: Tint,
+    animate: bool,
 }
 
 impl<Message, Theme> Widget<Message, Theme, iced::Renderer> for StateGlyph {
@@ -258,9 +345,12 @@ impl<Message, Theme> Widget<Message, Theme, iced::Renderer> for StateGlyph {
     ) {
         // The motion is drawn from the clock, so the window only has to be
         // asked to redraw: about 25 times a second, which is smooth enough
-        // for a ring that takes 1.7 s to fade and cheap enough for a window
-        // of sixteen panes.
-        if self.state.animates()
+        // for an arc that turns in 1.4 s and cheap enough for a window of
+        // sixteen panes. A glyph held still, or a system asking for less
+        // motion, asks for nothing.
+        if self.animate
+            && !reduced_motion()
+            && self.state.animates()
             && let Event::Window(window::Event::RedrawRequested(now)) = event
         {
             shell.request_redraw_at(*now + Duration::from_millis(40));
@@ -277,7 +367,13 @@ impl<Message, Theme> Widget<Message, Theme, iced::Renderer> for StateGlyph {
         _cursor: mouse::Cursor,
         _viewport: &Rectangle,
     ) {
-        draw(renderer, self.state, layout.bounds(), self.tint, true);
+        draw(
+            renderer,
+            self.state,
+            layout.bounds(),
+            self.tint,
+            self.animate,
+        );
     }
 }
 
@@ -291,18 +387,26 @@ impl StateGlyph {
     /// Draws in this colour instead of the state's own: on the accent of a
     /// chosen row, the glyph keeps its shape in the colour that reads there.
     pub fn tint(mut self, color: Color) -> Self {
-        self.tint = Tint { fill: color };
+        self.tint.fill = color;
+        self
+    }
+
+    /// Draws the glyph at rest, for a mark in a log or a list of what
+    /// happened, where a turning arc would say something is still going on.
+    pub fn still(mut self) -> Self {
+        self.animate = false;
         self
     }
 }
 
 /// The glyph of `state`, `side` pixels across (8 in the pane header, 7 in the
-/// navigator and the menus).
+/// navigator and the menus), the one drawing of a state wherever it shows.
 pub fn state(t: &Theme, state: GlyphState, side: f32) -> StateGlyph {
     StateGlyph {
         state,
         side,
         tint: Tint::of(t, state),
+        animate: true,
     }
 }
 

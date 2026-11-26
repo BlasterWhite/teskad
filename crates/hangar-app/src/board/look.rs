@@ -13,9 +13,9 @@ use iced::widget::{button, container, text_input};
 use iced::{Background, Border, Color, Shadow, Vector};
 
 /// The dot that marks a column (`.column__mark`) and a task dialog's header.
-pub const MARK: f32 = 6.0;
+pub const MARK: f32 = 8.0;
 /// The mark in the task dialog's header.
-pub const MARK_LARGE: f32 = 7.0;
+pub const MARK_LARGE: f32 = 9.0;
 /// The widest a column grows in the full board (`minmax(0, 360px)`).
 pub const COLUMN_MAX_WIDTH: f32 = 360.0;
 /// Under this width the full board stacks its columns (`@container (max-width: 640px)`).
@@ -189,43 +189,17 @@ pub fn chip(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
     }
 }
 
-/// The dot of a column or a dialog (`.column__mark`): neutral for what waits,
-/// the working colour for what is under way, "your turn" for what waits on
-/// the person, and an empty ring for what is over.
-pub fn mark(
-    t: &Theme,
-    column: super::model::Column,
-    side: f32,
-) -> impl Fn(&iced::Theme) -> container::Style + '_ {
+/// The state a column's mark shows (`.column__mark`): an empty ring for what
+/// waits, the working arc for what is under way, "your turn" for what waits on
+/// the person, and a ticked disc for what is over.
+pub fn mark(column: super::model::Column) -> hangar_ui::glyph::GlyphState {
     use super::model::Column;
-    move |_| {
-        let c = &t.colors;
-        let round = (side / 2.0).into();
-        match column {
-            Column::Done => container::Style {
-                border: Border {
-                    color: c.fg_subtle,
-                    width: 1.5,
-                    radius: round,
-                },
-                ..container::Style::default()
-            },
-            other => {
-                let fill = match other {
-                    Column::Doing => c.state_working_fill,
-                    Column::Review => c.state_yours_fill,
-                    _ => c.fg_subtle,
-                };
-                container::Style {
-                    background: Some(Background::Color(fill)),
-                    border: Border {
-                        radius: round,
-                        ..Border::default()
-                    },
-                    ..container::Style::default()
-                }
-            }
-        }
+    use hangar_ui::glyph::GlyphState;
+    match column {
+        Column::Todo => GlyphState::Idle,
+        Column::Doing => GlyphState::Working,
+        Column::Review => GlyphState::Yours,
+        Column::Done => GlyphState::Completed,
     }
 }
 
