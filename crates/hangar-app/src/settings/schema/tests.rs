@@ -274,7 +274,7 @@ fn voice_has_every_row_of_the_old_schema_with_a_local_engine() {
             "voiceApiKey: custom VoiceKey",
             "voiceCleanup: toggle VoiceCleanup = false",
             r#"voiceCleanupModel: input VoiceCleanupModel = "" ("llama-3.1-8b-instant")"#,
-            r#"voiceCleanupHint: input VoiceCleanupHint = "" ("HangarAI, pnpm, Tauri, simnJS")"#,
+            r#"voiceCleanupHint: input VoiceCleanupHint = "" ("Teskad, pnpm, Tauri, simnJS")"#,
         ]
     );
 }
@@ -348,7 +348,7 @@ fn about_shows_the_name_the_version_and_a_two_step_reset() {
             "reset: action ResetSettings (confirm) (danger)",
         ]
     );
-    assert_eq!(find(&built, "appName").label.as_deref(), Some("HangarAI"));
+    assert_eq!(find(&built, "appName").label.as_deref(), Some("Teskad"));
 }
 
 #[test]
@@ -597,7 +597,7 @@ fn attaching_hangar_to_codex_is_a_switch_that_explains_itself_and_its_fallback()
     let attach = find(&built, "codexAttach");
     assert_eq!(
         attach.label.as_deref(),
-        Some("Attach Hangar to Codex (beta)")
+        Some("Attach Teskad to Codex (beta)")
     );
     let hint = attach.hint.as_deref().unwrap_or_default();
     assert!(hint.contains("Codex's own server"), "{hint}");

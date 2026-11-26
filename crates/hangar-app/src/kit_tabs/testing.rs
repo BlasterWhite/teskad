@@ -106,7 +106,7 @@ pub fn installed() -> Vec<KitInfo> {
             ..kit("broken-kit", Vec::new())
         },
         KitInfo {
-            error: Some("needs Hangar >=9.0.0".into()),
+            error: Some("needs Teskad >=9.0.0".into()),
             ..kit("future-kit", vec![status()])
         },
     ]

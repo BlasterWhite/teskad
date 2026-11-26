@@ -2,7 +2,7 @@
 
 use std::borrow::Cow;
 
-use crate::{Arg, AsKey, KeyRef, Locale, Number, PluralCategory};
+use crate::{APP_NAME, Arg, AsKey, KeyRef, Locale, Number, PluralCategory};
 
 /// The text of `key` in `locale`, as the dictionary has it: placeholders are
 /// left as written. A counted message shows its general form, since nothing
@@ -104,7 +104,7 @@ fn render(
         }
         // A key that names nothing is shown as written, placeholders and all.
         KeyRef::Unknown(text) => {
-            return if args.is_empty() && count.is_none() {
+            return if args.is_empty() && count.is_none() && !text.contains("{app}") {
                 Cow::Owned(text.to_owned())
             } else {
                 Cow::Owned(fill(text, locale, count, args))
@@ -112,7 +112,9 @@ fn render(
         }
     };
 
-    if template.contains('{') && (!args.is_empty() || count.is_some()) {
+    // `{app}` is the product's name, filled from `APP_NAME` even where a call
+    // passes nothing, so a string never needs an argument to carry it.
+    if template.contains("{app}") || (template.contains('{') && (!args.is_empty() || count.is_some())) {
         Cow::Owned(fill(template, locale, count, args))
     } else {
         Cow::Borrowed(template)
@@ -145,6 +147,7 @@ fn fill(template: &str, locale: Locale, count: Option<Number>, args: &[(&str, Ar
                 (Some(Arg::Str(text)), _) => out.push_str(text),
                 (Some(Arg::Num(number)), _) => out.push_str(&number.format(locale)),
                 (None, Some(n)) if name == "n" => out.push_str(&n.format(locale)),
+                (None, _) if name == "app" => out.push_str(APP_NAME),
                 (None, _) => {
                     out.push('{');
                     out.push_str(name);
@@ -324,7 +327,7 @@ mod tests {
         );
         assert_eq!(
             fr.t_with(Key::SidebarVersion, &args!("version" => "1.12.1")),
-            "HangarAI 1.12.1"
+            "Teskad 1.12.1"
         );
         assert_eq!(Translator::default(), en);
     }

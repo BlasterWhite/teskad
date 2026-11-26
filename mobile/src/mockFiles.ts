@@ -42,7 +42,7 @@ export async function withRetry<T>(
 }
 `;
 
-const RELEASE_NOTES = `# Hangar 1.3: what changes
+const RELEASE_NOTES = `# Teskad 1.3: what changes
 
 The phone shows **every kind of file** an agent shares, not only pictures.
 

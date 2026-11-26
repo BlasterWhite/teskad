@@ -123,7 +123,7 @@ function Add-Masthead {
 
     $wordBrush = New-Object System.Drawing.SolidBrush($textPrimary)
     $wordRect = New-Object System.Drawing.RectangleF -ArgumentList ([single]$X), ([single]($Y + 138.0 * $Scale)), ([single]$W), ([single](52.0 * $Scale))
-    $G.DrawString("HangarAI", $wordFont, $wordBrush, $wordRect, $centered)
+    $G.DrawString("Teskad", $wordFont, $wordBrush, $wordRect, $centered)
     $wordBrush.Dispose()
 
     $taglineBrush = New-Object System.Drawing.SolidBrush($textMuted)

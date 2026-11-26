@@ -33,6 +33,7 @@
 //! TS's `reading`/`readAgain` guard against two reads at once has nothing left
 //! to guard.
 
+use hangar_core::instructions::APP_NAME;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -280,23 +281,29 @@ fn on_task(task_id: Option<&str>, titles: &dyn Fn(&str) -> Option<String>) -> St
     }
 }
 
-fn delivery_words(outcome: DeliveryOutcome) -> &'static str {
+fn delivery_words(outcome: DeliveryOutcome) -> String {
     match outcome {
-        DeliveryOutcome::Landed => "landed: merged on the branch, task done",
+        DeliveryOutcome::Landed => "landed: merged on the branch, task done".into(),
         // A worker in a workspace that is not a git repository: nothing to merge.
-        DeliveryOutcome::Done => "is in: its changes are in the workspace's folder, task done",
-        DeliveryOutcome::Ready => "passed its check and review; it waits for the person to land it",
-        DeliveryOutcome::Conflict => "hit a merge conflict; Hangar sent the worker what to fix",
-        DeliveryOutcome::CheckFailed => "failed the check; Hangar sent the worker the output",
-        DeliveryOutcome::ChangesRequested => {
-            "came back from review with changes requested; Hangar sent the worker the review"
+        DeliveryOutcome::Done => "is in: its changes are in the workspace's folder, task done".into(),
+        DeliveryOutcome::Ready => {
+            "passed its check and review; it waits for the person to land it".into()
         }
+        DeliveryOutcome::Conflict => {
+            format!("hit a merge conflict; {APP_NAME} sent the worker what to fix")
+        }
+        DeliveryOutcome::CheckFailed => {
+            format!("failed the check; {APP_NAME} sent the worker the output")
+        }
+        DeliveryOutcome::ChangesRequested => format!(
+            "came back from review with changes requested; {APP_NAME} sent the worker the review"
+        ),
         // The worker's worktree or the person's checkout: the detail says which.
-        DeliveryOutcome::Dirty => "was held back by uncommitted changes",
-        DeliveryOutcome::Stale => {
-            "was not landed: the worker committed after it was checked and reviewed, so Hangar asked it to submit again"
-        }
-        DeliveryOutcome::Error => "failed",
+        DeliveryOutcome::Dirty => "was held back by uncommitted changes".into(),
+        DeliveryOutcome::Stale => format!(
+            "was not landed: the worker committed after it was checked and reviewed, so {APP_NAME} asked it to submit again"
+        ),
+        DeliveryOutcome::Error => "failed".into(),
     }
 }
 

@@ -29,6 +29,7 @@
 //! workspace's is `Workspace.node`: the pane's first, else its workspace's
 //! (`node_of`).
 
+use hangar_i18n::APP_NAME;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{LazyLock, RwLock};
@@ -212,7 +213,7 @@ pub async fn bring_back(
 ) -> Result<BroughtBack, String> {
     let Some((repo, root)) = repo_of(worktree) else {
         return Err(format!(
-            "{worktree} on node \"{}\" is not a worktree Hangar made, so its branch cannot be brought back.",
+            "{worktree} on node \"{}\" is not a worktree {APP_NAME} made, so its branch cannot be brought back.",
             label_of(node)
         ));
     };
@@ -318,7 +319,7 @@ pub async fn clean_node(client: &NodeClient, worktree: &str, branch: &str) -> Cl
     };
     let Some((repo, root)) = repo_of(worktree) else {
         report.kept.push(format!(
-            "{worktree} on the node is not a worktree Hangar made: kept"
+            "{worktree} on the node is not a worktree {APP_NAME} made: kept"
         ));
         return report;
     };

@@ -10,6 +10,7 @@
 //! `frameTookKeyboard`, since a page is a window of its own that never sits
 //! between the person and a terminal of the main window.
 
+use hangar_i18n::APP_NAME;
 use std::collections::BTreeMap;
 
 use serde_json::{Map, Value, json};
@@ -255,7 +256,7 @@ pub fn read_kit_tab_params(tab: &Tab, raw: Option<&Value>) -> Result<KitTabParam
         if let Some(pattern) = &declared.pattern {
             let Some(rule) = param_rule(pattern) else {
                 return Err(format!(
-                    "Param \"{name}\" cannot be checked: Hangar's window cannot read the kit's rule {pattern}, so nothing passes. \
+                    "Param \"{name}\" cannot be checked: {APP_NAME}'s window cannot read the kit's rule {pattern}, so nothing passes. \
                      The kit has to write it in the syntax Rust and JavaScript share."
                 ));
             };

@@ -9,7 +9,7 @@
 (function () {
   "use strict";
   if (!window.hangar) {
-    console.error("Hangar UI: load /_hangar/kit.js before /_hangar/kit-ui.js");
+    console.error("Teskad UI: load /_hangar/kit.js before /_hangar/kit-ui.js");
     return;
   }
   if (window.hangar.ui) return;

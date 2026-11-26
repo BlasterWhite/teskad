@@ -1901,7 +1901,7 @@ async fn sends_a_worker_to_a_node_its_base_pushed_its_worktree_there_and_its_bri
         "You run on the node \"GPU box\"".to_string(),
         format!("a git worktree of its own there: {path}, on branch {branch}, made from main"),
         "`cargo test` passes in your worktree. It runs again on the person's computer".to_string(),
-        "Hangar fetches your branch back to the person's computer".to_string(),
+        "Teskad fetches your branch back to the person's computer".to_string(),
     ] {
         assert!(brief.contains(&needed), "{needed}\n---\n{brief}");
     }

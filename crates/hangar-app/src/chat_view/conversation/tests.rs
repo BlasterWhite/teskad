@@ -1420,7 +1420,7 @@ fn the_input_says_why_it_is_disabled() {
         (
             DeskState::default(),
             Blocked::Loading,
-            "Hangar is starting: wait a moment.",
+            "Teskad is starting: wait a moment.",
         ),
         (
             DeskState {
@@ -2254,6 +2254,6 @@ fn a_shell_has_no_conversation_and_says_so() {
     read_into(&mut st, &mut m, page(vec![], None));
     let leo = m.workspace(WS).unwrap().panes[0].clone();
     assert!(!converses(&leo));
-    let words = "Leo runs no agent whose conversation Hangar reads.";
+    let words = "Leo runs no agent whose conversation Teskad reads.";
     assert_eq!(shown_texts(&st, &m, &[words]), [words]);
 }

@@ -799,7 +799,7 @@ fn says_each_project_in_a_few_lines_the_ones_with_something_for_the_person_first
     assert_eq!(
         text,
         [
-            "# Hangar projects at 18:30",
+            "# Teskad projects at 18:30",
             "3 projects: 1 with something for the person (Shop), 0 at work, 2 quiet.",
             "",
             "Shop — C:\\dev\\project-2 · open · git repository",
@@ -890,7 +890,7 @@ fn names_fewer_tasks_before_it_leaves_a_project_out() {
 fn says_so_when_there_is_no_project() {
     assert_eq!(
         render_overview(&[], now()),
-        "# Hangar projects at 18:30\nNo project: Hangar has no workspace besides the HQ."
+        "# Teskad projects at 18:30\nNo project: Teskad has no workspace besides the HQ."
     );
 }
 

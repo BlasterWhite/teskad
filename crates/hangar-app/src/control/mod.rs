@@ -50,7 +50,7 @@ use std::sync::Arc;
 use iced::{Subscription, Task};
 use serde_json::Value;
 
-use hangar_i18n::{Key, Locale, args, t_with};
+use hangar_i18n::{APP_NAME, Key, Locale, args, t_with};
 
 use crate::message::{Intent, Message};
 use crate::services::{Channel, ControlRequest, CoreEvent, Services, inbox::Answer};
@@ -219,8 +219,9 @@ pub struct NodeRequest {
 }
 
 /// Said to a node's agent before the state is in.
-const STARTING: &str =
-    "HangarAI is still starting on the person's computer. Try again in a moment.";
+fn starting() -> String {
+    format!("{APP_NAME} is still starting on the person's computer. Try again in a moment.")
+}
 
 pub fn update(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Message> {
     st.sync_engines(m);
@@ -250,8 +251,8 @@ pub fn update(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Me
             };
             Task::future(async move {
                 let answer = match remote::refused(&request.op) {
-                    _ if !ready => Err(STARTING.to_string()),
-                    Some(refusal) => Err(refusal.to_string()),
+                    _ if !ready => Err(starting()),
+                    Some(refusal) => Err(hangar_i18n::brand(refusal)),
                     None => answer(&request.op, request.args, request.channel, &port).await,
                 };
                 if let Err(error) =
@@ -291,7 +292,7 @@ async fn answer(op: &str, args: Value, channel: Channel, port: &Port) -> Result<
             }
             match port.mobile() {
                 Some(mobile) => mobile.remote(port.clone(), op.to_string(), args).await,
-                None => Err("Hangar Mobile is not ready in this window yet.".into()),
+                None => Err(format!("{APP_NAME} Mobile is not ready in this window yet.")),
             }
         }
         Channel::Internal => Err(run::unknown(op)),

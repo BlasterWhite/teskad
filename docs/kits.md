@@ -1,7 +1,7 @@
 # Kits
 
 A kit is a package a person links to a workspace to bring a domain — Roblox,
-Unreal, a studio's own tools — into Hangar, without Hangar knowing anything
+Unreal, a studio's own tools — into Teskad, without Teskad knowing anything
 about that domain. A kit can bring:
 
 - a **plugin** for the agents, written as a Claude Code plugin: skills, commands,
@@ -9,12 +9,12 @@ about that domain. A kit can bring:
   workspaces the kit is enabled on; Codex loads its MCP servers at each launch, and
   its skills and hooks once the person adds the kit to Codex
   ([Claude Code and Codex](#claude-code-and-codex));
-- **tabs**: isolated pages of its own, talking to Hangar through a small,
+- **tabs**: isolated pages of its own, talking to Teskad through a small,
   declared API, with a [data folder](#a-kits-data-folder) of the kit's and, when
   declared, a local server to talk to and
   [commands to run](#declared-commands) on tools already on the machine. A tab is
-  an HTML page or, since Hangar 2.0, a [native tab](#native-tabs): Rust compiled
-  to WebAssembly, drawn by Hangar itself;
+  an HTML page or, since Teskad 2.0, a [native tab](#native-tabs): Rust compiled
+  to WebAssembly, drawn by Teskad itself;
 - **setup commands**: shown to the person verbatim, run in a visible pane once
   they approve, once per machine.
 
@@ -39,7 +39,7 @@ This page is the contract. The code lives in `crates/hangar-core/src/kits.rs` an
 `crates/hangar-app/src/kit_tabs/` (`api.rs`, `tabs.rs`). The web app these were
 ported from (`src/lib/kits.ts`, `src/lib/kitApi.ts`, `src/lib/kitTabs.ts`,
 `src/components/preview/KitTabView.tsx`) is at tag `v1.12.1`; the names below that
-come from it are kept for that reason. How an HTML tab should look is in [Hangar UI](kit-ui.md),
+come from it are kept for that reason. How an HTML tab should look is in [Teskad UI](kit-ui.md),
 the interface library served to every HTML tab. A native tab's contract (its WebAssembly ABI,
 its widgets, the kit SDK) is in [native/kits-native.md](native/kits-native.md); it is run and
 drawn by `crates/hangar-kit-host`, and calls the same methods, under the same permissions, as
@@ -141,11 +141,11 @@ manifest does not need a `plugin` field.
 ## The manifest: `hangar-kit.json`
 
 At the kit's root. Schema 1, or schema 2 for a kit with a [native tab](#native-tabs) as its
-`entry` (Hangar 2.0 and later):
+`entry` (Teskad 2.0 and later):
 
 | Field         | Type              | Required | Rules                                                                                     |
 | ------------- | ----------------- | -------- | ----------------------------------------------------------------------------------------- |
-| `schema`      | number            | yes      | `1`, or `2` (Hangar 2.0): schema 2 only allows a `.wasm` `entry`. A higher number than a Hangar reads is "needs a newer Hangar". |
+| `schema`      | number            | yes      | `1`, or `2` (Teskad 2.0): schema 2 only allows a `.wasm` `entry`. A higher number than a Teskad reads is "needs a newer Teskad". |
 | `id`          | string            | yes      | `[a-z0-9-]`, 2 to 40 characters. Unique on a machine: two kits cannot share it.           |
 | `name`        | string            | yes      | Not blank.                                                                                |
 | `version`     | string            | yes      | Semver: `1.2.0`, `0.3.0-beta.1`. What update checks compare.                              |
@@ -153,7 +153,7 @@ At the kit's root. Schema 1, or schema 2 for a kit with a [native tab](#native-t
 | `author`      | string            | no       |                                                                                           |
 | `homepage`    | string            | no       | An `http://` or `https://` link.                                                          |
 | `icon`        | string            | no       | Relative path to an existing `.svg` or `.png` file. An SVG is [drawn as a mask](#icon-colour). |
-| `hangar`      | string            | no       | A semver requirement on the Hangar version, like `>=1.6.0`. Unmet, the kit is unusable.   |
+| `hangar`      | string            | no       | A semver requirement on the Teskad version, like `>=1.6.0`. Unmet, the kit is unusable.   |
 | `plugin`      | string            | no       | Relative folder holding `.claude-plugin/plugin.json`. Default below.                      |
 | `agents`      | string[]          | no       | The agents the plugin is for: `claude`, `codex`. Absent, Claude Code alone. [Below](#claude-code-and-codex). |
 | `tabs`        | array of tabs     | no       | See below. Ids unique.                                                                    |
@@ -161,7 +161,7 @@ At the kit's root. Schema 1, or schema 2 for a kit with a [native tab](#native-t
 | `commands`    | object            | no       | What its tabs may run, by name: [declared commands](#declared-commands).                  |
 
 <a id="icon-colour"></a>
-**Icon colour.** Hangar draws a kit's SVG icon (the kit's and its tabs') as a mask in the
+**Icon colour.** Teskad draws a kit's SVG icon (the kit's and its tabs') as a mask in the
 theme's colour, so it follows light and dark themes, and a multicolored SVG becomes one
 colour. A kit that wants its own colours uses a `.png`, which is shown as an image.
 
@@ -176,7 +176,7 @@ A **tab**:
 | `id`          | string   | yes      | `[a-z0-9-]`, 1 to 40 characters.                                           |
 | `title`       | string   | yes      | Not blank.                                                                 |
 | `entry`       | string   | yes      | Relative path to an existing `.html` file, or, in schema 2, a `.wasm` module: a [native tab](#native-tabs). |
-| `native`      | string   | no       | Relative path to an existing `.wasm` module, beside an HTML `entry`: Hangar 2.0 opens the module, 1.x the page. |
+| `native`      | string   | no       | Relative path to an existing `.wasm` module, beside an HTML `entry`: Teskad 2.0 opens the module, 1.x the page. |
 | `icon`        | string   | no       | Relative path to an existing `.svg` or `.png` file.                        |
 | `permissions` | string[] | yes      | Among the [permissions](#tab-permissions). `[]` asks for nothing.          |
 | `params`      | object   | no       | What callers may pass it, by name: [below](#a-tab-with-params).            |
@@ -197,7 +197,7 @@ machine's OS is not offered there.
 **Unknown fields are ignored**, at every level: a newer schema's field, or a
 kit's own notes, do no harm.
 
-**Paths.** Every path a manifest names is relative to the kit's root. Hangar
+**Paths.** Every path a manifest names is relative to the kit's root. Teskad
 keeps them normalized — forward slashes, no `.` parts (`./tabs\status/x.html`
 reads `tabs/status/x.html`), `.` for the root itself — and refuses a path that
 is absolute (`/x`, `C:\x`, `\\server\x`), names a drive or a stream (any `:`),
@@ -224,14 +224,14 @@ CLAUDE_CODE_PLUGIN_DIRS=<hangar-bridge>;<kit A plugin>;<kit B plugin>;<the user'
 ```
 
 (`:` instead of `;` outside Windows.) So a Claude Code started in the pane —
-by Hangar or typed by hand — loads them. Codex has no such folder per launch: what
+by Teskad or typed by hand — loads them. Codex has no such folder per launch: what
 reaches it, and how, is in [Claude Code and Codex](#claude-code-and-codex).
 
 - Kits **do not depend on the bridge**: a pane started with `bridge: false`, or
   with the bridge setting off, gets its workspace's kits all the same.
 - A pane of another workspace gets that workspace's kits, and none of these.
 - A kit that is not installed, whose manifest is broken, whose folder is gone,
-  or that needs a newer Hangar is **skipped with a warning** printed in the
+  or that needs a newer Teskad is **skipped with a warning** printed in the
   Claude Code pane. It never blocks the pane.
 - A machine whose Claude Code managed settings forbid sideloading
   (`"disableSideloadFlags": true`) refuses to start while
@@ -250,10 +250,10 @@ reaches it, and how, is in [Claude Code and Codex](#claude-code-and-codex).
 
 A pane of a workspace with at least one kit also finds their data's root in
 [`HANGAR_KITS_DATA`](#a-kits-data-folder), and what a hook needs to
-[reach Hangar](#from-a-hook) in `HANGAR_API_URL` and `HANGAR_API_TOKEN`, with the
+[reach Teskad](#from-a-hook) in `HANGAR_API_URL` and `HANGAR_API_TOKEN`, with the
 bridge or without it. A pane started with no kit — its workspace has none, or the
 only ones it has are left out for what they run by themselves — starts without these variables,
-even under a Hangar launched from inside a pane.
+even under a Teskad launched from inside a pane.
 
 ### MCP servers, in both MCP modes
 
@@ -320,18 +320,18 @@ them. Showing is all this does: nothing here blocks a kind from running.
 | `bin`        | The direct children of `bin/`                                                                                             | Never by itself: on the `PATH` of Claude's shell, after the person's own entries    | `text`: `bin/<name>`                                                                             |
 | `binary`     | `binaries`                                                                                                                | Downloaded into `bin/` when Claude Code installs a plugin                           | `text`: `sha256:<hash>`, `unreadable`                                                            |
 | `dependency` | `dependencies`                                                                                                            | Enabled along with this plugin, when installed, with whatever it brings             | `text`: the entry as written, `unreadable`                                                       |
-| `unknown`    | What the rest cannot use                                                                                                  | Hangar cannot say                                                                   | `text`: as written, or only `name` and `unreadable` for a file that does not parse               |
+| `unknown`    | What the rest cannot use                                                                                                  | Teskad cannot say                                                                   | `text`: as written, or only `name` and `unreadable` for a file that does not parse               |
 
 A hooks module (`modules` in a hooks file) stays in `hooks`, under the event
 `modules`; the view gives it a group and a sentence of its own: code Claude Code
-loads into itself when a session starts. Hangar shows its path, not its code.
+loads into itself when a session starts. Teskad shows its path, not its code.
 
 **Env values and headers never leave Rust**, only their names do. In a block
-Hangar did not understand, `env`, `headers` and `authToken` are replaced by their
+Teskad did not understand, `env`, `headers` and `authToken` are replaced by their
 names at any depth, and a file that does not parse is listed by its name alone, as
 it may hold one.
 
-What Hangar cannot read is said to be so at activation, in plain words, and never
+What Teskad cannot read is said to be so at activation, in plain words, and never
 left out: `unreadable` is a bundle, a remote grammar, a download, another plugin, a
 file that does not parse, or more `skills` and `commands` files than it reads (500,
 four folders deep).
@@ -374,9 +374,9 @@ changed while the view was open stays to be accepted.
   it is read live, and every edit would ask again. The view says so.
 - A kit that **runs nothing by itself** stores nothing, and asks nothing. An update
   that brings something to it is a change like any other.
-- A kit with **only hooks** keeps the hash of Hangar 1.8.0: a workspace that accepted
+- A kit with **only hooks** keeps the hash of Teskad 1.8.0: a workspace that accepted
   them is not asked again.
-- A GitHub kit with **anything else** that a workspace accepted before Hangar listed
+- A GitHub kit with **anything else** that a workspace accepted before Teskad listed
   it, an MCP server for one, has a new hash and is asked once: the person was never
   shown those commands, and only the hooks' hash was ever stored, so nothing can
   tell they did not change. Until then it stays out of new panes.
@@ -400,20 +400,20 @@ What to know about its limits:
   root) is not.
 - A `` !`command` `` in the body of a skill or a command is **not listed**: it runs
   when that skill or command is invoked, not by itself.
-- A key Hangar does not know, whose text changes with every version, asks again at
+- A key Teskad does not know, whose text changes with every version, asks again at
   every update. That is the price of leaving nothing out.
 
 ## Claude Code and Codex
 
-A kit's plugin is written as a Claude Code plugin, and Hangar brings each agent the
-parts it can take. Its tabs and setup commands are Hangar's own, and work whatever
+A kit's plugin is written as a Claude Code plugin, and Teskad brings each agent the
+parts it can take. Its tabs and setup commands are Teskad's own, and work whatever
 the agent.
 
 **`agents`** in the manifest names the agents the plugin is for: `["claude"]`,
 `["codex"]` or `["claude", "codex"]`. Absent, it is Claude Code alone, the one agent
 kits were written for before Codex: a kit reaches Codex only when it names it. An id
-this Hangar does not know is left out rather than refused, so a kit written for a
-newer Hangar still opens here; a list that names no agent is an error. A library
+this Teskad does not know is left out rather than refused, so a kit written for a
+newer Teskad still opens here; a list that names no agent is an error. A library
 entry may carry the same `agents`.
 
 What reaches each agent, by its `extensions` capability (`AgentInfo` in
@@ -455,23 +455,23 @@ streamable HTTP), and one naming any other `${…}`, which Codex would pass on a
 ### Skills and hooks: Add to Codex
 
 Codex cannot load a skill or a hook folder for one session (Codex 0.170.0). So a kit's
-skills and hooks reach Codex as a Codex plugin Hangar builds from the kit, which Codex
+skills and hooks reach Codex as a Codex plugin Teskad builds from the kit, which Codex
 installs with its own commands, once, when the person asks: **Add to Codex** in the
 kit's activation view or in **Settings › Kits**, after showing what is added and the
 exact commands.
 
 - The plugin, `<kit>@hangar-kits`, holds copies of the kit's skills and the hooks Codex
   runs, with `${CLAUDE_PLUGIN_ROOT}` written out as the kit's own folder. It lives in a
-  local marketplace Hangar keeps, `~/.hangar/codex-plugins/`.
+  local marketplace Teskad keeps, `~/.hangar/codex-plugins/`.
 - **Add to Codex** runs `codex plugin marketplace add ~/.hangar/codex-plugins` (the
   first time) and `codex plugin add <kit>@hangar-kits`. Codex copies the plugin into its
   own folder and turns it on: from then on it reaches **every Codex session on the
-  machine**, whatever the workspace, on every Codex account Hangar keeps (they share the
+  machine**, whatever the workspace, on every Codex account Teskad keeps (they share the
   main one's plugins).
 - A kit changed since it was added reads « Changed since it was added to Codex », and
   **Update in Codex** adds it again. **Remove from Codex** runs `codex plugin remove`, and
   `codex plugin marketplace remove hangar-kits` with the last kit. Removing a kit from
-  Hangar takes it out of Codex too.
+  Teskad takes it out of Codex too.
 - Codex runs a plugin's hooks only once the person trusts them in its `/hooks`.
 
 A hook reaches Codex when Codex has its event and its kind, read in Codex's source at
@@ -505,7 +505,7 @@ A closed set. A permission not in it is a manifest error.
 | `data.write`      | write a text file of the kit's own data (`data.write`).                                            |
 | `loopback:<port>` | talk to the local server on that port (`loopback.fetch`), and make it do whatever that server allows. |
 | `command:<name>`  | run that [declared command](#declared-commands) on the computer (`command.run`), with the person's logins. |
-| `preview.show`    | open a file in Hangar's preview.                                                                   |
+| `preview.show`    | open a file in Teskad's preview.                                                                   |
 | `notify`          | raise a desktop notification.                                                                      |
 
 `<port>` is written plainly (no sign, no leading zero), from 1024 to 65535:
@@ -532,11 +532,11 @@ closed with its cross, reached with `Ctrl`+`1`…`9`. Opened by the person it go
 focused pane and takes the focus; one that is open already is focused where it is. It
 stays open per workspace, like the files there, and keeps running while its workspace is
 not on screen; a workspace put to sleep lets its tabs' pages go, and they load again when
-it wakes. Its bar reloads it, and says what it was granted. *(In Hangar 1.x a tab opened in
+it wakes. Its bar reloads it, and says what it was granted. *(In Teskad 1.x a tab opened in
 the side panel of the preview, beside the terminals.)*
 
 **A restart brings it back**, with its params and the title its page gave it, as the pane
-it was, where the person left it. Hangar saves the tabs of each workspace in
+it was, where the person left it. Teskad saves the tabs of each workspace in
 `kit-tabs.json` beside its state, and restores them the first time it mounts the
 workspace, so no page runs for a workspace nobody opened. A restored tab's page loads once
 its pane is on screen, and sets its badge again. Files shown in the grid do not come back:
@@ -545,24 +545,24 @@ only kits' tabs.
 **Small or large, a tab is the same thing**: it is drawn at its pane's size, whatever the
 person made it. Nothing sets a minimum width for a page but the page.
 
-**Where an HTML page shows, since Hangar 2.0.** Hangar's window runs no browser engine, so
-the page of an HTML tab is shown by `hangar-webview`, a helper program beside Hangar, in a
+**Where an HTML page shows, since Teskad 2.0.** Teskad's window runs no browser engine, so
+the page of an HTML tab is shown by `hangar-webview`, a helper program beside Teskad, in a
 window of its own that follows its pane: hidden when the pane or its workspace leaves the
 screen, back when they return. The pane holds the tab's bar and a card with the button that
 brings the window forward; closing the pane closes the window. A native tab is drawn in its
 pane itself.
 
-### Its look: Hangar UI
+### Its look: Teskad UI
 
-**A tab should use [Hangar UI](kit-ui.md)**, so that it looks like a part of Hangar
+**A tab should use [Teskad UI](kit-ui.md)**, so that it looks like a part of Teskad
 rather than a page framed inside it: `/_hangar/kit.css`, its tokens and components, and
 `/_hangar/kit-ui.js`, its behaviours, loaded after the SDK. It asks for no permission and
 has nothing to install. With it a page follows the theme of its workspace, live, with
-Hangar's language and interface size, and holds in a narrow pane. That page also
+Teskad's language and interface size, and holds in a narrow pane. That page also
 has [the rules a kit follows](kit-ui.md#the-rules-a-kit-follows): no colour of its own,
 designed states for what is empty, loading, failing or denied.
 
-Those addresses exist since Hangar 1.9.0, and an older one answers them with a 404, so a kit
+Those addresses exist since Teskad 1.9.0, and an older one answers them with a 404, so a kit
 that uses them says `"hangar": ">=1.9.0"` in its manifest. A page that does without the
 library starts on a white frame, and has its width and all the themes to answer for itself.
 
@@ -570,7 +570,7 @@ library starts on a white frame, and has its width and all the themes to answer 
 
 A native tab is a module of Rust compiled to `wasm32-unknown-unknown` with the kit SDK,
 `hangar-kit-sdk`. It describes its page as a tree of widgets — rows, text, buttons, fields,
-tables, trees, logs, a drawing canvas — and Hangar draws it with its own widgets, in the
+tables, trees, logs, a drawing canvas — and Teskad draws it with its own widgets, in the
 workspace's theme and the person's language, at any size of its pane. No browser engine
 runs for it, and its module reaches nothing but the calls below, answered under the same
 permissions and limits as an HTML tab's, plus time and memory limits of its own.
@@ -579,18 +579,18 @@ permissions and limits as an HTML tab's, plus time and memory limits of its own.
 { "id": "hello", "title": "Hello", "entry": "tabs/hello.wasm", "permissions": ["panes.read"] }
 ```
 
-Such an `entry` needs `"schema": 2`, which Hangar 1.x refuses as too new. A kit that must
+Such an `entry` needs `"schema": 2`, which Teskad 1.x refuses as too new. A kit that must
 still open on 1.x stays at schema 1, keeps its HTML `entry`, and names the module in
 `native`: 1.x ignores the field and opens the page; 2.0 opens the module, and the page only
 if the module cannot be loaded. The SDK, the ABI, the widgets and a test harness that runs a
-tab without Hangar are in [native/kits-native.md](native/kits-native.md), with
+tab without Teskad are in [native/kits-native.md](native/kits-native.md), with
 `examples/kits/hello-native` and [`kit-template`](https://github.com/hangar-ai/kit-template)
 to start from.
 
 ### A tab with params
 
 A tab can declare what callers may pass it. Nothing is ever required: the palette and the
-Kits menu open it with none, and a page given none offers its own picker, which Hangar
+Kits menu open it with none, and a page given none offers its own picker, which Teskad
 has nothing to do with.
 
 ```json
@@ -619,7 +619,7 @@ A **param**, under its name (letters, digits, `_` and `-`, starting with a lette
 
 A value is a string of 1 024 characters at most. A rule is checked by Rust when the manifest
 is read, and a value against it before anything else, in linear time, so a rule cannot hang
-Hangar. Hangar's window then holds the value to the same rule in JavaScript: write a rule both
+Teskad. Teskad's window then holds the value to the same rule in JavaScript: write a rule both
 read alike (`[0-9]+`, `[\w.-]+/[\w.-]+`). One JavaScript cannot read, such as `(?i)abc`, refuses
 every value, with a message saying so.
 
@@ -638,7 +638,7 @@ Params are what a caller said, and a page handles them as it would anything type
 `tab.params` also says who the tab can answer: `caller` is `{ pane }`, the name of the pane that
 opened it through `kit_tab_open` or the hooks' route, and `null` when the person opened it.
 
-The name comes from **Hangar's own record of the request**: the pane the agent's MCP process was
+The name comes from **Teskad's own record of the request**: the pane the agent's MCP process was
 started in, or the running pane a hook's route was given, looked up among the workspace's panes.
 Nothing a request's body says of itself is read, and a name that is no pane of the workspace is no
 caller.
@@ -652,7 +652,7 @@ holds it to its own rules; the pane may be gone by then, which answers `not_foun
 ### Opening a tab
 
 Three doors, for one tab: **the person**, from the palette or the Kits menu, with no params; an
-**agent**, through MCP; a **hook of the kit**, through a local route. Hangar stays ignorant of
+**agent**, through MCP; a **hook of the kit**, through a local route. Teskad stays ignorant of
 what the tab is about: the kit brings the logic, deciding when to open which tab with what.
 
 An agent has three tools in the `hangar` MCP server. They act on the workspace it works in, found
@@ -703,9 +703,9 @@ Content-Type: application/json
 
 The body is `kit_tab_open`'s, and it answers the same, as `{ "error": "…" }` when refused. The
 workspace is the one of the pane in `pane`, and nothing else in the request has a say in it. Without
-the token it answers `401`; for a pane Hangar is not running, `404`.
+the token it answers `401`; for a pane Teskad is not running, `404`.
 
-**A hook must fail quietly.** Hangar may be closed, the variables absent (a WSL pane), the kit
+**A hook must fail quietly.** Teskad may be closed, the variables absent (a WSL pane), the kit
 disabled: none of that is the agent's problem, and a hook that exits with an error gets in its way.
 Give the call two seconds, say nothing, and always exit 0.
 
@@ -724,7 +724,7 @@ A hook that opens the tab for a run after a `git push`, in `hooks/hooks.json`:
 }
 ```
 
-`hooks/open-ci.js`, the kit's own logic and Hangar none of it:
+`hooks/open-ci.js`, the kit's own logic and Teskad none of it:
 
 ```js
 // Never fails: whatever goes wrong here is no reason to bother the agent.
@@ -755,11 +755,11 @@ curl -fsS --max-time 2 -X POST "$HANGAR_API_URL/api/kit/tab/open?pane=$HANGAR_PA
 ```
 
 **Where the token goes.** `HANGAR_API_URL` and `HANGAR_API_TOKEN` are set by `pty_spawn`, in the
-environment of the process it starts in a pane of Hangar, and of what that process starts in turn; a
+environment of the process it starts in a pane of Teskad, and of what that process starts in turn; a
 pane with at least one kit gets them whether the bridge mod is on or off for it, and `HANGAR_PANE_ID`
 is in every pane. Anything else does not:
 
-- a **pane without a kit** starts without them, even under a Hangar launched from inside another
+- a **pane without a kit** starts without them, even under a Teskad launched from inside another
   pane, whose values are removed rather than inherited;
 - a **tab's page** never sees them: it has no environment, and its `postMessage` is all it speaks;
 - a **WSL pane** does not carry them into Linux;
@@ -786,8 +786,8 @@ http://hangar-kit.localhost/hello-kit/tabs/status/index.html
 
 So **use relative URLs** for the kit's own files (`app.js`,
 `../shared/style.css`): an absolute one like `/style.css` leaves the kit. The
-absolute URLs a page uses are Hangar's own, under `/_hangar/`: the SDK, `kit.js`, and
-[Hangar UI](kit-ui.md), `kit.css` and `kit-ui.js`.
+absolute URLs a page uses are Teskad's own, under `/_hangar/`: the SDK, `kit.js`, and
+[Teskad UI](kit-ui.md), `kit.css` and `kit-ui.js`.
 
 It serves:
 
@@ -799,37 +799,37 @@ It serves:
   `.webp` `.avif` `.ico` `.woff` `.woff2` `.ttf` `.otf` `.wasm` `.mp3` `.wav`
   `.ogg` `.m4a` `.mp4` `.webm`, 64 MB at most; anything else stays on disk;
 - with `Access-Control-Allow-Origin: *`, so module scripts and fonts load,
-  to the kit's pages and Hangar's own only, and never cached.
+  to the kit's pages and Teskad's own only, and never cached.
 
 ### What its page can do
 
 The page runs isolated: this is code written by someone else.
 
 - Every answer of the scheme carries a `sandbox allow-scripts`
-  Content-Security-Policy (and Hangar 1.x also framed it with
-  `sandbox="allow-scripts"`): the page has an **opaque origin**. It reaches neither Hangar's window nor its
+  Content-Security-Policy (and Teskad 1.x also framed it with
+  `sandbox="allow-scripts"`): the page has an **opaque origin**. It reaches neither Teskad's window nor its
   commands, has **no storage** (`localStorage`, `sessionStorage`, IndexedDB
   and cookies throw or stay empty), opens no popup, submits no form, shows no
-  `alert`/`confirm`/`prompt`, and cannot navigate Hangar.
-- Its policy allows **the kit's own files and Hangar's under `/_hangar/`, and
+  `alert`/`confirm`/`prompt`, and cannot navigate Teskad.
+- Its policy allows **the kit's own files and Teskad's under `/_hangar/`, and
   nothing else**: no network at all — no `fetch`, image, font, style or script
   from anywhere else, no frames, workers or plugins. Inline scripts and styles run, module scripts
   and WebAssembly too; `eval` does not.
-- It talks to Hangar by `postMessage` to its parent, and only that (below). In
-  Hangar 2.0, where the page is a window of its own, the helper puts a stand-in at
+- It talks to Teskad by `postMessage` to its parent, and only that (below). In
+  Teskad 2.0, where the page is a window of its own, the helper puts a stand-in at
   `window.parent` that carries the same messages, so a page and `kit.js` written
   for the frame run unchanged.
   **The frame still has no network of its own**: `data.read`, `data.write`,
-  `loopback.fetch` and `command.run` are done by the Hangar host, and a page
+  `loopback.fetch` and `command.run` are done by the Teskad host, and a page
   calling `fetch` on a local server is refused as ever.
-- **A tab is one page.** It speaks to Hangar from the page it opened on: if
+- **A tab is one page.** It speaks to Teskad from the page it opened on: if
   the frame loads another document — a link followed, the page sending itself
-  elsewhere — Hangar takes the frame down and says so, until the person
+  elsewhere — Teskad takes the frame down and says so, until the person
   reloads the tab. Hash changes and `history` within the page are fine.
 
 ## The tab message protocol
 
-Every message carries `hangar: 1`. Hangar answers only messages whose source
+Every message carries `hangar: 1`. Teskad answers only messages whose source
 is that tab's frame, from its opaque origin; anything else is dropped without
 an answer.
 
@@ -840,14 +840,14 @@ Request, from the page, to `window.parent`:
 ```
 
 `id` is a non-empty string (128 characters at most) or a number; a message
-without one is dropped. Response, from Hangar, with the request's `id`:
+without one is dropped. Response, from Teskad, with the request's `id`:
 
 ```json
 { "hangar": 1, "id": "7", "result": { "queued": true, "pane": "Ava" } }
 { "hangar": 1, "id": "7", "error": { "code": "denied", "message": "this tab was not granted panes.send" } }
 ```
 
-Event, from Hangar:
+Event, from Teskad:
 
 ```json
 { "hangar": 1, "event": "panes.changed", "data": {} }
@@ -893,18 +893,18 @@ never the message's.
 A pane in `panes.list`: `name` (what `panes.send` takes), `agent` (`claude`
 for Claude Code, `codex` for Codex, or `shell` for a plain shell),
 `role` (`orchestrator`, `worker`, `manager` or `null`), `state` (`working`, `waiting` for an answer, `yours` —
-done, not looked at yet — `idle`, or `null` when Hangar cannot tell), and
+done, not looked at yet — `idle`, or `null` when Teskad cannot tell), and
 `canSend`, whether `panes.send` reaches it now.
 
 - **`panes.send`** reaches the **agents of the tab's own workspace**, by pane
-  name (any case), and only those Hangar delivers messages to (Claude Code with
-  Hangar's bridge, Codex attached): the text waits in Hangar's queue until the agent is free,
+  name (any case), and only those Teskad delivers messages to (Claude Code with
+  Teskad's bridge, Codex attached): the text waits in Teskad's queue until the agent is free,
   and reaches it labelled as coming from `kit:<kit id>` — never as typed by
   the person, so it cannot approve anything on their behalf. `text` is 1 to
   20 000 characters, sent as given. At most **10 a minute**.
 - **`files.read`** and **`preview.show`** take a path **relative to the
   workspace folder**: either slash, no `..`, no drive, no `:`, no hidden file
-  or folder, 1 024 characters at most. Hangar checks it again on disk, where
+  or folder, 1 024 characters at most. Teskad checks it again on disk, where
   links must not lead out of the folder. `files.read` reads a UTF-8 text file
   of **1 MB at most** (a BOM is dropped); `preview.show` opens any file the
   preview shows, under the kit's name. A tab holding `files.write` as well has
@@ -962,14 +962,14 @@ done, not looked at yet — `idle`, or `null` when Hangar cannot tell), and
     (`config/**/*.json`).
 - **`data.read`** and **`data.write`** take a path **relative to that kit's
   data folder**: either slash, no absolute path, no `..`, no drive, no `:`, 1 024
-  characters at most. A hidden name is allowed: the folder is the kit's own. Hangar
+  characters at most. A hidden name is allowed: the folder is the kit's own. Teskad
   checks it again on disk, where no link may lead out of the folder, and a kit
-  never reaches another kit's; the kit comes from Hangar's own record of the tab,
+  never reaches another kit's; the kit comes from Teskad's own record of the tab,
   never from the message. Both handle UTF-8 text of **1 MB at most** (a BOM is
   dropped on reading). `data.write` is atomic (a temp file, then a rename), so a
   reader finds the whole of the old text or the whole of the new, and is limited
   to **10 a minute**, as `panes.send` is. See [the data folder](#a-kits-data-folder).
-- **`loopback.fetch`** is made by Hangar, not by the page, to `127.0.0.1` only,
+- **`loopback.fetch`** is made by Teskad, not by the page, to `127.0.0.1` only,
   whatever the system's proxy says, for the port the tab holds `loopback:<port>`
   for:
   - `path` starts with one `/` and is URL-encoded already, query included: no
@@ -995,14 +995,14 @@ Errors:
 
 | Code           | When                                                                  |
 | -------------- | --------------------------------------------------------------------- |
-| `denied`       | The tab may not call the method, a port or a command it does not hold included; or `panes.send` to a pane whose agent Hangar does not deliver messages to; or `command.run` on a GitHub kit whose commands were not accepted as they are now. |
+| `denied`       | The tab may not call the method, a port or a command it does not hold included; or `panes.send` to a pane whose agent Teskad does not deliver messages to; or `command.run` on a GitHub kit whose commands were not accepted as they are now. |
 | `invalid`      | The params are not what the method takes; `files.writeBinary`: not valid base64, over 10 MB, a name that is not a raster image's, or content that is not one. |
 | `unknown`      | No such method.                                                       |
 | `not_found`    | No pane of that name in the workspace; no such file in the kit's data; `files.readBinary`, `files.list`, and `files.read` for a tab that holds `files.write`: no such file or folder; `command.run`: the program is not installed, or the command has no argv for this OS. |
 | `conflict`     | `files.write`: the file changed since the page read it; `files.writeBinary`: something is already at that path. Nothing was written. |
 | `unsupported`  | `files.readBinary`: not an image or a PDF, by its extension.          |
 | `rate_limited` | Over a limit above; try again later.                                  |
-| `unavailable`  | Hangar cannot do it now: the agent's session does not run the bridge, the workspace or its folder is gone, the kit cannot be used. |
+| `unavailable`  | Teskad cannot do it now: the agent's session does not run the bridge, the workspace or its folder is gone, the kit cannot be used. |
 | `unreachable`  | `loopback.fetch`: nothing answers on that port, or not in time.       |
 | `bad_args`     | `command.run`: a value is missing, does not match its rule whole, starts with `-`, or is not a string; or an argument the command does not declare. |
 | `busy`         | `command.run`: four commands of this kit are running; try again later. |
@@ -1014,7 +1014,7 @@ Events:
 | --------------- | ------------ | -------------------------------------------------------------------- |
 | `panes.changed` | `panes.read` | The workspace's panes change: one added, closed, renamed, or changing state. `data` is `{}`: call `panes.list`. |
 | `tab.params`    | —            | A [singleton](#a-tab-with-params) got new params, or an agent or a hook [asked for this tab again](#who-asked). `data` is `{ params, caller }`. |
-| `theme`         | —            | The frame's page has loaded, or the theme of the tab's workspace, Hangar's language, its interface size or the terminals' font changed. `data` is `{ scheme, locale, tokens }`: [what the host sends](kit-ui.md#what-the-host-sends). The SDK applies it by itself, before any handler. |
+| `theme`         | —            | The frame's page has loaded, or the theme of the tab's workspace, Teskad's language, its interface size or the terminals' font changed. `data` is `{ scheme, locale, tokens }`: [what the host sends](kit-ui.md#what-the-host-sends). The SDK applies it by itself, before any handler. |
 
 A page that takes params reads them when it starts, and a singleton's, or one that answers who asked,
 listens as well. Reading them once it is ready is enough: an event sent before it listens changes what
@@ -1082,15 +1082,15 @@ tab needs:
 
 - `window.hangar.call(method, params?)` → a Promise of the result. It rejects
   with an `Error` whose `code` is the protocol's (`denied`, `invalid`…), or
-  `timeout` when Hangar does not answer within 30 seconds (130 for `command.run`,
+  `timeout` when Teskad does not answer within 30 seconds (130 for `command.run`,
   whose commands may run for 120), or `unavailable` when the page is not open as
   a tab.
 - `window.hangar.on(event, handler)` → a function that stops listening.
 - `window.hangar.version` → `1`.
-- `window.hangar.ui` → [Hangar UI's behaviours](kit-ui.md#behaviours), once
+- `window.hangar.ui` → [Teskad UI's behaviours](kit-ui.md#behaviours), once
   `/_hangar/kit-ui.js` is loaded.
 
-It also keeps the page in Hangar's theme, by [the `theme` event](kit-ui.md#the-theme):
+It also keeps the page in Teskad's theme, by [the `theme` event](kit-ui.md#the-theme):
 the tokens of `/_hangar/kit.css`, on the root element.
 
 A minimal tab, asking for `panes.read`, `panes.send` and `notify`:
@@ -1237,7 +1237,7 @@ These are manifest errors: a placeholder not declared in `args`, an arg without 
 in the program, a `run` written as a string, an arg named `kitDir`.
 
 **The program** is a name found on the PATH: not a path, nor a name ending in a dot
-or a space. It is found on the PATH Hangar computes for everything it starts
+or a space. It is found on the PATH Teskad computes for everything it starts
 (`crates/hangar-core/src/path_env.rs`), passing over relative and empty entries, so nothing
 is ever run from the project's folder for being there. Absent, the call answers
 `not_found`, an ordinary state for a tab (`gh` not installed), and nothing is logged.
@@ -1249,7 +1249,7 @@ files there.
 
 ### A script of the kit's own: `{kitDir}`
 
-`{kitDir}` is a reserved placeholder: Hangar fills it in with the kit's root folder, in any item of
+`{kitDir}` is a reserved placeholder: Teskad fills it in with the kit's root folder, in any item of
 the argv except the program.
 
 ```json
@@ -1265,7 +1265,7 @@ the argv except the program.
 ```
 
 - It needs no `args` entry and no `pattern`. A kit may not declare an arg named `kitDir`, and a tab
-  that passes one answers `bad_args`: the folder is Hangar's to say.
+  that passes one answers `bad_args`: the folder is Teskad's to say.
 - It stays inside the item it is written in, so a kit folder with spaces is still one argument, and it
   is an argument however it is filled in: a program never comes from it.
 - This is how a kit reaches what cannot be run directly: `pnpm`, `npm` and `npx` are `.cmd` files
@@ -1301,7 +1301,7 @@ null when it did not end by itself. `truncated` says stdout or stderr went past 
   that would start with `-` once filled in (`{a}-{b}` with an empty `a`): a parameter
   never becomes an option. Options are the kit's to write in the argv.
 - A value is filled in once: one holding `{other}` stays that text.
-- **It starts in the workspace folder of the tab**, with Hangar's own environment and
+- **It starts in the workspace folder of the tab**, with Teskad's own environment and
   nothing added, and no stdin.
 - **Stdout and stderr are kept up to 1 MB each.** Past that the rest is read and
   dropped, so the program is not held up, and `truncated` is true. They are decoded as
@@ -1349,7 +1349,7 @@ it, it is read live, and every edit would ask again. The view says so. A kit wit
 command for this OS stores nothing, and asks nothing.
 
 Three limits to know. **A kit can declare a shell**: `["sh", "-c", "{x}"]` with a rule of
-`.*` is a valid manifest, and so is `node -e`. Hangar does not keep a list of such
+`.*` is a valid manifest, and so is `node -e`. Teskad does not keep a list of such
 programs, which could never be whole: the person reads the argv before accepting, and that
 is what the view is for. The hash covers **the list, not the programs it names**: a `gh`
 that changes on the machine asks nothing, and neither does a [script of the kit's](#a-script-of-the-kits-own-kitdir)
@@ -1365,7 +1365,7 @@ It is the same on every account, of either agent, and every worktree, and never 
 - **A tab** reaches it through `data.read` and `data.write`.
 - **A hook, or anything else in a pane**, finds it at
   `$HANGAR_KITS_DATA/<kit id>`: panes of a workspace with at least one kit get
-  `HANGAR_KITS_DATA`, which is the root, `~/.hangar/kit-data`. Hangar makes the
+  `HANGAR_KITS_DATA`, which is the root, `~/.hangar/kit-data`. Teskad makes the
   folder of each kit whose plugin comes along when such a pane starts, so a hook
   can write there at once; otherwise the first `data.write` does. A WSL pane does
   not carry the variable into Linux.
@@ -1379,7 +1379,7 @@ are held to it.
 
 A step's command for the machine's OS is shown to the person **verbatim**, and
 runs in a visible pane, opened in the kit's root folder (`dir`), once they
-approve it. Hangar never runs one on its own.
+approve it. Teskad never runs one on its own.
 
 Each run is recorded per machine in `~/.hangar/kits/setup.json` as
 `{ kit, step, sha256, at }`, the hash being SHA-256 of the command string
@@ -1452,7 +1452,7 @@ shallow — one commit, no tags, no submodules, no large files — first aside,
 then into `~/.hangar/kits/<id>` once its manifest checks out; `dir` is that
 clone, or the folder in it. Symlinks are checked out as plain files
 (`core.symlinks=false`). **Cloning never runs anything from the repository.**
-Removing a git kit deletes its clone: the only thing Hangar ever deletes.
+Removing a git kit deletes its clone: the only thing Teskad ever deletes.
 
 **Updates.** `kit_check_update(id)` fetches a git kit's ref, reads the version
 its manifest declares there, and compares it with `installedVersion`; a folder
@@ -1468,7 +1468,7 @@ now names another kit id is refused as an update. A kit
 Settings › Kits has a **Library**: the public kits of the
 [`hangar-ai`](https://github.com/hangar-ai) organization on GitHub, one repository
 per kit, one click to install. No server of ours stands behind it — the list is a
-static file of the repository `hangar-ai/catalog`, `index.json`:
+static file of the repository `BlasterWhite/catalog`, `index.json`:
 
 ```json
 {
@@ -1496,11 +1496,11 @@ branch: a branch's name there installs a kit that follows that branch.
 (that is read from the kit itself).
 
 **How a kit gets listed.** By a pull request to
-[`hangar-ai/catalog`](https://github.com/hangar-ai/catalog) adding its entry; a new
+[`BlasterWhite/catalog`](https://github.com/BlasterWhite/catalog) adding its entry; a new
 version is a pull request changing `tag` and `version`. Nothing in this repository
 lists a kit.
 
-`kit_gallery_list` reads `https://raw.githubusercontent.com/hangar-ai/catalog/main/index.json`
+`kit_gallery_list` reads `https://raw.githubusercontent.com/BlasterWhite/catalog/main/index.json`
 over https: no redirect, 256 KB at most, ten seconds at most. It is the only thing
 the library fetches — no icon, no manifest. Another `schema` than 2 lists nothing.
 An entry that is not well formed (an id outside `[a-z0-9-]`, a `repo` that is not
@@ -1556,9 +1556,9 @@ is not what was reviewed.
 ### Verified
 
 `verified` is shown as a badge when **the catalog says `true` and the repository's
-owner is exactly `hangar-ai`**. Hangar checks that itself, on the fetched list and on
+owner is exactly `hangar-ai`**. Teskad checks that itself, on the fetched list and on
 the copy it kept, whatever the file says. Anything else is a community kit, and the
-card says in one sentence that Hangar did not review it.
+card says in one sentence that Teskad did not review it.
 
 It says who looked at the kit, and changes nothing else: installing and activation
 are the same for both, and the person is shown and accepts the same things.
@@ -1576,7 +1576,7 @@ kits?: { id: string; granted: string[] }[]
 `workspace_kits` (`crates/hangar-app/src/kits/model.rs`, `workspaceKits` in the web
 app): an entry that is not an object with a
 valid kit id and a `granted` array is no kit, a duplicate id counts once, and a
-permission Hangar does not know is never granted. A missing `kits` is no kit.
+permission Teskad does not know is never granted. A missing `kits` is no kit.
 
 A kit can also be enabled on **all workspaces at once** from Settings › Kits, accepted
 once for all of them: `kitsEverywhere` in the settings, of the same shape. What decides
@@ -1586,9 +1586,9 @@ panes load such a kit, and its tabs open and hold what was accepted, the pseudo
 permissions included. The workspace's Kits dialog shows it on, its switch locked, and
 says it is managed in Settings › Kits.
 
-Hangar writes nothing of a kit's into a workspace's project folder: kits live in
+Teskad writes nothing of a kit's into a workspace's project folder: kits live in
 `~/.hangar/kits/` or where they were linked from, their data in
-`~/.hangar/kit-data/`, and the `--mcp-config` file in Hangar's app data. What changes
+`~/.hangar/kit-data/`, and the `--mcp-config` file in Teskad's app data. What changes
 a project's file is a tab granted `files.write`, saying what, or a kit's own code.
 
 ## Commands and events
@@ -1599,11 +1599,11 @@ hangar-core's functions, under the names of the Tauri commands they were
 
 | Command                      | Wrapper                      | Answers                                                                                   |
 | ---------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------- |
-| `kits_list`                  | `kitsList()`                 | `KitInfo[]`: each kit with `source`, `dir`, `installedVersion`, `addedAt`, `manifest` (null when unreadable or invalid), `error` (null when usable; a manifest can come with one: a kit needing a newer Hangar), `update` (the last check, while the app runs), `hooksPermission` (`hooks:<hash>` of what its plugin runs by itself, null when it runs nothing), `hooksConsent`, `commandsPermission` (`commands:<hash>` for this OS, null without commands). |
+| `kits_list`                  | `kitsList()`                 | `KitInfo[]`: each kit with `source`, `dir`, `installedVersion`, `addedAt`, `manifest` (null when unreadable or invalid), `error` (null when usable; a manifest can come with one: a kit needing a newer Teskad), `update` (the last check, while the app runs), `hooksPermission` (`hooks:<hash>` of what its plugin runs by itself, null when it runs nothing), `hooksConsent`, `commandsPermission` (`commands:<hash>` for this OS, null without commands). |
 | `kit_add_folder(path)`       | `kitAddFolder(path)`         | `KitInfo`. `path` absolute, holding a valid kit.                                           |
 | `kit_add_git(url)`           | `kitAddGit(url)`             | `KitInfo`. `url` a GitHub link as above.                                                   |
 | `kit_gallery_list`           | `kitGalleryList()`           | `{ origin: "live" \| "cached" \| "unavailable", kits, fetchedAt }`: the library, see [The library](#the-library). Never refuses.  |
-| `kit_remove(id)`             | `kitRemove(id)`              | Nothing. Deletes only a clone Hangar made.                                                 |
+| `kit_remove(id)`             | `kitRemove(id)`              | Nothing. Deletes only a clone Teskad made.                                                 |
 | `kit_check_update(id)`       | `kitCheckUpdate(id)`         | `{ current, latest, available, checkedAt }`, or `null` for a folder kit. A pinned kit goes by [the catalog's tag](#pinning). |
 | `kit_update(id)`             | `kitUpdate(id)`              | `KitInfo`. A pinned kit goes by [the catalog's tag](#pinning).                             |
 | `kit_inspect(id)`            | `kitInspect(id)`             | What it brings: `plugin` (`{ name, dir }`), `skills`, `commands`, `agents`, `mcpServers` (the plugin's names, unprefixed), `hooks` (`[{ event, matcher, command }]`), `running` ([what else it starts by itself](#what-runs-by-itself), never an env value or a header), `hooksPermission`, `tabs`, `setup` (this OS's steps, with `command`), `declaredCommands` (`[{ name, description, argv, args, timeoutSeconds }]`, this OS's, verbatim; `commands` is the plugin's slash commands), `commandsPermission`, `byAgent` (one entry per agent: `agent`, `meantFor`, and for each of `mcpServers`, `skills`, `hooks`, `commands`, `agents`, `outputStyles`, `{ how, loads, leftOut }`: `how` is `perLaunch`, `installed` or `none`, `leftOut` lists `{ item, why }`, `why` among `notMeantFor`, `noSuchPart`, `event`, `handler`, `tool`, `transport`, `variables`). |
@@ -1635,7 +1635,7 @@ seconds).
 
 ## Strings
 
-The interface around kits is translated under two prefixes of Hangar's
+The interface around kits is translated under two prefixes of Teskad's
 dictionaries (`crates/hangar-i18n/dict/en.json` and `fr.json`):
 
 - `kitsManage.*` — Settings › Kits and the activation dialog;

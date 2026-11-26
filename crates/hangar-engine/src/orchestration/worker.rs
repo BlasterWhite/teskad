@@ -31,6 +31,7 @@
 //! Like the rest of the control ops, what is refused is read by a model:
 //! English, and saying what to do next. The strings are the TS's.
 
+use hangar_core::instructions::APP_NAME;
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::sync::{Arc, LazyLock, Mutex};
@@ -234,7 +235,7 @@ pub trait WorkerPort: Sync {
     ) -> impl Future<Output = Result<String, String>> + Send {
         let _ = (node, main_root, branch);
         std::future::ready(Err(
-            "Workers cannot be sent to a node from this Hangar.".to_string()
+            format!("Workers cannot be sent to a node from this {APP_NAME}.")
         ))
     }
 }
@@ -538,7 +539,7 @@ pub fn worker_brief(facts: &BriefFacts<'_>) -> String {
     };
     let place = match git {
         Some((branch, target, worktree)) if facts.node.is_some() => format!(
-            "- You run on the node \"{}\", a machine Hangar reaches over SSH, not on the person's computer. Your folder is a git worktree of its own there: {worktree}, on branch {branch}, made from {target} as it is on the person's computer. Work and commit there only. Never push, and never merge into {target} yourself.",
+            "- You run on the node \"{}\", a machine {APP_NAME} reaches over SSH, not on the person's computer. Your folder is a git worktree of its own there: {worktree}, on branch {branch}, made from {target} as it is on the person's computer. Work and commit there only. Never push, and never merge into {target} yourself.",
             facts.node.unwrap_or_default()
         ),
         Some((branch, target, worktree)) => format!(
@@ -555,13 +556,13 @@ pub fn worker_brief(facts: &BriefFacts<'_>) -> String {
     };
     let done = match git {
         Some((branch, _, _)) if facts.node.is_some() => format!(
-            "Commit everything on {branch}, leave the comment above, then call delivery_submit {{summary}} with a one-line summary. Hangar fetches your branch back to the person's computer, checks it there, has it reviewed and lands it; if anything fails, a message tells you what to fix."
+            "Commit everything on {branch}, leave the comment above, then call delivery_submit {{summary}} with a one-line summary. {APP_NAME} fetches your branch back to the person's computer, checks it there, has it reviewed and lands it; if anything fails, a message tells you what to fix."
         ),
         Some((branch, _, _)) => format!(
-            "Commit everything on {branch}, leave the comment above, then call delivery_submit {{summary}} with a one-line summary. Hangar checks your branch, has it reviewed and lands it; if anything fails, a message tells you what to fix."
+            "Commit everything on {branch}, leave the comment above, then call delivery_submit {{summary}} with a one-line summary. {APP_NAME} checks your branch, has it reviewed and lands it; if anything fails, a message tells you what to fix."
         ),
-        None if facts.shared_checkout => "Commit your task's files (`git add <those paths>`), leave the comment above, then call delivery_submit {summary} with a one-line summary. Nothing is merged or reviewed by Hangar: it marks your task done, tells the orchestrator, who integrates your commits, and closes your pane.".to_string(),
-        None => "Leave the comment above, then call delivery_submit {summary} with a one-line summary. Nothing is merged or reviewed here: Hangar marks your task done, tells the orchestrator and closes your pane.".to_string(),
+        None if facts.shared_checkout => format!("Commit your task's files (`git add <those paths>`), leave the comment above, then call delivery_submit {{summary}} with a one-line summary. Nothing is merged or reviewed by {APP_NAME}: it marks your task done, tells the orchestrator, who integrates your commits, and closes your pane."),
+        None => format!("Leave the comment above, then call delivery_submit {{summary}} with a one-line summary. Nothing is merged or reviewed here: {APP_NAME} marks your task done, tells the orchestrator and closes your pane."),
     };
     let check = match (facts.check_command.filter(|c| !c.is_empty()), git.is_some()) {
         (Some(command), true) if facts.node.is_some() => {
@@ -581,7 +582,7 @@ pub fn worker_brief(facts: &BriefFacts<'_>) -> String {
     let description = facts.description.trim();
     let lines: Vec<Option<String>> = vec![
         Some(format!(
-            "You are {}, a worker in the Hangar workspace \"{}\". {lead} on one board task, and that task is your whole job.",
+            "You are {}, a worker in the {APP_NAME} workspace \"{}\". {lead} on one board task, and that task is your whole job.",
             facts.worker, facts.workspace
         )),
         Some(String::new()),
@@ -625,7 +626,7 @@ pub fn worker_brief(facts: &BriefFacts<'_>) -> String {
                 if names.len() == 1 { "it" } else { "them" }
             )
         }),
-        Some("- The task is claimed for you and in doing. Do not claim, move or reassign it: Hangar does.".into()),
+        Some(format!("- The task is claimed for you and in doing. Do not claim, move or reassign it: {APP_NAME} does.")),
         Some(String::new()),
         Some("## Done means".into()),
         Some("- What the task above asks for, its acceptance criteria included.".into()),
@@ -836,7 +837,7 @@ fn name_arg(
             .any(|name| name.to_lowercase() == lower)
     {
         return Err(format!(
-            "A pane is already named \"{wanted}\"{}; pane names are unique across Hangar. Pick another name, or leave name out to get the next free one.",
+            "A pane is already named \"{wanted}\"{}; pane names are unique across {APP_NAME}. Pick another name, or leave name out to get the next free one.",
             holder
                 .map(|ws| format!(" (in \"{}\")", ws.name))
                 .unwrap_or_default()
@@ -1082,7 +1083,7 @@ pub async fn spawn_worker(
             }
             Err(if !failed.is_empty() {
                 format!(
-                    "{message} The start was undone, except that Hangar {}.",
+                    "{message} The start was undone, except that {APP_NAME} {}.",
                     failed.join("; ")
                 )
             } else if !undo.is_empty() {
@@ -1328,7 +1329,7 @@ async fn start_steps(
     let mut note = String::new();
     if shared_checkout {
         note.push_str(&format!(
-            "The worker was started without a worktree, as asked: it works in \"{}\"'s own folder on the branch checked out there, beside you and any other worker. No branch, nothing merged or reviewed by Hangar: it commits its task's files, its task is done when it delivers, and you integrate. ",
+            "The worker was started without a worktree, as asked: it works in \"{}\"'s own folder on the branch checked out there, beside you and any other worker. No branch, nothing merged or reviewed by {APP_NAME}: it commits its task's files, its task is done when it delivers, and you integrate. ",
             ws.name
         ));
     } else if git.is_none() {
@@ -1339,7 +1340,7 @@ async fn start_steps(
     }
     if let Some((_, label)) = &start.node {
         note.push_str(&format!(
-            "It runs on the node \"{label}\", in a worktree of a copy of the repository there made from {}. When it delivers, Hangar fetches its branch back here, where it is checked, reviewed and landed as usual. ",
+            "It runs on the node \"{label}\", in a worktree of a copy of the repository there made from {}. When it delivers, {APP_NAME} fetches its branch back here, where it is checked, reviewed and landed as usual. ",
             target.as_deref().unwrap_or_default()
         ));
     }
@@ -1735,7 +1736,7 @@ pub async fn stop_worker(
         (None, _) => {}
         (Some(_), Some(tree)) if tree.is_main || inside(&tree.path, &ws.cwd).is_some() => {
             worktree.kept = Some(
-                "it is the workspace's own checkout, not one Hangar made for the worker".into(),
+                format!("it is the workspace's own checkout, not one {APP_NAME} made for the worker"),
             );
         }
         (Some(_), Some(_)) if keep_worktree => {

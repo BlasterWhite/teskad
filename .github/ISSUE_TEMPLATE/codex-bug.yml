@@ -6,14 +6,14 @@ body:
   - type: markdown
     attributes:
       value: |
-        Codex support is **beta**. Hangar was written against the app-server protocol OpenAI publishes for Codex (its JSON Schema, source and docs), without a recorded Codex session, so what that protocol does not say may be wrong here, and your report is how we find out. Thank you.
+        Codex support is **beta**. Teskad was written against the app-server protocol OpenAI publishes for Codex (its JSON Schema, source and docs), without a recorded Codex session, so what that protocol does not say may be wrong here, and your report is how we find out. Thank you.
 
         For a problem in a Claude Code or plain shell pane, use the [Bug report](https://github.com/BlasterWhite/hangar/issues/new?template=bug_report.yml) form. For a security problem, do not use a public issue: see [SECURITY.md](https://github.com/BlasterWhite/hangar/blob/main/SECURITY.md).
 
   - type: input
     id: hangar-version
     attributes:
-      label: Hangar version
+      label: Teskad version
       description: Shown at the top of the navigator, and in Settings.
       placeholder: "2.4.5"
     validations:
@@ -33,7 +33,7 @@ body:
     attributes:
       label: Attached or plain TUI
       description: |
-        Attached: Hangar is a client of Codex's app-server, so it shows the conversation and holds approvals itself. Floor: the pane runs the plain Codex terminal UI, as in any terminal. A pane runs on the floor when "Attach Hangar to Codex" is off in Settings, when Codex is older than the attached mode needs or is a release Hangar lists as broken, or when attaching is not possible on your system.
+        Attached: Teskad is a client of Codex's app-server, so it shows the conversation and holds approvals itself. Floor: the pane runs the plain Codex terminal UI, as in any terminal. A pane runs on the floor when "Attach Teskad to Codex" is off in Settings, when Codex is older than the attached mode needs or is a release Teskad lists as broken, or when attaching is not possible on your system.
       options:
         - Attached
         - Floor (the plain Codex TUI)
@@ -77,7 +77,7 @@ body:
   - type: textarea
     id: hangar-log
     attributes:
-      label: The pane's Hangar log
+      label: The pane's Teskad log
       description: |
-        The lines of `hangar.log` from the time of the problem, which say what Hangar did with that pane. It is in `~/.local/share/com.simnjs.iabench/logs` on Linux, `~/Library/Logs/com.simnjs.iabench` on macOS and `%LOCALAPPDATA%\com.simnjs.iabench\logs` on Windows. Please remove tokens, keys and private paths first.
+        The lines of `hangar.log` from the time of the problem, which say what Teskad did with that pane. It is in `~/.local/share/com.simnjs.iabench/logs` on Linux, `~/Library/Logs/com.simnjs.iabench` on macOS and `%LOCALAPPDATA%\com.simnjs.iabench\logs` on Windows. Please remove tokens, keys and private paths first.
       render: text

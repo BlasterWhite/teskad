@@ -54,7 +54,7 @@ pub fn refused(op: &str) -> Option<&'static str> {
     match op {
         "workspace_create" => Some(
             "workspace_create makes a workspace on the person's computer, which an agent of a node does not do. \
-Ask the person to create it in HangarAI.",
+Ask the person to create it in {app}.",
         ),
         op if op.starts_with("project_") => Some(
             "The project manager's operations read every project of the person's computer: \

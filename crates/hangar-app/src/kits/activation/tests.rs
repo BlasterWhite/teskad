@@ -236,7 +236,7 @@ fn asks_nothing_for_a_kit_without_hooks_a_linked_folder_or_a_kit_from_before() {
 #[test]
 fn a_kit_that_cannot_be_used_asks_for_nothing() {
     let mut broken = git_kit(Some(HOOKS), true);
-    broken.error = Some("needs a newer Hangar".into());
+    broken.error = Some("needs a newer Teskad".into());
     assert_eq!(kit_requested(&broken), None);
     broken.error = None;
     broken.manifest = None;

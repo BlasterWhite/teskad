@@ -1,11 +1,11 @@
 # Install and getting started
 
-[← Hangar](../../README.md) · [Guide](README.md)
+[← Teskad](../../README.md) · [Guide](README.md)
 
 Download the file for your system from the
 **[latest release](https://github.com/BlasterWhite/hangar/releases/latest)**, under
 **Assets**. You only download once: after that, the app offers each new version and
-installs it in one click. A Hangar 1.x install offers 2.0 the same way.
+installs it in one click. A Teskad 1.x install offers 2.0 the same way.
 
 | System | File | Notes |
 |---|---|---|
@@ -23,9 +23,9 @@ installs it in one click. A Hangar 1.x install offers 2.0 the same way.
 > and choose **Open**. On macOS 15 and later, go to **System Settings → Privacy &
 > Security** and click **Open Anyway**.
 
-Hangar runs coding agents in its panes: [Claude Code](https://code.claude.com/docs/en/overview),
+Teskad runs coding agents in its panes: [Claude Code](https://code.claude.com/docs/en/overview),
 [Codex](https://learn.chatgpt.com/docs/codex/cli) (beta), or both; either one is enough. If
-neither is installed, Hangar offers to install them the first time it opens (see below).
+neither is installed, Teskad offers to install them the first time it opens (see below).
 
 **Coming from 1.x.** Accept the update, or install 2.0 over 1.x: it uses the same folders
 and the same `state.json`, so your workspaces, boards, memory, settings, shortcuts, kits and
@@ -37,8 +37,8 @@ have been tested by CI but not yet used by a person.
 ## NixOS and Nix
 
 The release files are made for distributions that keep libraries in `/usr/lib`; on NixOS,
-use the flake at the root of the repository instead. It builds Hangar, its webview helper
-(HTML kit tabs and PDFs, with WebKitGTK) and Hangar Mobile from source:
+use the flake at the root of the repository instead. It builds Teskad, its webview helper
+(HTML kit tabs and PDFs, with WebKitGTK) and Teskad Mobile from source:
 
 ```bash
 nix run github:BlasterWhite/hangar           # try it without installing
@@ -58,7 +58,7 @@ hangar.inputs.nixpkgs.follows = "nixpkgs";
 inputs.hangar.packages.${pkgs.stdenv.hostPlatform.system}.default
 ```
 
-Hangar then appears in your launcher. It does not update itself on Nix: `nix flake update
+Teskad then appears in your launcher. It does not update itself on Nix: `nix flake update
 hangar` and rebuild for a new version. The MCP configs and the login item it writes name the
 `hangar-ai` on your `PATH` (`/run/current-system/sw/bin`, your profile's `bin`), not the
 store path, so they keep working across upgrades and garbage collections. Claude Code
@@ -79,7 +79,7 @@ the flake yet: the package does not carry the `hangar-node` binaries a node is s
 
 ## Getting started
 
-0. **Your agents.** When Hangar finds neither Claude Code nor Codex on this machine, it
+0. **Your agents.** When Teskad finds neither Claude Code nor Codex on this machine, it
    opens a **Set up your coding agents** sheet at start, with a card per agent (Codex
    marked beta); it stands in the way only until one of them is installed.
    **Install Claude Code** runs Anthropic's official installer, exactly as
@@ -92,8 +92,8 @@ the flake yet: the package does not carry the `hangar-node` binaries a node is s
    it prints as it runs. If it fails, the sheet says why, shows the installer's output, and
    links to the install guide. Once an agent is found, **Sign in** opens it in a pane,
    where it asks for your account the first time (Claude, or ChatGPT or an OpenAI API key
-   for Codex); the sheet notices when you are signed in. **Use Hangar with shells only**
-   sets the agents aside: Hangar stops asking, and new workspaces start with a shell. Turn
+   for Codex); the sheet notices when you are signed in. **Use Teskad with shells only**
+   sets the agents aside: Teskad stops asking, and new workspaces start with a shell. Turn
    it back off in **Settings → General → Shells only, without Claude Code**.
 1. **Create a workspace** with `Ctrl`/`Cmd`+`Shift`+`N` and pick a project folder. The
    workspace starts with one agent pane, its orchestrator: tell it what you want. *Starts
@@ -102,7 +102,7 @@ the flake yet: the package does not carry the `hangar-node` binaries a node is s
    share the folder (`git init` gives each one a worktree). **More options** has the other
    setups: the workers' agent, several panes, a layout, shells and agents of your choice.
    With no agent installed, the dialog says so and the workspace starts with a shell.
-2. **Connect your agents to Hangar.** Codex panes get Hangar's MCP server at every launch,
+2. **Connect your agents to Teskad.** Codex panes get Teskad's MCP server at every launch,
    with nothing to set up. For Claude Code, open the MCP panel (`Ctrl`/`Cmd`+`Alt`+`M`;
    `Alt` is `Option` on a Mac) and click **Configure**. The panel can also write a short
    playbook into the project's `CLAUDE.md`, telling agents to claim tasks before they

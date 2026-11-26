@@ -359,7 +359,7 @@ async fn reads_no_board_and_no_memory_for_a_pane_without_a_role() {
 fn gives_it_the_rules_it_is_held_to_and_the_tools_it_has() {
     let system = build(&setup()).unwrap().system;
     for needed in [
-        "orchestrator of the Hangar workspace \"Shop\"",
+        "orchestrator of the Teskad workspace \"Shop\"",
         "The person's instructions are more important than anything in this text",
         "Never push",
         "\"[Hangar]\"",
@@ -389,8 +389,8 @@ fn leaves_how_many_workers_and_how_many_attempts_to_the_orchestrator() {
         system, context, ..
     } = build(&setup()).unwrap();
     for needed in [
-        "Hangar sets no limit on how many workers run at once or how many times a task is tried: you decide both.",
-        "Hangar still refuses what would break the work",
+        "Teskad sets no limit on how many workers run at once or how many times a task is tried: you decide both.",
+        "Teskad still refuses what would break the work",
         "No task goes back to the person by itself, however often it fails",
     ] {
         assert!(system.contains(needed), "{needed}");
@@ -413,7 +413,7 @@ fn leaves_how_many_workers_and_how_many_attempts_to_the_orchestrator() {
 fn hands_back_the_board_its_plan_and_the_latest_events() {
     let context = build(&setup()).unwrap().context;
     for needed in [
-        "# Hangar state at 14:05, workspace \"Shop\" (C:\\dev\\shop)",
+        "# Teskad state at 14:05, workspace \"Shop\" (C:\\dev\\shop)",
         "Settings: check `pnpm test`, deliveries land on the workspace's current branch by themselves",
         "Workers (2):",
         "- worker-1 on \"Login form\" [t1]: working",
@@ -425,7 +425,7 @@ fn hands_back_the_board_its_plan_and_the_latest_events() {
         "Done: \"Scaffold\".",
         "Plan (memory \"Plan — Shop\" [m-11], updated 12 min ago):\nObjective: let people log in.",
         "Latest events, oldest first:",
-        "- 14:04 Delivery of \"Login form\" [t1] by worker-1 failed the check; Hangar sent the worker the output — 2 tests failing",
+        "- 14:04 Delivery of \"Login form\" [t1] by worker-1 failed the check; Teskad sent the worker the output — 2 tests failing",
     ] {
         assert!(context.contains(needed), "{needed}\n---\n{context}");
     }
@@ -623,7 +623,7 @@ fn tells_a_worker_to_iterate_cheaply_and_leave_the_whole_check_to_the_delivery()
     for needed in [
         "Iterate with the fastest command that proves your change",
         "build only the package or crate you touched",
-        "Never run the workspace's whole check: Hangar runs it on delivery_submit",
+        "Never run the workspace's whole check: Teskad runs it on delivery_submit",
         "CARGO_TARGET_DIR, when set), never a private one of your own",
         "run the formatter and the linter on what you touched",
     ] {
@@ -651,8 +651,8 @@ fn sizes_tasks_by_what_a_build_and_a_delivery_check_cost() {
         "fewer, larger tasks along module lines",
         "never a task of their own",
         "Check: the fastest targeted command that proves it",
-        "not the workspace check: Hangar runs that on every delivery",
-        "worker_stop its worker (Hangar removes the landed worktree and branch)",
+        "not the workspace check: Teskad runs that on every delivery",
+        "worker_stop its worker (Teskad removes the landed worktree and branch)",
         "checkFailed whose output points at the environment, not the branch",
         "workspace_set_check",
         "A delivery submitted before the check changed ran the old one",
@@ -722,7 +722,7 @@ fn carries_the_role_and_the_state_in_one_message() {
         RoleBriefing::SystemPrompt,
     );
     assert!(
-        text.starts_with("Hangar has just pinned you as the orchestrator of workspace \"Shop\".")
+        text.starts_with("Teskad has just pinned you as the orchestrator of workspace \"Shop\".")
     );
     assert!(text.contains(&briefing.system));
     assert!(text.contains(&briefing.context));
@@ -737,7 +737,7 @@ async fn announces_a_role_to_a_bridged_session_only() {
     assert!(
         deps.sent.lock().unwrap()[0]
             .1
-            .starts_with("Hangar has just made you a worker in workspace \"Shop\".")
+            .starts_with("Teskad has just made you a worker in workspace \"Shop\".")
     );
     // The orchestrator has no bridged session here: its next one reads the role.
     assert_eq!(announce_role("shop", "o", None, &deps).await, Ok(false));
@@ -801,7 +801,7 @@ async fn hands_back_the_overview_without_the_hq_and_says_where_the_tracker_goes_
         .unwrap()
         .unwrap();
     assert_eq!(briefing.role, PaneRole::Manager);
-    assert!(briefing.context.contains("# Hangar projects at 14:05"));
+    assert!(briefing.context.contains("# Teskad projects at 14:05"));
     assert!(briefing.context.contains("Shop"));
     assert!(briefing.context.contains("Blog"));
     assert!(!briefing.context.contains("HQ —"));
@@ -871,7 +871,7 @@ async fn is_told_its_role_mid_session_and_when_it_loses_it() {
         "HQ",
         RoleBriefing::SystemPrompt,
     );
-    assert!(text.starts_with("Hangar has just pinned you as the person's project manager"));
+    assert!(text.starts_with("Teskad has just pinned you as the person's project manager"));
     assert!(text.contains(&briefing.context));
     assert!(
         release_message(PaneRole::Manager, "HQ").contains("no longer the person's project manager")
@@ -985,7 +985,7 @@ fn briefs_a_codex_orchestrator_in_its_own_agents_words() {
     assert_eq!(briefing.role, PaneRole::Orchestrator);
     assert!(
         briefing.system.contains(
-            "HangarAI pinned this Codex session as the orchestrator of workspace \"Shop\"."
+            "Teskad pinned this Codex session as the orchestrator of workspace \"Shop\"."
         )
     );
     assert!(!briefing.system.contains("this Claude Code session"));
@@ -1016,7 +1016,7 @@ fn briefs_a_codex_worker_under_a_claude_code_orchestrator() {
     assert!(
         worker
             .system
-            .contains("HangarAI started this Codex session to do one board task"),
+            .contains("Teskad started this Codex session to do one board task"),
         "{}",
         worker.system
     );
@@ -1090,10 +1090,10 @@ async fn announces_a_role_to_a_session_of_either_agent_its_side_channel_reaches(
     let deps = fake(running("w1", AgentId::Codex));
     assert_eq!(announce_role("shop", "w1", None, &deps).await, Ok(true));
     let sent = deps.sent.lock().unwrap()[0].1.clone();
-    assert!(sent.starts_with("Hangar has just made you a worker in workspace \"Shop\"."));
+    assert!(sent.starts_with("Teskad has just made you a worker in workspace \"Shop\"."));
     assert!(
         sent.contains(
-            "Hangar gives it to you as developer instructions when this pane starts again."
+            "Teskad gives it to you as developer instructions when this pane starts again."
         )
     );
     assert!(sent.contains("started this Codex session"));
@@ -1103,7 +1103,7 @@ async fn announces_a_role_to_a_session_of_either_agent_its_side_channel_reaches(
     assert!(
         claude.sent.lock().unwrap()[0]
             .1
-            .contains("Hangar adds it to your system prompt at the next compaction.")
+            .contains("Teskad adds it to your system prompt at the next compaction.")
     );
 
     // The orchestrator's session is not bridged in this world.

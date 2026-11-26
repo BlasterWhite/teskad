@@ -41,7 +41,7 @@ use hangar_core::agent::{AgentKind, McpInjection, PermissionMode, TurnSignal, co
 use hangar_core::kits::{KitInfo, LaunchIssue};
 use hangar_core::pty::{AgentLaunch, FloorReason, PaneJob, ServerState};
 use hangar_engine::live::{SideChannel, live_caps};
-use hangar_i18n::{Key, Locale, Translator, args};
+use hangar_i18n::{APP_NAME, Key, Locale, Translator, args};
 use hangar_term::Terminal;
 use iced::Task;
 
@@ -1118,7 +1118,7 @@ impl Spawn {
             Ok(path) => Some(path.to_string_lossy().into_owned()),
             Err(error) => {
                 eprintln!(
-                    "pane {}: Hangar's executable could not be found ({error}); it starts without Hangar's tools",
+                    "pane {}: {APP_NAME}'s executable could not be found ({error}); it starts without {APP_NAME}'s tools",
                     self.id
                 );
                 None
@@ -1796,7 +1796,7 @@ pub fn role_check(rt: &mut PaneRt, m: &Model, locale: Locale) -> Task<Message> {
             say(rt, RestartText::Restarting);
             // The restart gives the pane a new id: the line follows to its
             // terminal.
-            queue_restart_note(&session, restart_text(locale, RestartText::Restarting));
+            queue_restart_note(&session, &restart_text(locale, RestartText::Restarting));
             let ws = ws.id.clone();
             Task::perform(
                 tokio::task::spawn_blocking(move || {

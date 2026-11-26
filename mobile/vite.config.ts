@@ -5,7 +5,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
 
 /**
- * Hangar Mobile, the phone app: mobile/ (mobile.html, src/), built into
+ * Teskad Mobile, the phone app: mobile/ (mobile.html, src/), built into
  * dist-mobile/ at the root of the repository, which the desktop binary embeds
  * (crates/hangar-core/build.rs and src/remote/assets.rs read it there) and
  * serves at / to the phone through Tailscale Serve.

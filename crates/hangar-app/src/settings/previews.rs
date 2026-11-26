@@ -8,6 +8,7 @@
 //! accent. These are the one place a view takes colours from a theme other
 //! than the one the window wears, which is the point of a preview.
 
+use hangar_i18n::APP_NAME;
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
@@ -373,7 +374,7 @@ pub fn terminal_preview<'a>(ctx: Ctx<'a>) -> Element<'a, Message> {
     };
     let run = |content: &str, color: Color| spaced_text(content, size, font, line, color, spacing);
     let prompt = row![run("❯", c.success), run(" claude --resume", c.fg)];
-    let dim = run("HangarAI · 4 panes · session restored", c.fg_subtle);
+    let dim = run(&format!("{APP_NAME} · 4 panes · session restored"), c.fg_subtle);
     let last = row![
         run("0123456789 => != -> |&", c.fg),
         container(cursor).padding(Padding {

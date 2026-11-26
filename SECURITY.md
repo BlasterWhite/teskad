@@ -20,13 +20,13 @@ vulnerability**, and fill in the form. Only the maintainer can see the report.
 
 Please include:
 
-- the Hangar version and your operating system;
+- the Teskad version and your operating system;
 - what an attacker can do, and what they need first (local access, a malicious repository,
   a crafted MCP request…);
 - steps to reproduce, or a proof of concept;
 - any fix or mitigation you have in mind.
 
-Hangar is maintained by one person, so please allow some time for an answer. Once the issue
+Teskad is maintained by one person, so please allow some time for an answer. Once the issue
 is confirmed, a fixed release is published, then the advisory is made public with credit
 to you, unless you prefer to stay anonymous.
 
@@ -43,7 +43,7 @@ These are in scope:
 
 These are out of scope, and should be reported to their own projects:
 
-- Claude Code itself, which Hangar launches;
+- Claude Code itself, which Teskad launches;
 - what a kit's own plugin, hooks or MCP servers do once you accepted them;
-- what an agent does with the permissions you gave it. Hangar runs agents with your user
+- what an agent does with the permissions you gave it. Teskad runs agents with your user
   account and does not sandbox them.

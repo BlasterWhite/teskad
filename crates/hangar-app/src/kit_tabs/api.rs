@@ -14,6 +14,7 @@
 //! A page's messages that are not requests of its own page are dropped
 //! without a word: answering them would tell a stranger something.
 
+use hangar_i18n::APP_NAME;
 use std::collections::{BTreeMap, HashMap};
 use std::future::Future;
 use std::pin::Pin;
@@ -311,7 +312,7 @@ impl TabApi {
             return Err(error(
                 KitError::UNAVAILABLE,
                 format!(
-                    "{}'s {agent} is not connected to Hangar, so nothing can wait for it to be free",
+                    "{}'s {agent} is not connected to {APP_NAME}, so nothing can wait for it to be free",
                     pane.name
                 ),
             ));

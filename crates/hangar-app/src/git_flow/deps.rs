@@ -11,6 +11,7 @@
 //! let outcome = git_flow::run(&request, &git_flow::AppDeps::new(&services)).await;
 //! ```
 
+use hangar_i18n::APP_NAME;
 use hangar_core::git_clone::{git_clone, git_clone_discard, git_repo_ownership};
 use iced::Task;
 
@@ -87,11 +88,11 @@ impl AppDeps {
     ) -> Result<T, String> {
         let (answer, receiver) = Answer::channel();
         if !self.services.send(Message::GitFlow(message(answer))) {
-            return Err("Hangar is closing.".to_string());
+            return Err(format!("{APP_NAME} is closing."));
         }
         receiver
             .await
-            .map_err(|_| "Hangar did not answer.".to_string())?
+            .map_err(|_| format!("{APP_NAME} did not answer."))?
     }
 }
 
@@ -281,7 +282,7 @@ pub(super) fn create_workspace(
         folder_id: folder,
         ..WorkspaceDraft::default()
     }));
-    let unmade = || "Hangar could not create the workspace.".to_string();
+    let unmade = || format!("{APP_NAME} could not create the workspace.");
     let id = made.workspace.ok_or_else(unmade)?;
     let Some((pane, model)) = m.workspace(&id).and_then(|ws| {
         let pane = ws.panes.first()?;

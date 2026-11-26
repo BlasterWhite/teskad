@@ -142,14 +142,14 @@ function scenery(now: number, locale: Locale) {
 
   const panes: FakePane[] = [
     pane("ws-iabench", "p-jack", "Jack", "orchestrator", "working", [
-      "> Plan the Hangar Mobile work and hand it out",
+      "> Plan the Teskad Mobile work and hand it out",
       "",
       "⏺ I split it into seven tasks on the board: the server (M0a), the window's",
       "  ops (M1), the phone app (M2), files both ways (M0b), settings (M3), push",
       "  (M4) and the week away (M5). M0a, M1 and M2 run side by side.",
       "",
       "⏺ hangar - worker_spawn (MCP)(task: \"81070ac8\", name: \"Ada\")",
-      "  ⎿  Ada started on « Hangar Mobile — serveur distant »",
+      "  ⎿  Ada started on « Teskad Mobile — serveur distant »",
       "",
       "⏺ hangar - worker_spawn (MCP)(task: \"f804a999\", name: \"Ben\")",
       "  ⎿  Ben started on « ce que la fenêtre répond au téléphone »",
@@ -206,7 +206,7 @@ function scenery(now: number, locale: Locale) {
       "Shall I submit the delivery now?",
       "",
       "❯ 1. Submit now",
-      "     Hangar merges it in a scratch worktree, runs the check and has it reviewed",
+      "     Teskad merges it in a scratch worktree, runs the check and has it reviewed",
       "  2. Wait for the screenshots",
       "     I take the 390×844 shots, light and dark, then submit",
       "  3. Type something.",
@@ -215,7 +215,7 @@ function scenery(now: number, locale: Locale) {
     ]),
     pane("ws-iabench", "p-dana", "Dana", "worker", "idle", [
       "⏺ hangar - delivery_submit (MCP)(summary: \"Settings › Mobile pairs a phone by QR code\")",
-      "  ⎿  Hangar merges hangar/mobile-settings-qr-3e1f0a onto main in a separate worktree…",
+      "  ⎿  Teskad merges hangar/mobile-settings-qr-3e1f0a onto main in a separate worktree…",
       "",
       "⏺ [Hangar] hangar/mobile-settings-qr-3e1f0a passed its check and its review. Automatic",
       "  landing is off in this workspace, so it waits for the person to land it on main.",
@@ -253,7 +253,7 @@ function scenery(now: number, locale: Locale) {
       "⏺ hangar - project_list (MCP)",
       "",
       "⏺ Four projects:",
-      "  - IaBench: Jack orchestrates three workers on Hangar Mobile. Ben waits",
+      "  - IaBench: Jack orchestrates three workers on Teskad Mobile. Ben waits",
       "    for a permission; one delivery is ready to merge.",
       "  - storefront: all twelve tasks done, Mia waits for what's next.",
       "  - billing-api: asleep since yesterday evening, two tasks to do.",
@@ -273,7 +273,7 @@ function scenery(now: number, locale: Locale) {
       asleep: false,
       git: true,
       board: { todo: 4, doing: 3, review: 1, done: 22 },
-      planStatus: "Hangar Mobile: 3 of 7 tasks under way, the server in review",
+      planStatus: "Teskad Mobile: 3 of 7 tasks under way, the server in review",
       needsYou: [{ id: "t-funnel", title: "Should Tailscale Funnel stay out of scope, or be offered as an option?" }],
       readyToLand: [{ id: "t-settings", title: "Mobile settings: pair a phone by QR code" }],
     },
@@ -359,7 +359,7 @@ function scenery(now: number, locale: Locale) {
       port: 21040,
       source: "worker",
       pane: "Cora",
-      task: "Hangar Mobile — l'app sur le téléphone (PWA)",
+      task: "Teskad Mobile — l'app sur le téléphone (PWA)",
     },
     { workspaceId: "ws-storefront", workspace: "storefront", port: 4173, source: "custom" },
   ];
@@ -810,12 +810,12 @@ export function createMock(scenario: Scenario, now = Date.now(), locale: Locale 
       case "apps": {
         if (args.workspace === undefined) return json(200, { apps: world.apps });
         const project = world.projects.find((candidate) => candidate.id === args.workspace || candidate.name === args.workspace);
-        if (!project) return json(400, { error: "refused", message: `No project "${String(args.workspace)}" in Hangar.` });
+        if (!project) return json(400, { error: "refused", message: `No project "${String(args.workspace)}" in Teskad.` });
         return json(200, { apps: world.apps.filter((app) => app.workspaceId === project.id) });
       }
       case "wake": {
         const project = world.projects.find((candidate) => candidate.id === args.workspace || candidate.name === args.workspace);
-        if (!project) return json(400, { error: `No project "${String(args.workspace)}" in Hangar.` });
+        if (!project) return json(400, { error: `No project "${String(args.workspace)}" in Teskad.` });
         return json(200, { waking: wake(project) });
       }
       case "delivery": {

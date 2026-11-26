@@ -345,7 +345,7 @@ describe("the fake PC's delivery ready to merge", () => {
     const state = await settle(client.state());
     expect(state.projects[0].panes).toContainEqual(expect.objectContaining({ name: "Cora", role: "worker" }));
     expect((await settle(client.apps("storefront"))).apps.map((app) => app.port)).toEqual([4173]);
-    await expect(settle(client.apps("nowhere"))).rejects.toMatchObject({ kind: "refused", detail: 'No project "nowhere" in Hangar.' });
+    await expect(settle(client.apps("nowhere"))).rejects.toMatchObject({ kind: "refused", detail: 'No project "nowhere" in Teskad.' });
   });
 
   it("opens an app on a page that stands in for it, the first time after a moment", async () => {

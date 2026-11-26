@@ -16,6 +16,7 @@ mod gpu;
 mod hooks;
 mod shell;
 
+use hangar_i18n::APP_NAME;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Instant;
@@ -166,7 +167,9 @@ pub fn run() -> iced::Result {
 
 /// What an agent asking before the state is in is told, word for word as
 /// control.ts and remoteControl.ts said it.
-const STARTING: &str = "HangarAI is still starting. Try again in a moment.";
+fn starting() -> String {
+    format!("{APP_NAME} is still starting. Try again in a moment.")
+}
 
 /// The app's log file, in the system's log folder (`Paths::app_log_dir`).
 const LOG_FILE: &str = "hangar.log";
@@ -311,7 +314,7 @@ impl App {
         if let Message::Control(crate::control::Msg::Request(request)) = &message
             && !self.model.live.hydrated
         {
-            request.reply.send(Err(STARTING.into()));
+            request.reply.send(Err(starting()));
             return Task::none();
         }
         // The panes off screen are looked at with the pane logic's tick, and
@@ -864,7 +867,7 @@ mod tests {
         assert_eq!(
             text.text(),
             "Could not read state.json (it is not UTF-8 text). It is kept as \
-             /d/state.json.corrupt.1, and HangarAI starts empty."
+             /d/state.json.corrupt.1, and Teskad starts empty."
         );
         let held = LoadError {
             reason: "permission denied".into(),

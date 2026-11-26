@@ -1,6 +1,6 @@
 # Orchestration and the project manager
 
-[← Hangar](../../README.md) · [Guide](README.md)
+[← Teskad](../../README.md) · [Guide](README.md)
 
 ## Orchestrator mode
 
@@ -21,7 +21,7 @@ workers to carry it out. You follow everything from one window.
    servers and tests.
    There is no limit on how many workers run at once, or on how many times a task is
    tried: the orchestrator decides, and hands a task back to you when it needs you.
-   Hangar still refuses, whatever the prompt says, a task whose files overlap a task
+   Teskad still refuses, whatever the prompt says, a task whose files overlap a task
    already in progress.
 3. **Deliver.** A worker hands in its branch with `delivery_submit`, and the branch joins
    a merge queue. Each delivery goes through four steps:
@@ -32,9 +32,9 @@ workers to carry it out. You follow everything from one window.
      (`claude -p`, or `codex exec` in a read-only sandbox);
    - if all of that passes, the branch lands on the target branch by fast-forward.
 
-   If a step fails, the worker receives what failed and fixes it. Hangar never pushes, and
+   If a step fails, the worker receives what failed and fixes it. Teskad never pushes, and
    a landing that would overwrite your uncommitted changes is held back.
-4. **Wake on events.** The orchestrator does not poll. When it is between turns, Hangar
+4. **Wake on events.** The orchestrator does not poll. When it is between turns, Teskad
    sends it one batched message: a worker commented, is waiting, idle or exited; a delivery
    landed or failed. Only what is urgent comes within seconds: deliveries, a worker
    waiting for you or gone, a task that needs you, is blocked or is done, your own
@@ -46,7 +46,7 @@ workers to carry it out. You follow everything from one window.
    A worker is called idle when it ended its turn 10 minutes ago without delivering and
    has nothing of its own running in its pane: one waiting on a build, a benchmark or a
    CI watch it started in the background is not idle until that ends (on this machine;
-   for a pane on a node Hangar cannot look). It is called idle once, and again only after
+   for a pane on a node Teskad cannot look). It is called idle once, and again only after
    it did something (a comment, progress, a commit, a delivery) or 30 minutes later.
 5. **Needs you.** One list, across workspaces, shows what waits for you:
    - agents asking for a permission or an answer;
@@ -82,7 +82,7 @@ like any other question. [Codex (beta)](codex.md#delegate) has the details.
 ## Project manager
 
 One agent to talk to instead of every project's agents (new in 1.0.3). Open it from the top
-of the sidebar or the command palette: Hangar creates an HQ workspace with its own folder and
+of the sidebar or the command palette: Teskad creates an HQ workspace with its own folder and
 one agent, the one new orchestrators run (Claude Code on Opus by default), that follows every
 workspace, with or without an orchestrator.
 
@@ -95,5 +95,5 @@ workspace, with or without an orchestrator.
   done.
 
 It keeps a tracker of what you want from each project, handed back after every compaction.
-It never writes code and never acts on its own. On your phone, Hangar Mobile opens it as a
+It never writes code and never acts on its own. On your phone, Teskad Mobile opens it as a
 chat.

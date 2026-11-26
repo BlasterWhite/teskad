@@ -293,7 +293,7 @@ fn says_a_linked_folder_is_left_untouched_before_removing_it() {
         git_draw
             .en()
             .text()
-            .contains("The copy Hangar cloned is deleted.")
+            .contains("The copy Teskad cloned is deleted.")
     );
 }
 
@@ -658,7 +658,7 @@ mod per_agent {
             draw.model(Locale::Fr)
         };
         let out = model.text().replace(['\u{a0}', '\u{202f}'], " ");
-        assert!(out.contains("Retirer Roblox de Codex ? Hangar lance ces commandes :"));
+        assert!(out.contains("Retirer Roblox de Codex ? Teskad lance ces commandes :"));
         assert!(out.contains("codex plugin remove roblox@hangar-kits"));
         assert!(out.contains("Ajouté à Codex"));
     }

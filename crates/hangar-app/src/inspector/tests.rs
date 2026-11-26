@@ -1036,7 +1036,7 @@ mod drawn {
         assert!(draws(
             &m,
             w,
-            "Nothing yet. Prompts, permissions and edits show up here once Hangar is attached \
+            "Nothing yet. Prompts, permissions and edits show up here once Teskad is attached \
              to Codex."
         ));
     }
@@ -1067,7 +1067,7 @@ mod drawn {
         assert!(!draws(
             &m,
             w,
-            "Nothing yet. Prompts, permissions and edits show up here once Hangar is attached \
+            "Nothing yet. Prompts, permissions and edits show up here once Teskad is attached \
              to Codex."
         ));
     }
