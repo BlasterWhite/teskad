@@ -601,7 +601,7 @@ async fn history_words_a_line_written_without_text_in_the_language_of_the_pc() {
     r.app
         .change(|state| state.settings.locale = Some(Locale::Fr));
     let fr = r.ok("remote_history", json!({})).await;
-    assert_eq!(text(&fr, "appStopped"), "Teskad s'est arrêté");
+    assert_eq!(text(&fr, "appStopped"), "Teskad\u{a0}s'est arrêté");
     assert_eq!(text(&fr, "landed"), "Landed: Cart");
 }
 
