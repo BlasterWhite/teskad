@@ -11,10 +11,17 @@ use hangar_i18n::{Key, Translator, args};
 
 use crate::state::types::{AgentId, AgentKind, Pane, Settings, Workspace};
 
-/// The Discord application this app ships with. Its uploaded art is what the
-/// asset keys below resolve to; a fork with its own art overrides it from the
-/// settings rather than by rebuilding.
-pub const DEFAULT_APP_ID: &str = "1534592584045957282";
+/// The upstream project's Discord application, which was once the default
+/// here. This build ships with none, and ignores this one wherever it is still
+/// set: its card shows upstream's name and art.
+const UPSTREAM_APP_ID: &str = "1534592584045957282";
+
+/// The application the person set in the settings, if there is one to publish
+/// as.
+fn app_id(settings: &Settings) -> Option<&str> {
+    let id = settings.discord_app_id.trim();
+    (!id.is_empty() && id != UPSTREAM_APP_ID).then_some(id)
+}
 
 pub const REPO_URL: &str = "https://github.com/BlasterWhite/hangar";
 
@@ -47,8 +54,8 @@ pub struct PresenceInput<'a> {
     pub started_at: i64,
 }
 
-/// Builds the card, or `None` when the feature is off, which is also what
-/// tells the worker to take the presence down.
+/// Builds the card, or `None` when the feature is off or no application ID is
+/// set, which is also what tells the worker to take the presence down.
 pub fn build_presence(input: &PresenceInput) -> Option<Presence> {
     let PresenceInput {
         settings,
@@ -60,6 +67,7 @@ pub fn build_presence(input: &PresenceInput) -> Option<Presence> {
     if !settings.discord_presence {
         return None;
     }
+    let app_id = app_id(settings)?;
 
     let panes: &[Pane] = workspace.map_or(&[], |ws| &ws.panes);
     // A shell is a terminal, not an agent: counting it would claim five
@@ -117,13 +125,8 @@ pub fn build_presence(input: &PresenceInput) -> Option<Presence> {
         None
     };
 
-    let app_id = settings.discord_app_id.trim();
     Some(Presence {
-        app_id: if app_id.is_empty() {
-            DEFAULT_APP_ID.to_string()
-        } else {
-            app_id.to_string()
-        },
+        app_id: app_id.to_string(),
         details,
         state,
         large_image: LARGE_IMAGE.to_string(),
@@ -210,6 +213,7 @@ mod tests {
     fn on() -> Settings {
         Settings {
             discord_presence: true,
+            discord_app_id: "1234".into(),
             ..Settings::default()
         }
     }
@@ -355,26 +359,33 @@ mod tests {
         );
     }
 
+    fn with_app_id(id: &str) -> Settings {
+        Settings {
+            discord_app_id: id.into(),
+            ..on()
+        }
+    }
+
     #[test]
-    fn the_application_is_the_one_in_the_settings_else_the_shipped_one() {
-        let ws = workspace("Shop", &[]);
-        assert_eq!(
-            build(&on(), Some(&ws), None).unwrap().app_id,
-            DEFAULT_APP_ID
-        );
-        let own = Settings {
-            discord_app_id: "  1234  ".into(),
-            ..on()
-        };
-        assert_eq!(build(&own, Some(&ws), None).unwrap().app_id, "1234");
-        let blank = Settings {
-            discord_app_id: "   ".into(),
-            ..on()
-        };
-        assert_eq!(
-            build(&blank, Some(&ws), None).unwrap().app_id,
-            DEFAULT_APP_ID
-        );
+    fn the_application_is_the_one_in_the_settings() {
+        let card = build(&with_app_id("  5678  "), None, None).unwrap();
+        assert_eq!(card.app_id, "5678");
+    }
+
+    #[test]
+    fn nothing_is_published_without_an_application_of_ones_own() {
+        // None ships with the app.
+        assert_eq!(Settings::default().discord_app_id, "");
+        for id in ["", "   "] {
+            assert_eq!(build(&with_app_id(id), None, None), None, "{id:?}");
+        }
+    }
+
+    #[test]
+    fn the_upstream_application_is_ignored_where_it_is_still_set() {
+        for id in ["1534592584045957282", " 1534592584045957282 "] {
+            assert_eq!(build(&with_app_id(id), None, None), None, "{id:?}");
+        }
     }
 
     #[test]
@@ -382,7 +393,7 @@ mod tests {
         let card = build(&on(), None, None).unwrap();
         assert_eq!(card.large_url.as_deref(), Some(REPO_URL));
         assert_eq!(card.button_url.as_deref(), Some(REPO_URL));
-        assert_eq!(card.button_label.as_deref(), Some("Get HangarAI"));
+        assert_eq!(card.button_label.as_deref(), Some("View on GitHub"));
         assert_eq!(card.started_at, Some(1_700_000_000_000));
         assert!(card.large_image.ends_with("/assets/logo.png"));
     }

@@ -4260,7 +4260,7 @@ For every package, "done" means:
 
 - `crates/hangar-core` internals: the backend agent is de-Tauri-ing them.
 - The wasmtime runtime of `hangar-kit-host`, and `hangar-kit-ui`/`hangar-kit-sdk`. P16 only defines the `KitHost` API, which mirrors `lib/kitApi.ts`.
-- The browser demo (`demo/`, `vite.demo.config.ts`) and the website (`site/`).
+- The browser demo (`demo/`, `vite.demo.config.ts`).
 
 ---
 

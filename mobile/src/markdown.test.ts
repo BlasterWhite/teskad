@@ -126,9 +126,9 @@ describe("markdown inline", () => {
   });
 
   it("links bare addresses, without the punctuation that ends the sentence", () => {
-    expect(parseInline("See https://hangarai.dev/docs. Or (https://example.com/x).")).toEqual([
+    expect(parseInline("See https://example.com/docs. Or (https://example.com/x).")).toEqual([
       text("See "),
-      { type: "link", href: "https://hangarai.dev/docs", children: [text("https://hangarai.dev/docs")] },
+      { type: "link", href: "https://example.com/docs", children: [text("https://example.com/docs")] },
       text(". Or ("),
       { type: "link", href: "https://example.com/x", children: [text("https://example.com/x")] },
       text(")."),

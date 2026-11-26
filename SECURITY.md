@@ -2,8 +2,8 @@
 
 ## Supported versions
 
-Only the latest release receives security fixes. The app updates itself, so the fix
-reaches you once you accept the update.
+Only the latest version receives security fixes. This fork's builds do not update
+themselves: pull and build again to get a fix.
 
 | Version | Supported |
 |---|---|

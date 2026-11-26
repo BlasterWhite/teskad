@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Checks the current commit on GitHub Actions (the CI workflow, every job), so
-# nothing is compiled on this PC and no build machine is rented.
+# Checks the current commit on GitHub Actions (the CI workflow, every job):
+# every system the CI covers, with nothing compiled on this PC.
 #
 #     scripts/ci-check            check HEAD; exit 0 when the CI run passed
 #

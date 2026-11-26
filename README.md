@@ -5,6 +5,11 @@
 <h1 align="center">HangarAI</h1>
 
 <p align="center">
+  An independent fork of HangarAI (https://hangarai.dev), not affiliated with it,
+  based on its last open-source release (2.5.1, MIT).
+</p>
+
+<p align="center">
   <b>Run a team of coding agents in one native window, and steer them from your phone.</b><br>
   <sub>Claude Code and Codex (beta), side by side. Either one is enough.</sub>
 </p>
@@ -19,9 +24,7 @@
 <p align="center">
   <a href="#install">Install</a> ·
   <a href="docs/guide/README.md">Guide</a> ·
-  <a href="CHANGELOG.md">Changelog</a> ·
-  <a href="https://hangarai.dev">Website</a> ·
-  <a href="https://discord.gg/hangarai">Discord</a>
+  <a href="CHANGELOG.md">Changelog</a>
 </p>
 
 ![The chat view of a Recipes workspace: you talk to Iris, the orchestrator, who split the app into four board tasks and started workers; the side panel shows each task's progress, and the inspector shows Iris's session and context use.](docs/images/chat-view.png)
@@ -31,12 +34,9 @@ agents — **Claude Code** and **Codex** (beta) — side by side in real termina
 as you need, and lets them work together: an orchestrator of either agent plans on a shared
 board and hands tasks to workers of either agent, with a shared memory. It starts the agents
 already on your machine, with your own accounts; one of them installed is enough, and a pane
-can also be a plain shell. No telemetry, ever. Everything works with no account; an
-optional Hangar account (Settings › Hangar account, off by default) links your machines and
-syncs your usage statistics between them. Until you sign in, nothing leaves your PC. Once you
-do, and only if you turn the sync on, Hangar sends totals per machine, day, model and project
-name (tokens, active time and cost), never a path, a prompt or any code. What is sent, and how to
-delete it, is on the [privacy page](https://hangarai.dev/privacy.html).
+can also be a plain shell. No telemetry, ever. There is no Hangar account and no hosted
+service behind the app: what goes online is listed on the
+[privacy page](docs/guide/privacy.md).
 
 ## What it does
 
@@ -160,20 +160,24 @@ Hangar 2.0 against 1.12.1, the last web-view release, on the same Linux machine:
 
 ## Contributing
 
-Ideas and questions on [Discord](https://discord.gg/hangarai); bugs and pull requests on
-GitHub — start with [CONTRIBUTING.md](CONTRIBUTING.md) and the
-[code of conduct](CODE_OF_CONDUCT.md). A bug in a Codex pane: the
+Ideas, questions, bugs and pull requests on GitHub — start with
+[CONTRIBUTING.md](CONTRIBUTING.md) and the [code of conduct](CODE_OF_CONDUCT.md).
+A bug in a Codex pane: the
 [Codex bug form](https://github.com/BlasterWhite/hangar/issues/new?template=codex-bug.yml).
 Security issues: [SECURITY.md](SECURITY.md).
 
 ## 💝 Contributors
+
+HangarAI was created by [simnJS](https://github.com/simnJS), its original author. This
+fork is maintained by [BlasterWhite](https://github.com/BlasterWhite) ([how it
+differs](FORK.md)). The people below contributed to the original project.
 
 <table>
   <tr>
     <td align="center" width="25%">
       <img src="https://github.com/simnJS.png" width="100px" style="border-radius:50%" alt="simnJS"/><br/>
       <b>simnJS</b><br/>
-      <i>Creator</i><br/>
+      <i>Original author</i><br/>
       <sub>He/Him/Femboy</sub><br/>
       <a href="https://simnjs.fr">Website</a> / <a href="https://github.com/simnJS">GitHub</a>
     </td>
@@ -203,4 +207,4 @@ Security issues: [SECURITY.md](SECURITY.md).
 
 ## License
 
-[MIT](LICENSE) © simnJS
+[MIT](LICENSE) © simnJS (original author) and BlasterWhite (fork)

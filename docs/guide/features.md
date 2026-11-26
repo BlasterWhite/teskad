@@ -142,7 +142,9 @@ until you enable them, and each can be turned off again without losing anything.
 - **Dictation.** Hold a key, speak, and the text is typed into the focused pane. It runs
   locally with whisper.cpp, on a model downloaded once. Groq is an optional alternative, with
   its key kept in the system keychain.
-- **Discord Rich Presence**, off unless you turn it on.
+- **Discord Rich Presence**, off unless you turn it on. It publishes as a Discord
+  application of your own: create one at discord.com/developers and paste its ID in
+  Settings › Discord. Without an ID, nothing is published.
 
 ## Kits
 

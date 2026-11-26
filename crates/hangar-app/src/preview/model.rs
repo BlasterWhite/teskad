@@ -1102,8 +1102,8 @@ mod tests {
             MarkdownLink::Anchor("café".into())
         );
         assert_eq!(
-            markdown_link("https://hangarai.dev"),
-            MarkdownLink::External("https://hangarai.dev".into())
+            markdown_link("https://example.com"),
+            MarkdownLink::External("https://example.com".into())
         );
         assert_eq!(
             markdown_link("mailto:me@example.com"),

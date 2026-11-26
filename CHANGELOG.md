@@ -10,6 +10,13 @@ Every release, with its installers, is on the
 
 ## [Unreleased]
 
+This fork is independent and not affiliated with the original HangarAI project: the app no longer points at that project's services.
+
+### Changed
+- The title bar shows the name and the version, with no domain and no link. With the system's title bar, the window's title is « HangarAI <version> ».
+- Discord Rich Presence ships with no Discord application: it publishes nothing until you enter the ID of your own in Settings › Discord. The original project's application ID, if you had entered it, is ignored. The card's button, « View on GitHub », opens this fork's repository.
+- Phone notifications are signed with this fork's repository address as their contact.
+
 ### Removed
 - The Hangar account (« Compte Hangar »), whole: Settings › Hangar account, signing in with GitHub, the statistics sync between machines and the « All machines » view of Statistics, the account server (the `hangar-cloud` and `hangar-cloud-api` crates, its Docker image and compose file) and its documentation. HangarAI no longer calls any account server. Statistics of this PC are as they were. An upgrade deletes nothing the account left: if you signed in, the keychain entry `hangar-account` and the files `hangar-account.json`, `cloud-sync.json` and `cloud-machine-id` of the app data folder stay, unread, and what the server holds stays there (delete the account from an earlier version first if you want it gone).
 

@@ -20,8 +20,8 @@ pub const CODEX_PINNED: &str = CODEX_VERSION;
 
 /// The oldest release Hangar attaches to, and speaks to at all.
 ///
-/// Found as D12 says, by generating the schema of each release from 0.157.0 to the pin on the
-/// build machine (`codex app-server generate-json-schema`, no login) and comparing it with the
+/// Found as D12 says, by generating the schema of each release from 0.157.0 to the pin
+/// (`codex app-server generate-json-schema`, no login) and comparing it with the
 /// pinned subset (scripts/codex-protocol/schema.subset.json): from 0.157.0 on, every method of the
 /// subset is there, and every field the pinned types require of what Codex sends is there and
 /// required. The only differences are in audio inputs, which Hangar never sends (`UserInput`'s

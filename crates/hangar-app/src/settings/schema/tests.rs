@@ -332,7 +332,7 @@ fn discord_has_every_row_of_the_old_schema_with_its_default() {
             "discordPresence: toggle DiscordPresence = false",
             "discordShowWorkspace: toggle DiscordShowWorkspace = true",
             "discordShowAgents: toggle DiscordShowAgents = true",
-            r#"discordAppId: input DiscordAppId = "" ("Bundled application")"#,
+            r#"discordAppId: input DiscordAppId = "" ("Your application ID")"#,
         ]
     );
 }

@@ -825,8 +825,6 @@ tokens in hangar-core. What this design adds on top, in later tasks:
 - the statistics read both kinds and the by-agent card comes back
   (`hangar-engine/src/stats/model.rs`, `hangar-app/src/stats/*`), with model
   names pretty-printed per kind (`gpt-5.x-codex` → "GPT-5.x Codex");
-- the Hangar account's statistics sync carries the kind (`hangar-cloud-api`
-  rows are keyed by model, which already tells the kind; no schema change);
 - headless children (reviewer, delegations) are counted under their kind:
   their rollouts land in the same `sessions/` (Codex) or `projects/` (Claude),
   so nothing extra is read.
@@ -1238,8 +1236,7 @@ the places that today stop a Codex-only machine.
 `hangar-core/src/{stats.rs,stats/parse.rs,stats/aggregate.rs,pricing.rs}`
 (Claude transcripts, Anthropic prices — Samuel's task),
 `hangar-engine/src/stats/model.rs` (one "Claude Code" row, Claude model names),
-`hangar-app/src/stats/{view,sessions}.rs`, `hangar-cloud-api/src/stats.rs`,
-`hangar-core/src/cloud/sync.rs`.
+`hangar-app/src/stats/{view,sessions}.rs`.
 
 ### A.6 Chat view, Hangar Mobile, Discord (cap.: `transcript`, `approvals`, `inject`)
 

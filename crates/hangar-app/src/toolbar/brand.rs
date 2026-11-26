@@ -1,8 +1,7 @@
 //! The brand in the toolbar. Where no navigator draws it (the navigator is
 //! hidden, or the window is a workspace's own) the toolbar's lead carries the
-//! name and the site, so that whoever watches a stream finds the domain
-//! whatever the layout; it gives up the version, then the domain, as the bar
-//! narrows, and the whole brand when not even the name fits.
+//! name and the version; it gives up the version as the bar narrows, and the
+//! whole brand when not even the name fits.
 //!
 //! Only where Hangar draws the title bar, which is Linux and Windows.
 #![cfg(any(target_os = "linux", target_os = "windows"))]
@@ -16,8 +15,7 @@ use iced_test::selector::Candidate;
 use super::*;
 use crate::app::Packages;
 use crate::navigator::testing::{ctx_in, detach, model_of, pane, workspace};
-use crate::shell::Action;
-use crate::shell::title_bar::{DOMAIN, NAME, Press};
+use crate::shell::title_bar::NAME;
 use crate::state::types::{AgentId, AppState};
 use crate::workspace_dialog::testing::account;
 
@@ -93,30 +91,26 @@ fn rects(ui: &mut Simulator<'_, Message>) -> Vec<Rectangle> {
     seen
 }
 
-/// What of the brand a toolbar shows: the name, the domain, the version.
-fn shown(ui: &mut Simulator<'_, Message>) -> (bool, bool, bool) {
-    (
-        ui.find(NAME).is_ok(),
-        ui.find(DOMAIN).is_ok(),
-        ui.find(VERSION).is_ok(),
-    )
+/// What of the brand a toolbar shows: the name, the version.
+fn shown(ui: &mut Simulator<'_, Message>) -> (bool, bool) {
+    (ui.find(NAME).is_ok(), ui.find(VERSION).is_ok())
 }
 
 #[test]
-fn the_domain_shows_in_the_toolbar_of_a_main_window_with_the_navigator_hidden() {
+fn the_brand_shows_in_the_toolbar_of_a_main_window_with_the_navigator_hidden() {
     let (model, window) = setup("alpha", Where::Hidden);
     let (pkg, st) = (Packages::default(), State::default());
     let mut ui = bar(&st, &model, &pkg, window, 1400.0);
-    assert_eq!(shown(&mut ui), (true, true, true));
+    assert_eq!(shown(&mut ui), (true, true));
     assert!(ui.find("alpha").is_ok(), "the workspace's name stays");
 }
 
 #[test]
-fn the_domain_shows_in_the_toolbar_of_a_workspaces_own_window() {
+fn the_brand_shows_in_the_toolbar_of_a_workspaces_own_window() {
     let (model, window) = setup("alpha", Where::Own);
     let (pkg, st) = (Packages::default(), State::default());
     let mut ui = bar(&st, &model, &pkg, window, 1400.0);
-    assert_eq!(shown(&mut ui), (true, true, true));
+    assert_eq!(shown(&mut ui), (true, true));
     assert!(ui.find("alpha").is_ok(), "the workspace's name stays");
 }
 
@@ -125,20 +119,20 @@ fn with_the_navigator_open_its_top_holds_the_brand_and_the_toolbar_does_not() {
     let (model, window) = setup("alpha", Where::Open);
     let (pkg, st) = (Packages::default(), State::default());
     let mut ui = bar(&st, &model, &pkg, window, 1400.0);
-    assert_eq!(shown(&mut ui), (false, false, false));
+    assert_eq!(shown(&mut ui), (false, false));
     assert!(ui.find("alpha").is_ok());
 }
 
 #[test]
 fn with_the_systems_title_bar_the_toolbar_has_no_brand() {
-    // The window's own title carries the domain then, and no band is Hangar's.
+    // The window's own title carries the brand then, and no band is Hangar's.
     let (mut model, window) = setup("alpha", Where::Hidden);
     let mut state = model.state().clone();
     state.settings.system_title_bar = true;
     model.hydrate(state);
     let (pkg, st) = (Packages::default(), State::default());
     let mut ui = bar(&st, &model, &pkg, window, 1400.0);
-    assert_eq!(shown(&mut ui), (false, false, false));
+    assert_eq!(shown(&mut ui), (false, false));
     assert!(ui.find("alpha").is_ok());
 }
 
@@ -149,49 +143,26 @@ fn the_brand_comes_before_the_workspaces_name_and_the_views() {
         let (pkg, st) = (Packages::default(), State::default());
         let mut ui = bar(&st, &model, &pkg, window, 1400.0);
         let x = |ui: &mut Simulator<'_, Message>, text: &str| ui.find(text).unwrap().bounds().x;
-        let (name, domain, version) = (x(&mut ui, NAME), x(&mut ui, DOMAIN), x(&mut ui, VERSION));
+        let (name, version) = (x(&mut ui, NAME), x(&mut ui, VERSION));
         let (title, views) = (x(&mut ui, "alpha"), x(&mut ui, "Terminals"));
-        assert!(name < domain && domain < version, "{at:?}");
+        assert!(name < version, "{at:?}");
         assert!(version < title && title < views, "{at:?}");
     }
 }
 
 #[test]
-fn a_press_on_the_domain_in_the_toolbar_asks_for_the_site() {
-    for at in [Where::Hidden, Where::Own] {
-        let (model, window) = setup("alpha", at);
-        let (pkg, st) = (Packages::default(), State::default());
-        let mut ui = bar(&st, &model, &pkg, window, 1400.0);
-        ui.click(DOMAIN).expect("the domain is drawn");
-        let messages: Vec<Message> = ui.into_messages().collect();
-        assert!(
-            messages.iter().any(|message| matches!(
-                message,
-                Message::Shell(Action::TitleBar(w, Press::Site)) if *w == window
-            )),
-            "{at:?}: {messages:?}"
-        );
-    }
-}
-
-#[test]
-fn as_the_bar_narrows_the_version_goes_first_then_the_domain_and_the_name_never() {
+fn as_the_bar_narrows_the_version_goes_first_and_then_the_name() {
     // (where, the bar's room, what shows). The bar's steps are the toolbar's:
     // the workspace's name from 960, labels on the views from 768, the trail
     // folded under 552.
     let cases = [
-        // The name, the domain and the version, wherever there is room.
-        (Where::Own, 1400.0, (true, true, true)),
-        (Where::Hidden, 1400.0, (true, true, true)),
+        // The name and the version, wherever there is room.
+        (Where::Own, 1400.0, (true, true)),
+        (Where::Hidden, 1400.0, (true, true)),
         // The version goes first...
-        (Where::Own, 710.0, (true, true, false)),
-        (Where::Hidden, 1000.0, (true, true, false)),
-        // ...the domain after it (the version, a hover away on the name, is
-        // what the room left is for)...
-        (Where::Own, 670.0, (true, false, true)),
-        // ...and the name is the last, then it goes with the whole brand.
-        (Where::Own, 620.0, (true, false, false)),
-        (Where::Hidden, 800.0, (false, false, false)),
+        (Where::Own, 620.0, (true, false)),
+        // ...and the name is the last: it goes with the whole brand.
+        (Where::Hidden, 800.0, (false, false)),
     ];
     for (at, net, expected) in cases {
         let (model, window) = setup("alpha", at);
@@ -204,18 +175,18 @@ fn as_the_bar_narrows_the_version_goes_first_then_the_domain_and_the_name_never(
 #[test]
 fn a_long_workspace_name_leaves_the_brand_less_room() {
     // At the same width, the bar of a workspace with a long name keeps the
-    // name alone where the one of a short name has room for the domain too.
+    // name alone where the one of a short name has room for the version too.
     let long = "a-really-quite-long-workspace-name-for-the-bar";
     let net = 1040.0;
     let (model, window) = setup("alpha", Where::Hidden);
     let (pkg, st) = (Packages::default(), State::default());
     let mut short = bar(&st, &model, &pkg, window, net);
-    assert!(short.find(DOMAIN).is_ok());
+    assert!(short.find(VERSION).is_ok());
     drop(short);
     let (model, window) = setup(long, Where::Hidden);
     let mut name = bar(&st, &model, &pkg, window, net);
     assert!(name.find(NAME).is_ok());
-    assert!(name.find(DOMAIN).is_err());
+    assert!(name.find(VERSION).is_err());
 }
 
 #[test]

@@ -4,7 +4,8 @@ Thanks for taking the time to contribute. Bug reports, fixes, translations and f
 ideas are all welcome. Please follow the [code of conduct](CODE_OF_CONDUCT.md) in every
 interaction.
 
-- **Question, or want to talk it through first?** Join the [HangarAI Discord](https://discord.gg/hangarai).
+- **Question, or want to talk it through first?** Open an
+  [issue](https://github.com/BlasterWhite/hangar/issues).
 - **Security issue?** Do not open a public issue. See [SECURITY.md](SECURITY.md).
 - **Bug?** Open an issue with the bug template: OS, Hangar version (2.0 and later are the
   native app, 1.x the web-view one), what the pane ran, and steps.
@@ -75,11 +76,9 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked    # ICED_TEST_BACKEND=tiny-skia draws the views' tests in software
 ```
 
-The maintainers run them on a machine rented from Vast.ai rather than their own:
-`scripts/remote/rcargo <cargo arguments>` runs any cargo command there on the current
-worktree, and `scripts/remote/rbuild check` runs the CI's Linux checks in one call (it
-needs the `vastai` CLI and an account; see
-[docs/native/remote-build.md](docs/native/remote-build.md)).
+They all run on your own machine. `scripts/ci-check` runs the whole CI on GitHub Actions
+instead, for the committed `HEAD`; it needs `gh` signed in with the right to run
+workflows.
 
 Hangar Mobile and the generated files:
 
@@ -124,13 +123,11 @@ Some things to know:
 - **Old names stay.** Some identifiers keep the project's former name `iabench` on
   purpose: the bundle identifier `com.simnjs.iabench` and the fallbacks that read files
   written before the rename. Do not rename them. Give anything new a `hangar` name.
-- **Local first.** Hangar runs on the user's machine and works fully without a network
-  or an account. The optional Hangar account (`crates/hangar-core/src/cloud`, its server
-  `crates/hangar-cloud`, docs/native/cloud.md) is the only online service of ours, and it
-  is opt-in: nothing calls it until the person signs in, and statistics leave only while
-  their sync switch, off by default, is on. Changes that add another hosted service, make
-  anything depend on the account, or add telemetry will not be accepted. What the account
-  sends stays totals per day, model and project name: never a path, a prompt or code.
+- **Local first.** Hangar runs on the user's machine and works without an account. This
+  project runs no hosted service, collects no telemetry, and has nothing that depends on
+  an account. Changes that add a hosted service, require an account or add telemetry will
+  not be accepted. What goes online is listed in
+  [docs/guide/privacy.md](docs/guide/privacy.md).
 
 ## Commit messages
 

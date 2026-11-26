@@ -4238,8 +4238,6 @@ pub enum Key {
     TitleBarMinimize,
     /// `titleBar.restore`
     TitleBarRestore,
-    /// `titleBar.site`
-    TitleBarSite,
     /// `toolbar.activity.context`
     ToolbarActivityContext,
     /// `toolbar.activity.contextHint`
@@ -6748,7 +6746,6 @@ impl Key {
         Key::TitleBarMaximize,
         Key::TitleBarMinimize,
         Key::TitleBarRestore,
-        Key::TitleBarSite,
         Key::ToolbarActivityContext,
         Key::ToolbarActivityContextHint,
         Key::ToolbarActivityGoTo,
@@ -7482,7 +7479,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "diff.worktree", en: Text::plain("Changes"), fr: Text::plain("Modifications") },
     Message { id: "diff.worktreeHint", en: Text::plain("See what changed in this worktree"), fr: Text::plain("Voir ce qui a changé dans ce worktree") },
     Message { id: "discord.agents", en: Text::plural("{n} agent", "{n} agents"), fr: Text::plural("{n} agent", "{n} agents") },
-    Message { id: "discord.button", en: Text::plain("Get HangarAI"), fr: Text::plain("Télécharger HangarAI") },
+    Message { id: "discord.button", en: Text::plain("View on GitHub"), fr: Text::plain("Voir sur GitHub") },
     Message { id: "discord.cardHead", en: Text::plain("Playing a game"), fr: Text::plain("Joue à") },
     Message { id: "discord.elapsed", en: Text::plain("{time} elapsed"), fr: Text::plain("{time} écoulées") },
     Message { id: "discord.idle", en: Text::plain("Idle"), fr: Text::plain("Au repos") },
@@ -8688,10 +8685,10 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "settings.discordAgentsHint", en: Text::plain("Off only says how many are running"), fr: Text::plain("Désactivé, seul leur nombre est indiqué") },
     Message { id: "settings.discordApp", en: Text::plain("Application"), fr: Text::plain("Application") },
     Message { id: "settings.discordAppId", en: Text::plain("Application ID"), fr: Text::plain("Identifiant d'application") },
-    Message { id: "settings.discordAppIdHint", en: Text::plain("Leave empty to use the one HangarAI ships with"), fr: Text::plain("Laisse vide pour utiliser celle fournie avec HangarAI") },
-    Message { id: "settings.discordAppIdPlaceholder", en: Text::plain("Bundled application"), fr: Text::plain("Application fournie") },
+    Message { id: "settings.discordAppIdHint", en: Text::plain("Required: the ID of your own Discord application (discord.com/developers › New Application). Nothing is published while this is empty."), fr: Text::plain("Obligatoire\u{202f}: l'identifiant de ta propre application Discord (discord.com/developers › New Application). Rien n'est publié tant qu'il est vide.") },
+    Message { id: "settings.discordAppIdPlaceholder", en: Text::plain("Your application ID"), fr: Text::plain("L'identifiant de ton application") },
     Message { id: "settings.discordEnable", en: Text::plain("Publish to Discord"), fr: Text::plain("Publier sur Discord") },
-    Message { id: "settings.discordEnableHint", en: Text::plain("Needs the Discord desktop app open on this machine"), fr: Text::plain("Nécessite l'application Discord ouverte sur cette machine") },
+    Message { id: "settings.discordEnableHint", en: Text::plain("Needs your Discord application ID (below) and the Discord desktop app open on this machine"), fr: Text::plain("Nécessite l'identifiant de ton application Discord (ci-dessous) et l'application Discord ouverte sur cette machine") },
     Message { id: "settings.discordHint", en: Text::plain("Publishes the workspace you have open to your Discord status, through the Discord app running on this machine. Nothing else leaves the computer, and nothing at all until you turn it on."), fr: Text::plain("Publie le workspace ouvert sur ton statut Discord, via l'application Discord installée sur cette machine. Rien d'autre ne quitte l'ordinateur, et rien du tout tant que ce n'est pas activé.") },
     Message { id: "settings.discordWorkspace", en: Text::plain("Name the workspace"), fr: Text::plain("Nommer le workspace") },
     Message { id: "settings.discordWorkspaceHint", en: Text::plain("Off keeps the card generic, with no project name"), fr: Text::plain("Désactivé, la carte reste générique, sans nom de projet") },
@@ -9059,7 +9056,6 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "titleBar.maximize", en: Text::plain("Maximize"), fr: Text::plain("Agrandir") },
     Message { id: "titleBar.minimize", en: Text::plain("Minimize"), fr: Text::plain("Réduire") },
     Message { id: "titleBar.restore", en: Text::plain("Restore"), fr: Text::plain("Restaurer") },
-    Message { id: "titleBar.site", en: Text::plain("Open hangarai.dev in your browser"), fr: Text::plain("Ouvrir hangarai.dev dans le navigateur") },
     Message { id: "toolbar.activity.context", en: Text::plain("{pct}%"), fr: Text::plain("{pct}\u{202f}%") },
     Message { id: "toolbar.activity.contextHint", en: Text::plain("{pct}% of the context used; the agent compacts on its own as it nears the limit"), fr: Text::plain("{pct}\u{202f}% du contexte utilisé\u{202f}; l'agent compacte automatiquement à l'approche de la limite") },
     Message { id: "toolbar.activity.goTo", en: Text::plain("{summary} — go to {name}"), fr: Text::plain("{summary} — aller à {name}") },

@@ -1,63 +1,71 @@
 # This fork
 
-[OLIVIER-CG/hangar](https://github.com/OLIVIER-CG/hangar), forked from
-[hangar-ai/hangar](https://github.com/hangar-ai/hangar) at **v2.4.0**, with upstream's
-**2.5.1** merged in (Codex support is upstream's own, from 2.5.0). Our changes live on the
-`custom` branch; `main` mirrors upstream. The `codex-panes` branch holds our earlier Codex
-work, kept for reference only: it is not merged.
+[BlasterWhite/hangar](https://github.com/BlasterWhite/hangar) is an independent fork of
+HangarAI, not affiliated with it (the [README](README.md) opens by saying so). It is based
+on the last open-source release, **2.5.1** (MIT, © simnJS), and builds on the earlier fork
+[OLIVIER-CG/hangar](https://github.com/OLIVIER-CG/hangar). Codex support is the original
+project's own, from 2.5.0.
 
-## What differs from upstream
+HangarAI is closed source and paid from 3.0, so there is nothing more to merge from
+upstream: this fork goes its own way, on `main`.
+
+## What differs from upstream 2.5.1
 
 | Change | Where | Why |
 |---|---|---|
-| Never updates itself | `crates/hangar-update/src/platform.rs` (`SELF_UPDATE`) | Upstream's updater would replace this build with the official release. Take upstream's changes by merging them instead (below). |
-
-Add a row for every feature we change, so a merge from upstream knows what to keep.
+| No upstream self-update | `crates/hangar-update/src/platform.rs` (`SELF_UPDATE`) | The update feed and its signing key are upstream's: an update would replace this build with theirs. For a new version, pull and build again. |
+| No cloud account | Settings, statistics; the account server's crates are gone | This fork runs no hosted service. |
+| No website | the website and its build are gone, as are the rented build machines | Everything builds on your own machine or on GitHub Actions. |
+| No link to upstream's services | title bar, Discord Rich Presence, Web Push contact | The app does not send people to a project it is not part of. Rich Presence needs a Discord application ID of your own (Settings › Discord). |
 
 ## Your data
 
 The fork keeps Hangar's app identifier (`com.simnjs.iabench`), so it uses the same folders as
-the official app and needs no migration:
+the original app and needs no migration:
 
-- `%APPDATA%\com.simnjs.iabench\`: `state.json` (workspaces, panes, settings), `memory.json`,
-  `activity\`, `mcp\` (the agents' MCP configs), the stats cache;
-- `%USERPROFILE%\.hangar\`: the endpoint file, the Claude Code bridge mod, kits;
+- the app's data folder (`~/.local/share/com.simnjs.iabench/` on Linux,
+  `%APPDATA%\com.simnjs.iabench\` on Windows): `state.json` (workspaces, panes, settings),
+  the memory, the statistics cache;
+- `~/.hangar/`: the endpoint file, the Claude Code bridge mod, kits;
 - your project folders, wherever they are.
 
-Run only one Hangar at a time: two would share `state.json` and the endpoint.
+Run only one Hangar at a time: two would share `state.json` and the endpoint. To try a
+change without touching your real data, `scripts/native-dev.sh` runs the app on data of its
+own under `target/dev-home/` (see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
-## Build
+## Build on Linux (Fedora)
+
+With Rust stable (and `rustup target add wasm32-unknown-unknown` for native kit tabs):
+
+```bash
+sudo dnf install gcc-c++ cmake clang-devel openssl-devel alsa-lib-devel webkit2gtk4.1-devel
+pnpm install && pnpm mobile:build      # optional (Node 22, pnpm 10): the phone app Hangar serves
+cargo build --profile dist --locked -p hangar-app
+cargo build --profile dist --locked -p hangar-webview --features engine
+./target/dist/hangar-ai
+```
+
+To make an `.rpm` instead, see the [packaging guide](docs/native/PACKAGING.md).
+
+## Build on Windows
 
 From Git Bash, with Rust, Visual Studio's C++ tools, Node and pnpm installed (cmake and
 libclang are found inside Visual Studio):
 
 ```bash
-scripts/fork/build.sh             # target/dist: the release profile upstream ships (slow, fat LTO)
+scripts/fork/build.sh             # target/dist: the release profile (slow, fat LTO)
 scripts/fork/build.sh --release   # target/release: much faster to build, for trying changes
 ```
 
-To try a change without touching your real Hangar, `scripts/native-dev.sh` runs it on data of
-its own under `target/dev-home/` (see CONTRIBUTING.md).
-
-## Install over the official app, and back
+### Install over the original app, and back
 
 Close Hangar, then from PowerShell:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\fork\install.ps1                # -BuildProfile release for a --release build
-powershell -ExecutionPolicy Bypass -File scripts\fork\restore-official.ps1       # back to the official exe
+powershell -ExecutionPolicy Bypass -File scripts\fork\restore-official.ps1       # back to the original exe
 ```
 
-`install.ps1` backs up the data folder to `backups\<time>\` and the official executables to
+`install.ps1` backs up the data folder to `backups\<time>\` and the original executables to
 `backups\official\` first. `backups\` is not committed (`.git/info/exclude`); `git clean -x`
 would delete it.
-
-## Taking upstream's changes
-
-```bash
-git fetch upstream --tags
-git merge upstream/main   # or a release tag, e.g. v2.4.2
-scripts/fork/build.sh
-```
-
-then close Hangar and run `install.ps1` again.

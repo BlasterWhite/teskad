@@ -16,9 +16,8 @@
 //!
 //! Where no navigator draws the brand (it is hidden, or the window is a
 //! workspace's own) and Hangar draws the title bar, the lead carries it before
-//! the workspace's name, so that `hangarai.dev` stays in view for whoever
-//! watches a stream. It takes what the rest of the bar leaves (`brand_room`),
-//! gives up its version, then its domain, as the bar narrows, and goes with its
+//! the workspace's name. It takes what the rest of the bar leaves
+//! (`brand_room`), gives up its version as the bar narrows, and goes with its
 //! name when even that does not fit, rather than push the trail out.
 //!
 //! Gap: iced 0.14's buttons take no keyboard focus, so the view switcher's
@@ -529,8 +528,8 @@ const BRAND_FRAME: f32 = 8.0 + 8.0 + 1.0 + 8.0;
 /// The room the brand has in the lead: the bar's `width` (what the window's
 /// buttons leave) less what the rest of it takes at the step it is in
 /// (`door` is the navigator's door). `title_bar::toolbar_brand` drops the
-/// version, then the domain, as that room runs short, and the whole brand
-/// when not even its name fits, so that it never pushes the trail out of the
+/// version as that room runs short, and the whole brand when not even its
+/// name fits, so that it never pushes the trail out of the
 /// window.
 fn brand_room(width: f32, ws: &Workspace, door: bool, steps: Steps) -> f32 {
     let views = if steps.icon_views {

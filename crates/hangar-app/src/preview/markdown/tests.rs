@@ -180,10 +180,10 @@ fn scrolls_to_a_heading_opens_the_web_outside_and_goes_nowhere_for_anything_else
         Rendered::anchor("#setting-up").as_deref(),
         Some("setting-up")
     );
-    assert_eq!(Rendered::anchor("https://hangarai.dev"), None);
+    assert_eq!(Rendered::anchor("https://example.com"), None);
     assert_eq!(
-        rendered.follow("https://hangarai.dev"),
-        Follow::Open("https://hangarai.dev".into())
+        rendered.follow("https://example.com"),
+        Follow::Open("https://example.com".into())
     );
     assert_eq!(
         rendered.follow("mailto:me@example.com"),

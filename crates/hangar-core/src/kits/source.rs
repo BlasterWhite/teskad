@@ -459,16 +459,16 @@ pub(crate) mod tests {
     #[test]
     fn github_links_in_every_shape() {
         for input in [
-            "https://github.com/simnJS/roblox-kit",
-            "https://github.com/simnJS/roblox-kit/",
-            "https://github.com/simnJS/roblox-kit.git",
-            "HTTPS://GitHub.com/simnJS/roblox-kit?tab=readme#top",
-            "  https://www.github.com/simnJS/roblox-kit  ",
+            "https://github.com/o/r",
+            "https://github.com/o/r/",
+            "https://github.com/o/r.git",
+            "HTTPS://GitHub.com/o/r?tab=readme#top",
+            "  https://www.github.com/o/r  ",
         ] {
             assert_eq!(
                 link(input),
                 Link {
-                    url: "https://github.com/simnJS/roblox-kit".into(),
+                    url: "https://github.com/o/r".into(),
                     tree: vec![]
                 },
                 "{input}"
@@ -556,13 +556,13 @@ pub(crate) mod tests {
 
     #[test]
     fn a_link_of_the_catalog_is_a_tag_with_no_folder_and_pins_the_kit() {
-        let parsed = link("https://github.com/hangar-ai/ci-status/tree/v0.2.0");
+        let parsed = link("https://github.com/o/r/tree/v0.2.0");
         let refs = remote(&["main"], &["v0.1.0", "v0.2.0"]);
         let source = source_of(parsed, &refs).unwrap();
         assert_eq!(
             source,
             GitSource {
-                url: "https://github.com/hangar-ai/ci-status".into(),
+                url: "https://github.com/o/r".into(),
                 git_ref: Some("refs/tags/v0.2.0".into()),
                 subdir: None,
             }

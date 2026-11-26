@@ -32,7 +32,7 @@ mkdir "$WORK/home"
 echo "fetch-schema: installing codex $VERSION into a throwaway prefix…" >&2
 npm install --ignore-scripts --no-audit --no-fund --prefix "$WORK/npm" "@openai/codex@$VERSION" >&2
 codex="$WORK/npm/node_modules/.bin/codex"
-CODEX_HOME="$WORK/home" "$codex" app-server generate-json-schema "${FLAGS[@]}" --out "$OUT" >&2
+CODEX_HOME="$WORK/home" "$codex" app-server generate-json-schema ${FLAGS[@]+"${FLAGS[@]}"} --out "$OUT" >&2
 CODEX_HOME="$WORK/home" "$codex" --version > "$OUT/codex-version.txt"
 if [ "$(cat "$OUT/codex-version.txt")" != "codex-cli $VERSION" ]; then
   echo "fetch-schema: the installed codex answered $(cat "$OUT/codex-version.txt"), not codex-cli $VERSION" >&2

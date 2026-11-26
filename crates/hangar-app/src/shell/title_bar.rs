@@ -39,13 +39,11 @@
 //! desktop that draws one in its own colours (KDE's, a tiling window
 //! manager's), or on Windows the plain one. macOS keeps its own.
 //!
-//! The band always says where the software lives: its name, `hangarai.dev`
-//! (a link, in the secondary colour) and its version ([`brand`]), so that
-//! whoever watches a stream finds the site. The version goes first when the
-//! room runs short, then the domain ([`Brand::fit`]). It is at the navigator's
-//! top, and at the toolbar's lead where the navigator is not drawn (hidden, or
-//! a workspace's own window: [`toolbar_brand`]); with the system's title bar
-//! the window's own title carries it ([`window_title`]).
+//! The band says what runs: the software's name and its version ([`brand`]).
+//! The version goes when the room runs short ([`Brand::fit`]). It is at the
+//! navigator's top, and at the toolbar's lead where the navigator is not
+//! drawn (hidden, or a workspace's own window: [`toolbar_brand`]); with the
+//! system's title bar the window's own title carries both ([`window_title`]).
 
 use std::collections::HashSet;
 use std::sync::OnceLock;
@@ -161,8 +159,6 @@ pub enum Press {
     Control(Control),
     /// On an edge or a corner, to resize from it.
     Edge(Direction),
-    /// On the domain: it opens the site in the browser ([`SITE_URL`]).
-    Site,
 }
 
 /// Two presses closer than this are a double press (GTK's default).
@@ -501,18 +497,14 @@ pub fn bare_band<'a>(ctx: Ctx<'a>) -> Option<Element<'a, Message>> {
 /// and the installers keep their own names: those are not read, they are
 /// found by installs and by agents' configurations.
 pub const NAME: &str = "HangarAI";
-/// The site, which the title bar always shows.
-pub const DOMAIN: &str = "hangarai.dev";
-/// What a press on [`DOMAIN`] opens.
-pub const SITE_URL: &str = "https://hangarai.dev";
 
 /// A window's own title, as the taskbar and the window list show it, and as
-/// the system's title bar draws it: with that bar, the domain follows the
-/// name; when Hangar draws the bar, [`brand`] shows the domain there.
+/// the system's title bar draws it: with that bar, the version follows the
+/// name; when Hangar draws the bar, [`brand`] shows the version there.
 /// `workspace` is the name of the workspace a detached window holds.
 pub fn window_title(workspace: Option<&str>, system_bar: bool) -> String {
     let name = if system_bar {
-        format!("{NAME} — {DOMAIN}")
+        format!("{NAME} {VERSION}")
     } else {
         NAME.to_string()
     };
@@ -523,54 +515,31 @@ pub fn window_title(workspace: Option<&str>, system_bar: bool) -> String {
 }
 
 /// How wide the parts of [`brand`] are, in logical pixels, at the sizes they
-/// are set in: Inter semibold 13.5 for the name (61.2), Inter 11.5 for the
-/// domain (70.7), the system's mono 11.5 for the version (a character is
-/// about 6.9), each rounded up, and the gap between two.
+/// are set in: Inter semibold 13.5 for the name (61.2), the system's mono
+/// 11.5 for the version (a character is about 6.9), each rounded up, and the
+/// gap between the two.
 const NAME_WIDTH: f32 = 62.0;
-const DOMAIN_WIDTH: f32 = 71.0;
 const VERSION_CHAR: f32 = 7.0;
 const BRAND_GAP: f32 = 6.0;
 
-/// What of the name, the domain and the version the room left for them shows.
+/// What of the brand, beside the name, the room left for it shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Brand {
-    pub domain: bool,
     pub version: bool,
 }
 
 impl Brand {
-    /// The name is always there. The domain is what the band is for, so it
-    /// outlives the version, and goes before the name when the room runs
-    /// short; the version, still a hover away on the name, goes first.
+    /// The name is always there. The version, still a hover away on the name,
+    /// goes when the room runs short.
     pub fn fit(room: f32, version: &str) -> Brand {
-        let domain = BRAND_GAP + DOMAIN_WIDTH;
         let version_room = BRAND_GAP + version.chars().count() as f32 * VERSION_CHAR;
-        let fits = |parts: f32| room >= NAME_WIDTH + parts;
-        if fits(domain + version_room) {
-            Brand {
-                domain: true,
-                version: true,
-            }
-        } else if fits(domain) {
-            Brand {
-                domain: true,
-                version: false,
-            }
-        } else if fits(version_room) {
-            Brand {
-                domain: false,
-                version: true,
-            }
-        } else {
-            Brand {
-                domain: false,
-                version: false,
-            }
+        Brand {
+            version: room >= NAME_WIDTH + version_room,
         }
     }
 }
 
-/// The name, then the domain (a link), then the version, in the room the
+/// The name, then the version, in the room the
 /// parent leaves: it takes all of it, which is the band's give.
 pub fn brand<'a>(ctx: Ctx<'a>) -> Element<'a, Message> {
     responsive(move |size| brand_in(ctx, VERSION, size.width)).into()
@@ -590,9 +559,8 @@ pub fn toolbar_shows_brand(ctx: Ctx<'_>) -> bool {
 /// parts as [`brand`], but a row of its own size rather than one that fills
 /// what the parent leaves (the lead shrinks to its content, so the toolbar
 /// says how much `room` it has for the brand). As in [`brand`], the version
-/// goes first when that runs short, then the domain, and the name stays; when
-/// there is no room even for the name the toolbar keeps its controls, and
-/// nothing is drawn.
+/// goes when that runs short, and the name stays; when there is no room even
+/// for the name the toolbar keeps its controls, and nothing is drawn.
 pub fn toolbar_brand<'a>(ctx: Ctx<'a>, room: f32) -> Option<Element<'a, Message>> {
     (toolbar_shows_brand(ctx) && room >= NAME_WIDTH)
         .then(|| brand_parts(ctx, VERSION, Brand::fit(room, VERSION)).into())
@@ -618,9 +586,6 @@ fn brand_parts<'a>(ctx: Ctx<'a>, version: &'static str, shown: Brand) -> Row<'a,
             .into_owned(),
     );
     let mut parts = row![name].spacing(BRAND_GAP).align_y(Alignment::Center);
-    if shown.domain {
-        parts = parts.push(site_link(ctx));
-    }
     if shown.version {
         parts = parts.push(
             text(version)
@@ -631,32 +596,6 @@ fn brand_parts<'a>(ctx: Ctx<'a>, version: &'static str, shown: Brand) -> Row<'a,
         );
     }
     parts
-}
-
-/// The domain in the secondary text colour, in the text colour under the
-/// pointer, a press on it opening the site.
-fn site_link<'a>(ctx: Ctx<'a>) -> Element<'a, Message> {
-    let t = ctx.theme;
-    let link = button(
-        text(DOMAIN)
-            .size(font_size::MICRO)
-            .wrapping(text::Wrapping::None),
-    )
-    .padding(0)
-    .style(move |_: &iced::Theme, status| {
-        let c = &t.colors;
-        button::Style {
-            background: None,
-            text_color: match status {
-                button::Status::Hovered | button::Status::Pressed => c.fg,
-                _ => c.fg_muted,
-            },
-            border: Border::default(),
-            ..button::Style::default()
-        }
-    })
-    .on_press(press(ctx.window, Press::Site));
-    tip::bottom(t, link, ctx.t(Key::TitleBarSite).into_owned())
 }
 
 /// How far in from the window's edge a press resizes it, and how far along
@@ -833,7 +772,7 @@ pub fn outline<'a>(ctx: Ctx<'a>, frame: Element<'a, Message>) -> Element<'a, Mes
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::workspace_dialog::testing::{Harness, messages};
+    use crate::workspace_dialog::testing::Harness;
     use hangar_i18n::Locale;
 
     #[test]
@@ -923,86 +862,47 @@ mod tests {
     }
 
     #[test]
-    fn with_the_systems_title_bar_the_window_title_carries_the_domain() {
-        assert_eq!(window_title(None, true), "HangarAI — hangarai.dev");
+    fn with_the_systems_title_bar_the_window_title_carries_the_version() {
+        assert_eq!(window_title(None, true), format!("HangarAI {VERSION}"));
         assert_eq!(
             window_title(Some("shop"), true),
-            "shop — HangarAI — hangarai.dev"
+            format!("shop — HangarAI {VERSION}")
         );
-        // Hangar's own band shows the domain: the window's title is the name.
+        // Hangar's own band shows the version: the window's title is the name.
         assert_eq!(window_title(None, false), "HangarAI");
         assert_eq!(window_title(Some("shop"), false), "shop — HangarAI");
     }
 
     #[test]
-    fn the_site_the_band_links_to_is_the_domain_it_shows() {
-        assert_eq!(SITE_URL, format!("https://{DOMAIN}"));
+    fn the_version_goes_when_the_room_runs_short_and_the_name_never() {
+        assert_eq!(Brand::fit(400.0, "2.4.4"), Brand { version: true });
+        assert_eq!(Brand::fit(103.0, "2.4.4"), Brand { version: true });
+        assert_eq!(Brand::fit(102.0, "2.4.4"), Brand { version: false });
+        assert_eq!(Brand::fit(0.0, "2.4.4"), Brand { version: false });
     }
 
     #[test]
-    fn the_version_goes_first_then_the_domain_and_the_name_never() {
-        let both = Brand {
-            domain: true,
-            version: true,
-        };
-        let neither = Brand {
-            domain: false,
-            version: false,
-        };
-        assert_eq!(Brand::fit(400.0, "2.4.4"), both);
-        assert_eq!(
-            Brand::fit(150.0, "2.4.4"),
-            Brand {
-                domain: true,
-                version: false
-            }
-        );
-        assert_eq!(
-            Brand::fit(120.0, "2.4.4"),
-            Brand {
-                domain: false,
-                version: true
-            }
-        );
-        assert_eq!(Brand::fit(80.0, "2.4.4"), neither);
-        assert_eq!(Brand::fit(0.0, "2.4.4"), neither);
-    }
-
-    #[test]
-    fn the_domain_fits_the_navigators_top_beside_the_name() {
+    fn the_version_fits_the_navigators_top_beside_the_name() {
         // What the navigator leaves the brand: its width, less the row's
         // padding (16 and 10), the mark (15), the hide button (up to 28) and
         // the two gaps (7) between the three.
         let room = tokens::size::SIDEBAR_WIDTH - 26.0 - 15.0 - 28.0 - 14.0;
-        assert!(Brand::fit(room, env!("CARGO_PKG_VERSION")).domain);
+        assert!(Brand::fit(room, VERSION).version);
     }
 
     #[test]
-    fn the_title_bar_shows_the_name_the_domain_and_the_version() {
+    fn the_title_bar_shows_the_name_and_the_version() {
         let h = Harness::new(Locale::En, "graphite");
         let mut ui = h.show(container(brand(h.ctx())).width(400));
         assert!(ui.find(NAME).is_ok());
-        assert!(ui.find(DOMAIN).is_ok());
-        assert!(ui.find(env!("CARGO_PKG_VERSION")).is_ok());
+        assert!(ui.find(VERSION).is_ok());
     }
 
     #[test]
-    fn a_press_on_the_domain_asks_for_the_site() {
-        let h = Harness::new(Locale::En, "graphite");
-        let mut ui = h.show(container(brand(h.ctx())).width(400));
-        ui.click(DOMAIN).expect("the domain is drawn");
-        assert!(
-            messages(ui)
-                .iter()
-                .any(|message| matches!(message, Message::Shell(Action::TitleBar(_, Press::Site))))
-        );
-    }
-
-    #[test]
-    fn with_no_room_left_the_name_stays_and_the_domain_goes() {
+    fn with_no_room_left_the_name_stays_and_the_version_goes() {
         let h = Harness::new(Locale::En, "graphite");
         let mut ui = h.show(container(brand(h.ctx())).width(80));
         assert!(ui.find(NAME).is_ok());
-        assert!(ui.find(DOMAIN).is_err());
+        assert!(ui.find(VERSION).is_err());
     }
 }

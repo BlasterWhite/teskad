@@ -4,8 +4,7 @@
 // (subset.json), into crates/hangar-core/src/codex_app/generated.rs. How and when: README.md.
 //
 //   node scripts/codex-protocol/generate.mjs --schema <dir>   a folder `generate-json-schema --out`
-//                                                             wrote (fetch-schema.sh brings one back
-//                                                             from the build machine)
+//                                                             wrote (fetch-schema.sh makes one)
 //   node scripts/codex-protocol/generate.mjs --codex <path>   runs that codex binary itself (never on
 //                                                             the person's PC: Codex is not installed there)
 //   node scripts/codex-protocol/generate.mjs                  the Rust again from schema.subset.json
