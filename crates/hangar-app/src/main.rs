@@ -23,7 +23,6 @@ mod control;
 mod discord;
 mod git_flow;
 mod git_ui;
-mod hangar_account;
 mod inspector;
 mod keymap;
 mod kit_tabs;

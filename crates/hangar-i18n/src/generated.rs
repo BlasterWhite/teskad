@@ -1212,90 +1212,6 @@ pub enum Key {
     GridResizeColumns,
     /// `grid.resizeRows`
     GridResizeRows,
-    /// `hangarAccount.cancel`
-    HangarAccountCancel,
-    /// `hangarAccount.deleteBody`
-    HangarAccountDeleteBody,
-    /// `hangarAccount.deleteConfirm`
-    HangarAccountDeleteConfirm,
-    /// `hangarAccount.deleteTitle`
-    HangarAccountDeleteTitle,
-    /// `hangarAccount.deleteType`
-    HangarAccountDeleteType,
-    /// `hangarAccount.deleteWord`
-    HangarAccountDeleteWord,
-    /// `hangarAccount.errBusy`
-    HangarAccountErrBusy,
-    /// `hangarAccount.errDenied`
-    HangarAccountErrDenied,
-    /// `hangarAccount.errKeychain`
-    HangarAccountErrKeychain,
-    /// `hangarAccount.errOther`
-    HangarAccountErrOther,
-    /// `hangarAccount.errProvider`
-    HangarAccountErrProvider,
-    /// `hangarAccount.errSignedOut`
-    HangarAccountErrSignedOut,
-    /// `hangarAccount.errTimedOut`
-    HangarAccountErrTimedOut,
-    /// `hangarAccount.errUnreachable`
-    HangarAccountErrUnreachable,
-    /// `hangarAccount.intro`
-    HangarAccountIntro,
-    /// `hangarAccount.lastSeen`
-    HangarAccountLastSeen,
-    /// `hangarAccount.lastSync`
-    HangarAccountLastSync,
-    /// `hangarAccount.leavesBody`
-    HangarAccountLeavesBody,
-    /// `hangarAccount.leavesTitle`
-    HangarAccountLeavesTitle,
-    /// `hangarAccount.machineSignedOut`
-    HangarAccountMachineSignedOut,
-    /// `hangarAccount.machinesLoading`
-    HangarAccountMachinesLoading,
-    /// `hangarAccount.machinesTitle`
-    HangarAccountMachinesTitle,
-    /// `hangarAccount.neverSynced`
-    HangarAccountNeverSynced,
-    /// `hangarAccount.privacy`
-    HangarAccountPrivacy,
-    /// `hangarAccount.remove`
-    HangarAccountRemove,
-    /// `hangarAccount.removeAsk`
-    HangarAccountRemoveAsk,
-    /// `hangarAccount.removeBody`
-    HangarAccountRemoveBody,
-    /// `hangarAccount.removeConfirm`
-    HangarAccountRemoveConfirm,
-    /// `hangarAccount.rename`
-    HangarAccountRename,
-    /// `hangarAccount.renameSave`
-    HangarAccountRenameSave,
-    /// `hangarAccount.signInGithub`
-    HangarAccountSignInGithub,
-    /// `hangarAccount.signOut`
-    HangarAccountSignOut,
-    /// `hangarAccount.signOutHint`
-    HangarAccountSignOutHint,
-    /// `hangarAccount.signedInAs`
-    HangarAccountSignedInAs,
-    /// `hangarAccount.syncHint`
-    HangarAccountSyncHint,
-    /// `hangarAccount.syncNow`
-    HangarAccountSyncNow,
-    /// `hangarAccount.syncTitle`
-    HangarAccountSyncTitle,
-    /// `hangarAccount.syncing`
-    HangarAccountSyncing,
-    /// `hangarAccount.thisPc`
-    HangarAccountThisPc,
-    /// `hangarAccount.title`
-    HangarAccountTitle,
-    /// `hangarAccount.waiting`
-    HangarAccountWaiting,
-    /// `hangarAccount.waitingHint`
-    HangarAccountWaitingHint,
     /// `hibernate.notice`
     HibernateNotice,
     /// `hibernate.noticeMany`
@@ -3536,8 +3452,6 @@ pub enum Key {
     SettingsCatExperimental,
     /// `settings.catGeneral`
     SettingsCatGeneral,
-    /// `settings.catHangarAccount`
-    SettingsCatHangarAccount,
     /// `settings.catMobile`
     SettingsCatMobile,
     /// `settings.catNodes`
@@ -4060,36 +3974,8 @@ pub enum Key {
     StateSaveHeld,
     /// `stats.agentsTitle`
     StatsAgentsTitle,
-    /// `stats.allActive`
-    StatsAllActive,
-    /// `stats.allByDay`
-    StatsAllByDay,
-    /// `stats.allByMachine`
-    StatsAllByMachine,
-    /// `stats.allByModel`
-    StatsAllByModel,
-    /// `stats.allByProject`
-    StatsAllByProject,
-    /// `stats.allCost`
-    StatsAllCost,
-    /// `stats.allDay`
-    StatsAllDay,
-    /// `stats.allEmpty`
-    StatsAllEmpty,
-    /// `stats.allMachine`
-    StatsAllMachine,
-    /// `stats.allModel`
-    StatsAllModel,
-    /// `stats.allNoProject`
-    StatsAllNoProject,
-    /// `stats.allProject`
-    StatsAllProject,
     /// `stats.allProjects`
     StatsAllProjects,
-    /// `stats.allSynced`
-    StatsAllSynced,
-    /// `stats.allTokens`
-    StatsAllTokens,
     /// `stats.chartKeys`
     StatsChartKeys,
     /// `stats.clearProject`
@@ -4226,14 +4112,6 @@ pub enum Key {
     StatsRefreshing,
     /// `stats.retry`
     StatsRetry,
-    /// `stats.scope.all`
-    StatsScopeAll,
-    /// `stats.scope.thisPc`
-    StatsScopeThisPc,
-    /// `stats.scopeHint.all`
-    StatsScopeHintAll,
-    /// `stats.scopeHint.thisPc`
-    StatsScopeHintThisPc,
     /// `stats.sessionActive`
     StatsSessionActive,
     /// `stats.sessions`
@@ -5357,48 +5235,6 @@ impl Key {
         Key::GitConsentWarning,
         Key::GridResizeColumns,
         Key::GridResizeRows,
-        Key::HangarAccountCancel,
-        Key::HangarAccountDeleteBody,
-        Key::HangarAccountDeleteConfirm,
-        Key::HangarAccountDeleteTitle,
-        Key::HangarAccountDeleteType,
-        Key::HangarAccountDeleteWord,
-        Key::HangarAccountErrBusy,
-        Key::HangarAccountErrDenied,
-        Key::HangarAccountErrKeychain,
-        Key::HangarAccountErrOther,
-        Key::HangarAccountErrProvider,
-        Key::HangarAccountErrSignedOut,
-        Key::HangarAccountErrTimedOut,
-        Key::HangarAccountErrUnreachable,
-        Key::HangarAccountIntro,
-        Key::HangarAccountLastSeen,
-        Key::HangarAccountLastSync,
-        Key::HangarAccountLeavesBody,
-        Key::HangarAccountLeavesTitle,
-        Key::HangarAccountMachineSignedOut,
-        Key::HangarAccountMachinesLoading,
-        Key::HangarAccountMachinesTitle,
-        Key::HangarAccountNeverSynced,
-        Key::HangarAccountPrivacy,
-        Key::HangarAccountRemove,
-        Key::HangarAccountRemoveAsk,
-        Key::HangarAccountRemoveBody,
-        Key::HangarAccountRemoveConfirm,
-        Key::HangarAccountRename,
-        Key::HangarAccountRenameSave,
-        Key::HangarAccountSignInGithub,
-        Key::HangarAccountSignOut,
-        Key::HangarAccountSignOutHint,
-        Key::HangarAccountSignedInAs,
-        Key::HangarAccountSyncHint,
-        Key::HangarAccountSyncNow,
-        Key::HangarAccountSyncTitle,
-        Key::HangarAccountSyncing,
-        Key::HangarAccountThisPc,
-        Key::HangarAccountTitle,
-        Key::HangarAccountWaiting,
-        Key::HangarAccountWaitingHint,
         Key::HibernateNotice,
         Key::HibernateNoticeMany,
         Key::HibernateNoticeNoAgent,
@@ -6519,7 +6355,6 @@ impl Key {
         Key::SettingsCatDiscord,
         Key::SettingsCatExperimental,
         Key::SettingsCatGeneral,
-        Key::SettingsCatHangarAccount,
         Key::SettingsCatMobile,
         Key::SettingsCatNodes,
         Key::SettingsCatNotifications,
@@ -6781,21 +6616,7 @@ impl Key {
         Key::StateLoadKept,
         Key::StateSaveHeld,
         Key::StatsAgentsTitle,
-        Key::StatsAllActive,
-        Key::StatsAllByDay,
-        Key::StatsAllByMachine,
-        Key::StatsAllByModel,
-        Key::StatsAllByProject,
-        Key::StatsAllCost,
-        Key::StatsAllDay,
-        Key::StatsAllEmpty,
-        Key::StatsAllMachine,
-        Key::StatsAllModel,
-        Key::StatsAllNoProject,
-        Key::StatsAllProject,
         Key::StatsAllProjects,
-        Key::StatsAllSynced,
-        Key::StatsAllTokens,
         Key::StatsChartKeys,
         Key::StatsClearProject,
         Key::StatsColDay,
@@ -6864,10 +6685,6 @@ impl Key {
         Key::StatsRefresh,
         Key::StatsRefreshing,
         Key::StatsRetry,
-        Key::StatsScopeAll,
-        Key::StatsScopeThisPc,
-        Key::StatsScopeHintAll,
-        Key::StatsScopeHintThisPc,
         Key::StatsSessionActive,
         Key::StatsSessions,
         Key::StatsSessionsHint,
@@ -7729,48 +7546,6 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "gitConsent.warning", en: Text::plain("Installing its dependencies runs its code on this machine. Its orchestrator tells you what the install would run before it installs anything."), fr: Text::plain("Installer ses dépendances exécute son code sur cette machine. Son orchestrateur te dit ce que l'installation exécuterait avant d'installer quoi que ce soit.") },
     Message { id: "grid.resizeColumns", en: Text::plain("Resize {before} ↔ {after}"), fr: Text::plain("Redimensionner {before} ↔ {after}") },
     Message { id: "grid.resizeRows", en: Text::plain("Resize {before} ↕ {after}"), fr: Text::plain("Redimensionner {before} ↕ {after}") },
-    Message { id: "hangarAccount.cancel", en: Text::plain("Cancel"), fr: Text::plain("Annuler") },
-    Message { id: "hangarAccount.deleteBody", en: Text::plain("Deletes your account and everything it holds on the server, machines and statistics, at once, then signs this PC out. This cannot be undone. Nothing on this PC is deleted."), fr: Text::plain("Supprime ton compte et tout ce qu’il contient sur le serveur, machines et statistiques, d’un seul coup, puis déconnecte ce PC. C’est irréversible. Rien n’est supprimé sur ce PC.") },
-    Message { id: "hangarAccount.deleteConfirm", en: Text::plain("Delete my account for good"), fr: Text::plain("Supprimer mon compte définitivement") },
-    Message { id: "hangarAccount.deleteTitle", en: Text::plain("Delete my account"), fr: Text::plain("Supprimer mon compte") },
-    Message { id: "hangarAccount.deleteType", en: Text::plain("Type {word} to confirm"), fr: Text::plain("Tape {word} pour confirmer") },
-    Message { id: "hangarAccount.deleteWord", en: Text::plain("DELETE"), fr: Text::plain("SUPPRIMER") },
-    Message { id: "hangarAccount.errBusy", en: Text::plain("The server asks for a little patience. Hangar will try again soon."), fr: Text::plain("Le serveur demande un peu de patience. Hangar réessaiera bientôt.") },
-    Message { id: "hangarAccount.errDenied", en: Text::plain("The sign-in was refused on GitHub’s page."), fr: Text::plain("La connexion a été refusée sur la page de GitHub.") },
-    Message { id: "hangarAccount.errKeychain", en: Text::plain("Your system’s keychain did not answer, so Hangar cannot keep the sign-in: {detail}"), fr: Text::plain("Le trousseau de ton système n’a pas répondu, Hangar ne peut donc pas garder la connexion\u{202f}: {detail}") },
-    Message { id: "hangarAccount.errOther", en: Text::plain("Something went wrong: {detail}"), fr: Text::plain("Quelque chose s’est mal passé\u{202f}: {detail}") },
-    Message { id: "hangarAccount.errProvider", en: Text::plain("GitHub could not sign you in. Try again in a moment."), fr: Text::plain("GitHub n’a pas pu te connecter. Réessaie dans un instant.") },
-    Message { id: "hangarAccount.errSignedOut", en: Text::plain("This PC was signed out of your Hangar account, from another machine or because the account was deleted. Sign in again to link it."), fr: Text::plain("Ce PC a été déconnecté de ton compte Hangar, depuis une autre machine ou parce que le compte a été supprimé. Reconnecte-toi pour le relier.") },
-    Message { id: "hangarAccount.errTimedOut", en: Text::plain("Nobody came back from the browser in time. Try again."), fr: Text::plain("Personne n’est revenu du navigateur à temps. Réessaie.") },
-    Message { id: "hangarAccount.errUnreachable", en: Text::plain("The Hangar account server could not be reached. Check your connection; Hangar will try again later."), fr: Text::plain("Impossible de joindre le serveur du compte Hangar. Vérifie ta connexion\u{202f}; Hangar réessaiera plus tard.") },
-    Message { id: "hangarAccount.intro", en: Text::plain("An optional Hangar account links your machines, so you can read your statistics from any of them. Hangar works the same without one, and nothing leaves this PC until you sign in."), fr: Text::plain("Un compte Hangar, facultatif, relie tes machines pour que tu puisses lire tes statistiques depuis n’importe laquelle. Hangar fonctionne pareil sans, et rien ne quitte ce PC tant que tu ne te connectes pas.") },
-    Message { id: "hangarAccount.lastSeen", en: Text::plain("Last seen {time}"), fr: Text::plain("Vue pour la dernière fois {time}") },
-    Message { id: "hangarAccount.lastSync", en: Text::plain("Last sync: {time}"), fr: Text::plain("Dernière synchronisation\u{202f}: {time}") },
-    Message { id: "hangarAccount.leavesBody", en: Text::plain("Only while the switch above is on: totals per machine, day, model and project name, as tokens, active time and cost. Never a folder path, a prompt, an answer or any code."), fr: Text::plain("Seulement quand l’interrupteur ci-dessus est activé\u{202f}: des totaux par machine, jour, modèle et nom de projet, en tokens, temps actif et coût. Jamais un chemin de dossier, un prompt, une réponse ni du code.") },
-    Message { id: "hangarAccount.leavesTitle", en: Text::plain("What leaves this PC"), fr: Text::plain("Ce qui quitte ce PC") },
-    Message { id: "hangarAccount.machineSignedOut", en: Text::plain("Signed out"), fr: Text::plain("Déconnectée") },
-    Message { id: "hangarAccount.machinesLoading", en: Text::plain("Loading your machines…"), fr: Text::plain("Chargement de tes machines…") },
-    Message { id: "hangarAccount.machinesTitle", en: Text::plain("Your machines"), fr: Text::plain("Tes machines") },
-    Message { id: "hangarAccount.neverSynced", en: Text::plain("Not synced yet"), fr: Text::plain("Pas encore synchronisé") },
-    Message { id: "hangarAccount.privacy", en: Text::plain("Read the privacy page"), fr: Text::plain("Lire la page de confidentialité") },
-    Message { id: "hangarAccount.remove", en: Text::plain("Remove"), fr: Text::plain("Retirer") },
-    Message { id: "hangarAccount.removeAsk", en: Text::plain("Remove {name} from your account?"), fr: Text::plain("Retirer {name} de ton compte\u{202f}?") },
-    Message { id: "hangarAccount.removeBody", en: Text::plain("Its statistics are deleted from the account. The machine itself is not touched, and can be linked again by signing in on it."), fr: Text::plain("Ses statistiques sont supprimées du compte. La machine elle-même n’est pas touchée, et tu peux la relier en te reconnectant dessus.") },
-    Message { id: "hangarAccount.removeConfirm", en: Text::plain("Remove machine"), fr: Text::plain("Retirer la machine") },
-    Message { id: "hangarAccount.rename", en: Text::plain("Rename"), fr: Text::plain("Renommer") },
-    Message { id: "hangarAccount.renameSave", en: Text::plain("Save"), fr: Text::plain("Enregistrer") },
-    Message { id: "hangarAccount.signInGithub", en: Text::plain("Sign in with GitHub"), fr: Text::plain("Se connecter avec GitHub") },
-    Message { id: "hangarAccount.signOut", en: Text::plain("Sign out"), fr: Text::plain("Se déconnecter") },
-    Message { id: "hangarAccount.signOutHint", en: Text::plain("Signs this PC out of your account. Its statistics stay on the account."), fr: Text::plain("Déconnecte ce PC de ton compte. Ses statistiques restent sur le compte.") },
-    Message { id: "hangarAccount.signedInAs", en: Text::plain("Signed in as {name}"), fr: Text::plain("Connecté en tant que {name}") },
-    Message { id: "hangarAccount.syncHint", en: Text::plain("Off until you turn it on. Sends the totals described below every 15 minutes, and lets Statistics show all your machines."), fr: Text::plain("Désactivé tant que tu ne l’actives pas. Envoie les totaux décrits plus bas toutes les 15 minutes, et permet aux statistiques d’afficher toutes tes machines.") },
-    Message { id: "hangarAccount.syncNow", en: Text::plain("Sync now"), fr: Text::plain("Synchroniser maintenant") },
-    Message { id: "hangarAccount.syncTitle", en: Text::plain("Sync statistics"), fr: Text::plain("Synchroniser les statistiques") },
-    Message { id: "hangarAccount.syncing", en: Text::plain("Syncing…"), fr: Text::plain("Synchronisation…") },
-    Message { id: "hangarAccount.thisPc", en: Text::plain("This PC"), fr: Text::plain("Ce PC") },
-    Message { id: "hangarAccount.title", en: Text::plain("Hangar account"), fr: Text::plain("Compte Hangar") },
-    Message { id: "hangarAccount.waiting", en: Text::plain("Waiting for the browser…"), fr: Text::plain("En attente du navigateur…") },
-    Message { id: "hangarAccount.waitingHint", en: Text::plain("Finish signing in on the page that just opened in your browser."), fr: Text::plain("Termine la connexion sur la page qui vient de s’ouvrir dans ton navigateur.") },
     Message { id: "hibernate.notice", en: Text::plural("{name} put to sleep ({n} agent stopped)", "{name} put to sleep ({n} agents stopped)"), fr: Text::plural("{name} mis en veille ({n} agent arrêté)", "{name} mis en veille ({n} agents arrêtés)") },
     Message { id: "hibernate.noticeMany", en: Text::plain("{count} workspaces put to sleep ({n} agents stopped)"), fr: Text::plain("{count} workspaces mis en veille ({n} agents arrêtés)") },
     Message { id: "hibernate.noticeNoAgent", en: Text::plain("{name} put to sleep (no agent to stop)"), fr: Text::plain("{name} mis en veille (aucun agent à arrêter)") },
@@ -8891,7 +8666,6 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "settings.catDiscord", en: Text::plain("Discord"), fr: Text::plain("Discord") },
     Message { id: "settings.catExperimental", en: Text::plain("Experimental"), fr: Text::plain("Expérimental") },
     Message { id: "settings.catGeneral", en: Text::plain("General"), fr: Text::plain("Général") },
-    Message { id: "settings.catHangarAccount", en: Text::plain("Hangar account"), fr: Text::plain("Compte Hangar") },
     Message { id: "settings.catMobile", en: Text::plain("Mobile"), fr: Text::plain("Mobile") },
     Message { id: "settings.catNodes", en: Text::plain("Nodes"), fr: Text::plain("Nœuds") },
     Message { id: "settings.catNotifications", en: Text::plain("Notifications"), fr: Text::plain("Notifications") },
@@ -9153,21 +8927,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "state.loadKept", en: Text::plain("Could not read state.json ({error}). It is kept as {path}, and HangarAI starts empty."), fr: Text::plain("Impossible de lire state.json ({error}). Il est conservé sous {path}, et HangarAI démarre à vide.") },
     Message { id: "state.saveHeld", en: Text::plain("Not saved, so that the unreadable state.json stays as it is: {error}"), fr: Text::plain("Non enregistré, pour que le state.json illisible reste tel quel\u{202f}: {error}") },
     Message { id: "stats.agentsTitle", en: Text::plain("By agent"), fr: Text::plain("Par agent") },
-    Message { id: "stats.allActive", en: Text::plain("Active time"), fr: Text::plain("Temps actif") },
-    Message { id: "stats.allByDay", en: Text::plain("By day"), fr: Text::plain("Par jour") },
-    Message { id: "stats.allByMachine", en: Text::plain("By machine"), fr: Text::plain("Par machine") },
-    Message { id: "stats.allByModel", en: Text::plain("By model"), fr: Text::plain("Par modèle") },
-    Message { id: "stats.allByProject", en: Text::plain("By project"), fr: Text::plain("Par projet") },
-    Message { id: "stats.allCost", en: Text::plain("Cost"), fr: Text::plain("Coût") },
-    Message { id: "stats.allDay", en: Text::plain("Day"), fr: Text::plain("Jour") },
-    Message { id: "stats.allEmpty", en: Text::plain("No synced statistics for this period yet."), fr: Text::plain("Pas encore de statistiques synchronisées pour cette période.") },
-    Message { id: "stats.allMachine", en: Text::plain("Machine"), fr: Text::plain("Machine") },
-    Message { id: "stats.allModel", en: Text::plain("Model"), fr: Text::plain("Modèle") },
-    Message { id: "stats.allNoProject", en: Text::plain("(no project)"), fr: Text::plain("(sans projet)") },
-    Message { id: "stats.allProject", en: Text::plain("Project"), fr: Text::plain("Projet") },
     Message { id: "stats.allProjects", en: Text::plain("All projects"), fr: Text::plain("Tous les projets") },
-    Message { id: "stats.allSynced", en: Text::plain("Synced {time}"), fr: Text::plain("Synchronisé {time}") },
-    Message { id: "stats.allTokens", en: Text::plain("Tokens"), fr: Text::plain("Tokens") },
     Message { id: "stats.chartKeys", en: Text::plain("Arrow keys move from one column to the next"), fr: Text::plain("Les flèches passent d'une colonne à l'autre") },
     Message { id: "stats.clearProject", en: Text::plain("Show every project"), fr: Text::plain("Afficher tous les projets") },
     Message { id: "stats.colDay", en: Text::plain("Day"), fr: Text::plain("Jour") },
@@ -9236,10 +8996,6 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "stats.refresh", en: Text::plain("Read the transcripts again"), fr: Text::plain("Relire les transcripts") },
     Message { id: "stats.refreshing", en: Text::plain("Reading transcripts…"), fr: Text::plain("Lecture des transcripts…") },
     Message { id: "stats.retry", en: Text::plain("Try again"), fr: Text::plain("Réessayer") },
-    Message { id: "stats.scope.all", en: Text::plain("All machines"), fr: Text::plain("Toutes les machines") },
-    Message { id: "stats.scope.thisPc", en: Text::plain("This PC"), fr: Text::plain("Ce PC") },
-    Message { id: "stats.scopeHint.all", en: Text::plain("Every machine linked to your Hangar account, as last synced"), fr: Text::plain("Toutes les machines liées à ton compte Hangar, telles que synchronisées") },
-    Message { id: "stats.scopeHint.thisPc", en: Text::plain("Only what this PC read from its own transcripts"), fr: Text::plain("Seulement ce que ce PC a lu dans ses propres transcripts") },
     Message { id: "stats.sessionActive", en: Text::plain("{value} active"), fr: Text::plain("{value}\u{a0}d'activité") },
     Message { id: "stats.sessions", en: Text::plural("{n} session", "{n} sessions"), fr: Text::plural("{n} session", "{n} sessions") },
     Message { id: "stats.sessionsHint", en: Text::plain("In this period, by {measure}"), fr: Text::plain("Sur cette période, en {measure}") },

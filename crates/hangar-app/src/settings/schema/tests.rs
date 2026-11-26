@@ -157,7 +157,6 @@ fn the_categories_come_in_the_order_of_the_page() {
             Icon::Broadcast,
             Icon::Plug,
             Icon::Bolt,
-            Icon::Cloud,
             Icon::Mic,
             Icon::Gamepad,
             Icon::Keyboard,

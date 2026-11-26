@@ -10,6 +10,9 @@ Every release, with its installers, is on the
 
 ## [Unreleased]
 
+### Removed
+- The Hangar account (« Compte Hangar »), whole: Settings › Hangar account, signing in with GitHub, the statistics sync between machines and the « All machines » view of Statistics, the account server (the `hangar-cloud` and `hangar-cloud-api` crates, its Docker image and compose file) and its documentation. HangarAI no longer calls any account server. Statistics of this PC are as they were. An upgrade deletes nothing the account left: if you signed in, the keychain entry `hangar-account` and the files `hangar-account.json`, `cloud-sync.json` and `cloud-machine-id` of the app data folder stay, unread, and what the server holds stays there (delete the account from an earlier version first if you want it gone).
+
 ## [2.5.1] - 2026-11-19
 
 ### Fixed
