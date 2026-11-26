@@ -119,7 +119,7 @@ record() { tee -a "$results"; }
 target="$(cargo metadata --manifest-path "$root/Cargo.toml" --format-version 1 --no-deps 2>/dev/null \
   | python3 -I -c 'import json,sys;print(json.load(sys.stdin)["target_directory"])')"
 [ -n "$node_bin" ] || node_bin="$target/release/hangar-node"
-[ -n "$app_bin" ] || app_bin="$target/bench-app/hangar-ai"
+[ -n "$app_bin" ] || app_bin="$target/bench-app/teskad"
 if [ "$build" = 1 ]; then
   # Apart: built together, hangar-app's features would unify into hangar-node.
   # The app: optimized (a debug build's terminal would be what is measured),

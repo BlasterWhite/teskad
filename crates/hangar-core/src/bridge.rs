@@ -72,14 +72,14 @@ pub fn plugin_dir() -> Option<&'static Path> {
     Some(DIR.get_or_init(|| dir))
 }
 
-/// `~/.hangar/mods/`, or beside the endpoint file a development build run next
+/// `~/.teskad/mods/`, or beside the endpoint file a development build run next
 /// to an installed Hangar was given (endpoint.rs): the installed app's
 /// sessions hot-reload the shared folder, and would run the build's mod.
 fn mods_root() -> Option<PathBuf> {
     if let Some(file) = std::env::var_os("HANGAR_ENDPOINT_FILE").filter(|v| !v.is_empty()) {
         return Some(PathBuf::from(file).parent()?.join("mods"));
     }
-    Some(dirs::home_dir()?.join(".hangar").join("mods"))
+    Some(crate::paths::home_folder()?.join("mods"))
 }
 
 /// Rewrites only the files that changed, so an app update reaches the mod —

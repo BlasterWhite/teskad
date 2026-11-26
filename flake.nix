@@ -1,4 +1,4 @@
-# Hangar on Nix and NixOS.
+# Teskad on Nix and NixOS.
 #
 #   nix develop                 a shell with everything `scripts/native-dev.sh` and
 #                               `cargo test --workspace` need (docs/guide/building.md)
@@ -10,10 +10,10 @@
 # libraries are in no folder the loader searches, so the package puts them in
 # the binary's RUNPATH (and the shell in LD_LIBRARY_PATH) rather than wrapping
 # the binary: the app writes its own path into the agents' MCP configs and the
-# login item, and a wrapper's renamed `.hangar-ai-wrapped` would be the path
+# login item, and a wrapper's renamed `.teskad-wrapped` would be the path
 # they kept.
 {
-  description = "HangarAI: run a team of Claude Code agents in one native window";
+  description = "Teskad: run a team of Claude Code agents in one native window";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
@@ -53,8 +53,8 @@
     in
     {
       packages = forAllSystems (pkgs: {
-        default = self.packages.${pkgs.stdenv.hostPlatform.system}.hangar;
-        hangar = pkgs.callPackage ./nix/package.nix {
+        default = self.packages.${pkgs.stdenv.hostPlatform.system}.teskad;
+        teskad = pkgs.callPackage ./nix/package.nix {
           inherit (self.packages.${pkgs.stdenv.hostPlatform.system}) hangar-mobile;
           runtimeLibs = runtimeLibs pkgs;
           buildLibs = buildLibs pkgs;
@@ -65,7 +65,7 @@
       apps = forAllSystems (pkgs: {
         default = {
           type = "app";
-          program = "${self.packages.${pkgs.stdenv.hostPlatform.system}.hangar}/bin/hangar-ai";
+          program = "${self.packages.${pkgs.stdenv.hostPlatform.system}.teskad}/bin/teskad";
         };
       });
 

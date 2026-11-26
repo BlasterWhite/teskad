@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds this fork's Windows executables into target/dist, the way the release
+# Builds Teskad's Windows executables into target/dist, the way the release
 # workflow does (.github/workflows/release.yml, "Build Hangar Mobile" and
 # "Build"): Hangar Mobile first, since the app embeds dist-mobile/, then the
 # app and the webview helper with the dist profile.
@@ -57,4 +57,4 @@ cargo build --profile "$profile" --locked -p hangar-app
 cargo build --profile "$profile" --locked -p hangar-webview --features engine
 
 echo
-echo "Built: $root/target/$profile/hangar-ai.exe and hangar-webview.exe"
+echo "Built: $root/target/$profile/teskad.exe and hangar-webview.exe"

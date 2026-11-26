@@ -89,7 +89,7 @@ What it does, printing `PASS`/`FAIL` per step:
      runs on the node; `worker_stop` removes the worktree and gives the task
      back (todo);
    - a local workspace sends a worker to the node: `Lorch` (through
-     `hangar-ai --mcp` with that pane's environment and folder) creates a task
+     `teskad --mcp` with that pane's environment and folder) creates a task
      and calls `worker_spawn node=n1`; the worker's shell runs on the node in
      its worktree and nowhere under the app; a commit made there, then
      `delivery_submit` as that worker (on the node), comes back: the commit is
@@ -130,7 +130,7 @@ MCP calls as a pane there).
 ```
 bash scripts/node-test/bench.sh                    # builds, 3 runs of each measure, medians
 bash scripts/node-test/bench.sh --no-build --runs 5
-bash scripts/node-test/bench.sh --node-bin old/hangar-node --app-bin old/hangar-ai   # a baseline
+bash scripts/node-test/bench.sh --node-bin old/hangar-node --app-bin old/teskad   # a baseline
 HANGAR_BENCH_OUT=after.json bash scripts/node-test/bench.sh   # the medians as JSON too
 bash scripts/node-test/bench.sh --connect-only --latency "0 20"   # only the connect measures
 ```

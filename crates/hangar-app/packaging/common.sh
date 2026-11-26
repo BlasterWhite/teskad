@@ -18,7 +18,7 @@ fi
 # workflow's `node` job and downloaded into `$target_dir/node` as
 # `hangar-node-x86_64` and `hangar-node-aarch64`. Every desktop package carries
 # both, because a Mac or a Windows desktop drives Linux nodes too: Linux and
-# macOS take them from there as resources (usr/lib/hangar-ai, Contents/Resources),
+# macOS take them from there as resources (usr/lib/teskad, Contents/Resources),
 # Windows beside the executable; hangar_app::nodes::model::BinarySource looks in
 # each. This checks they are there and are ELF files of the right machine, and
 # copies them to each folder given, if any.

@@ -1,4 +1,4 @@
-; Hangar.AI installer chrome.
+; Teskad installer chrome.
 ;
 ; NSIS ships a wizard: a captioned window with a header strip, a Back/Next/Cancel
 ; row and a page per decision. This file replaces that with the shape a modern

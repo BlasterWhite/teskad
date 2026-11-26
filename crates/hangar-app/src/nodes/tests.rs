@@ -399,11 +399,11 @@ fn the_binary_is_found_in_a_package_s_resources() {
         found.canonicalize().unwrap(),
         in_resources.canonicalize().unwrap()
     );
-    // Linux packages: usr/bin beside usr/lib/hangar-ai.
+    // Linux packages: usr/bin beside usr/lib/teskad.
     let usr = dir.path().join("usr");
     std::fs::create_dir_all(usr.join("bin")).unwrap();
-    std::fs::create_dir_all(usr.join("lib/hangar-ai")).unwrap();
-    let in_lib = usr.join("lib/hangar-ai/hangar-node-x86_64");
+    std::fs::create_dir_all(usr.join("lib/teskad")).unwrap();
+    let in_lib = usr.join("lib/teskad/hangar-node-x86_64");
     std::fs::write(&in_lib, b"bin").unwrap();
     let linux = BinarySource {
         override_path: None,

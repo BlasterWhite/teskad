@@ -7,10 +7,12 @@ license.workspace = true
 repository.workspace = true
 edition = "2024"
 
-# The executable keeps the old name: agent configs and the MCP install point
-# at `hangar-ai`, and `hangar-ai --mcp` must keep answering there.
+# The executable is `teskad` (`teskad --mcp` is the MCP server agent configs
+# name). The official HangarAI's `hangar-ai` is another program: Teskad installs
+# beside it and shares no file name with it. The helper binaries below keep
+# their names, they are internal.
 [[bin]]
-name = "hangar-ai"
+name = "teskad"
 path = "src/main.rs"
 
 # `hangar-ui`, `hangar-kit-host` and `hangar-model3d` are not here yet, on
@@ -97,21 +99,22 @@ winresource = "0.1"
 # relative to this folder. The version, description, authors and executable
 # names come from the package itself, so a release bumps one number.
 #
-# The values that an install of the old Tauri app already knows are kept as they
-# were, because the installers and the updater match on them: the identifier,
-# the product name, the executable name and the Debian package name.
+# Teskad's own identity, shared with nothing of the official HangarAI's
+# (`com.simnjs.iabench`, `Hangar.AI`, `hangar-ai`, publisher `simnjs`): the
+# identifier, the product name, the executable name and the Debian package
+# name. `hangar_core::paths::IDENTIFIER` and `PRODUCT_NAME` carry the same words.
 # ---------------------------------------------------------------------------
 [package.metadata.packager]
-productName = "Hangar.AI"
-identifier = "com.simnjs.iabench"
-publisher = "simnjs"
+productName = "Teskad"
+identifier = "io.github.blasterwhite.teskad"
+publisher = "BlasterWhite"
 homepage = "https://github.com/BlasterWhite/hangar"
 category = "DeveloperTool"
 longDescription = """
 Hangar runs Claude Code and shells side by side, each in a real terminal pane, around a shared task board and memory that every Claude Code reads and writes over Hangar's MCP server."""
 # The PNGs are the Linux ones (the .deb puts each in the hicolor folder of its
 # size, the AppImage takes the largest): a rounded tile with room around it, as
-# GNOME and KDE draw app icons, rendered from packaging/icons/linux/hangar-ai.svg.
+# GNOME and KDE draw app icons, rendered from packaging/icons/linux/teskad.svg.
 icons = [
   "packaging/icons/linux/16x16.png",
   "packaging/icons/linux/24x24.png",
@@ -129,7 +132,7 @@ icons = [
 # binaries in the one folder: usr/bin, Contents/MacOS, the install folder.
 #
 binaries = [
-  { path = "hangar-ai", main = true },
+  { path = "teskad", main = true },
   { path = "hangar-webview" },
 ]
 # The two `hangar-node-<arch>` files are the headless node daemon built for
@@ -137,7 +140,7 @@ binaries = [
 # resources, not binaries: on macOS everything in Contents/MacOS is signed as
 # nested code, and codesign refuses these ELF files there ("code object is not
 # signed at all"), so they go to Contents/Resources; the .deb and the AppImage put
-# resources in usr/lib/hangar-ai. hangar_app::nodes::model::BinarySource looks in
+# resources in usr/lib/teskad. hangar_app::nodes::model::BinarySource looks in
 # both, and beside the executable (Windows, development). They are not built by
 # this package: the release workflow builds them with `-p hangar-node` and
 # downloads them into target/node, which packaging/common.sh's
@@ -148,9 +151,8 @@ resources = [
 ]
 
 [package.metadata.packager.deb]
-# `dpkg -i` upgrades the package of the same name, so this one has to stay what
-# the Tauri build called it (its product name in kebab case).
-packageName = "hangar-ai"
+# Not `hangar-ai`: `dpkg -i` of the official package's name would replace it.
+packageName = "teskad"
 section = "devel"
 # What the two executables link against, by the names Debian and Ubuntu give
 # them (24.04 renamed several to `...t64`, which still provide the old name).
@@ -166,9 +168,9 @@ depends = [
 # Has no placeholders, so the packager copies it as it is; the .rpm below
 # installs the same file. StartupWMClass is the window class the compositor
 # matches windows to.
-desktopTemplate = "packaging/linux/hangar-ai.desktop"
+desktopTemplate = "packaging/linux/teskad.desktop"
 # The scalable icon, which docks draw at whatever size they need.
-files = { "packaging/icons/linux/hangar-ai.svg" = "usr/share/icons/hicolor/scalable/apps/hangar-ai.svg" }
+files = { "packaging/icons/linux/teskad.svg" = "usr/share/icons/hicolor/scalable/apps/teskad.svg" }
 
 [package.metadata.packager.appimage]
 # The host provides every library (see docs/native/PACKAGING.md, "AppImage"):
@@ -184,18 +186,18 @@ minimumSystemVersion = "10.15"
 infoPlistPath = "packaging/macos/Info.plist"
 
 [package.metadata.packager.dmg]
-# The Tauri bundler's window, so the disk image looks as it did.
+# The window the disk image opens in.
 windowSize = { width = 660, height = 400 }
 
 # ---------------------------------------------------------------------------
 # The .rpm, which cargo-packager does not make: `cargo generate-rpm -p
 # crates/hangar-app` (cargo-generate-rpm writes the package itself, with no
-# rpmbuild). `name` keeps the Tauri build's package name (its product name, with
-# the dot), which is what `rpm -U` matches an upgrade on. Asset sources are
+# rpmbuild). `name` is Teskad's own, which `rpm -U` matches an upgrade on: not the
+# official app's `Hangar.AI`, which would be replaced. Asset sources are
 # relative to the repository root.
 # ---------------------------------------------------------------------------
 [package.metadata.generate-rpm]
-name = "Hangar.AI"
+name = "Teskad"
 license = "MIT"
 summary = "Terminal multiplexer for CLI coding agents, with a shared task board"
 url = "https://github.com/BlasterWhite/hangar"
@@ -208,20 +210,20 @@ url = "https://github.com/BlasterWhite/hangar"
 auto-req = "no"
 require-sh = false
 assets = [
-  { source = "target/dist/hangar-ai", dest = "/usr/bin/hangar-ai", mode = "755" },
+  { source = "target/dist/teskad", dest = "/usr/bin/teskad", mode = "755" },
   { source = "target/dist/hangar-webview", dest = "/usr/bin/hangar-webview", mode = "755" },
-  { source = "target/node/hangar-node-x86_64", dest = "/usr/lib/hangar-ai/hangar-node-x86_64", mode = "755" },
-  { source = "target/node/hangar-node-aarch64", dest = "/usr/lib/hangar-ai/hangar-node-aarch64", mode = "755" },
-  { source = "crates/hangar-app/packaging/linux/hangar-ai.desktop", dest = "/usr/share/applications/hangar-ai.desktop", mode = "644" },
-  { source = "crates/hangar-app/packaging/icons/linux/16x16.png", dest = "/usr/share/icons/hicolor/16x16/apps/hangar-ai.png", mode = "644" },
-  { source = "crates/hangar-app/packaging/icons/linux/24x24.png", dest = "/usr/share/icons/hicolor/24x24/apps/hangar-ai.png", mode = "644" },
-  { source = "crates/hangar-app/packaging/icons/linux/32x32.png", dest = "/usr/share/icons/hicolor/32x32/apps/hangar-ai.png", mode = "644" },
-  { source = "crates/hangar-app/packaging/icons/linux/48x48.png", dest = "/usr/share/icons/hicolor/48x48/apps/hangar-ai.png", mode = "644" },
-  { source = "crates/hangar-app/packaging/icons/linux/64x64.png", dest = "/usr/share/icons/hicolor/64x64/apps/hangar-ai.png", mode = "644" },
-  { source = "crates/hangar-app/packaging/icons/linux/128x128.png", dest = "/usr/share/icons/hicolor/128x128/apps/hangar-ai.png", mode = "644" },
-  { source = "crates/hangar-app/packaging/icons/linux/256x256.png", dest = "/usr/share/icons/hicolor/256x256/apps/hangar-ai.png", mode = "644" },
-  { source = "crates/hangar-app/packaging/icons/linux/512x512.png", dest = "/usr/share/icons/hicolor/512x512/apps/hangar-ai.png", mode = "644" },
-  { source = "crates/hangar-app/packaging/icons/linux/hangar-ai.svg", dest = "/usr/share/icons/hicolor/scalable/apps/hangar-ai.svg", mode = "644" },
+  { source = "target/node/hangar-node-x86_64", dest = "/usr/lib/teskad/hangar-node-x86_64", mode = "755" },
+  { source = "target/node/hangar-node-aarch64", dest = "/usr/lib/teskad/hangar-node-aarch64", mode = "755" },
+  { source = "crates/hangar-app/packaging/linux/teskad.desktop", dest = "/usr/share/applications/teskad.desktop", mode = "644" },
+  { source = "crates/hangar-app/packaging/icons/linux/16x16.png", dest = "/usr/share/icons/hicolor/16x16/apps/teskad.png", mode = "644" },
+  { source = "crates/hangar-app/packaging/icons/linux/24x24.png", dest = "/usr/share/icons/hicolor/24x24/apps/teskad.png", mode = "644" },
+  { source = "crates/hangar-app/packaging/icons/linux/32x32.png", dest = "/usr/share/icons/hicolor/32x32/apps/teskad.png", mode = "644" },
+  { source = "crates/hangar-app/packaging/icons/linux/48x48.png", dest = "/usr/share/icons/hicolor/48x48/apps/teskad.png", mode = "644" },
+  { source = "crates/hangar-app/packaging/icons/linux/64x64.png", dest = "/usr/share/icons/hicolor/64x64/apps/teskad.png", mode = "644" },
+  { source = "crates/hangar-app/packaging/icons/linux/128x128.png", dest = "/usr/share/icons/hicolor/128x128/apps/teskad.png", mode = "644" },
+  { source = "crates/hangar-app/packaging/icons/linux/256x256.png", dest = "/usr/share/icons/hicolor/256x256/apps/teskad.png", mode = "644" },
+  { source = "crates/hangar-app/packaging/icons/linux/512x512.png", dest = "/usr/share/icons/hicolor/512x512/apps/teskad.png", mode = "644" },
+  { source = "crates/hangar-app/packaging/icons/linux/teskad.svg", dest = "/usr/share/icons/hicolor/scalable/apps/teskad.svg", mode = "644" },
 ]
 
 # What the two executables need from the system, as the .deb's Depends lists it.

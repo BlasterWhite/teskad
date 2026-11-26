@@ -46,7 +46,7 @@ pnpm mobile:dev      # http://localhost:4310, `--host` to open it from a phone
 
 A plain `cargo run -p hangar-app` is the same app as the installed one. It reads and
 writes the same workspaces and resumes the same agent sessions. It also takes over
-`~/.hangar/endpoint.json`, so your installed agents' MCP calls reach the dev build, and it
+`~/.teskad/endpoint.json`, so your installed agents' MCP calls reach the dev build, and it
 deletes that file when it closes.
 
 `scripts/native-dev.sh` keeps the two apart: it sets `HANGAR_DATA_ROOT` and
@@ -120,9 +120,16 @@ Some things to know:
   from one of them fails the generator. Add both. If you do not speak French, say so in
   the PR and leave the English text in the French entry for review. Teskad Mobile has its
   own dictionary, `mobile/src/i18n.ts`.
-- **Old names stay.** Some identifiers keep the project's former name `iabench` on
-  purpose: the bundle identifier `com.simnjs.iabench` and the fallbacks that read files
-  written before the rename. Do not rename them. Give anything new a `hangar` name.
+- **Two identities, not mixed.** Teskad's identifier is `io.github.blasterwhite.teskad`,
+  its home folder `~/.teskad`, its program `teskad`. The official app's `com.simnjs.iabench`,
+  `~/.hangar` and `hangar-ai` appear in the code only in `hangar_core::paths`
+  (`OFFICIAL_*`) and `hangar_core::migrate`, which copies from them once and never writes
+  there. Never write a path, key or name of the official app: build home paths with
+  `paths::home_folder()`, not `.join(".hangar")`. What keeps its `hangar` name on purpose is
+  what projects and agents already hold: the `.hangar/` folder in a project, the `hangar` MCP
+  server and its tools, the `HANGAR_*` variables, the `hangar-*` crates and the helper
+  binaries (`hangar-webview`, `hangar-node`). Give anything new a `hangar` name there, and a
+  `teskad` name for what the person sees or installs.
 - **Local first.** Teskad runs on the user's machine and works without an account. This
   project runs no hosted service, collects no telemetry, and has nothing that depends on
   an account. Changes that add a hosted service, require an account or add telemetry will

@@ -18,34 +18,23 @@ pub struct Endpoint {
 }
 
 pub fn endpoint_path() -> Option<PathBuf> {
-    Some(dirs::home_dir()?.join(".hangar").join("endpoint.json"))
+    Some(crate::paths::home_folder()?.join("endpoint.json"))
 }
 
-/// Where the endpoint lived before the directory was renamed.
-fn legacy_endpoint_path() -> Option<PathBuf> {
-    Some(dirs::home_dir()?.join(".iabench").join("endpoint.json"))
-}
-
-/// Both locations, current first.
+/// Where the endpoint is written and read: `~/.teskad/endpoint.json`, and
+/// nowhere else. The official app's `~/.hangar/endpoint.json` and the
+/// `~/.iabench/endpoint.json` it still writes are never touched, and never
+/// read: they name another app's port and token, which an agent of Teskad must
+/// not be handed.
 ///
-/// This file is the handshake between the app and the `--mcp` process, and the
-/// two are separate binaries that get updated at different times: an agent tool
-/// may still be launching a pre-rename executable long after the app itself has
-/// been updated. Writing both locations and reading either keeps every
-/// combination working; once only post-rename binaries are in play, the legacy
-/// path can go.
-///
-/// `HANGAR_ENDPOINT_FILE` replaces both, for a development build run next to
-/// an installed Hangar: sharing the file would hand every agent of the
-/// installed app over to the build, and closing the build would delete it.
+/// `HANGAR_ENDPOINT_FILE` replaces it, for a development build run next to an
+/// installed Teskad: sharing the file would hand every agent of the installed
+/// app over to the build, and closing the build would delete it.
 fn endpoint_paths() -> Vec<PathBuf> {
     if let Some(file) = std::env::var_os("HANGAR_ENDPOINT_FILE").filter(|v| !v.is_empty()) {
         return vec![PathBuf::from(file)];
     }
-    [endpoint_path(), legacy_endpoint_path()]
-        .into_iter()
-        .flatten()
-        .collect()
+    endpoint_path().into_iter().collect()
 }
 
 fn body(port: u16, token: &str) -> Result<String, String> {
@@ -83,20 +72,12 @@ pub fn publish(port: u16, token: &str) -> Result<(), String> {
         return Err("no home directory".into());
     }
 
-    // The current location is the one that has to succeed; failing to refresh
-    // the legacy copy only costs older binaries their connection.
     let own_folders = std::env::var_os("HANGAR_ENDPOINT_FILE").is_none_or(|v| v.is_empty());
-    let mut result = Ok(());
-    for (nth, path) in paths.iter().enumerate() {
-        if let Some(parent) = path.parent() {
-            private_folder(parent, own_folders);
-        }
-        let outcome = write_atomic(path, body.as_bytes(), Access::Private);
-        if nth == 0 {
-            result = outcome;
-        }
+    let path = &paths[0];
+    if let Some(parent) = path.parent() {
+        private_folder(parent, own_folders);
     }
-    result
+    write_atomic(path, body.as_bytes(), Access::Private)
 }
 
 /// The token in this file is the outside one (server.rs, `outside_token`):
@@ -105,8 +86,8 @@ pub fn publish(port: u16, token: &str) -> Result<(), String> {
 /// `Access::Private`), and so is the folder Hangar keeps it in (0700): a
 /// home that other users may list (Debian, Fedora) must not hand it out.
 ///
-/// The folder is only tightened when it is Hangar's own (`~/.hangar`,
-/// `~/.iabench`, which also hold the accounts and kits): one named by
+/// The folder is only tightened when it is Teskad's own (`~/.teskad`, which
+/// also holds the accounts and kits): one named by
 /// `HANGAR_ENDPOINT_FILE` may be anything, `/tmp` included, and is only
 /// created, private, if missing.
 ///
@@ -161,10 +142,19 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_endpoint_is_in_teskad_s_folder_and_never_the_official_apps() {
+        let path = endpoint_path().unwrap();
+        assert!(path.ends_with(".teskad/endpoint.json"), "{path:?}");
+        if std::env::var_os("HANGAR_ENDPOINT_FILE").is_none_or(|v| v.is_empty()) {
+            assert_eq!(endpoint_paths(), vec![path]);
+        }
+    }
+
+    #[test]
     fn the_endpoint_file_and_its_folder_are_the_owner_s_alone() {
         use std::os::unix::fs::PermissionsExt;
         let root = crate::testdir::scratch("endpoint");
-        let dir = root.join(".hangar");
+        let dir = root.join(".teskad");
         fs::create_dir_all(&dir).unwrap();
         // A folder made by an earlier version, readable by all.
         fs::set_permissions(&dir, fs::Permissions::from_mode(0o755)).unwrap();

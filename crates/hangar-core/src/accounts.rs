@@ -201,14 +201,14 @@ impl ClaudeHome {
     }
 }
 
-/// `~/.hangar/accounts/`, or beside the endpoint file a development build
+/// `~/.teskad/accounts/`, or beside the endpoint file a development build
 /// run next to an installed Hangar was given (endpoint.rs), so that it does
 /// not adopt the installed app's profiles.
 fn store_root() -> Option<PathBuf> {
     if let Some(file) = std::env::var_os("HANGAR_ENDPOINT_FILE").filter(|v| !v.is_empty()) {
         return Some(PathBuf::from(file).parent()?.join("accounts"));
     }
-    Some(dirs::home_dir()?.join(".hangar").join("accounts"))
+    Some(crate::paths::home_folder()?.join("accounts"))
 }
 
 /// The main account of each kind.

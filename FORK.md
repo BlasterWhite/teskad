@@ -20,18 +20,73 @@ upstream: this fork goes its own way, on `main`.
 
 ## Your data
 
-The fork keeps the original's app identifier (`com.simnjs.iabench`), so it uses the same folders as
-the original app and needs no migration:
+Teskad has an identity of its own, shared with nothing of the official app's: the bundle
+identifier is `io.github.blasterwhite.teskad` (the official one is `com.simnjs.iabench`), the
+publisher is BlasterWhite, the program is `teskad` (not `hangar-ai`) and its home folder is
+`~/.teskad` (not `~/.hangar`). It installs **beside** the official HangarAI, and both can run at
+the same time.
 
-- the app's data folder (`~/.local/share/com.simnjs.iabench/` on Linux,
-  `%APPDATA%\com.simnjs.iabench\` on Windows): `state.json` (workspaces, panes, settings),
-  the memory, the statistics cache;
-- `~/.hangar/`: the endpoint file, the Claude Code bridge mod, kits;
-- your project folders, wherever they are.
+| What | Teskad | Official HangarAI (never written by Teskad) |
+|---|---|---|
+| App data: `state.json` (workspaces, panes, settings), `memory.json`, `activity/`, `mcp/`, the statistics cache, `remote.json` | Linux `~/.local/share/io.github.blasterwhite.teskad/`, macOS `~/Library/Application Support/io.github.blasterwhite.teskad/`, Windows `%APPDATA%\io.github.blasterwhite.teskad\` | the same folders under `com.simnjs.iabench` |
+| Logs | `…/io.github.blasterwhite.teskad/logs` (macOS `~/Library/Logs/io.github.blasterwhite.teskad`, Windows `%LOCALAPPDATA%\io.github.blasterwhite.teskad\logs`) | the same under `com.simnjs.iabench` |
+| Home folder: `endpoint.json`, `mods/` (the Claude Code bridge), `accounts/`, `kits/`, `kit-data/`, `codex-plugins/` | `~/.teskad/` | `~/.hangar/` (and `~/.iabench/endpoint.json`, which Teskad no longer writes) |
+| Windows install | `%LOCALAPPDATA%\Teskad`, registry `Software\BlasterWhite\Teskad`, uninstall entry « Teskad » | `%LOCALAPPDATA%\Hangar.AI`, `Software\simnjs\Hangar.AI`, « Hangar.AI » |
+| Linux install | package `teskad` (`.deb`), `Teskad` (`.rpm`), `teskad.desktop`, `usr/lib/teskad/` | `hangar-ai`, `Hangar.AI`, `hangar-ai.desktop` |
+| Login item | `Teskad` (registry `Run` value, `~/.config/autostart/Teskad.desktop`, `~/Library/LaunchAgents/Teskad.plist`) | `Hangar.AI` |
+| Notifications (Windows AUMID) | the identifier above | `com.simnjs.iabench` |
 
-Run only one Teskad at a time: two would share `state.json` and the endpoint. To try a
-change without touching your real data, `scripts/native-dev.sh` runs the app on data of its
-own under `target/dev-home/` (see [CONTRIBUTING.md](CONTRIBUTING.md)).
+Your project folders are shared, as they are the same projects: the `.hangar/` folder inside
+each one (the task board, uploads) keeps its name, and so do the `hangar` MCP server, its
+`mcp__hangar__*` tools and the `HANGAR_*` variables. The MCP server entry named `hangar` in a
+project's `.mcp.json` points at **one** program, the last one that registered it (see
+[Going back](#going-back-to-the-official-app)).
+
+### First launch: your data is copied, not moved
+
+The first time Teskad starts and its own folder does not exist yet, it **copies** what the
+official app left (`crates/hangar-core/src/migrate.rs`):
+
+- from `com.simnjs.iabench` (data, config and local-data folders): `state.json`, `memory.json`,
+  `activity/`, `mcp/`, the statistics cache, `remote.json`, the HQ folder and the rest, but not
+  `logs/`, the voice `models/` (download them again in Settings) or the `state.json.corrupt.*`
+  rescues;
+- from `~/.hangar`: `mods/`, `accounts/`, `kits/`, `kit-data/`, `codex-plugins/`, but not
+  `endpoint.json`, the official app's port and token.
+
+The official folders are only read: nothing there is moved, changed or deleted. Each folder is
+copied beside its final place (`<folder>.importing`) and renamed into it, with a marker file
+`.imported-from-official` inside, so a launch interrupted half way leaves nothing to mistake for
+your data and the next one starts over. A folder that exists is never written into, and one that
+holds the marker is never copied again, also after you cleared something in it. To import again,
+quit Teskad and delete the folder (`~/.teskad`, or the app data folder).
+
+Then Teskad rewrites what named the official program: the `hangar` server of the copied
+`mcp/*.json` (the copy only), and the `.mcp.json` of every workspace in the copied `state.json`
+(your own project files: the `hangar` or older `iabench` entry is pointed at Teskad, after the
+file is saved as `.mcp.json.hangar-bak`). Nothing is imported or rewritten when `HANGAR_DATA_ROOT` or
+`HANGAR_ENDPOINT_FILE` is set (a development build, see [CONTRIBUTING.md](CONTRIBUTING.md)).
+
+Three things do not carry over:
+
+- **Sign-ins.** An account's Claude or Codex login is copied with its folder, but Codex keeps
+  its token in the system keyring under the folder's path, and a token a provider rotates is
+  valid in one copy only. Sign in again from Settings › Accounts if a copied account asks for it.
+- **The Groq key for dictation.** It lives in the system keychain under Teskad's own service (the
+  bundle identifier), not the official app's: enter it again in Settings › Voice.
+- **Codex plugins marketplace.** Codex still knows `~/.hangar/codex-plugins`; run « Add to Codex »
+  again from the kit's settings to register `~/.teskad/codex-plugins`.
+
+### Going back to the official app
+
+Nothing was taken from it: install or start HangarAI and it finds its data as it left it
+(changes made in Teskad since the import are not in it). The official app's `.mcp.json` entries
+are the ones Teskad rewrote: in each project, open the MCP panel of the official app and install
+its server again, or restore `.mcp.json.hangar-bak`. To remove Teskad, uninstall it as any app
+and delete `~/.teskad` and its data folder (above); that leaves the official app untouched.
+
+Run a development build with `scripts/native-dev.sh`: it runs the app on data of its own under
+`target/dev-home/` (see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 ## Build on Linux (Fedora)
 
@@ -42,7 +97,7 @@ sudo dnf install gcc-c++ cmake clang-devel openssl-devel alsa-lib-devel webkit2g
 pnpm install && pnpm mobile:build      # optional (Node 22, pnpm 10): the phone app Teskad serves
 cargo build --profile dist --locked -p hangar-app
 cargo build --profile dist --locked -p hangar-webview --features engine
-./target/dist/hangar-ai
+./target/dist/teskad
 ```
 
 To make an `.rpm` instead, see the [packaging guide](docs/native/PACKAGING.md).
@@ -57,15 +112,9 @@ scripts/fork/build.sh             # target/dist: the release profile (slow, fat 
 scripts/fork/build.sh --release   # target/release: much faster to build, for trying changes
 ```
 
-### Install over the original app, and back
+### Install
 
-Close Teskad, then from PowerShell:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\fork\install.ps1                # -BuildProfile release for a --release build
-powershell -ExecutionPolicy Bypass -File scripts\fork\restore-official.ps1       # back to the original exe
-```
-
-`install.ps1` backs up the data folder to `backups\<time>\` and the original executables to
-`backups\official\` first. `backups\` is not committed (`.git/info/exclude`); `git clean -x`
-would delete it.
+Run `scripts/fork/build.sh`, then the installer from the
+[packaging guide](docs/native/PACKAGING.md) (`Teskad_<version>_x64-setup.exe`).
+It installs to `%LOCALAPPDATA%\Teskad`, beside the official app if it is there: nothing of the
+official install is replaced, backed up or restored. Teskad's own data is in the table above.

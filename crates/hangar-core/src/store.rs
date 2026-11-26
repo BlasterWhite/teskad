@@ -5,28 +5,6 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::host::Host;
 
-/// Bundle identifiers this app has shipped under before.
-///
-/// The app data directory is keyed by the identifier, so renaming the product
-/// moves it. Without this list an existing install reopens empty and its
-/// workspaces stay stranded in a folder nothing reads any more.
-const PREVIOUS_IDENTIFIERS: &[&str] = &["com.simnjs.iabench", "com.simnjs.hangar-ai"];
-
-/// Brings over the state left behind by a previous identifier. Only ever runs
-/// when the current identifier has no state of its own, so it cannot overwrite
-/// anything, and the old file is left in place as a fallback.
-fn adopt_previous_state(path: &Path) {
-    let Some(root) = path.parent().and_then(Path::parent) else {
-        return;
-    };
-    for previous in PREVIOUS_IDENTIFIERS {
-        let old = root.join(previous).join("state.json");
-        if old.is_file() && fs::copy(&old, path).is_ok() {
-            return;
-        }
-    }
-}
-
 /// Moves an unreadable state file out of the way, under a name no rescue
 /// already holds, and returns where it went.
 ///
@@ -150,9 +128,6 @@ pub fn load_state_checked(host: &Host) -> Result<Option<serde_json::Value>, Load
         reason,
         rescue: Rescue::NoFile,
     })?;
-    if !path.exists() {
-        adopt_previous_state(&path);
-    }
     if !path.exists() {
         return Ok(None);
     }

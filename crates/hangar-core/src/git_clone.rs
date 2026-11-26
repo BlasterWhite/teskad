@@ -699,13 +699,18 @@ fn system_roots() -> Vec<PathBuf> {
 fn hangar_roots() -> Vec<PathBuf> {
     let mut roots = Vec::new();
     if let Some(home) = dirs::home_dir() {
-        roots.push(home.join(".hangar"));
+        roots.push(home.join(crate::paths::HOME_DIR_NAME));
+        // The official app's own folder is no place for a clone either: it is
+        // not Teskad's, but the migration (migrate.rs) reads it.
+        roots.push(home.join(crate::paths::OFFICIAL_HOME_DIR_NAME));
     }
     for base in [dirs::data_dir(), dirs::data_local_dir(), dirs::config_dir()]
         .into_iter()
         .flatten()
     {
-        roots.push(base.join("com.simnjs.iabench"));
+        for identifier in [crate::paths::IDENTIFIER, crate::paths::OFFICIAL_IDENTIFIER] {
+            roots.push(base.join(identifier));
+        }
     }
     roots
 }
@@ -2549,13 +2554,15 @@ mod tests {
             }
         }
         if let Some(home) = dirs::home_dir() {
-            refused_paths.push(home.join(".hangar").to_string_lossy().into_owned());
-            refused_paths.push(
-                home.join(".hangar")
-                    .join("accounts")
-                    .to_string_lossy()
-                    .into_owned(),
-            );
+            for folder in [".teskad", ".hangar"] {
+                refused_paths.push(home.join(folder).to_string_lossy().into_owned());
+                refused_paths.push(
+                    home.join(folder)
+                        .join("accounts")
+                        .to_string_lossy()
+                        .into_owned(),
+                );
+            }
         }
         for path in &refused_paths {
             assert!(parent_problem(Path::new(path)).is_some(), "{path}");
