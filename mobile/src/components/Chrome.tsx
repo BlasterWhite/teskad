@@ -5,6 +5,7 @@ import { locale, t, tn } from "../i18n";
 import { ACTIVITIES, type Fleet } from "../model";
 import { routeHash, type Route, type Tab } from "../route";
 import { Icon, type IconName } from "./Icon";
+import { StatusIcon, type Status } from "./StatusIcon";
 
 /** Moving between screens, for any component that leads somewhere. */
 export interface Navigation {
@@ -50,6 +51,20 @@ const STATE_CLASS: Record<Activity, string> = {
   idle: "is-idle",
 };
 
+/**
+ * An agent's activity in the brand's five states: at work is running, waiting
+ * for an answer is active (a filled dot: it has the person's attention),
+ * done and the person's turn is completed, idle and none are inactive.
+ */
+const ACTIVITY_STATUS: Record<Activity, Status> = {
+  working: "running",
+  waiting: "active",
+  yours: "completed",
+  idle: "inactive",
+};
+
+export const activityStatus = (activity: Activity | null): Status => (activity ? ACTIVITY_STATUS[activity] : "inactive");
+
 export const stateClass = (activity: Activity | null) => (activity ? STATE_CLASS[activity] : "is-none");
 
 export function activityText(activity: Activity | null): string {
@@ -60,7 +75,7 @@ export function activityText(activity: Activity | null): string {
 export function StateLabel({ activity }: { activity: Activity | null }) {
   return (
     <span className={`state ${stateClass(activity)}`}>
-      <span className="dot" />
+      <StatusIcon status={activityStatus(activity)} />
       {activityText(activity)}
     </span>
   );
@@ -72,7 +87,7 @@ export function PcChip({ pc, connection }: { pc: string | null; connection: Conn
   const away = connection.unreachable;
   return (
     <span className={`pc ${away ? "pc--away" : ""}`} title={t(away ? "pc.unreachable" : "pc.reachable", { pc })}>
-      <span className="dot" />
+      <StatusIcon status={away ? "inactive" : "active"} />
       <span className="pc__name">{pc}</span>
       <span className="sr-only">{t(away ? "pc.unreachable" : "pc.reachable", { pc })}</span>
     </span>
@@ -108,7 +123,7 @@ export function AgentCounts({ counts }: { counts: Fleet["counts"] }) {
     <ul className="agents" aria-label={t("fleet.label")}>
       {states.map((state) => (
         <li key={state} className={`agents__state ${stateClass(state)}`}>
-          <span className="dot" />
+          <StatusIcon status={activityStatus(state)} />
           {tn(`fleet.${state}`, counts[state])}
         </li>
       ))}
