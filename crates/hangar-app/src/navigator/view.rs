@@ -12,10 +12,10 @@ use iced::widget::{
 };
 use iced::{Alignment, Background, Element, Length, Padding, Vector};
 
+use crate::shell::brand_logo::logo;
 use hangar_i18n::{Key, args};
 use hangar_theme::tokens::{font_size, radius, size, space};
 use hangar_theme::{Theme, fonts, style};
-use crate::shell::brand_logo::logo;
 use hangar_ui::menu as ui_menu;
 use hangar_ui::{Icon, button as ui_button, glyph, icon, keys, tip};
 

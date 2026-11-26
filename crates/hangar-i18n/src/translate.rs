@@ -114,7 +114,9 @@ fn render(
 
     // `{app}` is the product's name, filled from `APP_NAME` even where a call
     // passes nothing, so a string never needs an argument to carry it.
-    if template.contains("{app}") || (template.contains('{') && (!args.is_empty() || count.is_some())) {
+    if template.contains("{app}")
+        || (template.contains('{') && (!args.is_empty() || count.is_some()))
+    {
         Cow::Owned(fill(template, locale, count, args))
     } else {
         Cow::Borrowed(template)

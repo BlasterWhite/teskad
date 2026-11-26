@@ -234,9 +234,9 @@ pub trait WorkerPort: Sync {
         branch: &str,
     ) -> impl Future<Output = Result<String, String>> + Send {
         let _ = (node, main_root, branch);
-        std::future::ready(Err(
-            format!("Workers cannot be sent to a node from this {APP_NAME}.")
-        ))
+        std::future::ready(Err(format!(
+            "Workers cannot be sent to a node from this {APP_NAME}."
+        )))
     }
 }
 
@@ -561,8 +561,12 @@ pub fn worker_brief(facts: &BriefFacts<'_>) -> String {
         Some((branch, _, _)) => format!(
             "Commit everything on {branch}, leave the comment above, then call delivery_submit {{summary}} with a one-line summary. {APP_NAME} checks your branch, has it reviewed and lands it; if anything fails, a message tells you what to fix."
         ),
-        None if facts.shared_checkout => format!("Commit your task's files (`git add <those paths>`), leave the comment above, then call delivery_submit {{summary}} with a one-line summary. Nothing is merged or reviewed by {APP_NAME}: it marks your task done, tells the orchestrator, who integrates your commits, and closes your pane."),
-        None => format!("Leave the comment above, then call delivery_submit {{summary}} with a one-line summary. Nothing is merged or reviewed here: {APP_NAME} marks your task done, tells the orchestrator and closes your pane."),
+        None if facts.shared_checkout => format!(
+            "Commit your task's files (`git add <those paths>`), leave the comment above, then call delivery_submit {{summary}} with a one-line summary. Nothing is merged or reviewed by {APP_NAME}: it marks your task done, tells the orchestrator, who integrates your commits, and closes your pane."
+        ),
+        None => format!(
+            "Leave the comment above, then call delivery_submit {{summary}} with a one-line summary. Nothing is merged or reviewed here: {APP_NAME} marks your task done, tells the orchestrator and closes your pane."
+        ),
     };
     let check = match (facts.check_command.filter(|c| !c.is_empty()), git.is_some()) {
         (Some(command), true) if facts.node.is_some() => {
@@ -1735,9 +1739,9 @@ pub async fn stop_worker(
         }
         (None, _) => {}
         (Some(_), Some(tree)) if tree.is_main || inside(&tree.path, &ws.cwd).is_some() => {
-            worktree.kept = Some(
-                format!("it is the workspace's own checkout, not one {APP_NAME} made for the worker"),
-            );
+            worktree.kept = Some(format!(
+                "it is the workspace's own checkout, not one {APP_NAME} made for the worker"
+            ));
         }
         (Some(_), Some(_)) if keep_worktree => {
             worktree.kept = Some("keepWorktree was asked for".into())

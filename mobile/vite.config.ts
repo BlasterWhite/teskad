@@ -47,7 +47,7 @@ function mobileShell(): Plugin {
       // Fonts in other scripts than Latin load only when a page needs them:
       // they stay out of the shell and are cached the first time they are.
       const built = Object.keys(bundle).filter(
-        (file) => !file.endsWith(".map") && (!file.endsWith(".woff2") || /inter-latin-opsz-normal/.test(file)),
+        (file) => !file.endsWith(".map") && (!file.endsWith(".woff2") || /(inter-latin-opsz|space-grotesk-latin-wght|jetbrains-mono-latin-wght)-normal/.test(file)),
       );
       const statics = readdirSync(publicDir);
       const shell = ["./", ...[...built, ...statics].sort().map((file) => `./${file}`)];

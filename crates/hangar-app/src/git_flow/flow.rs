@@ -404,8 +404,10 @@ pub async fn run<D: FromGitDeps>(request: &FromGitRequest, deps: &D) -> FromGitO
     else {
         return refuse(
             FromGitRefusal::NoDestination,
-            &brand("{app} has no folder to clone into: no projects folder is set, and the workspace asking has no parent folder. \
-             Call again with `parent`, an absolute folder (find the drive yourself if the person named one); the person can also set Settings › General › Projects folder."),
+            brand(
+                "{app} has no folder to clone into: no projects folder is set, and the workspace asking has no parent folder. \
+             Call again with `parent`, an absolute folder (find the drive yourself if the person named one); the person can also set Settings › General › Projects folder.",
+            ),
         );
     };
     let destination = join_folder(&parent, default_clone_folder(&repo.name));

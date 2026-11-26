@@ -1,130 +1,75 @@
-/* Hangar Mobile.
+/* Teskad Mobile.
 
-   The desktop's Graphite, carried to a phone: near-monochrome, so that colour
-   only ever means something. Green is an agent at work, amber one waiting on
-   you, cyan your turn, blue the thing to tap. The dark values are the
-   desktop's own (src/themes.ts derives them for its chrome); the light ones
-   are Graphite lightened the same way, the accent deepened to read on white.
+   The brand pack's tokens (tokens.css, copied from docs/teskad-brand/tokens,
+   dark by default, light under data-theme="light") are the only source of
+   colours, radii and fonts. This sheet names what the app needs with the
+   names it has always used, each one an alias of a semantic --tk-* token:
+   never of a --tk-brand-* colour, which stay the logo's and the pack's.
+
+   Colour is rare: surfaces are plum-tinted neutrals, the accent is for the
+   thing to tap, the focus and the state. A state is a shape and a colour
+   (components/StatusIcon.tsx), never a colour alone. The violet-to-magenta
+   gradient is for the logo and, at most, the one main action of a screen
+   (.btn--primary-gradient). A failure is coral, never magenta.
 
    Built for one hand at arm's length: 16px body text, 44px targets at the
    least, the actions within the thumb's reach at the bottom. What waits for
    the person comes first on every screen it appears on; each card has one
    thing to do, at its bottom right, with how long it has waited beside it.
-   Every text meets WCAG AA on what it sits on, in both themes. */
+   The tokens keep every text at 4.5:1 or more on what it sits on, in both
+   themes. */
 
 :root {
-  color-scheme: light;
-  --bg: #f4f4f5;
-  --surface: #ffffff;
-  --raised: #ebebed;
-  --pressed: #dedee1;
-  --bar: #f9f9fa;
-  --term: #ffffff;
+  --bg: var(--tk-bg);
+  --surface: var(--tk-surface);
+  --raised: var(--tk-surface-raised);
+  --pressed: var(--tk-border-strong);
+  --bar: var(--tk-surface);
+  --term: var(--tk-surface-sunken);
   /* The person's own messages in the chat. */
-  --bubble: #ffffff;
-  --line: rgba(0, 0, 0, 0.08);
-  --line-strong: rgba(0, 0, 0, 0.14);
-  --fg-hi: #0f1114;
-  --fg: #24272c;
-  --fg-2: #55585e;
-  --fg-3: #63666c;
-  --accent: #1765d8;
-  /* Deeper than the fill, to read on the accent's own tint too. */
-  --accent-text: #155fcc;
-  --accent-fg: #ffffff;
-  --accent-soft: rgba(23, 101, 216, 0.1);
-  --accent-ring: rgba(23, 101, 216, 0.45);
-  --working: #1a7f37;
-  --waiting: #8f5500;
-  --waiting-fill: #c27c0e;
-  --waiting-soft: rgba(194, 124, 14, 0.1);
-  --yours: #0f7178;
-  --yours-fill: #1b8a91;
-  --idle: #8b8e93;
-  --danger: #c4242e;
-  --danger-soft: rgba(196, 36, 46, 0.08);
+  --bubble: var(--tk-surface-raised);
+  --line: var(--tk-border);
+  --line-strong: var(--tk-border-strong);
+  --fg-hi: var(--tk-text);
+  --fg: var(--tk-text-secondary);
+  --fg-2: var(--tk-text-secondary);
+  --fg-3: var(--tk-text-muted);
+  --accent: var(--tk-accent);
+  --accent-text: var(--tk-accent-text);
+  --accent-fg: var(--tk-on-accent);
+  --accent-soft: var(--tk-selection-bg);
+  --accent-ring: var(--tk-focus-ring);
+  /* The five states of the brand (components/StatusIcon.tsx). */
+  --working: var(--tk-status-running);
+  --waiting: var(--tk-status-active);
+  --waiting-fill: var(--tk-status-active);
+  --waiting-soft: color-mix(in srgb, var(--tk-status-active) 10%, transparent);
+  --yours: var(--tk-status-completed);
+  --yours-fill: var(--tk-status-completed);
+  --idle: var(--tk-status-inactive);
+  --danger: var(--tk-status-failed);
+  --danger-soft: color-mix(in srgb, var(--tk-status-failed) 12%, transparent);
+  /* A line added in a diff: done work's green. */
+  --added: var(--tk-status-completed);
+  --added-soft: color-mix(in srgb, var(--tk-status-completed) 14%, transparent);
   /* A key or an attribute in shared code: none of the states' colours. */
-  --syntax-attr: #7c3aed;
+  --syntax-attr: var(--tk-accent-text);
 
-  --ui: "Inter Variable", -apple-system, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
-  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, "Roboto Mono", Consolas, monospace;
+  /* Inter for the interface, Space Grotesk 600 for titles, JetBrains Mono for
+     what is technical: all served from the app itself (main.tsx). */
+  --ui: "Inter Variable", var(--tk-font-ui);
+  --display: "Space Grotesk Variable", var(--tk-font-display);
+  --mono: "JetBrains Mono Variable", var(--tk-font-mono);
 
-  --gutter: 16px;
-  --r-control: 8px;
-  --r-card: 10px;
+  --gutter: var(--tk-space-4);
+  --r-control: var(--tk-radius-md);
+  --r-card: var(--tk-radius-lg);
   --tab-h: 56px;
-  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease: var(--tk-easing);
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
-}
-
-/* Graphite itself. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --bg: #121316;
-    --surface: #1b1c1f;
-    --raised: #252629;
-    --pressed: #313234;
-    --bar: #1b1c1f;
-    --term: #121316;
-    --bubble: #252629;
-    --line: rgba(255, 255, 255, 0.07);
-    --line-strong: rgba(255, 255, 255, 0.12);
-    --fg-hi: #ecedf0;
-    --fg: #c8c9ce;
-    --fg-2: #9c9da2;
-    --fg-3: #8c8d91;
-    --accent: #3e8bff;
-    --accent-text: #68a5ff;
-    --accent-fg: #0b192e;
-    --accent-soft: rgba(62, 139, 255, 0.14);
-    --accent-ring: rgba(62, 139, 255, 0.5);
-    --working: #5fd27f;
-    --waiting: #e7c06b;
-    --waiting-fill: #e7c06b;
-    --waiting-soft: rgba(231, 192, 107, 0.1);
-    --yours: #6fd4df;
-    --yours-fill: #6fd4df;
-    --idle: #7b7c80;
-    --danger: #ff7b72;
-    --danger-soft: rgba(255, 123, 114, 0.12);
-    --syntax-attr: #c4a5ff;
-  }
-}
-
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #121316;
-  --surface: #1b1c1f;
-  --raised: #252629;
-  --pressed: #313234;
-  --bar: #1b1c1f;
-  --term: #121316;
-  --bubble: #252629;
-  --line: rgba(255, 255, 255, 0.07);
-  --line-strong: rgba(255, 255, 255, 0.12);
-  --fg-hi: #ecedf0;
-  --fg: #c8c9ce;
-  --fg-2: #9c9da2;
-  --fg-3: #8c8d91;
-  --accent: #3e8bff;
-  --accent-text: #68a5ff;
-  --accent-fg: #0b192e;
-  --accent-soft: rgba(62, 139, 255, 0.14);
-  --accent-ring: rgba(62, 139, 255, 0.5);
-  --working: #5fd27f;
-  --waiting: #e7c06b;
-  --waiting-fill: #e7c06b;
-  --waiting-soft: rgba(231, 192, 107, 0.1);
-  --yours: #6fd4df;
-  --yours-fill: #6fd4df;
-  --idle: #7b7c80;
-  --danger: #ff7b72;
-  --danger-soft: rgba(255, 123, 114, 0.12);
-  --syntax-attr: #c4a5ff;
 }
 
 *,
@@ -320,12 +265,12 @@ img {
   text-overflow: ellipsis;
 }
 
-.pc .dot {
-  background: var(--working);
+.pc .status-icon {
+  color: var(--tk-status-active);
 }
 
-.pc--away .dot {
-  background: var(--waiting-fill);
+.pc--away .status-icon {
+  color: var(--tk-status-inactive);
 }
 
 .backbar {
@@ -361,12 +306,49 @@ img {
 
 /* ── States ────────────────────────────────────────────────────── */
 
-.dot {
+/* The state marker: shape and colour (components/StatusIcon.tsx). */
+.status-icon {
   flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  background: var(--idle);
+  display: inline-flex;
+  width: var(--tk-size-icon-md);
+  height: var(--tk-size-icon-md);
+}
+
+.status-icon svg {
+  display: block;
+}
+
+.status-icon--running {
+  color: var(--tk-status-running);
+}
+.status-icon--completed {
+  color: var(--tk-status-completed);
+}
+.status-icon--failed {
+  color: var(--tk-status-failed);
+}
+.status-icon--active {
+  color: var(--tk-status-active);
+}
+.status-icon--inactive {
+  color: var(--tk-status-inactive);
+}
+
+/* The arc turns once every 1.4 s, and stands still when motion is reduced. */
+.status-icon--running svg {
+  animation: status-turn var(--tk-motion-running-pulse) linear infinite;
+}
+
+@keyframes status-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-icon--running svg {
+    animation: none;
+  }
 }
 
 .is-working {
@@ -400,20 +382,6 @@ img {
   white-space: nowrap;
 }
 
-.state .dot,
-.dot.is-working,
-.dot.is-waiting,
-.dot.is-yours,
-.dot.is-idle {
-  background: var(--state-fill);
-}
-
-.dot.is-none,
-.state.is-none .dot {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--idle);
-}
-
 /* ── Agents by state ───────────────────────────────────────────────
    How many agents are in each state, in words beside the state's colour:
    read at a glance, nothing to decode. */
@@ -432,10 +400,6 @@ img {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-}
-
-.agents .dot {
-  background: var(--state-fill);
 }
 
 /* ── Sections and cards ─────────────────────────────────────────── */
@@ -1277,7 +1241,7 @@ img {
   font-weight: 600;
   /* Centred from the middle, it would otherwise fit in half the width. */
   white-space: nowrap;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--tk-shadow-popover);
 }
 
 .to-end .icon {
@@ -1445,7 +1409,7 @@ img {
 }
 
 .status--done {
-  color: var(--working);
+  color: var(--added);
 }
 
 .status .btn {
@@ -1842,8 +1806,8 @@ button.action__line:active {
 }
 
 .detail__line--add {
-  background: rgba(26, 127, 55, 0.12);
-  color: var(--working);
+  background: var(--added-soft);
+  color: var(--added);
 }
 
 .detail__line--del {
@@ -2641,7 +2605,7 @@ button.share__image {
 }
 
 .tok--string {
-  color: var(--working);
+  color: var(--added);
 }
 
 .tok--number {
@@ -3406,7 +3370,7 @@ button.share__image {
 }
 
 .verdict--ok > .icon {
-  color: var(--working);
+  color: var(--added);
 }
 
 .verdict--failed > .icon {
@@ -3544,7 +3508,7 @@ button.share__image {
 }
 
 .lines--add {
-  color: var(--working);
+  color: var(--added);
   font-variant-numeric: tabular-nums;
 }
 
@@ -3574,8 +3538,8 @@ button.share__image {
 }
 
 .change__mark--added {
-  background: rgba(26, 127, 55, 0.12);
-  color: var(--working);
+  background: var(--added-soft);
+  color: var(--added);
 }
 
 .change__mark--deleted {
@@ -3683,7 +3647,7 @@ button.share__image {
 }
 
 .outcome > .icon {
-  color: var(--working);
+  color: var(--added);
 }
 
 .outcome--failed > .icon {
@@ -3800,8 +3764,8 @@ button.share__image {
 }
 
 .patch__line--add {
-  background: rgba(26, 127, 55, 0.12);
-  color: var(--working);
+  background: var(--added-soft);
+  color: var(--added);
 }
 
 .patch__line--del {
@@ -3903,7 +3867,7 @@ button.share__image {
   padding: 0 5px;
   border-radius: 9px;
   background: var(--waiting-fill);
-  color: #1b1405;
+  color: var(--tk-bg);
   font-size: 12px;
   font-weight: 700;
   line-height: 18px;
@@ -4072,4 +4036,50 @@ button.share__image {
 
 .viewer__state .btn {
   margin-top: 8px;
+}
+
+/* ── Brand: type and the gradient ──────────────────────────────── */
+
+/* Space Grotesk 600 for the titles of views and panels. */
+.title,
+.empty__title,
+.ask__title,
+.asleep__title,
+.delivery__title,
+.landing__title,
+.outcome__title,
+.diff__title,
+.verdict__title,
+.blocking__title,
+.viewer__title,
+.section__title {
+  font-family: var(--display);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+/* JetBrains Mono for paths and file names. */
+.change__name,
+.change__dir,
+.action__file,
+.file__name {
+  font-family: var(--mono);
+}
+
+/* The violet-to-magenta gradient is for the one main action of a screen. */
+.btn--primary.btn--wide,
+.btn--primary.actionbar__main,
+.btn--primary.asleep__wake {
+  background: var(--tk-gradient);
+  color: var(--tk-on-accent);
+  /* White on the magenta end is 3.8:1: bold and 19px makes it large text (3:1). */
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.btn--primary.btn--wide:disabled,
+.btn--primary.actionbar__main:disabled,
+.btn--primary.asleep__wake:disabled {
+  background: var(--raised);
+  color: var(--fg-3);
 }

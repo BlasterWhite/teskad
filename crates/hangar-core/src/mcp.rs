@@ -102,13 +102,12 @@ impl Api {
         let (base, token) = match pane_endpoint(|name| env_var(&[name])) {
             Some(pair) => pair,
             None => {
-                let endpoint = crate::endpoint::read()
-                    .ok_or_else(|| {
-                        format!(
-                            "{} is not running (no endpoint file found)",
-                            crate::instructions::APP_NAME
-                        )
-                    })?;
+                let endpoint = crate::endpoint::read().ok_or_else(|| {
+                    format!(
+                        "{} is not running (no endpoint file found)",
+                        crate::instructions::APP_NAME
+                    )
+                })?;
                 (
                     format!("http://127.0.0.1:{}", endpoint.port),
                     endpoint.token,
@@ -269,8 +268,12 @@ fn tool_definitions() -> Value {
         }
     }
     // The descriptions say `{app}` where they name the product.
-    serde_json::from_str(&tools.to_string().replace("{app}", crate::instructions::APP_NAME))
-        .unwrap_or(tools)
+    serde_json::from_str(
+        &tools
+            .to_string()
+            .replace("{app}", crate::instructions::APP_NAME),
+    )
+    .unwrap_or(tools)
 }
 
 /// What the pane tools' `agent` takes: each kind of agent Hangar runs, by

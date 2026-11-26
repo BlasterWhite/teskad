@@ -1,0 +1,116 @@
+/* Teskad design tokens v1 — généré depuis tokens.json, ne pas éditer à la main. */
+/* Thème sombre par défaut ; ajouter data-theme="light" sur <html> pour le clair. */
+
+:root {
+  --tk-brand-violet: #8A4DFF;
+  --tk-brand-magenta: #E040B0;
+  --tk-brand-pink: #FF6FB0;
+  --tk-brand-lavender: #C9B6FF;
+  --tk-brand-plum: #3A1F4D;
+  --tk-gradient: linear-gradient(135deg, #8A4DFF, #E040B0);
+  --tk-font-display: 'Space Grotesk', Inter, system-ui, sans-serif;
+  --tk-font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --tk-font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --tk-space-0: 0px;
+  --tk-space-1: 4px;
+  --tk-space-2: 8px;
+  --tk-space-3: 12px;
+  --tk-space-4: 16px;
+  --tk-space-5: 20px;
+  --tk-space-6: 24px;
+  --tk-space-8: 32px;
+  --tk-space-10: 40px;
+  --tk-space-12: 48px;
+  --tk-radius-xs: 4px;
+  --tk-radius-sm: 6px;
+  --tk-radius-md: 8px;
+  --tk-radius-lg: 12px;
+  --tk-radius-xl: 16px;
+  --tk-radius-pill: 999px;
+  --tk-size-control-sm: 28px;
+  --tk-size-control-md: 32px;
+  --tk-size-control-lg: 40px;
+  --tk-size-icon-sm: 14px;
+  --tk-size-icon-md: 16px;
+  --tk-size-icon-lg: 20px;
+  --tk-size-title-bar: 44px;
+  --tk-size-sidebar: 248px;
+  --tk-motion-fast: 120ms;
+  --tk-motion-base: 180ms;
+  --tk-motion-slow: 280ms;
+  --tk-motion-running-pulse: 1400ms;
+  --tk-easing: cubic-bezier(0.2, 0, 0, 1);
+  --tk-type-caption-size: 12px; --tk-type-caption-line: 16px; --tk-type-caption-weight: 500;
+  --tk-type-small-size: 13px; --tk-type-small-line: 18px; --tk-type-small-weight: 400;
+  --tk-type-body-size: 14px; --tk-type-body-line: 20px; --tk-type-body-weight: 400;
+  --tk-type-body-strong-size: 14px; --tk-type-body-strong-line: 20px; --tk-type-body-strong-weight: 600;
+  --tk-type-subtitle-size: 16px; --tk-type-subtitle-line: 22px; --tk-type-subtitle-weight: 600;
+  --tk-type-title-size: 20px; --tk-type-title-line: 26px; --tk-type-title-weight: 600;
+  --tk-type-headline-size: 28px; --tk-type-headline-line: 34px; --tk-type-headline-weight: 600;
+  --tk-type-code-size: 13px; --tk-type-code-line: 20px; --tk-type-code-weight: 400;
+  --tk-type-label-size: 11px; --tk-type-label-line: 14px; --tk-type-label-weight: 500;
+}
+
+:root, [data-theme="dark"] {
+  color-scheme: dark;
+  --tk-bg: #0E0C12;
+  --tk-surface: #17121E;
+  --tk-surface-raised: #1F1828;
+  --tk-surface-sunken: #0B0A0E;
+  --tk-border: #2A2135;
+  --tk-border-strong: #3A2F47;
+  --tk-text: #F2EEF7;
+  --tk-text-secondary: #C8BFD4;
+  --tk-text-muted: #A79DB5;
+  --tk-accent: #8A4DFF;
+  --tk-accent-hover: #9B66FF;
+  --tk-accent-pressed: #7A3DF0;
+  --tk-on-accent: #FFFFFF;
+  --tk-accent-text: #A97BFF;
+  --tk-focus-ring: #C9B6FF;
+  --tk-selection-bg: #241A33;
+  --tk-selection-border: #8A4DFF;
+  --tk-hover-overlay: rgba(201, 182, 255, 0.06);
+  --tk-scrim: rgba(8, 6, 12, 0.72);
+  --tk-status-running: #A97BFF;
+  --tk-status-completed: #4FD8A4;
+  --tk-status-failed: #FF6A55;
+  --tk-status-active: #C9B6FF;
+  --tk-status-inactive: #7D7290;
+  --tk-shadow-popover: 0 8px 24px rgba(0,0,0,0.45), 0 0 0 1px #2A2135;
+  --tk-shadow-modal: 0 24px 64px rgba(0,0,0,0.55), 0 0 0 1px #3A2F47;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --tk-bg: #FAF8FC;
+  --tk-surface: #FFFFFF;
+  --tk-surface-raised: #F3EFF8;
+  --tk-surface-sunken: #F1EDF6;
+  --tk-border: #E6E0EE;
+  --tk-border-strong: #D2C9DE;
+  --tk-text: #1A1422;
+  --tk-text-secondary: #4A3F58;
+  --tk-text-muted: #6E6380;
+  --tk-accent: #8A4DFF;
+  --tk-accent-hover: #7A3DF0;
+  --tk-accent-pressed: #6D3BE0;
+  --tk-on-accent: #FFFFFF;
+  --tk-accent-text: #5B2FC9;
+  --tk-focus-ring: #8A4DFF;
+  --tk-selection-bg: #EFE7FF;
+  --tk-selection-border: #8A4DFF;
+  --tk-hover-overlay: rgba(58, 31, 77, 0.05);
+  --tk-scrim: rgba(26, 20, 34, 0.40);
+  --tk-status-running: #6D3BE0;
+  --tk-status-completed: #0F7A55;
+  --tk-status-failed: #C9382A;
+  --tk-status-active: #7A4FE0;
+  --tk-status-inactive: #8E84A0;
+  --tk-shadow-popover: 0 8px 24px rgba(26,20,34,0.10), 0 0 0 1px #E6E0EE;
+  --tk-shadow-modal: 0 24px 64px rgba(26,20,34,0.16), 0 0 0 1px #D2C9DE;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --tk-motion-fast: 0ms; --tk-motion-base: 0ms; --tk-motion-slow: 0ms; }
+}
