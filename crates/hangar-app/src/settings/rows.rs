@@ -215,7 +215,6 @@ fn block<'a>(ctx: Ctx<'a>, st: &'a State, block: Block) -> Element<'a, Message> 
         Block::Mobile => super::mobile::view(&st.mobile, ctx),
         Block::Kits => crate::kits::settings_view(&ctx.pkg.kits, ctx),
         Block::Accounts => crate::accounts::settings_page(&ctx.pkg.accounts, ctx),
-        Block::HangarAccount => crate::hangar_account::card(ctx),
         Block::VoiceModel => super::voice_card::model_view(&st.voice, ctx),
         Block::VoiceKey => super::voice_card::key_view(&st.voice, ctx),
         Block::DiscordCard => super::discord_card::view(&st.discord, ctx, st.launched_at),

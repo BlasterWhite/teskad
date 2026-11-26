@@ -8,7 +8,9 @@ use serde_json::{Value, json};
 use super::types::{
     AgentId, AgentKind, CodexModels, OrchestrationRole, PaneRole, SplitDir, SplitNode,
 };
-use super::{Patch, Settings, Store, StoreAction, Workspace, layout, read_state_keeping};
+use super::{
+    Patch, Settings, Store, StoreAction, Workspace, layout, read_checked, read_state_keeping,
+};
 
 const TYPICAL: &str = include_str!("fixtures/typical.json");
 const HAND_EDITED: &str = include_str!("fixtures/hand_edited.json");
@@ -197,6 +199,42 @@ fn the_panes_of_the_retired_agents_open_as_shells_and_are_saved_as_shells() {
             .panes
             .iter()
             .all(|pane| pane.retired_agent.is_none())
+    );
+}
+
+/// The Hangar account is gone. A file that holds settings of it, in the
+/// settings or beside them, loads like any other: nothing is refused or
+/// dropped around them, and they change nothing this version reads. As any
+/// key it does not know, they are written back as they were.
+///
+/// The account kept its own preference outside `state.json`
+/// (`hangar-account.json`), so these key names stand for any it could hold.
+#[test]
+fn a_file_with_settings_of_the_removed_hangar_account_loads_and_ignores_them() {
+    let base: Value = serde_json::from_str(TYPICAL).unwrap();
+    let mut raw = base.clone();
+    let account = json!({"sync": true, "provider": "github", "lastSync": 1794000000000_i64});
+    raw["hangarAccount"] = account.clone();
+    raw["settings"]["hangarAccount"] = account.clone();
+    raw["settings"]["hangarAccountSync"] = json!(true);
+
+    let (without, kept_without) = read_checked(base).unwrap();
+    let (mut with, kept_with) = read_checked(raw.clone()).unwrap();
+    assert_eq!(kept_with.len(), kept_without.len());
+
+    // Held only among the unknown keys; the rest of the state is the same.
+    assert_eq!(with.extra.remove("hangarAccount"), Some(account.clone()));
+    assert_eq!(with.settings.extra.remove("hangarAccount"), Some(account));
+    assert_eq!(
+        with.settings.extra.remove("hangarAccountSync"),
+        Some(json!(true))
+    );
+    assert_eq!(with, without);
+
+    let (model, _) = load(&raw.to_string());
+    assert_eq!(
+        difference(&model.to_json(), &without_the_limits(raw), ""),
+        None
     );
 }
 
