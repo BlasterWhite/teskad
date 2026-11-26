@@ -14,9 +14,9 @@ and the statistics stay on your machine:
 - [Hangar Mobile](mobile.md), off until you turn it on, listens on `127.0.0.1` too, and
   only your own devices reach it, through Tailscale.
 
-Hangar itself only goes online in these cases:
+This fork's builds do not update themselves, so Hangar asks no release feed for a new
+version. Hangar itself only goes online in these cases:
 
-- **Updates.** It checks the GitHub release feed for a new version.
 - **Dictation.** It downloads the speech model from Hugging Face once, when you choose it.
   It sends audio to Groq only if you choose Groq as the engine, and the transcript only if
   you turn on the optional cleanup pass, which also runs on Groq.

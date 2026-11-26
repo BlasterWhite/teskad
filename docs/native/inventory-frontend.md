@@ -2029,7 +2029,7 @@ Category order: general, appearance, terminal, shell, notifications, mobile, kit
 | `discordPresence` | toggle | false | — | `settings.discordEnable` / `…Hint` | section `settings.discord` hint `settings.discordHint`; App's `useDiscordPresence` calls `discord_presence_set` |
 | `discordShowWorkspace` | toggle | true | — | `settings.discordWorkspace` / `…Hint` | |
 | `discordShowAgents` | toggle | true | — | `settings.discordAgents` / `…Hint` | |
-| `discordAppId` | input | `""` | placeholder `settings.discordAppIdPlaceholder` | `settings.discordAppId` / `…Hint` | section `settings.discordApp`; trimmed; empty → `DEFAULT_APP_ID 1534592584045957282` |
+| `discordAppId` | input | `""` | placeholder `settings.discordAppIdPlaceholder` | `settings.discordAppId` / `…Hint` | section `settings.discordApp`; trimmed; no default: empty means nothing is published |
 
 **Shortcuts** (icon `keyboard`, `settings.catShortcuts`)
 
@@ -2180,7 +2180,7 @@ Category order: general, appearance, terminal, shell, notifications, mobile, kit
   - details = workspace name, or `discord.working` when the name is hidden, or `discord.noWorkspace`.
   - state = `discord.idle`, or `discord.panes {n}` · (`discord.shellOnly` | agent labels | `discord.agents {n}`); shells don't count as agents.
   - badge = the focused pane's agent, else the first agent kind, only when `discordShowAgents`.
-  - appId = `discordAppId` or `DEFAULT_APP_ID`; largeImage = the raw GitHub logo URL; startedAt = app launch; button `discord.button` linking to `REPO_URL`.
+  - appId = `discordAppId` (no default: without one, nothing is published); largeImage = the raw GitHub logo URL; startedAt = app launch; button `discord.button` linking to `REPO_URL`.
 - **Publishing**: `useDiscordPresence` (App-level, main window only) calls `discord_presence_set {wanted | null}` when the serialized payload changes, and null on unmount.
 - **Keys**: `discord.*`, 16 (plural pairs `panes`, `agents`).
 

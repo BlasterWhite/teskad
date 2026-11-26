@@ -355,9 +355,9 @@ fn bar<'a>(st: &'a State, ctx: Ctx<'a>, ws: &'a Workspace, width: f32) -> Elemen
                 .on_press(Message::Intent(Intent::ToggleNavigator)),
         );
     }
-    // Where the navigator is not drawn, the band says where the software
-    // lives: its name and site, in the room the rest of the bar leaves, then
-    // a hairline between it and the workspace's name.
+    // Where the navigator is not drawn, the band says what runs: the
+    // software's name and version, in the room the rest of the bar leaves,
+    // then a hairline between it and the workspace's name.
     let steps = Steps {
         show_title,
         icon_views,
