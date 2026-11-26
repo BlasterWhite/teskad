@@ -717,12 +717,11 @@ fn head<'a>(
     let tr = v.ctx.i18n;
     let mut line = row![].spacing(9.0).align_y(Alignment::Center);
     if let Some(column) = column {
-        line = line.push(
-            container(Space::new())
-                .width(look::MARK_LARGE)
-                .height(look::MARK_LARGE)
-                .style(look::mark(t, column, look::MARK_LARGE)),
-        );
+        line = line.push(hangar_ui::glyph::state(
+            t,
+            look::mark(column),
+            look::MARK_LARGE,
+        ));
     }
     let mut heading = row![text(title).size(font_size::BODY).font(fonts::ui_semibold())]
         .spacing(space::MD)

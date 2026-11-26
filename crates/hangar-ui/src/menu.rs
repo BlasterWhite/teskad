@@ -837,7 +837,10 @@ impl<M: Clone> Menu<'_, M> {
                     Size::new(side, side),
                 );
                 let tint = if highlighted && item.live() {
-                    Tint { fill: icon_color }
+                    Tint {
+                        fill: icon_color,
+                        ink: self.theme.colors.bg,
+                    }
                 } else {
                     Tint {
                         fill: if item.disabled {
@@ -845,6 +848,7 @@ impl<M: Clone> Menu<'_, M> {
                         } else {
                             glyph_tint(self.theme, state)
                         },
+                        ink: self.theme.colors.bg,
                     }
                 };
                 glyph::draw(renderer, state, glyph_slot, tint, false);

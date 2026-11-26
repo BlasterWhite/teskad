@@ -382,10 +382,7 @@ fn column_view<'a>(v: &View<'a>, which: Column, in_dock: bool, flow: bool) -> El
         .t_with(Key::BoardAddTo, &args!("column" => name.as_str()))
         .into_owned();
 
-    let mark = container(Space::new())
-        .width(look::MARK)
-        .height(look::MARK)
-        .style(look::mark(t, which, look::MARK));
+    let mark = hangar_ui::glyph::state(t, look::mark(which), look::MARK);
     let count = text(items.len().to_string())
         .size(font_size::LABEL)
         .font(fonts::mono())

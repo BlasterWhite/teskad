@@ -15,6 +15,7 @@ use hangar_core::chat::{Answer, Body, CallResult, CallState, ChatItem, Question,
 use hangar_core::git::{ChangedFile, Changes};
 use hangar_i18n::{Key, args};
 use hangar_theme::{AgentState, Theme, fonts, style, tokens};
+use hangar_ui::glyph::GlyphState;
 use hangar_ui::{Icon, button as ui_button, empty, icon};
 use iced::keyboard::{self, key::Named};
 use iced::widget::text_editor::{Binding, KeyPress, Status};
@@ -127,22 +128,6 @@ fn tint(color: Color, alpha: f32) -> Color {
     }
 }
 
-/// A round mark of `color`, `size` across.
-fn dot<'a>(color: Color, size: f32) -> Element<'a, Message> {
-    container(Space::new())
-        .width(size)
-        .height(size)
-        .style(move |_| container::Style {
-            background: Some(Background::Color(color)),
-            border: Border {
-                radius: (size / 2.0).into(),
-                ..Border::default()
-            },
-            ..container::Style::default()
-        })
-        .into()
-}
-
 /// The orchestrator, how it is doing, and on the right the model it runs and
 /// how full its context is.
 fn header<'a>(ctx: Ctx<'a>, pane: &'a Pane) -> Element<'a, Message> {
@@ -158,7 +143,7 @@ fn header<'a>(ctx: Ctx<'a>, pane: &'a Pane) -> Element<'a, Message> {
     let state = crate::state::live::agent_state(activity);
     let pill = container(
         row![
-            dot(t.colors.state(state).fill, 7.0),
+            hangar_ui::glyph::state(t, GlyphState::from(state), 7.0),
             text(ctx.t(label))
                 .size(tokens::font_size::CAPTION)
                 .style(style::text::state(t, state)),
@@ -365,7 +350,7 @@ fn working<'a>(ctx: Ctx<'a>, pane: &'a Pane, chat: &'a Chat) -> Option<Element<'
     };
     Some(
         row![
-            dot(t.colors.state_working_fill, 7.0),
+            hangar_ui::glyph::state(t, GlyphState::Working, 7.0),
             text(words)
                 .size(tokens::font_size::CAPTION)
                 .style(style::text::state(t, AgentState::Working)),

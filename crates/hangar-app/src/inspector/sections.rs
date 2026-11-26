@@ -9,7 +9,7 @@
 use hangar_core::agent::{Capabilities, UsageSource};
 use hangar_core::bridge::Queued;
 use hangar_i18n::{Key, Locale, Translator, args};
-use hangar_theme::tokens::{font_size, radius, space};
+use hangar_theme::tokens::{font_size, space};
 use hangar_theme::{AgentState, Theme, fonts, style};
 use hangar_ui::button::icon_button;
 use hangar_ui::glyph::{self, GlyphState};
@@ -758,37 +758,27 @@ pub(super) fn queue<'a>(s: &Scene<'a>, queue: &'a [Queued]) -> Section<'a, Messa
 /// How many events the section keeps: a glance back, not a log.
 const ACTIVITY_SHOWN: usize = 8;
 
-/// The dot's colour for an event kind (`.insp-event__dot--*`).
-fn dot_color(t: &Theme, kind: &str) -> Option<Color> {
-    let c = &t.colors;
-    match kind {
-        "turn-start" => Some(c.state_working_fill),
-        "permission" => Some(c.state_waiting_fill),
-        "turn-end" => Some(c.state_yours_fill),
-        "dropped" => Some(c.danger),
-        // The exit is a ring, not a dot: the caller draws it.
-        "exit" => None,
-        _ => Some(c.fg_subtle),
-    }
-}
-
+/// The mark of an event kind (`.insp-event__dot--*`): the state glyph of
+/// what happened, drawn at rest since it is in the past. Anything else is a
+/// quiet dot.
 fn dot<'a>(t: &Theme, kind: &str) -> Element<'a, Message> {
-    let c = &t.colors;
-    let fill = dot_color(t, kind);
-    let ring = c.state_idle_fill;
-    container(filler::horizontal())
-        .width(5.0)
-        .height(5.0)
-        .style(move |_: &iced::Theme| container::Style {
-            background: fill.map(Background::Color),
-            border: Border {
-                radius: radius::FULL.into(),
-                width: if fill.is_none() { 1.0 } else { 0.0 },
-                color: ring,
-            },
-            ..container::Style::default()
-        })
-        .into()
+    let shown = match kind {
+        "turn-start" => GlyphState::Working,
+        "permission" => GlyphState::Waiting,
+        "turn-end" => GlyphState::Yours,
+        "dropped" => GlyphState::Failed,
+        "exit" => GlyphState::Exited,
+        _ => GlyphState::Yours,
+    };
+    let mark = glyph::state(t, shown, 8.0).still();
+    if matches!(
+        kind,
+        "turn-start" | "permission" | "turn-end" | "dropped" | "exit"
+    ) {
+        mark.into()
+    } else {
+        mark.tint(t.colors.fg_subtle).into()
+    }
 }
 
 pub(super) fn activity<'a>(
@@ -814,7 +804,7 @@ pub(super) fn activity<'a>(
         );
         // The dot sits on the first line, whatever the text wraps to.
         let marker = container(dot(t, event.detail.kind())).padding(Padding {
-            top: 5.0,
+            top: 3.0,
             ..Padding::ZERO
         });
         // At most two lines, then cut.

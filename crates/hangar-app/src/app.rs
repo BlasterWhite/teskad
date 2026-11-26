@@ -299,7 +299,15 @@ impl App {
         };
         (
             app,
-            Task::batch([open, load, detect, screenshot, hooks, layout]),
+            Task::batch([
+                open,
+                load,
+                detect,
+                screenshot,
+                hooks,
+                layout,
+                crate::model3d_view::ask_system_motion(),
+            ]),
         )
     }
 

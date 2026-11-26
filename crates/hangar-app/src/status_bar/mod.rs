@@ -590,13 +590,20 @@ fn info<'a>(ctx: Ctx<'a>, ws: &'a crate::state::Workspace) -> Element<'a, Messag
     } else {
         (None, tr.t(Key::ToolbarActivityQuiet))
     };
-    let summary = match kind {
-        Some(kind) => text(summary.into_owned())
-            .size(font_size::UI)
-            .style(skin::state_text(t, kind)),
+    let summary: Element<'a, Message> = match kind {
+        Some(kind) => row![
+            hangar_ui::glyph::state(t, reads::activity_glyph(kind), 7.0),
+            text(summary.into_owned())
+                .size(font_size::UI)
+                .style(skin::state_text(t, kind)),
+        ]
+        .spacing(space::SM)
+        .align_y(Alignment::Center)
+        .into(),
         None => text(summary.into_owned())
             .size(font_size::UI)
-            .style(style::text::secondary(t)),
+            .style(style::text::secondary(t))
+            .into(),
     };
 
     let cwd = ws.cwd.as_str();

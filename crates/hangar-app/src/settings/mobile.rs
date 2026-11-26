@@ -777,22 +777,9 @@ fn row_view<'a>(st: &'a State, ctx: Ctx<'a>, r: Row) -> Element<'a, Message> {
     }
 }
 
-/// The green dot of a step that is done.
+/// The ticked disc of a step that is done.
 fn dot<'a>(ctx: Ctx<'a>) -> Element<'a, Message> {
-    let c = &ctx.theme.colors;
-    let color = c.success;
-    container(iced::widget::Space::new())
-        .width(8)
-        .height(8)
-        .style(move |_: &iced::Theme| container::Style {
-            background: Some(iced::Background::Color(color)),
-            border: iced::Border {
-                radius: radius::FULL.into(),
-                ..iced::Border::default()
-            },
-            ..container::Style::default()
-        })
-        .into()
+    hangar_ui::glyph::state(ctx.theme, hangar_ui::glyph::GlyphState::Completed, 10.0).into()
 }
 
 fn pairing_view<'a>(st: &'a State, ctx: Ctx<'a>, pairing: PairingRow) -> Element<'a, Message> {

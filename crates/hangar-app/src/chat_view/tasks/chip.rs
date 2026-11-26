@@ -3,8 +3,9 @@
 
 use hangar_i18n::Key;
 use hangar_theme::{style, tokens};
+use hangar_ui::glyph::GlyphState;
 use hangar_ui::tip;
-use iced::widget::{Space, container, mouse_area, row, text};
+use iced::widget::{container, mouse_area, row, text};
 use iced::{Alignment, Element, Padding};
 
 use crate::ctx::Ctx;
@@ -25,7 +26,7 @@ pub fn delivery_chip<'a>(
     clickable: bool,
     short: bool,
 ) -> Element<'a, Message> {
-    use crate::panes_logic::delivery_stage::{DeliveryStage, label};
+    use crate::panes_logic::delivery_stage::label;
     use hangar_theme::style::Tone;
     let t = ctx.theme;
     let tone = if stage.running() {
@@ -36,22 +37,9 @@ pub fn delivery_chip<'a>(
         Tone::Success
     };
     let ink = style::container::tone_text(t, tone);
-    // The dot beats only with the check's own tick: nothing else redraws it.
-    let beat = matches!(stage, DeliveryStage::Checking { .. }) && (now / 1000) % 2 == 1;
-    let dot_color = if beat {
-        iced::Color { a: 0.4, ..ink }
-    } else {
-        ink
-    };
     let mut content = row![].spacing(tokens::space::XS).align_y(Alignment::Center);
     if stage.running() {
-        content = content.push(container(Space::new().width(6).height(6)).style(move |_| {
-            container::Style {
-                background: Some(iced::Background::Color(dot_color)),
-                border: iced::border::rounded(3),
-                ..container::Style::default()
-            }
-        }));
+        content = content.push(hangar_ui::glyph::state(t, GlyphState::Working, 8.0).tint(ink));
     }
     content = content.push(
         text(label(stage, now, ctx.i18n, short))

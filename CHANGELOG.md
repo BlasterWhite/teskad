@@ -18,6 +18,7 @@ This fork is independent and not affiliated with the original HangarAI project: 
 - Teskad Mobile wears the brand: the pack's colour tokens (dark by default, light when the phone asks for it), Inter, Space Grotesk and JetBrains Mono served from the app itself (no CDN, it works offline over Tailscale), and one status icon, with a shape as well as a colour, for agents and tasks.
 
 ### Changed
+- One state indicator, as the Teskad brand pack draws it, wherever a state shows (agents, panes, tasks and board columns, the activity log, the status bar, setup steps): a turning arc for work under way (1.4 s a turn, still when the system asks for less motion), a solid dot for your turn, an empty ring for idle, a ticked disc for done, a crossed disc for failed, and the diamond stays for « waiting for an answer ». Colours come from the current theme.
 - **Teskad Dark is the theme of a new install.** A theme you chose stays yours; the 33 other themes are all still there.
 - JetBrains Mono is the terminals' font until you choose one (first in the default stack; a stack you already saved keeps its order), and the font of branches, hashes, paths, versions and shortcuts. Space Grotesk 600 sets view and dialog titles, panel headers and the name in the title bar.
 - Corner radii follow the brand pack: 6 px for controls, 8 px for cards and fields, 12 px for dialogs and the command palette.
