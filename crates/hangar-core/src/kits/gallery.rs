@@ -1,8 +1,8 @@
-//! The kit gallery: the public kits of the `hangar-ai` organization on GitHub,
-//! listed by a static file of its catalog repository.
+//! The kit gallery: public kits on GitHub, listed by a static file of the
+//! fork's catalog repository (forked from `hangar-ai/catalog`).
 //!
 //! No server of ours stands behind it (no hosted service, ever): the list is
-//! `index.json` of `hangar-ai/catalog`, read from raw.githubusercontent.com over
+//! `index.json` of `BlasterWhite/catalog`, read from raw.githubusercontent.com over
 //! https. That one URL is the only thing fetched — no icon, no manifest, no page.
 //! The answer is size-capped and parsed defensively (an entry that is not well
 //! formed is dropped, the others stay); the last good list is kept beside the
@@ -27,7 +27,7 @@ use super::source;
 use crate::agent::AgentKind;
 
 /// The one source of this version.
-pub const INDEX_URL: &str = "https://raw.githubusercontent.com/hangar-ai/catalog/main/index.json";
+pub const INDEX_URL: &str = "https://raw.githubusercontent.com/BlasterWhite/catalog/main/index.json";
 /// The only schema read. An older or a newer file lists nothing here.
 const SCHEMA: u64 = 2;
 /// Hangar reviews what this owner publishes, and nobody else's: the catalog's word
@@ -398,7 +398,7 @@ mod tests {
     fn the_url_is_the_catalog_of_the_organization() {
         assert_eq!(
             INDEX_URL,
-            "https://raw.githubusercontent.com/hangar-ai/catalog/main/index.json"
+            "https://raw.githubusercontent.com/BlasterWhite/catalog/main/index.json"
         );
     }
 
