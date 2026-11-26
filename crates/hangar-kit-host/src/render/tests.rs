@@ -184,7 +184,7 @@ fn hangar_says_its_own_words_in_the_tabs_language() {
     };
     let mut drawn = simulate(element(&cx, &given));
     drawn
-        .find("Une partie de cet onglet demande un Hangar plus récent.")
+        .find("Une partie de cet onglet demande un Teskad plus récent.")
         .expect("the French words");
 }
 

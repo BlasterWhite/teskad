@@ -484,7 +484,7 @@ fn says_how_long_the_same_in_both_languages() {
 fn words_a_line_the_pc_wrote_without_text() {
     assert_eq!(
         text_of(&entry(1, "", "appStopped", ""), Locale::En),
-        "Hangar stopped"
+        "Teskad stopped"
     );
     assert_eq!(
         text_of(&entry(1, "", "landed", "Landed: x"), Locale::En),
