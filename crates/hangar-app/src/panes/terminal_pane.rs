@@ -6,7 +6,7 @@ use std::time::Duration;
 use hangar_i18n::{Key, args};
 use hangar_theme::{style, tokens};
 use hangar_ui::{Icon, button, icon};
-use iced::widget::{Column, center, column, container, row, stack, text};
+use iced::widget::{Column, Space, center, column, container, row, stack, text};
 use iced::{Alignment, Background, Border, Element, Length, Padding};
 
 use crate::ctx::Ctx;
@@ -94,29 +94,50 @@ pub fn view<'a>(
     } else if let Some((behind, opacity)) = dimming(placing.focused, t) {
         terminal = terminal.dimmed(behind, opacity);
     }
-    let mut body = stack![terminal].width(Length::Fill).height(Length::Fill);
-    if let Some(away) = away {
-        body = body.push(away_card(ctx, away));
-    }
-    if let Some(open) = &rt.search {
-        let status = rt.link.lock().search_status();
-        body = body.push(search::view(ctx, &pane.id, open, status));
-    }
-    let background = look::theme_of(ctx.model.settings(), ws).terminal.background;
+    // The card and the search bar keep their places over the terminal,
+    // drawn or not: the search bar shifted down a place as the card came,
+    // and a field that moves in the tree is a new one to iced, its keyboard
+    // lost.
+    let card: Element<'a, Message> = match away {
+        Some(away) => away_card(ctx, away),
+        None => Space::new().into(),
+    };
+    let bar: Element<'a, Message> = match &rt.search {
+        Some(open) => {
+            let status = rt.link.lock().search_status();
+            search::view(ctx, &pane.id, open, status)
+        }
+        None => Space::new().into(),
+    };
+    let body = stack![terminal, card, bar]
+        .width(Length::Fill)
+        .height(Length::Fill);
+    // On a window the desktop shows through, the terminal leaves its
+    // default background to the page under the grid (shell/frame.rs): a
+    // fill here would make it opaque.
+    let theme = look::theme_of(ctx.model.settings(), ws);
+    let background = (!theme.is_translucent()).then_some(theme.terminal.background);
     pane_column = pane_column.push(
         container(body)
             .width(Length::Fill)
             .height(Length::Fill)
             .style(move |_| container::Style {
-                background: Some(Background::Color(background)),
+                background: background.map(Background::Color),
                 ..container::Style::default()
             }),
     );
     container(pane_column)
+        .id(slot_id(&pane.id))
         .width(Length::Fill)
         .height(Length::Fill)
-        .style(style::container::window(t))
+        .style(style::container::page(t))
         .into()
+}
+
+/// The id of pane `pane`'s whole body in the grid, a terminal's or a view's,
+/// its header included: where the grid laid it out, as a selector finds it.
+pub fn slot_id(pane: &str) -> iced::widget::Id {
+    iced::widget::Id::from(format!("pane-slot-{pane}"))
 }
 
 /// How opaque the terminal of a pane whose node is away is.

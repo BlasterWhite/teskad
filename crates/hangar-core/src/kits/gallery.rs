@@ -24,6 +24,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::source;
+use crate::agent::AgentKind;
 
 /// The one source of this version.
 pub const INDEX_URL: &str = "https://raw.githubusercontent.com/hangar-ai/catalog/main/index.json";
@@ -56,6 +57,12 @@ pub struct GalleryKit {
     /// The catalog says so and the repository is `hangar-ai`'s. Anything else is a
     /// community kit.
     pub verified: bool,
+    /// The agents the catalog says the kit is for, as its manifest's `agents`
+    /// names them (docs/native/agents.md §6.4); empty when it does not say,
+    /// and then the kit's own manifest tells, once installed. An agent this
+    /// Hangar does not know is left out.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub agents: Vec<AgentKind>,
 }
 
 /// Where the list comes from.
@@ -161,6 +168,18 @@ fn entry(value: &Value) -> Option<GalleryKit> {
             .collect(),
         Some(_) => return None,
     };
+    let mut agents = Vec::new();
+    if let Some(Value::Array(ids)) = value.get("agents") {
+        for kind in ids
+            .iter()
+            .filter_map(Value::as_str)
+            .filter_map(AgentKind::from_id)
+        {
+            if !agents.contains(&kind) {
+                agents.push(kind);
+            }
+        }
+    }
     Some(GalleryKit {
         name: text(value, "name", 80)?,
         description: text(value, "description", 400)?,
@@ -171,6 +190,7 @@ fn entry(value: &Value) -> Option<GalleryKit> {
         tag,
         version,
         tags,
+        agents,
     })
 }
 
@@ -397,8 +417,28 @@ mod tests {
                 permissions_summary: "runs gh".into(),
                 tags: vec!["ci".into()],
                 verified: true,
+                agents: Vec::new(),
             }]
         );
+    }
+
+    /// `agents`, when the catalog gives it, says which agents a kit is for
+    /// before it is installed; what is not an agent this Hangar knows is left
+    /// out, and the entry stays.
+    #[test]
+    fn reads_the_agents_a_kit_is_for() {
+        let read = |agents: Value| {
+            parse(&index(&[with(entry_of("both", "1.0.0"), "agents", agents)])).unwrap()[0]
+                .agents
+                .clone()
+        };
+        assert_eq!(
+            read(json!(["codex", "claude", "codex"])),
+            [AgentKind::Codex, AgentKind::Claude]
+        );
+        assert_eq!(read(json!(["claude", "gemini", 3])), [AgentKind::Claude]);
+        assert!(read(json!("codex")).is_empty());
+        assert!(read(Value::Null).is_empty());
     }
 
     #[test]

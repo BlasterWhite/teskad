@@ -197,7 +197,7 @@ mod tests {
 
     #[test]
     fn names_a_claude_code_session_after_its_pane_and_workspace_safe_to_quote() {
-        assert_eq!(session_name("Ava", "Hangar.AI"), "Ava (Hangar.AI)");
+        assert_eq!(session_name("Ava", "HangarAI"), "Ava (HangarAI)");
         assert_eq!(session_name("Ava", r#"My "big" $app"#), "Ava (My big app)");
         assert_eq!(session_name("Ava", "  "), "Ava");
     }

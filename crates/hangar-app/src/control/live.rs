@@ -14,8 +14,9 @@ use std::time::Duration;
 use serde_json::Value;
 
 use hangar_core::accounts::Account;
+use hangar_core::agent::AgentKind;
 use hangar_core::board::{Board, Task, TaskPatch};
-use hangar_core::delivery::{Cleanup, Delivery, Outcome, Plan, Running};
+use hangar_core::delivery::{Cleanup, Delivery, Outcome, Plan, ReviewerChoice, Running};
 use hangar_core::git::Worktree;
 use hangar_core::host::{Event, Host};
 use hangar_core::kits::KitInfo;
@@ -141,10 +142,9 @@ impl AppPort for LivePort {
             .send(Message::Control(Msg::Model(cmd, answer)));
         Box::pin(async move {
             if !sent {
-                return Err("Hangar.AI is closing.".into());
+                return Err("HangarAI is closing.".into());
             }
-            done.await
-                .map_err(|_| "Hangar.AI is closing.".to_string())?
+            done.await.map_err(|_| "HangarAI is closing.".to_string())?
         })
     }
 
@@ -344,6 +344,10 @@ impl AppPort for LivePort {
         self.shared.hooks().mobile.clone()
     }
 
+    fn core(&self) -> Option<Host> {
+        Some(self.host())
+    }
+
     fn deliveries(&self) -> &Deliveries {
         &self.shared.deliveries
     }
@@ -366,7 +370,7 @@ impl AppPort for LivePort {
         let path = format!("{path}{separator}cwd={}", crate::nodes::wire::encode(cwd));
         let method = method.to_string();
         Box::pin(async move {
-            let port = endpoint.ok_or("Hangar.AI's API is not listening yet.")?;
+            let port = endpoint.ok_or("HangarAI's API is not listening yet.")?;
             let client = crate::nodes::NodeClient {
                 base_url: format!("http://127.0.0.1:{port}"),
                 token,
@@ -440,8 +444,14 @@ impl DeliveryDeps for LiveDelivery {
         ))
     }
 
-    fn run(&self, delivery: Delivery) -> BoxFuture<Result<Outcome, String>> {
-        Box::pin(async move { Ok(hangar_core::delivery::delivery_run(delivery).await) })
+    fn run(
+        &self,
+        delivery: Delivery,
+        reviewer: ReviewerChoice,
+    ) -> BoxFuture<Result<Outcome, String>> {
+        Box::pin(
+            async move { Ok(hangar_core::delivery::delivery_run_with(delivery, reviewer).await) },
+        )
     }
 
     fn cleanup(
@@ -460,8 +470,8 @@ impl DeliveryDeps for LiveDelivery {
         Box::pin(blocking(hangar_core::delivery::delivery_running))
     }
 
-    fn accounts(&self) -> BoxFuture<Result<Vec<Account>, String>> {
-        Box::pin(blocking(hangar_core::accounts::accounts_list))
+    fn accounts(&self, kind: AgentKind) -> BoxFuture<Result<Vec<Account>, String>> {
+        Box::pin(blocking(move || hangar_core::accounts::accounts_of(kind)))
     }
 
     fn shells(&self) -> Vec<ShellInfo> {

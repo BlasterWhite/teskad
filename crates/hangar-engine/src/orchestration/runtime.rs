@@ -30,6 +30,7 @@ use serde_json::Value;
 use tokio::sync::{Notify, mpsc};
 
 use hangar_core::board::Task;
+use hangar_core::pty::PaneJob;
 
 use super::brief::{self, BriefingPort};
 use super::events::{EngineIo, JournalEntry, OrchestratorEngine, OrchestratorEvent};
@@ -169,6 +170,14 @@ impl EngineIo for Prefetched<'_> {
 
     fn enqueue(&self, pane: &str, text: &str, from: &str) -> Result<(), String> {
         self.io.enqueue(pane, text, from)
+    }
+
+    fn pane_job(&self, pane: &str) -> PaneJob {
+        self.io.pane_job(pane)
+    }
+
+    fn head_moves(&self, cwd: &str) -> Option<u64> {
+        self.io.head_moves(cwd)
     }
 }
 

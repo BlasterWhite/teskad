@@ -3,10 +3,14 @@
 //! fresh one at the top.
 //!
 //! The shell pushes `Overlay::SessionPicker` (`Intent::OpenSessions`); this
-//! package follows it in `on_intent`, asking `list_sessions` off the UI
-//! thread (or, for a pane of a workspace on a node, the node's
-//! `/node/sessions`, where its transcripts are), and picking one respawns
-//! the pane on it (`Intent::ReplacePane` with its `sessionId`).
+//! package follows it in `on_intent`, asking `list_sessions_for` the pane's
+//! agent off the UI thread (or, for a pane of a workspace on a node, the
+//! node's `/node/sessions`, where its transcripts are), and picking one
+//! respawns the pane on it (`Intent::ReplacePane` with its `sessionId`).
+//!
+//! The sessions are those of the pane's kind of agent, where that kind keeps
+//! them: Claude Code's transcripts, Codex's rollouts. An agent that resumes
+//! none (`sessions.resume`), like a shell, has none to list.
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -16,7 +20,7 @@ use iced::widget::scrollable::AbsoluteOffset;
 use iced::widget::{Id, Space, button, column, container, operation, row, rule, text};
 use iced::{Alignment, Element, Length, Subscription, Task};
 
-use hangar_core::sessions::{AgentSession, list_sessions};
+use hangar_core::sessions::{AgentSession, list_sessions_for};
 use hangar_i18n::{Key, Translator, args};
 use hangar_theme::tokens::{font_size, size, space};
 use hangar_theme::{fonts, style};
@@ -29,7 +33,7 @@ use crate::ctx::Ctx;
 use crate::message::{Intent, Message};
 use crate::services::{CoreEvent, Services};
 use crate::shell::Overlay;
-use crate::state::types::{AgentId, Pane};
+use crate::state::types::{AgentId, AgentKind, Pane};
 use crate::state::{Model, PaneId, Patch, WsId};
 
 /// The height of a row of the list.
@@ -250,33 +254,44 @@ pub fn on_intent(
         sessions: None,
         cursor: 0,
     };
-    // Only Claude Code keeps conversations; a shell has none to list.
-    let claude = picker.agent == AgentId::Claude;
+    // The conversations its kind of agent keeps; a shell, or an agent that
+    // resumes none, has none to list.
+    let kind = resumable_kind(picker.agent);
     // A pane on a node (its workspace's, or its own) keeps its sessions there.
     let node = crate::nodes::away::node_of(workspace, entry);
     st.picker = Some(picker);
     Some(Task::perform(
         async move {
-            match (claude, node) {
-                (false, _) => Vec::new(),
-                (true, Some(node)) => listed_on(&node, &cwd).await,
+            match (kind, node) {
+                (None, _) => Vec::new(),
+                (Some(kind), Some(node)) => listed_on(&node, kind, &cwd).await,
                 // An error is an empty list, as it was.
-                (true, None) => tokio::task::spawn_blocking(move || list_sessions(cwd))
-                    .await
-                    .unwrap_or_default(),
+                (Some(kind), None) => {
+                    tokio::task::spawn_blocking(move || list_sessions_for(kind, cwd))
+                        .await
+                        .unwrap_or_default()
+                }
             }
         },
         move |sessions| send(Msg::Loaded { ws, pane, sessions }),
     ))
 }
 
-/// The conversations node `node` keeps for `cwd`, with their labels; empty
-/// when it cannot say, as a local listing that fails is.
-async fn listed_on(node: &str, cwd: &str) -> Vec<AgentSession> {
+/// The kind of agent whose sessions a pane running `agent` is offered: none
+/// for a shell, or for an agent that resumes none.
+fn resumable_kind(agent: AgentId) -> Option<AgentKind> {
+    agent.kind().filter(|kind| kind.info().caps.sessions.resume)
+}
+
+/// The conversations agent `kind` keeps for `cwd` on node `node`, with their
+/// labels; empty when it cannot say, as a local listing that fails is. The
+/// node's `/node/sessions` reads the kind asked (Claude Code's when none is
+/// named, as a node before Codex answers).
+async fn listed_on(node: &str, kind: AgentKind, cwd: &str) -> Vec<AgentSession> {
     let Ok(client) = crate::nodes::remote::client_of(node) else {
         return Vec::new();
     };
-    crate::nodes::remote::sessions(&client, cwd, true)
+    crate::nodes::remote::sessions(&client, kind, cwd, true)
         .await
         .unwrap_or_default()
 }
@@ -479,11 +494,15 @@ pub fn view<'a>(
         }
     });
 
-    let agent = picker.agent.info().label;
+    // Codex with its « beta », as the pickers name it.
+    let agent = picker.agent.kind().map_or_else(
+        || picker.agent.info().label.to_owned(),
+        |kind| crate::accounts::agent_label(ctx.i18n, kind),
+    );
     let panel = dialog::dialog(
         t,
         ctx.i18n
-            .t_with(Key::SessionsTitle, &args!("agent" => agent)),
+            .t_with(Key::SessionsTitle, &args!("agent" => agent.as_str())),
         body,
     )
     .subtitle(picker.cwd.clone())
@@ -548,7 +567,7 @@ mod tests {
             answer(&mut stream, 200, body).await;
             line
         });
-        let found = listed_on(node, "/home/hangar/demo").await;
+        let found = listed_on(node, AgentKind::Claude, "/home/hangar/demo").await;
         assert_eq!(found.len(), 1);
         assert_eq!(
             (found[0].id.as_str(), found[0].label.as_str()),
@@ -560,7 +579,67 @@ mod tests {
         );
         // Away: an empty list, as a local listing that fails.
         crate::nodes::remote::publish(node, None);
-        assert!(listed_on(node, "/w").await.is_empty());
+        assert!(listed_on(node, AgentKind::Claude, "/w").await.is_empty());
+    }
+
+    /// A Codex pane's sessions are asked of its node by their kind, which
+    /// the node reads (its `/node/sessions` takes `kind`), never as Claude
+    /// Code's.
+    #[tokio::test]
+    async fn a_node_is_asked_for_a_codex_pane_s_sessions_by_their_kind() {
+        use crate::nodes::testing::{answer, listen, read_request};
+
+        let (listener, client) = listen().await;
+        let node = "node-session-picker-codex";
+        crate::nodes::remote::publish(node, Some(client));
+        let fake = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let line = read_request(&mut stream).await.line().to_owned();
+            let body = r#"{"sessions":[{"id":"019a9a3e","label":"cart total","modifiedMs":5}]}"#;
+            answer(&mut stream, 200, body).await;
+            line
+        });
+        let found = listed_on(node, AgentKind::Codex, "/w").await;
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].id, "019a9a3e");
+        assert_eq!(
+            fake.await.unwrap(),
+            "GET /node/sessions?cwd=%2Fw&labels=1&kind=codex HTTP/1.1"
+        );
+        crate::nodes::remote::publish(node, None);
+    }
+
+    #[test]
+    fn each_agent_is_offered_its_own_kind_s_sessions_and_a_shell_none() {
+        assert_eq!(resumable_kind(AgentId::Claude), Some(AgentKind::Claude));
+        assert_eq!(resumable_kind(AgentId::Codex), Some(AgentKind::Codex));
+        assert_eq!(resumable_kind(AgentId::Shell), None);
+    }
+
+    #[test]
+    fn a_codex_pane_s_picker_is_titled_with_its_beta_and_lists_its_rollouts() {
+        use crate::app::Packages;
+        use crate::navigator::testing::{ctx, model_of, simulate};
+        use crate::state::types::AppState;
+
+        let model = model_of(AppState::default());
+        let pkg = Packages::default();
+        let st = State {
+            picker: Some(Picker {
+                agent: AgentId::Codex,
+                current: None,
+                ..picker(Some(vec![AgentSession {
+                    id: "019a7c2e-5b1d".into(),
+                    label: "draw the logo".into(),
+                    modified_ms: 0,
+                }]))
+            }),
+        };
+        let (ws, pane): (WsId, PaneId) = ("w".into(), "p".into());
+        let mut ui = simulate(view(&st, ctx(&model, &pkg), &ws, &pane));
+        assert!(ui.find("Codex (beta) sessions").is_ok());
+        assert!(ui.find("draw the logo").is_ok());
+        assert!(ui.find("019a7c…").is_ok());
     }
 
     #[test]

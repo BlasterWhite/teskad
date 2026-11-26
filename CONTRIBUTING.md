@@ -1,10 +1,10 @@
-# Contributing to Hangar.AI
+# Contributing to HangarAI
 
 Thanks for taking the time to contribute. Bug reports, fixes, translations and feature
 ideas are all welcome. Please follow the [code of conduct](CODE_OF_CONDUCT.md) in every
 interaction.
 
-- **Question, or want to talk it through first?** Join the [Hangar.AI Discord](https://discord.gg/hangarai).
+- **Question, or want to talk it through first?** Join the [HangarAI Discord](https://discord.gg/hangarai).
 - **Security issue?** Do not open a public issue. See [SECURITY.md](SECURITY.md).
 - **Bug?** Open an issue with the bug template: OS, Hangar version (2.0 and later are the
   native app, 1.x the web-view one), what the pane ran, and steps.
@@ -74,6 +74,12 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked    # ICED_TEST_BACKEND=tiny-skia draws the views' tests in software
 ```
+
+The maintainers run them on a machine rented from Vast.ai rather than their own:
+`scripts/remote/rcargo <cargo arguments>` runs any cargo command there on the current
+worktree, and `scripts/remote/rbuild check` runs the CI's Linux checks in one call (it
+needs the `vastai` CLI and an account; see
+[docs/native/remote-build.md](docs/native/remote-build.md)).
 
 Hangar Mobile and the generated files:
 

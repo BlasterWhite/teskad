@@ -9,7 +9,7 @@
 use hangar_core::discord::Presence;
 use hangar_i18n::{Key, Translator, args};
 
-use crate::state::types::{AgentId, Pane, Settings, Workspace};
+use crate::state::types::{AgentId, AgentKind, Pane, Settings, Workspace};
 
 /// The Discord application this app ships with. Its uploaded art is what the
 /// asset keys below resolve to; a fork with its own art overrides it from the
@@ -63,15 +63,22 @@ pub fn build_presence(input: &PresenceInput) -> Option<Presence> {
 
     let panes: &[Pane] = workspace.map_or(&[], |ws| &ws.panes);
     // A shell is a terminal, not an agent: counting it would claim five
-    // agents are running on a workspace where nothing was launched.
-    // Claude Code is the only agent (owner's decision, 2026-11-03): named, it
-    // is named once; counted, each of its panes counts, where the old app
-    // counted the kinds of agent running.
-    let agents = panes
+    // agents are running on a workspace where nothing was launched. Named,
+    // each agent running is named once, in the pickers' order; counted, each
+    // agent pane counts, where the old app counted the kinds of agent
+    // running.
+    let running: Vec<AgentId> = panes
         .iter()
-        .filter(|pane| pane.agent != AgentId::Shell)
-        .count();
-    let claude = AgentId::Claude;
+        .map(|pane| pane.agent)
+        .filter(|agent| agent.kind().is_some())
+        .collect();
+    let agents = running.len();
+    let names = AgentKind::ALL
+        .into_iter()
+        .filter(|kind| running.iter().any(|agent| agent.kind() == Some(*kind)))
+        .map(|kind| kind.info().label)
+        .collect::<Vec<_>>()
+        .join(", ");
 
     let details = match workspace {
         Some(ws) if settings.discord_show_workspace => ws.name.clone(),
@@ -85,7 +92,7 @@ pub fn build_presence(input: &PresenceInput) -> Option<Presence> {
         let agents = if agents == 0 {
             t.t(Key::DiscordShellOnly).into_owned()
         } else if settings.discord_show_agents {
-            claude.info().label.to_owned()
+            names
         } else {
             t.t_with(Key::DiscordAgents, &args!("n" => agents))
                 .into_owned()
@@ -97,16 +104,15 @@ pub fn build_presence(input: &PresenceInput) -> Option<Presence> {
     };
 
     // The badge follows the pane you are looking at, falling back to the
-    // agent that is running: a shell-only workspace gets no badge rather than
-    // a meaningless one.
+    // first agent that is running: a shell-only workspace gets no badge
+    // rather than a meaningless one.
     let focused = panes
         .iter()
-        .find(|pane| Some(pane.id.as_str()) == *focused_pane);
-    let badge = if settings.discord_show_agents && agents > 0 {
-        Some(match focused {
-            Some(pane) if pane.agent != AgentId::Shell => pane.agent,
-            _ => claude,
-        })
+        .find(|pane| Some(pane.id.as_str()) == *focused_pane)
+        .map(|pane| pane.agent)
+        .filter(|agent| agent.kind().is_some());
+    let badge = if settings.discord_show_agents {
+        focused.or_else(|| running.first().copied())
     } else {
         None
     };
@@ -311,6 +317,44 @@ mod tests {
         assert_eq!(gone.small_image.as_deref(), Some("agent-claude"));
     }
 
+    /// A Codex pane is named and badged as Codex; a workspace running both
+    /// agents names each once, in the pickers' order, and badges the pane in
+    /// focus, else the first agent.
+    #[test]
+    fn the_agents_running_are_named_whichever_they_are() {
+        let codex = workspace("Shop", &[AgentId::Shell, AgentId::Codex]);
+        let card = build(&on(), Some(&codex), None).unwrap();
+        assert_eq!(card.state, "2 panes · Codex");
+        assert_eq!(card.small_image.as_deref(), Some("agent-codex"));
+        assert_eq!(card.small_text.as_deref(), Some("Codex"));
+
+        let both = workspace(
+            "Shop",
+            &[
+                AgentId::Codex,
+                AgentId::Claude,
+                AgentId::Codex,
+                AgentId::Shell,
+            ],
+        );
+        let card = build(&on(), Some(&both), None).unwrap();
+        assert_eq!(card.state, "4 panes · Claude Code, Codex");
+        assert_eq!(card.small_image.as_deref(), Some("agent-codex"));
+        let on_claude = build(&on(), Some(&both), Some("p1")).unwrap();
+        assert_eq!(on_claude.small_image.as_deref(), Some("agent-claude"));
+        assert_eq!(on_claude.small_text.as_deref(), Some("Claude Code"));
+        let on_shell = build(&on(), Some(&both), Some("p3")).unwrap();
+        assert_eq!(on_shell.small_image.as_deref(), Some("agent-codex"));
+        let hidden = Settings {
+            discord_show_agents: false,
+            ..on()
+        };
+        assert_eq!(
+            build(&hidden, Some(&both), None).unwrap().state,
+            "4 panes · 3 agents"
+        );
+    }
+
     #[test]
     fn the_application_is_the_one_in_the_settings_else_the_shipped_one() {
         let ws = workspace("Shop", &[]);
@@ -338,7 +382,7 @@ mod tests {
         let card = build(&on(), None, None).unwrap();
         assert_eq!(card.large_url.as_deref(), Some(REPO_URL));
         assert_eq!(card.button_url.as_deref(), Some(REPO_URL));
-        assert_eq!(card.button_label.as_deref(), Some("Get Hangar.AI"));
+        assert_eq!(card.button_label.as_deref(), Some("Get HangarAI"));
         assert_eq!(card.started_at, Some(1_700_000_000_000));
         assert!(card.large_image.ends_with("/assets/logo.png"));
     }

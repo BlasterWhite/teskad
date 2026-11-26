@@ -25,8 +25,10 @@
 //! windows draws it, so a window taking a pane over routes the output inside
 //! the app and reads `pty_history` for what came before.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::ffi::{OsStr, OsString};
 use std::io::{Read, Write};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
@@ -34,8 +36,16 @@ use std::time::Duration;
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use serde::Serialize;
 
+use crate::agent::launch::{self, LaunchRequest, ShellSyntax};
+
+mod codex_server;
+mod jobs;
 mod scope;
 mod windows;
+
+use codex_server::CodexServer;
+pub use codex_server::{FloorReason, ServerState};
+pub use jobs::{job_below, job_of_pane, pane_job, PaneJob, ProcCommand};
 
 /// A pane's input, shared out of the registry: `pty_write` takes a clone of
 /// it under the registry's lock and writes once that lock is released, so a
@@ -57,6 +67,9 @@ struct PtySession {
     /// The Claude account its Claude Code was started on (accounts.rs);
     /// `None` for a pane that is not Claude Code.
     account: Option<String>,
+    /// Its own `codex app-server`, for a Codex pane attached to one
+    /// (`pty/codex_server.rs`): ended with the pane, whatever ends it.
+    server: Option<CodexServer>,
 }
 
 /// How much of a pane's output is kept for a window that takes the pane over
@@ -118,6 +131,11 @@ struct Registry {
     /// the lock released: a second spawn of one of them fails instead of
     /// starting a second shell that would replace the first in `sessions`.
     starting: HashSet<String>,
+    /// Ids of `starting` that `pty_kill` (with its `tree`) or `kill_all` was
+    /// asked to end meanwhile — a pane closed while its Codex server was
+    /// being waited for: the spawn ends what it started instead of
+    /// installing it, so nothing is left running for a pane that is gone.
+    closed: HashMap<String, bool>,
 }
 
 #[derive(Default)]
@@ -145,17 +163,36 @@ struct Starting<'a> {
 
 impl Starting<'_> {
     /// The shell is up: the id goes from `starting` to `sessions` under one
-    /// lock, so it is never seen free in between.
-    fn install(self, session: PtySession) {
+    /// lock, so it is never seen free in between — unless the pane was
+    /// closed while it started (`Registry::closed`): then what was started
+    /// is ended as the kill would have ended it, the id held in `dying`
+    /// meanwhile, and the spawn fails.
+    fn install(self, mut session: PtySession) -> Result<(), String> {
         let mut registry = self.manager.lock();
         registry.starting.remove(&self.id);
-        registry.sessions.insert(self.id.clone(), session);
+        let Some(tree) = registry.closed.remove(&self.id) else {
+            registry.sessions.insert(self.id.clone(), session);
+            return Ok(());
+        };
+        registry.dying.insert(self.id.clone());
+        drop(registry);
+        session.live.store(false, Ordering::Relaxed);
+        let _reaping = Reaping {
+            manager: self.manager,
+            id: self.id.clone(),
+        };
+        end(std::slice::from_mut(&mut session), tree);
+        let _ = session.child.wait();
+        drop(session);
+        Err(format!("pty {} was closed while it started", self.id))
     }
 }
 
 impl Drop for Starting<'_> {
     fn drop(&mut self) {
-        self.manager.lock().starting.remove(&self.id);
+        let mut registry = self.manager.lock();
+        registry.starting.remove(&self.id);
+        registry.closed.remove(&self.id);
     }
 }
 
@@ -288,19 +325,41 @@ fn take_utf8(pending: &mut Vec<u8>) -> String {
 
 /// Session markers an agent CLI leaves in the environment of anything it spawns.
 ///
-/// If Hangar.AI is itself launched from inside an agent session, these leak all
+/// If HangarAI is itself launched from inside an agent session, these leak all
 /// the way down into the panes. `CLAUDE_CODE_CHILD_SESSION` in particular tells
 /// Claude Code it is a nested run and to skip writing a transcript — which
 /// silently breaks session capture and resume. A pane must look like a fresh
 /// terminal, so we strip the markers without touching user config such as
 /// `CLAUDE_CONFIG_DIR`.
+///
+/// Codex does the same for the commands it runs (docs/native/agents.md
+/// §4.2.1): its session, thread and tool call, its version, its permission
+/// profile and its sandbox (`core/src/exec_env.rs`,
+/// `protocol/src/shell_environment.rs`, `core/src/spawn.rs` at
+/// `agent::codex::CHECKED_AT`). A Hangar started from a Codex command hands
+/// none of them down; the person's own `CODEX_HOME` stays.
 const INHERITED_SESSION_MARKERS: &[&str] = &[
     "CLAUDE_CODE_CHILD_SESSION",
     "CLAUDE_CODE_SESSION_ID",
     "CLAUDE_CODE_ENTRYPOINT",
     "CLAUDECODE",
     "CLAUDE_PID",
+    "CODEX_SESSION_ID",
+    "CODEX_THREAD_ID",
+    "CODEX_TOOL_CALL_ID",
+    "CODEX_VERSION",
+    "CODEX_PERMISSION_PROFILE",
+    "CODEX_SANDBOX",
+    "CODEX_SANDBOX_NETWORK_DISABLED",
 ];
+
+/// Removes from a pane's environment the markers of the agent session Hangar
+/// may have been started from.
+fn remove_session_markers(cmd: &mut CommandBuilder) {
+    for marker in INHERITED_SESSION_MARKERS {
+        cmd.env_remove(marker);
+    }
+}
 
 /// The arguments a shell is started with: the ones recorded for it, plus
 /// `-NoLogo` for PowerShell.
@@ -481,7 +540,9 @@ pub fn pane_alive(manager: &PtyManager, id: &str) -> bool {
 }
 
 /// A Claude Code pane on a profile runs with `CLAUDE_CONFIG_DIR` naming the
-/// profile's folder; every other pane, and one on the main account, keeps
+/// profile's folder, a Codex pane on a shadow home with `CODEX_HOME` (and
+/// main's `CODEX_SQLITE_HOME`) — its server too, which is started with the
+/// shell's environment; every other pane, and one on the main account, keeps
 /// the environment Hangar has (accounts.rs).
 fn apply_account(cmd: &mut CommandBuilder, agent: Option<&str>, dir: Option<&std::path::Path>) {
     for (name, value) in crate::accounts::env_for(agent, dir) {
@@ -504,6 +565,31 @@ pub struct Spawned {
     pub account: Option<String>,
     /// What the account's profile could not take from the main account.
     pub account_issues: Vec<crate::accounts::Issue>,
+    /// The line the pane's shell is to type to start its agent, without the
+    /// Enter, for a pane spawned with its launch (`pty_spawn_launch`):
+    /// attached to the pane's Codex server when it listens, the floor's
+    /// otherwise. Absent for a pane spawned without one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line: Option<String>,
+    /// The pane's Codex server, when its launch asked to attach to one (D5):
+    /// listening, or the floor and why — what the pane's status says.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub server: Option<ServerState>,
+}
+
+/// A pane's agent, as Hangar launches it (`agent::launch`), for
+/// `pty_spawn_launch`.
+#[derive(Debug, Clone, Default)]
+pub struct AgentLaunch {
+    /// The launch. Its folder is the pane's; its shell syntax, its account's
+    /// folder and its server socket are the spawn's to fill in, from the
+    /// shell the pane really starts, the account it really runs on and the
+    /// server it really gets.
+    pub request: LaunchRequest,
+    /// Run attached to a server of the pane's own, for a kind that has one
+    /// (Codex, D5): « Attach Hangar to Codex » is on and the version gate
+    /// (§4.6) let it. False: the floor (D6), and no server.
+    pub attach: bool,
 }
 
 /// How many live panes were started on `account`.
@@ -582,6 +668,118 @@ pub fn pty_spawn_with(
     claude_account: Option<String>,
     scoped: bool,
 ) -> Result<Spawned, String> {
+    spawn(
+        manager,
+        output,
+        Pane {
+            id,
+            cwd,
+            shell,
+            cols,
+            rows,
+            name,
+            bridge,
+            port_base,
+            build_env,
+            mcp_config,
+            kits,
+            agent,
+            account: claude_account,
+            scoped,
+        },
+        None,
+    )
+}
+
+/// `pty_spawn_with` for a pane whose agent Hangar launches itself
+/// (`agent::launch`): the pane starts in the launch's folder, on `account`
+/// of the launch's kind, and [`Spawned::line`] is what its shell is to type.
+///
+/// A Codex pane to run attached (`AgentLaunch::attach`, D5) gets its own
+/// `codex app-server` first, with the environment its shell gets — the
+/// account's `CODEX_HOME` included — listening on a socket of the pane's in
+/// Hangar's runtime folder (`pty/codex_server.rs`). The spawn waits for it to
+/// listen, ten seconds at most, so it is called off any thread a window draws
+/// on; the line then attaches to it. A server that cannot start leaves the
+/// pane on the floor, and [`Spawned::server`] says why. The server lives and
+/// dies with the pane: `pty_kill`, with or without `tree`, and `kill_all`
+/// end it with everything it started.
+#[allow(clippy::too_many_arguments)]
+pub fn pty_spawn_launch(
+    manager: &PtyManager,
+    output: PtySink,
+    id: String,
+    shell: Option<crate::shells::ShellInfo>,
+    cols: u16,
+    rows: u16,
+    name: Option<String>,
+    bridge: Option<bool>,
+    port_base: Option<u16>,
+    build_env: Vec<(String, String)>,
+    kits: Option<Vec<String>>,
+    account: Option<String>,
+    scoped: bool,
+    launch: AgentLaunch,
+) -> Result<Spawned, String> {
+    let pane = Pane {
+        id,
+        cwd: launch.request.cwd.clone(),
+        shell,
+        cols,
+        rows,
+        name,
+        bridge,
+        port_base,
+        build_env,
+        mcp_config: launch.request.mcp.as_ref().map(|mcp| mcp.file.clone()),
+        kits,
+        agent: Some(launch.request.kind.id().to_string()),
+        account,
+        scoped,
+    };
+    spawn(manager, output, pane, Some(launch))
+}
+
+/// A pane's shell to start: `pty_spawn_with`'s arguments.
+struct Pane {
+    id: String,
+    cwd: String,
+    shell: Option<crate::shells::ShellInfo>,
+    cols: u16,
+    rows: u16,
+    name: Option<String>,
+    bridge: Option<bool>,
+    port_base: Option<u16>,
+    build_env: Vec<(String, String)>,
+    mcp_config: Option<String>,
+    kits: Option<Vec<String>>,
+    agent: Option<String>,
+    account: Option<String>,
+    scoped: bool,
+}
+
+fn spawn(
+    manager: &PtyManager,
+    output: PtySink,
+    pane: Pane,
+    launch: Option<AgentLaunch>,
+) -> Result<Spawned, String> {
+    let Pane {
+        id,
+        cwd,
+        shell,
+        cols,
+        rows,
+        name,
+        bridge,
+        port_base,
+        build_env,
+        mcp_config,
+        kits,
+        agent,
+        account: claude_account,
+        scoped,
+    } = pane;
     // An id belongs to one shell at a time, and one being reaped by `pty_kill`
     // still counts: its child is alive and its reader thread still speaks under
     // that id. A live session, or one another spawn is starting, is a caller
@@ -627,9 +825,7 @@ pub fn pty_spawn_with(
     }
     // Agents render much better when they know they are on a real terminal.
     cmd.env("TERM", "xterm-256color");
-    for marker in INHERITED_SESSION_MARKERS {
-        cmd.env_remove(marker);
-    }
+    remove_session_markers(&mut cmd);
     // Who this pane is, for an agent in it that asks Hangar to act on its own
     // pane, or signs its board claims. Set whether or not the bridge mod comes
     // along, and never inherited from a Hangar started inside another pane.
@@ -677,17 +873,32 @@ pub fn pty_spawn_with(
     apply_mcp_config(&mut cmd, mcp_config.as_deref());
     // The account's profile is brought level with the main account before
     // its Claude Code starts on it.
-    let launch = crate::accounts::for_launch(agent.as_deref(), claude_account.as_deref());
-    apply_account(
-        &mut cmd,
-        agent.as_deref(),
-        launch.as_ref().and_then(|launch| launch.dir.as_deref()),
-    );
-    let (account, account_issues) = match launch {
+    let on_account = crate::accounts::for_launch(agent.as_deref(), claude_account.as_deref());
+    let account_dir = on_account.as_ref().and_then(|launch| launch.dir.clone());
+    apply_account(&mut cmd, agent.as_deref(), account_dir.as_deref());
+    let (account, account_issues) = match on_account {
         Some(launch) => (Some(launch.id), launch.issues),
         None => (None, Vec::new()),
     };
 
+    // The agent's launch, when Hangar builds it: its server first, with the
+    // environment the shell is about to get, then its line.
+    let (line, server, server_state) = match launch {
+        Some(launch) => {
+            let started = start_agent(
+                &mut cmd,
+                &id,
+                &shell,
+                launch,
+                account_dir,
+                codex_server::READY_TIMEOUT,
+            )?;
+            (Some(started.line), started.server, started.state)
+        }
+        None => (None, None, None),
+    };
+
+    // A shell that fails to start drops the server with it, which ends it.
     let mut child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
     let ends = (pair.master.try_clone_reader(), pair.master.take_writer());
     let (mut reader, writer) = match ends {
@@ -723,7 +934,8 @@ pub fn pty_spawn_with(
         live: live.clone(),
         history: history.clone(),
         account: account.clone(),
-    });
+        server,
+    })?;
 
     let mut output = output;
     let reader_id = id.clone();
@@ -778,7 +990,110 @@ pub fn pty_spawn_with(
         kit_issues,
         account,
         account_issues,
+        line,
+        server: server_state,
     })
+}
+
+/// A pane's agent, started as far as Hangar starts it before the shell does.
+struct StartedAgent {
+    /// What the shell is to type.
+    line: String,
+    server: Option<CodexServer>,
+    state: Option<ServerState>,
+}
+
+/// The pane's agent as `launch` asks: for a pane to run attached
+/// ([`runs_attached`]: Codex), its server started first, with the pane's
+/// environment as `cmd` holds it — `wait` at most for it to listen — then
+/// the line, attached to that server when it listens and the floor's
+/// otherwise. The launch's variables (`LaunchSpec::env`) are applied to
+/// `cmd`, for the line to find them.
+///
+/// The request is completed from the pane as it really starts: the syntax of
+/// `shell` (the one found, which may not be the one asked for), the folder of
+/// the account it runs on, and the socket of the server it really has.
+fn start_agent(
+    cmd: &mut CommandBuilder,
+    id: &str,
+    shell: &crate::shells::ShellInfo,
+    launch: AgentLaunch,
+    account_dir: Option<PathBuf>,
+    wait: Duration,
+) -> Result<StartedAgent, String> {
+    let AgentLaunch {
+        mut request,
+        attach,
+    } = launch;
+    request.shell = ShellSyntax::of(shell);
+    request.account_dir = account_dir;
+    request.server_socket = None;
+    let (server, state) = if runs_attached(&request, attach) {
+        let pane_env: &CommandBuilder = cmd;
+        let (server, state) = codex_server::attach_pane(
+            id,
+            &mut request,
+            |launch_env| server_env(pane_env, launch_env),
+            wait,
+        );
+        (server, Some(state))
+    } else {
+        (None, None)
+    };
+    let spec = launch::build(&request).map_err(|err| err.to_string())?;
+    for (name, value) in &spec.env {
+        match value {
+            Some(value) => cmd.env(name, value),
+            None => cmd.env_remove(name),
+        }
+    }
+    Ok(StartedAgent {
+        line: spec.command_line(),
+        server,
+        state,
+    })
+}
+
+/// Whether a pane launched with `request` starts a server of its own first
+/// and runs attached to it (D5): its launch asked to (`AgentLaunch::attach`)
+/// and its kind is one Hangar reaches through a protocol server
+/// (`caps.headless.app_server`: Codex). Any other runs its program alone,
+/// whatever `attach` says.
+fn runs_attached(request: &LaunchRequest, attach: bool) -> bool {
+    attach && request.kind.info().caps.headless.app_server
+}
+
+/// The whole environment of a pane's Codex server: the pane's shell's, as
+/// `cmd` holds it, then the launch's variables applied, as they are to the
+/// shell — so the commands Codex runs, and its MCP servers, are the pane's.
+fn server_env(
+    cmd: &CommandBuilder,
+    launch: &[(String, Option<OsString>)],
+) -> Vec<(OsString, OsString)> {
+    let mut env: BTreeMap<OsString, OsString> = cmd
+        .iter_full_env_as_str()
+        .map(|(name, value)| (OsString::from(name), OsString::from(value)))
+        .collect();
+    // The builder's iterator passes over a value that is not UTF-8, which
+    // the pane inherited from Hangar's own environment: read back by name.
+    for (name, value) in std::env::vars_os() {
+        if name.to_str().is_none() || value.to_str().is_none() {
+            if let Some(value) = cmd.get_env(&name).map(OsStr::to_os_string) {
+                env.insert(name, value);
+            }
+        }
+    }
+    for (name, value) in launch {
+        match value {
+            Some(value) => {
+                env.insert(OsString::from(name), value.clone());
+            }
+            None => {
+                env.remove(OsStr::new(name));
+            }
+        }
+    }
+    env.into_iter().collect()
 }
 
 /// The user manager, asked for a pane's scope.
@@ -846,7 +1161,9 @@ pub fn pty_resize(manager: &PtyManager, id: String, cols: u16, rows: u16) -> Res
 /// helpers (its MCP servers, a build it started) are not always tied to the
 /// pane's console either. A pane closed by hand keeps the gentler kill, which
 /// leaves alone what the user deliberately started out of it, an editor or a
-/// browser.
+/// browser. A Codex pane's server ends with the pane either way, with all it
+/// started: it is the agent, not something the person started out of the
+/// pane (`pty/codex_server.rs`).
 ///
 /// The pane's prompt inbox (bridge.rs) is kept: a restart, a role restart and
 /// a hibernation all come through here and bring the same id back, and what
@@ -868,8 +1185,13 @@ pub fn pty_kill(manager: &Arc<PtyManager>, id: String, tree: Option<bool>) -> Re
     // shell rather than running alongside it.
     let mut session = {
         let mut registry = manager.lock();
-        // Unknown or already reaped: nothing to kill, nothing to book.
+        // Unknown or already reaped: nothing to kill, nothing to book. One
+        // still starting — its Codex server being waited for — is ended by
+        // its spawn as soon as it is up (`Starting::install`).
         let Some(session) = registry.sessions.remove(&id) else {
+            if registry.starting.contains(&id) {
+                registry.closed.insert(id, tree == Some(true));
+            }
             return Ok(());
         };
         registry.dying.insert(id.clone());
@@ -925,37 +1247,72 @@ struct Ending<'a> {
     /// The processes below the shell, each with its start time where the
     /// system tells it (`procs::started`).
     below: Vec<(u32, Option<u64>)>,
+    /// The processes below its Codex server, listed the same way: ended
+    /// whatever `tree` says, being the agent's (`pty/codex_server.rs`).
+    server_below: Vec<(u32, Option<u64>)>,
     /// The shell is gone and reaped: its pid is no longer ours to signal.
     exited: bool,
 }
 
+/// Every process below `root` in `table`, each with its start time.
+fn listed_below(
+    table: Option<&[crate::procs::Proc]>,
+    root: Option<u32>,
+) -> Vec<(u32, Option<u64>)> {
+    match (table, root) {
+        (Some(table), Some(pid)) => crate::procs::descendants(table, pid, crate::procs::started)
+            .into_iter()
+            .map(|pid| (pid, crate::procs::started(pid)))
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// The processes of `listed` that are still the ones listed: a process
+/// whose start time no longer matches is another one that was given its id
+/// since.
+fn still_there(listed: &[(u32, Option<u64>)]) -> Vec<u32> {
+    listed
+        .iter()
+        .filter(|(pid, born)| crate::procs::started(*pid) == *born)
+        .map(|(pid, _)| *pid)
+        .collect()
+}
+
 /// Ends panes taken out of the registry: each one's group is hung up, as a
-/// terminal that closes would, and given `HANGUP_GRACE` (in all, not each) to
-/// end; then what is left — what ignored the hangup, an agent started with
-/// `nohup` — is killed outright, the group, the processes listed below each
-/// shell with `tree`, and the shell. Does not wait for the shells.
+/// terminal that closes would, and its Codex server asked to end, all given
+/// `HANGUP_GRACE` (in all, not each) to end; then what is left — what ignored
+/// the hangup, an agent started with `nohup` — is killed outright, the
+/// group, the processes listed below each shell with `tree`, the server with
+/// everything below it, and the shell. Does not wait for the shells.
 fn end(sessions: &mut [PtySession], tree: bool) {
-    let table = if tree { crate::procs::table() } else { None };
+    let servers = sessions.iter().any(|session| session.server.is_some());
+    let table = if tree || servers {
+        crate::procs::table()
+    } else {
+        None
+    };
     let mut ending: Vec<Ending<'_>> = sessions
         .iter_mut()
         .map(|session| {
-            // Listed before anything goes, while the tree still hangs off
-            // the shell. So is the group: a reaped shell's group can no
-            // longer be asked for.
-            let below = match (&table, session.child.process_id()) {
-                (Some(table), Some(pid)) => {
-                    crate::procs::descendants(table, pid, crate::procs::started)
-                        .into_iter()
-                        .map(|pid| (pid, crate::procs::started(pid)))
-                        .collect()
-                }
-                _ => Vec::new(),
+            // Listed before anything goes, while the trees still hang off
+            // the shell and the server. So is the group: a reaped shell's
+            // group can no longer be asked for.
+            let below = if tree {
+                listed_below(table.as_deref(), session.child.process_id())
+            } else {
+                Vec::new()
             };
+            let server_below = listed_below(
+                table.as_deref(),
+                session.server.as_ref().map(CodexServer::pid),
+            );
             let group = process_group(session);
             Ending {
                 session,
                 group,
                 below,
+                server_below,
                 exited: false,
             }
         })
@@ -963,17 +1320,12 @@ fn end(sessions: &mut [PtySession], tree: bool) {
 
     hang_up(&mut ending);
 
-    for pane in &ending {
+    for pane in &mut ending {
         kill_group(pane.group);
-        // A process whose start time no longer matches is another one that
-        // was given its id since it was listed.
-        let still: Vec<u32> = pane
-            .below
-            .iter()
-            .filter(|(pid, born)| crate::procs::started(*pid) == *born)
-            .map(|(pid, _)| *pid)
-            .collect();
-        crate::procs::terminate(&still);
+        crate::procs::terminate(&still_there(&pane.below));
+        if let Some(server) = pane.session.server.as_mut() {
+            server.kill(&still_there(&pane.server_below));
+        }
     }
     for pane in &mut ending {
         if !pane.exited {
@@ -982,8 +1334,9 @@ fn end(sessions: &mut [PtySession], tree: bool) {
     }
 }
 
-/// Hangs up every pane's group, then polls until each pane's shell has ended
-/// and its group is empty, for `HANGUP_GRACE` at most.
+/// Hangs up every pane's group and asks every Codex server to end, then
+/// polls until each pane's shell has ended, its group is empty and its
+/// server is gone, for `HANGUP_GRACE` at most.
 #[cfg(unix)]
 fn hang_up(ending: &mut [Ending<'_>]) {
     for pane in ending.iter() {
@@ -998,6 +1351,9 @@ fn hang_up(ending: &mut [Ending<'_>]) {
                 }
             }
         }
+        if let Some(server) = &pane.session.server {
+            server.hang_up();
+        }
     }
     let deadline = std::time::Instant::now() + HANGUP_GRACE;
     loop {
@@ -1006,7 +1362,8 @@ fn hang_up(ending: &mut [Ending<'_>]) {
             if !pane.exited {
                 pane.exited = matches!(pane.session.child.try_wait(), Ok(Some(_)));
             }
-            over &= pane.exited && !group_alive(pane.group);
+            let server_gone = pane.session.server.as_mut().is_none_or(CodexServer::gone);
+            over &= pane.exited && !group_alive(pane.group) && server_gone;
         }
         if over || std::time::Instant::now() >= deadline {
             return;
@@ -1082,6 +1439,23 @@ pub fn pty_alive(manager: &PtyManager, id: String) -> bool {
     manager.lock().sessions.contains_key(&id)
 }
 
+/// The process ids of pane `id`'s shell and of its Codex server, when it has
+/// one, while the pane runs.
+fn pane_pids(manager: &PtyManager, id: &str) -> Option<(u32, Option<u32>)> {
+    let registry = manager.lock();
+    let session = registry.sessions.get(id)?;
+    let shell = session.child.process_id()?;
+    Some((shell, session.server.as_ref().map(CodexServer::pid)))
+}
+
+/// The socket of pane `id`'s Codex server, while the pane runs attached to
+/// one: what Hangar's own client of the server connects to.
+pub fn codex_socket(manager: &PtyManager, id: &str) -> Option<PathBuf> {
+    let registry = manager.lock();
+    let server = registry.sessions.get(id)?.server.as_ref()?;
+    Some(server.socket().to_path_buf())
+}
+
 /// The panes among `ids` whose shell still runs a process of its own — a dev
 /// server, a watcher, a build — which closing the pane would end. A pane that
 /// is not running has nothing to lose and is left out.
@@ -1128,19 +1502,26 @@ const QUIT_REAP_WAIT: Duration = Duration::from_secs(1);
 /// As `pty_kill` with `tree`, for all the panes at once (`end`): hung up
 /// together and given one short grace, so Claude Code can write the last of
 /// its transcript and quitting stays quick, then killed — their groups, the
-/// shells, and the processes below each shell read off one process table,
-/// which is what reaches, on Windows, the ones a pane's console does not.
+/// shells, their Codex servers, and the processes below each shell and each
+/// server read off one process table, which is what reaches, on Windows, the
+/// ones a pane's console does not.
 /// Then the panes `pty_kill` was still reaping are waited for, a bounded
 /// moment, so their own last kill is not cut short by the app's exit.
 pub fn kill_all(manager: &PtyManager) {
     // Out of the registry and its lock: the kills wait, and nothing else
-    // needs the panes now.
-    let mut sessions: Vec<PtySession> = manager
-        .lock()
-        .sessions
-        .drain()
-        .map(|(_, session)| session)
-        .collect();
+    // needs the panes now. A pane still starting ends as soon as it is up.
+    let mut sessions: Vec<PtySession> = {
+        let mut registry = manager.lock();
+        let starting: Vec<String> = registry.starting.iter().cloned().collect();
+        for id in starting {
+            registry.closed.insert(id, true);
+        }
+        registry
+            .sessions
+            .drain()
+            .map(|(_, session)| session)
+            .collect()
+    };
     for session in &sessions {
         session.live.store(false, Ordering::Relaxed);
     }
@@ -1155,6 +1536,7 @@ pub fn kill_all(manager: &PtyManager) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agent::AgentKind;
 
     fn args(list: &[&str]) -> Vec<String> {
         list.iter().map(|a| a.to_string()).collect()
@@ -2036,5 +2418,627 @@ mod tests {
         pty_kill(&manager, "p-reaping".into(), None).unwrap();
         kill_all(&manager);
         assert!(manager.lock().dying.is_empty());
+    }
+
+    #[test]
+    fn a_pane_never_inherits_the_markers_of_a_codex_or_claude_session() {
+        let mut pane = CommandBuilder::new("sh");
+        let markers = [
+            ("CODEX_SESSION_ID", "019a"),
+            ("CODEX_THREAD_ID", "019b"),
+            ("CODEX_TOOL_CALL_ID", "call_1"),
+            ("CODEX_VERSION", "0.170.0"),
+            ("CODEX_PERMISSION_PROFILE", "workspace"),
+            ("CODEX_SANDBOX", "seatbelt"),
+            ("CODEX_SANDBOX_NETWORK_DISABLED", "1"),
+            ("CLAUDECODE", "1"),
+        ];
+        for (name, value) in markers {
+            pane.env(name, value);
+        }
+        pane.env("CODEX_HOME", "/home/me/.codex");
+        remove_session_markers(&mut pane);
+        for (name, _) in markers {
+            assert_eq!(env_of(&pane, name), None, "{name}");
+        }
+        // The person's own configuration stays.
+        assert_eq!(
+            env_of(&pane, "CODEX_HOME").as_deref(),
+            Some("/home/me/.codex")
+        );
+    }
+
+    /// The server's environment is the pane's shell's, then the launch's
+    /// variables: the account's home set, the floor's variables removed.
+    #[test]
+    fn a_codex_server_gets_the_panes_environment_then_the_launchs() {
+        let mut pane = CommandBuilder::new("sh");
+        pane.env("HANGAR_PANE_ID", "p-env");
+        pane.env("HANGAR_CODEX_MCP", "inherited from another Hangar");
+        pane.env("HANGAR_GONE", "x");
+        pane.env_remove("HANGAR_GONE");
+        let home = PathBuf::from("/home/me/.hangar/accounts/codex/work");
+        let spec = launch::build(&LaunchRequest {
+            kind: AgentKind::Codex,
+            account_dir: Some(home.clone()),
+            server_socket: Some("/run/hangar/codex-0123456789ab.sock".into()),
+            shell: Some(ShellSyntax::Posix),
+            ..Default::default()
+        })
+        .unwrap();
+        let env: HashMap<OsString, OsString> = server_env(&pane, &spec.env).into_iter().collect();
+        let get = |name: &str| env.get(OsStr::new(name)).cloned();
+        assert_eq!(get("HANGAR_PANE_ID"), Some(OsString::from("p-env")));
+        assert_eq!(get("CODEX_HOME"), Some(home.into_os_string()));
+        assert_eq!(get("HANGAR_CODEX_MCP"), None);
+        assert_eq!(get("HANGAR_GONE"), None);
+        // What the pane inherits from Hangar comes along.
+        #[cfg(unix)]
+        assert_eq!(get("HOME"), std::env::var_os("HOME"));
+    }
+
+    // Codex panes (`pty/codex_server.rs`), with a fake `codex` of ours.
+
+    /// The fake `codex`'s server, as Codex 0.170 treats the path it is given
+    /// (`bind_private_daemon_socket`): the socket bound beside it, 0600, and
+    /// the path published as a link to it once it listens — or, `direct`,
+    /// the socket bound at the path itself. `busy`: it also runs a command in
+    /// a session of its own, as Codex runs them, and a helper. It removes
+    /// what it made on `SIGTERM`, as Codex does. A socket of its own left
+    /// beside the path by a server killed before it could remove it (the
+    /// runtime folder is the machine's, shared by every run of these tests)
+    /// is removed before it binds. Its arguments end with the fake's own, so
+    /// its command line reads as a Codex server's.
+    #[cfg(unix)]
+    const FAKE_SERVER: &str = r#"import os, signal, socket, subprocess, sys
+here, direct, busy = sys.argv[1], sys.argv[2] == "1", sys.argv[3] == "1"
+asked = sys.argv[sys.argv.index("--listen") + 1][len("unix://"):]
+bound = asked if direct else asked + ".real"
+def bye(*_):
+    for path in {asked, bound}:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+    os._exit(0)
+signal.signal(signal.SIGTERM, bye)
+if busy:
+    subprocess.Popen(["sh", "-c", "echo $$ > \"$0/job\"; sleep 600; true", here], start_new_session=True)
+    subprocess.Popen(["sleep", "600"])
+server = socket.socket(socket.AF_UNIX)
+if not direct:
+    try:
+        os.unlink(bound)
+    except OSError:
+        pass
+server.bind(bound)
+if not direct:
+    os.chmod(bound, 0o600)
+server.listen(8)
+if not direct:
+    os.symlink(bound, asked)
+kept = []
+while True:
+    kept.append(server.accept()[0])
+"#;
+
+    /// What the fake `codex` does once it has written down how it was
+    /// started.
+    #[cfg(unix)]
+    #[derive(Clone, Copy)]
+    enum Fake {
+        /// Serves, as Codex 0.170 does.
+        Listen,
+        /// Serves on a socket bound at the path itself.
+        Direct,
+        /// Serves, and runs a command.
+        Busy,
+        /// Serves, a second late.
+        Slow,
+        /// Refuses `app-server`, as a Codex too old for it would.
+        Refuse,
+        /// Never listens.
+        Mute,
+    }
+
+    /// A fake `codex` in a scratch folder of its own: a shell script, never
+    /// OpenAI's program, that writes down its arguments, its folder, its
+    /// environment and its pid there, then does what `fake` says.
+    #[cfg(unix)]
+    fn fake_codex(tag: &str, fake: Fake) -> (PathBuf, PathBuf) {
+        use std::os::unix::fs::PermissionsExt;
+        let here = crate::testdir::scratch(tag);
+        let serve = |direct: u8, busy: u8| {
+            format!("exec python3 -I -c '{FAKE_SERVER}' \"$here\" {direct} {busy} \"$@\"")
+        };
+        let body = match fake {
+            Fake::Listen => serve(0, 0),
+            Fake::Direct => serve(1, 0),
+            Fake::Busy => serve(0, 1),
+            Fake::Slow => format!("sleep 1\n{}", serve(0, 0)),
+            Fake::Refuse => {
+                "echo \"error: unrecognized subcommand 'app-server'\" >&2\nexit 2".to_string()
+            }
+            Fake::Mute => "exec sleep 600".to_string(),
+        };
+        let script = format!(
+            "#!/bin/sh\n\
+             # A fake codex, for Hangar's tests: never OpenAI's program.\n\
+             [ \"$1\" = probe ] && exit 0\n\
+             here='{}'\n\
+             printf '%s\\n' \"$@\" > \"$here/args\"\n\
+             pwd > \"$here/cwd\"\n\
+             env > \"$here/env\"\n\
+             echo $$ > \"$here/pid\"\n\
+             {body}\n",
+            here.display()
+        );
+        let codex = here.join("codex");
+        std::fs::write(&codex, script).unwrap();
+        std::fs::set_permissions(&codex, std::fs::Permissions::from_mode(0o755)).unwrap();
+        // A file just written cannot be run while a process that another
+        // test forked meanwhile still holds it open (ETXTBSY): tried until it
+        // can, after which nothing holds it any more.
+        for _ in 0..100 {
+            match std::process::Command::new(&codex).arg("probe").status() {
+                Err(err) if err.raw_os_error() == Some(libc::ETXTBSY) => {
+                    std::thread::sleep(Duration::from_millis(20))
+                }
+                _ => break,
+            }
+        }
+        (codex, here)
+    }
+
+    #[cfg(unix)]
+    fn codex_launch(codex: &std::path::Path, cwd: &std::path::Path, attach: bool) -> AgentLaunch {
+        AgentLaunch {
+            request: LaunchRequest {
+                kind: AgentKind::Codex,
+                command: Some(codex.display().to_string()),
+                cwd: cwd.display().to_string(),
+                model: Some("gpt-5.1-codex".into()),
+                ..Default::default()
+            },
+            attach,
+        }
+    }
+
+    #[cfg(unix)]
+    fn spawn_codex(manager: &PtyManager, id: &str, launch: AgentLaunch) -> Result<Spawned, String> {
+        pty_spawn_launch(
+            manager,
+            Box::new(|_| {}),
+            id.into(),
+            Some(sh("sleep 60")),
+            80,
+            24,
+            Some("Ada".into()),
+            Some(false),
+            None,
+            Vec::new(),
+            None,
+            None,
+            false,
+            launch,
+        )
+    }
+
+    #[cfg(unix)]
+    fn read(here: &std::path::Path, name: &str) -> String {
+        std::fs::read_to_string(here.join(name)).unwrap_or_default()
+    }
+
+    /// The pid the fake wrote in `name`, once it has.
+    #[cfg(unix)]
+    fn wait_pid(here: &std::path::Path, name: &str) -> libc::pid_t {
+        for _ in 0..200 {
+            if let Ok(pid) = read(here, name).trim().parse() {
+                return pid;
+            }
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        panic!("no {name} in {}", here.display());
+    }
+
+    /// Whether nothing is at `path` within a few seconds.
+    #[cfg(unix)]
+    fn removed(path: &std::path::Path) -> bool {
+        for _ in 0..100 {
+            if std::fs::symlink_metadata(path).is_err() {
+                return true;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        false
+    }
+
+    #[cfg(unix)]
+    fn attached_socket(spawned: &Spawned) -> PathBuf {
+        match &spawned.server {
+            Some(ServerState::Attached { socket }) => PathBuf::from(socket),
+            other => panic!("not attached: {other:?}"),
+        }
+    }
+
+    /// The server listens before the spawn returns, so the line typed next
+    /// finds it; it got the pane's environment, its folder and every setting
+    /// of the launch; its socket is private; and it ends with the pane.
+    #[cfg(unix)]
+    #[test]
+    fn a_codex_panes_server_listens_with_the_panes_environment_before_its_line() {
+        use std::os::unix::fs::PermissionsExt;
+        let (codex, here) = fake_codex("codex-attach", Fake::Listen);
+        let manager = Arc::new(PtyManager::default());
+        let id = "p-codex-attach";
+        let spawned =
+            spawn_codex(&manager, id, codex_launch(&codex, &here, true)).expect("spawned");
+        let socket = attached_socket(&spawned);
+        assert!(std::os::unix::net::UnixStream::connect(&socket).is_ok());
+        assert_eq!(
+            spawned.line,
+            Some(format!(
+                "{} --remote unix://{} -c model=gpt-5.1-codex",
+                codex.display(),
+                socket.display()
+            ))
+        );
+        assert_eq!(codex_socket(&manager, id), Some(socket.clone()));
+
+        let args: Vec<String> = read(&here, "args").lines().map(str::to_owned).collect();
+        let expected: Vec<String> = vec![
+            "app-server".into(),
+            "--listen".into(),
+            format!("unix://{}", socket.display()),
+            "-c".into(),
+            "model=gpt-5.1-codex".into(),
+            "-c".into(),
+            "features.image_generation=true".into(),
+        ];
+        assert_eq!(args, expected);
+        assert_eq!(
+            std::fs::canonicalize(read(&here, "cwd").trim()).unwrap(),
+            std::fs::canonicalize(&here).unwrap()
+        );
+        let env = read(&here, "env");
+        let has = |line: &str| env.lines().any(|l| l == line);
+        assert!(has(&format!("HANGAR_PANE_ID={id}")), "{env}");
+        assert!(has("HANGAR_PANE_NAME=Ada"), "{env}");
+        assert!(has("TERM=xterm-256color"), "{env}");
+        assert!(
+            !env.lines()
+                .any(|l| l.starts_with("HANGAR_CODEX_") || l.starts_with("HANGAR_MCP_CONFIG=")),
+            "{env}"
+        );
+
+        let mode =
+            |path: &std::path::Path| std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode(socket.parent().unwrap()), 0o700);
+        assert_eq!(mode(&socket), 0o600);
+        // An agent at rest: nothing of its own runs.
+        assert_eq!(pane_job(&manager, id), PaneJob::Nothing);
+
+        let server = wait_pid(&here, "pid");
+        pty_kill(&manager, id.into(), None).unwrap();
+        assert!(ends(server), "the server outlived its pane");
+        assert!(removed(&socket), "its socket stayed");
+        assert_eq!(codex_socket(&manager, id), None);
+    }
+
+    /// A server bound at the path itself, not through Codex's link, is made
+    /// the person's alone too.
+    #[cfg(unix)]
+    #[test]
+    fn a_socket_bound_at_its_path_is_made_private() {
+        use std::os::unix::fs::{FileTypeExt, PermissionsExt};
+        let (codex, here) = fake_codex("codex-direct", Fake::Direct);
+        let manager = Arc::new(PtyManager::default());
+        let spawned = spawn_codex(
+            &manager,
+            "p-codex-direct",
+            codex_launch(&codex, &here, true),
+        )
+        .expect("spawned");
+        let socket = attached_socket(&spawned);
+        let meta = std::fs::symlink_metadata(&socket).unwrap();
+        assert!(meta.file_type().is_socket());
+        assert_eq!(meta.permissions().mode() & 0o777, 0o600);
+        kill_all(&manager);
+        assert!(removed(&socket));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_server_that_ends_first_leaves_the_floor_and_says_why() {
+        let (codex, here) = fake_codex("codex-refuse", Fake::Refuse);
+        let manager = Arc::new(PtyManager::default());
+        let id = "p-codex-refuse";
+        let spawned = spawn_codex(&manager, id, codex_launch(&codex, &here, true))
+            .expect("the pane starts all the same");
+        match &spawned.server {
+            Some(ServerState::Floor {
+                reason: FloorReason::Exited { code, said },
+            }) => {
+                assert_eq!(*code, Some(2));
+                assert!(
+                    said.contains("unrecognized subcommand 'app-server'"),
+                    "{said}"
+                );
+            }
+            other => panic!("{other:?}"),
+        }
+        // The floor's line: the plain program, every setting typed.
+        assert_eq!(
+            spawned.line,
+            Some(format!(
+                "{} -c model=gpt-5.1-codex -c features.image_generation=true",
+                codex.display()
+            ))
+        );
+        assert!(pty_alive(&manager, id.into()));
+        assert_eq!(codex_socket(&manager, id), None);
+        assert!(ends(wait_pid(&here, "pid")));
+        pty_kill(&manager, id.into(), Some(true)).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_codex_that_cannot_be_run_leaves_the_floor_and_says_why() {
+        let here = crate::testdir::scratch("codex-missing");
+        let missing = here.join("no-codex-here");
+        let manager = Arc::new(PtyManager::default());
+        let spawned = spawn_codex(
+            &manager,
+            "p-codex-missing",
+            codex_launch(&missing, &here, true),
+        )
+        .expect("the pane starts all the same");
+        assert!(
+            matches!(
+                &spawned.server,
+                Some(ServerState::Floor { reason: FloorReason::NotStarted { program, .. } })
+                    if *program == missing.display().to_string()
+            ),
+            "{:?}",
+            spawned.server
+        );
+        assert!(!spawned.line.unwrap_or_default().contains("--remote"));
+        kill_all(&manager);
+    }
+
+    /// A server that does not listen in time is ended, and nothing of it
+    /// stays.
+    #[cfg(unix)]
+    #[test]
+    fn a_server_that_never_listens_is_ended_in_time() {
+        let (codex, here) = fake_codex("codex-mute", Fake::Mute);
+        let mut request = codex_launch(&codex, &here, true).request;
+        request.shell = Some(ShellSyntax::Posix);
+        let started = std::time::Instant::now();
+        let result = codex_server::attach(
+            "p-codex-mute",
+            &mut request,
+            |launch| server_env(&CommandBuilder::new("sh"), launch),
+            Duration::from_millis(400),
+        );
+        assert!(
+            matches!(result, Err(FloorReason::Timeout { seconds: 1 })),
+            "{:?}",
+            result.as_ref().err()
+        );
+        assert!(started.elapsed() < Duration::from_secs(5));
+        assert_eq!(request.server_socket, None);
+        assert!(ends(wait_pid(&here, "pid")), "the server outlived its time");
+    }
+
+    /// The commands an attached Codex runs are below its server, not the
+    /// pane's shell: they are the pane's jobs all the same, and closing the
+    /// pane — even the gentle way — ends them with the server.
+    #[cfg(unix)]
+    #[test]
+    fn closing_a_codex_pane_ends_its_server_and_the_commands_it_runs() {
+        let (codex, here) = fake_codex("codex-busy", Fake::Busy);
+        let manager = Arc::new(PtyManager::default());
+        let id = "p-codex-busy";
+        let spawned =
+            spawn_codex(&manager, id, codex_launch(&codex, &here, true)).expect("spawned");
+        attached_socket(&spawned);
+        let server = wait_pid(&here, "pid");
+        let job = wait_pid(&here, "job");
+        let running = PaneJob::Running("sleep 600".into());
+        let mut seen = PaneJob::Unknown;
+        for _ in 0..100 {
+            seen = pane_job(&manager, id);
+            if seen == running {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        assert_eq!(seen, running);
+        pty_kill(&manager, id.into(), None).unwrap();
+        assert!(ends(server), "the server outlived its pane");
+        assert!(ends(job), "the command it ran outlived the pane");
+    }
+
+    /// A restart (killed, spawned again at once) gets a new server on the
+    /// same socket; quitting ends it.
+    #[cfg(unix)]
+    #[test]
+    fn a_restarted_codex_pane_gets_a_new_server_on_the_same_socket() {
+        let (codex, here) = fake_codex("codex-restart", Fake::Listen);
+        let manager = Arc::new(PtyManager::default());
+        let id = "p-codex-restart";
+        let first = spawn_codex(&manager, id, codex_launch(&codex, &here, true)).expect("spawned");
+        let first_pid = wait_pid(&here, "pid");
+        pty_kill(&manager, id.into(), Some(true)).unwrap();
+        let second =
+            spawn_codex(&manager, id, codex_launch(&codex, &here, true)).expect("respawned");
+        assert_eq!(attached_socket(&first), attached_socket(&second));
+        let second_pid = wait_pid(&here, "pid");
+        assert_ne!(first_pid, second_pid);
+        assert!(ends(first_pid), "the first server outlived the restart");
+        kill_all(&manager);
+        assert!(ends(second_pid), "the server outlived Hangar");
+        assert!(removed(&attached_socket(&second)));
+    }
+
+    /// A server Hangar does not know of — left by a Hangar that crashed —
+    /// still listening on a pane's socket is ended before the pane's new one
+    /// starts.
+    #[cfg(unix)]
+    #[test]
+    fn a_server_left_on_a_panes_socket_is_ended_before_the_new_one() {
+        let (codex, here) = fake_codex("codex-stale", Fake::Listen);
+        let manager = Arc::new(PtyManager::default());
+        let id = "p-codex-stale";
+        let first = spawn_codex(&manager, id, codex_launch(&codex, &here, true)).expect("spawned");
+        let socket = attached_socket(&first);
+        pty_kill(&manager, id.into(), Some(true)).unwrap();
+        assert!(removed(&socket));
+
+        let address = format!("unix://{}", socket.display());
+        let mut stale = std::process::Command::new(&codex)
+            .args(["app-server", "--listen", address.as_str()])
+            .spawn()
+            .unwrap();
+        let listening = (0..100).any(|_| {
+            std::thread::sleep(Duration::from_millis(50));
+            std::os::unix::net::UnixStream::connect(&socket).is_ok()
+        });
+        assert!(listening, "the stale server never listened");
+
+        let second =
+            spawn_codex(&manager, id, codex_launch(&codex, &here, true)).expect("respawned");
+        assert_eq!(attached_socket(&second), socket);
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        let mut ended = false;
+        while !ended && std::time::Instant::now() < deadline {
+            ended = matches!(stale.try_wait(), Ok(Some(_)));
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let _ = stale.kill();
+        let _ = stale.wait();
+        kill_all(&manager);
+        assert!(ended, "the stale server still runs");
+    }
+
+    /// A pane closed while its server is being waited for is ended once it
+    /// is up: nothing it started stays behind it.
+    #[cfg(unix)]
+    #[test]
+    fn a_codex_pane_closed_while_its_server_starts_leaves_nothing_behind() {
+        let (codex, here) = fake_codex("codex-slow", Fake::Slow);
+        let manager = Arc::new(PtyManager::default());
+        let id = "p-codex-slow";
+        let spawning = {
+            let manager = manager.clone();
+            let launch = codex_launch(&codex, &here, true);
+            std::thread::spawn(move || spawn_codex(&manager, "p-codex-slow", launch))
+        };
+        let server = wait_pid(&here, "pid");
+        assert!(manager.lock().starting.contains(id));
+        pty_kill(&manager, id.into(), Some(true)).unwrap();
+        let result = spawning.join().unwrap();
+        assert!(
+            result
+                .as_ref()
+                .is_err_and(|err| err.contains("closed while it started")),
+            "{:?}",
+            result.as_ref().err()
+        );
+        assert!(!pty_alive(&manager, id.into()));
+        assert!(ends(server), "its server outlived the pane");
+        let registry = manager.lock();
+        assert!(registry.dying.is_empty() && registry.closed.is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_codex_pane_on_the_floor_starts_no_server() {
+        let (codex, here) = fake_codex("codex-floor", Fake::Listen);
+        let manager = Arc::new(PtyManager::default());
+        let spawned = spawn_codex(
+            &manager,
+            "p-codex-floor",
+            codex_launch(&codex, &here, false),
+        )
+        .expect("spawned");
+        assert_eq!(spawned.server, None);
+        assert_eq!(
+            spawned.line,
+            Some(format!(
+                "{} -c model=gpt-5.1-codex -c features.image_generation=true",
+                codex.display()
+            ))
+        );
+        assert!(!here.join("args").exists(), "the fake codex was run");
+        kill_all(&manager);
+    }
+
+    /// The launch entry is the agent's, whatever it is: Claude Code gets its
+    /// line, and no server.
+    #[cfg(unix)]
+    #[test]
+    fn a_claude_pane_launched_by_hangar_has_its_line_and_no_server() {
+        let manager = Arc::new(PtyManager::default());
+        let cwd = std::env::temp_dir().to_string_lossy().into_owned();
+        let request = LaunchRequest {
+            kind: AgentKind::Claude,
+            cwd: cwd.clone(),
+            ..Default::default()
+        };
+        let spawned = pty_spawn_launch(
+            &manager,
+            Box::new(|_| {}),
+            "p-claude-launch".into(),
+            Some(sh("sleep 60")),
+            80,
+            24,
+            None,
+            Some(false),
+            None,
+            Vec::new(),
+            None,
+            None,
+            false,
+            AgentLaunch {
+                request: request.clone(),
+                attach: true,
+            },
+        )
+        .expect("spawned");
+        assert_eq!(spawned.server, None);
+        let expected = launch::build(&LaunchRequest {
+            shell: Some(ShellSyntax::Posix),
+            ..request
+        })
+        .unwrap()
+        .command_line();
+        assert_eq!(spawned.line, Some(expected));
+        kill_all(&manager);
+    }
+
+    /// A pane starts a server of its own exactly when its launch asks to
+    /// attach and its kind is reached through one
+    /// (`caps.headless.app_server`): a Codex pane with « Attach Hangar to
+    /// Codex » on, never a Claude Code pane, nor a Codex one with it off.
+    #[test]
+    fn a_pane_runs_attached_when_its_launch_asks_and_its_kind_has_a_server() {
+        for (kind, attach, expected) in [
+            (AgentKind::Codex, true, true),
+            (AgentKind::Codex, false, false),
+            (AgentKind::Claude, true, false),
+            (AgentKind::Claude, false, false),
+        ] {
+            let request = LaunchRequest {
+                kind,
+                ..Default::default()
+            };
+            assert_eq!(
+                runs_attached(&request, attach),
+                expected,
+                "{kind:?}, attach {attach}"
+            );
+        }
     }
 }

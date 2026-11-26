@@ -13,10 +13,15 @@
 //! what Claude Code is about to ask the person open for an answer from here
 //! ("Asks the mod holds open", below).
 //!
-//! Only Claude Code has mods. Every other agent, and a Claude Code that cannot
-//! load one (too old, mods turned off, a WSL shell the environment does not
-//! cross into), simply never reports, and the pane keeps reading its state from
-//! the shape of its output.
+//! Only Claude Code has mods. A Codex pane attached to its own app-server has
+//! the same side channel without one: Hangar's client of that server
+//! (`agent/codex_attach.rs`) reports what the session does with [`report`],
+//! drains the pane's queue itself ([`queue_changes`], [`take_next`],
+//! [`put_back`]) and answers the asks it holds here with what the person
+//! chose, so the window sees both kinds alike. Every other agent, and a
+//! Claude Code that cannot load the mod (too old, mods turned off, a WSL
+//! shell the environment does not cross into), simply never reports, and the
+//! pane keeps reading its state from the shape of its output.
 //!
 //! One policy is harsher: with sideloaded plugin directories forbidden, Claude
 //! Code refuses to start at all while `CLAUDE_CODE_PLUGIN_DIRS` is set. The
@@ -204,6 +209,34 @@ fn now_ms() -> u64 {
 }
 
 // ---------------------------------------------------------------------------
+// What a pane's side channel reports
+// ---------------------------------------------------------------------------
+
+/// One report of what pane `pane_id`'s session does, from its side channel —
+/// the mod's `POST /api/bridge/{pane}/event` (server.rs), or Hangar's own
+/// client of a Codex pane's server, in process — relayed to the window as
+/// it is (`Event::BridgeEvent`). The window owns the meaning of each `kind`;
+/// only an edit is also remembered here, because the conflict question is
+/// asked of the API, not of the window, and an ask the side channel holds
+/// open is taken in (`note_report`).
+pub fn report(host: &Host, pane_id: &str, event: serde_json::Value) {
+    if event.get("kind").and_then(|v| v.as_str()) == Some("edit") {
+        if let Some(file) = event.get("file").and_then(|v| v.as_str()) {
+            let name = event
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or(pane_id);
+            record_edit(pane_id, name, file);
+        }
+    }
+    note_report(pane_id, &event);
+    let _ = host.emit(Event::BridgeEvent {
+        pane_id: pane_id.to_string(),
+        event,
+    });
+}
+
+// ---------------------------------------------------------------------------
 // Prompts queued for a pane until its agent is free
 // ---------------------------------------------------------------------------
 
@@ -236,6 +269,14 @@ impl Inbox {
             .or_default()
             .push_back(queued.clone());
         queued
+    }
+
+    /// Back at the head of the pane's queue: a message whose delivery failed.
+    fn put_back(&mut self, pane_id: &str, queued: Queued) {
+        self.by_pane
+            .entry(pane_id.to_string())
+            .or_default()
+            .push_front(queued);
     }
 
     /// The oldest message, or with `labelled` the oldest one not from the
@@ -315,7 +356,36 @@ pub fn enqueue_from(host: &Host, pane_id: &str, text: String, from: Option<Strin
         (queued, inbox.pending(pane_id))
     };
     queue_changed(host, pane_id, pending);
+    queued_more().send_modify(|count| *count = count.wrapping_add(1));
     queued
+}
+
+/// Counts what was queued for any pane, so that whoever delivers a queue
+/// without a mod hears of it at once rather than asking every few seconds.
+fn queued_more() -> &'static tokio::sync::watch::Sender<u64> {
+    static QUEUED: OnceLock<tokio::sync::watch::Sender<u64>> = OnceLock::new();
+    QUEUED.get_or_init(|| tokio::sync::watch::channel(0).0)
+}
+
+/// Changes each time something is queued for a pane, or put back at its
+/// head: the delivery seam of a pane without a mod (a Codex pane's client,
+/// `agent/codex_attach.rs`), which then takes what its session can take now
+/// with [`take_next`], as the mod's pull does.
+pub fn queue_changes() -> tokio::sync::watch::Receiver<u64> {
+    queued_more().subscribe()
+}
+
+/// Puts back at the head of the pane's queue a message [`take_next`] handed
+/// out whose delivery failed — the connection it was going through dropped,
+/// or the session cannot take one now — so it goes out first, next time.
+pub fn put_back(host: &Host, pane_id: &str, queued: Queued) {
+    let pending = {
+        let mut inbox = inbox();
+        inbox.put_back(pane_id, queued);
+        inbox.pending(pane_id)
+    };
+    queue_changed(host, pane_id, pending);
+    queued_more().send_modify(|count| *count = count.wrapping_add(1));
 }
 
 pub fn bridge_cancel(host: &Host, pane_id: String, id: Option<String>) {
@@ -352,6 +422,7 @@ pub fn take_next(host: &Host, pane_id: &str, labelled: bool) -> Option<Queued> {
 /// restart, a hibernation: what was queued for it is still for it, and
 /// `pty_kill` keeps it (`release_edits` only).
 pub fn forget(host: &Host, pane_id: &str) {
+    crate::agent::codex_attach::detach(pane_id);
     inbox().cancel(pane_id, None);
     edits().forget(pane_id);
     drop_asks(pane_id);
@@ -359,9 +430,12 @@ pub fn forget(host: &Host, pane_id: &str) {
 }
 
 /// A pane's shell ended: the files it edited are no longer being edited by
-/// it, and the dialogs its session had open went with it. Its queue stays,
-/// for the shell that comes back on its id.
+/// it, and the dialogs its session had open went with it — as did Hangar's
+/// client of its Codex server, if it had one (`agent/codex_attach.rs`): a
+/// pane that comes back is attached again with its new server. Its queue
+/// stays, for the shell that comes back on its id.
 pub fn release_edits(pane_id: &str) {
+    crate::agent::codex_attach::detach(pane_id);
     edits().forget(pane_id);
     drop_asks(pane_id);
 }
@@ -557,7 +631,10 @@ pub fn held_asks(pane_id: &str) -> Vec<HeldAsk> {
 ///
 /// `decision` is what the person chose: `{ "behavior": "allow" }`, with
 /// `answers` for a question (question text → the labels and words chosen),
-/// or `{ "behavior": "deny", "message": "…", "interrupt": true }`.
+/// or `{ "behavior": "deny", "message": "…", "interrupt": true }`. An allow
+/// may add `"forSession": true` — allow it for the rest of the session —
+/// which an agent that has such an answer takes as such (Codex's
+/// `acceptForSession`) and any other as a plain allow.
 pub fn answer_ask(pane_id: &str, id: &str, decision: serde_json::Value) -> bool {
     let answered = match asks().find(pane_id, id) {
         Some(ask) if ask.decision.is_none() => {
@@ -834,6 +911,60 @@ mod tests {
             }
         }
         assert_eq!(last, Some(Vec::new()), "the window hears the queue emptied");
+    }
+
+    /// A message a side channel could not deliver goes out first next time,
+    /// and whoever delivers without a mod hears of the queue each time.
+    #[tokio::test]
+    async fn a_message_put_back_goes_out_first_and_the_queue_says_so() {
+        let host = test_host();
+        let pane = "p-bridge-put-back";
+        let mut changes = queue_changes();
+        changes.mark_unchanged();
+        enqueue_from(&host, pane, "first".into(), Some("Leo".into()));
+        assert!(changes.has_changed().unwrap(), "an enqueue is heard");
+        changes.mark_unchanged();
+        enqueue_from(&host, pane, "second".into(), None);
+        let taken = take_next(&host, pane, false).expect("the first");
+        assert_eq!(taken.text, "first");
+        changes.mark_unchanged();
+        put_back(&host, pane, taken.clone());
+        assert!(changes.has_changed().unwrap(), "a put back is heard");
+        assert_eq!(take_next(&host, pane, false), Some(taken));
+        assert_eq!(
+            take_next(&host, pane, false).map(|q| q.text).as_deref(),
+            Some("second")
+        );
+    }
+
+    /// What a side channel in Hangar's own process reports goes the way the
+    /// mod's reports go: an edit remembered, an ask held, the window told.
+    #[test]
+    fn an_in_process_report_is_relayed_as_the_mods_are() {
+        let host = test_host();
+        let mut events = host.subscribe();
+        let pane = "p-bridge-report";
+        report(
+            &host,
+            pane,
+            serde_json::json!({ "kind": "edit", "file": "/repo/report.rs", "name": "Cody" }),
+        );
+        assert_eq!(
+            conflict("p-other", "/repo/report.rs").map(|owner| owner.name),
+            Some("Cody".to_string())
+        );
+        report(&host, pane, ask_report("r1", "Bash"));
+        assert_eq!(held_asks(pane).len(), 1);
+        let mut kinds = Vec::new();
+        while let Ok(event) = events.try_recv() {
+            if let Event::BridgeEvent { pane_id, event } = event {
+                if pane_id == pane {
+                    kinds.push(event["kind"].as_str().unwrap_or("").to_string());
+                }
+            }
+        }
+        assert_eq!(kinds, ["edit", "permission"]);
+        release_edits(pane);
     }
 
     fn ask_report(id: &str, tool: &str) -> serde_json::Value {

@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 #
 # The server of the optional Hangar account (docs/native/cloud.md), behind
-# Cloudflare at https://hangar-account.simnjs.fr like the site is at
-# https://hangar.simnjs.fr (the Dockerfile at the root).
+# Cloudflare at https://account.hangarai.dev like the site is at
+# https://hangarai.dev (the Dockerfile at the root).
 #
 # Built from the root of the repository, which is where the workspace's
 # Cargo.toml and Cargo.lock are:

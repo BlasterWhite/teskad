@@ -243,7 +243,7 @@ fn release_hold(path: &Path) -> Result<(), String> {
     };
     if path.exists() && quarantine(path).is_none() {
         return Err(
-            "state.json could not be read when Hangar.AI started, and it still cannot be \
+            "state.json could not be read when HangarAI started, and it still cannot be \
              moved aside"
                 .into(),
         );

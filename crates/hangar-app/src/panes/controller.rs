@@ -15,17 +15,37 @@
 //! order its contract asks: `Mounted` before the PTY spawns, `Status` once
 //! the shell runs or could not start, `WatchSession` once the agent is
 //! launched, `Unmounted` when the terminal goes.
+//!
+//! An agent's launch is core's, for every kind (docs/native/agents.md §3.4,
+//! D4), as the engine's host launches it (`host/launch.rs`): the pane asks
+//! for it in words no agent owns ([`LaunchRequest`]), its shell starts with
+//! it (`pty_spawn_launch`: the kind's variables, and for a Codex to run
+//! attached its own `codex app-server`, D5), and the line typed once the
+//! shell has settled is core's builder's (`agent::launch::build`), with the
+//! session to resume once its conversation is known to be there. What the
+//! pane's agent gets follows its kind's capabilities, never its name: its
+//! MCP servers as its kind reads them (`Capabilities::mcp`), its session by
+//! kind (`sessions::session_exists_for`). An attached Codex is followed by
+//! Hangar's client (`agent::codex_attach`) from its spawn to its shell's
+//! end; P4 hears how the pane's side channel was set up
+//! (`Live::set_side_channel`), and its header says it ([`Side`]).
 
 use std::collections::HashSet;
 use std::future::Future;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use hangar_core::agent::launch::{self as agent_launch, LaunchRequest, McpRequest, ShellSyntax};
+use hangar_core::agent::{AgentKind, McpInjection, PermissionMode, TurnSignal, codex_attach};
 use hangar_core::kits::{KitInfo, LaunchIssue};
+use hangar_core::pty::{AgentLaunch, FloorReason, PaneJob, ServerState};
+use hangar_engine::live::{SideChannel, live_caps};
 use hangar_i18n::{Key, Locale, Translator, args};
 use hangar_term::Terminal;
 use iced::Task;
 
+use crate::accounts::{AccountLevels, Follow, FollowInput, Hold, Job, Turn, follow};
 use crate::kits::model::{
     KitLaunchIssue, LaunchReason, PaneKits, kit_issue_notes, load_pane_kits_with,
 };
@@ -36,10 +56,10 @@ use crate::orchestration_ui::actions::{
     role_restart, take_restart_note,
 };
 use crate::panes_logic::Msg as Logic;
-use crate::panes_logic::agents::{LaunchOptions, is_resumable, known_session_ids, launch_command};
+use crate::panes_logic::agents::{is_resumable, known_session_ids};
 use crate::panes_logic::shells::resolve_shell;
 use crate::services::{CoreEvent, Services};
-use crate::state::live::{PaneMcp, PaneMcpMode, PaneStatus};
+use crate::state::live::{PaneEventDetail, PaneMcp, PaneMcpMode, PaneStatus};
 use crate::state::roles::{ORCHESTRATION_ALLOWED_TOOLS, orchestration_of};
 use crate::state::types::{AgentId, McpMode, Pane, PaneRole, Settings, ShellInfo, Workspace};
 use crate::state::{Model, PaneId, Patch, StoreAction, WsId};
@@ -91,15 +111,28 @@ pub struct PaneRt {
     pub search: Option<Search>,
     /// What the search bar held when it last closed.
     pub last_query: String,
-    /// The account its Claude Code runs on, as core started it.
+    /// The account its agent runs on, as core started it.
     pub account: Option<String>,
-    /// The MCP servers its Claude Code started with.
+    /// The MCP servers its agent started with.
     pub mcp: Option<PaneMcp>,
     /// The role the pane was launched with: a role then meant Hangar's
     /// server came along.
     pub launched_role: Option<PaneRole>,
     /// The restart a role asked for was dealt with, once per pin.
     pub role_handled: bool,
+    /// The account a move was started for (`accounts::follow`), handed to
+    /// the pane the move's restart makes (`Intent::PaneRespawned`): a launch
+    /// core had to put on another account is not restarted again.
+    pub moved_to: Option<String>,
+    /// Its launch is a move to another account: its conversation is resumed
+    /// whatever `auto_resume` says, and its note says where it landed.
+    pub moved: bool,
+    /// When the person last put something in its prompt between two turns
+    /// (typed, pasted, dropped, or dictated without sending it): a restart
+    /// would lose it. Cleared by the next turn, which means it was sent.
+    pub drafted_at: Option<Instant>,
+    /// Where its move to another account stands between two looks.
+    pub follow: FollowRt,
     /// The spawn, while the terminal has not measured itself yet or the
     /// machine's shells are not known yet.
     pending: Option<Spawn>,
@@ -110,13 +143,18 @@ pub struct PaneRt {
     /// owed it.
     resume: Option<String>,
     owed: bool,
-    /// The `--mcp-config` argument the launch types, and whether it replaces
-    /// Claude Code's own servers.
-    mcp_arg: Option<(String, bool)>,
     /// The look last applied, to restyle only on a change.
     pub look: Look,
     /// Whether the terminal was last told it has the keyboard.
     pub focused: bool,
+    /// How its agent was started as far as its side channel goes, as its
+    /// spawn said; `None` for a shell, a pane not started yet, and a pane
+    /// on a node, whose side channel is the node's.
+    pub side: Option<Side>,
+    /// Its agent's launch as the spawn completed it (the shell's syntax, the
+    /// server's socket), the session to resume left out: the line typed is
+    /// built from it once the shell has settled ([`launch_line`]).
+    request: Option<LaunchRequest>,
     /// The launch's wait for the shell, then its check that the command
     /// ran, aborted with the pane.
     launch: Option<iced::task::Handle>,
@@ -201,14 +239,135 @@ pub struct SpawnReport {
     pub resolved: Option<String>,
     /// The account that was asked for and is gone: the fallback applies.
     pub missing: Option<String>,
-    /// The account core started its Claude Code on (main when it fell back).
+    /// The account core started its agent on (main when it fell back).
     pub account: Option<String>,
     pub mcp: Option<PaneMcp>,
-    pub mcp_arg: Option<(String, bool)>,
+    /// The agent's launch as the spawn completed it, the resume left out:
+    /// what the line is built from once the shell has settled. `None` for a
+    /// shell, a login pane, and a pane found running on its node.
+    pub request: Option<LaunchRequest>,
+    /// How the agent was started as far as its side channel goes; `None`
+    /// where no launch of this machine's said (a shell, a pane on a node).
+    pub side: Option<Side>,
     /// The MCP scope's warnings, already worded.
     pub notes: Vec<String>,
     /// A pane of a remote workspace: how its shell started on the node.
     pub remote: Option<RemoteStart>,
+}
+
+/// How a pane's agent was started, as far as its side channel goes
+/// (docs/native/agents.md §3.2, D5, D6): what its spawn set up, which the
+/// side channel then proves by speaking (`PaneActivity::bridged`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Side {
+    /// Set up: the hangar-bridge mod within reach of its Claude Code, or the
+    /// Codex pane's own server listening, followed by Hangar's client.
+    Attached,
+    /// None, because the setting that brings it is off: the hangar-bridge
+    /// mod's, or « Attach Hangar to Codex ».
+    Off,
+    /// None: the server the pane was to run attached to could not be had,
+    /// and the pane runs its agent's plain terminal (the floor, D6).
+    Floor(FloorReason),
+}
+
+impl Side {
+    /// What the pane's agent of `kind` was started with: the server its
+    /// spawn reported, for a kind Hangar reaches through a server of the
+    /// pane's own (`headless.app_server`: Codex, D5), the hangar-bridge
+    /// mod's setting for any other (`bridge`), as the engine's host says it
+    /// (`host/launch.rs`).
+    pub fn of(kind: AgentKind, server: Option<&ServerState>, bridge: bool) -> Side {
+        match server {
+            Some(ServerState::Attached { .. }) => Side::Attached,
+            Some(ServerState::Floor { reason }) => Side::Floor(reason.clone()),
+            None if kind.info().caps.headless.app_server => Side::Off,
+            None if bridge => Side::Attached,
+            None => Side::Off,
+        }
+    }
+
+    /// The same, as P4 keeps it (`live::SideChannel`).
+    pub fn channel(&self) -> SideChannel {
+        match self {
+            Side::Attached => SideChannel::Attached,
+            Side::Off => SideChannel::Floor { reason: None },
+            Side::Floor(reason) => SideChannel::Floor {
+                reason: Some(reason.to_string()),
+            },
+        }
+    }
+}
+
+/// What `pane` of `ws` asks of its agent's launch, in words no agent owns,
+/// before the spawn completes it (its MCP servers, its shell's syntax, its
+/// server): `None` for a shell, and for a pane opened to log an account in,
+/// which types its kind's login instead. Read when the pane mounts: a
+/// workspace renamed later shows on the next launch.
+fn launch_request(settings: &Settings, ws: &Workspace, pane: &Pane) -> Option<LaunchRequest> {
+    let kind = pane.agent.kind().filter(|_| pane.login != Some(true))?;
+    let (permission_mode, allowed_tools) = role_flags(ws, pane);
+    Some(LaunchRequest {
+        kind,
+        command: settings.agent_commands.of(kind).map(str::to_owned),
+        cwd: folder_of(ws, pane),
+        extra_roots: ws.extra_roots.clone(),
+        name: Some(crate::state::pane_names::session_name(&pane.name, &ws.name)),
+        model: pane.model.clone(),
+        permission_mode: permission_mode.as_deref().and_then(policy),
+        allowed_tools,
+        // Not chosen here, as the engine's host does not: the brief of a kind
+        // briefed at launch, the orchestration's to give; an effort per
+        // pane, which nothing chooses yet; the trust of a worker's worktree.
+        ..LaunchRequest::default()
+    })
+}
+
+/// The orchestration's permission policy by the id `state.json` holds;
+/// `None` for none, or one no agent enforces.
+fn policy(id: &str) -> Option<PermissionMode> {
+    PermissionMode::from_id(id.trim_matches(|c: char| c.is_whitespace() || c == '\u{feff}'))
+}
+
+/// The line typed into the pane's shell to start its agent: core's builder
+/// over the launch its spawn completed, on `resume` when there is one.
+/// `None` when the kind cannot be started.
+pub fn launch_line(request: &LaunchRequest, resume: Option<&str>) -> Option<String> {
+    let request = LaunchRequest {
+        resume: resume.map(str::to_owned),
+        ..request.clone()
+    };
+    match agent_launch::build(&request) {
+        Ok(spec) => Some(spec.command_line()),
+        Err(error) => {
+            eprintln!("{error}");
+            None
+        }
+    }
+}
+
+/// `request` as the spawn completed it for its line: the syntax of the
+/// shell the pane really starts (`shell`, or the machine's default when its
+/// program is gone, as `pty_spawn_launch` falls back), and the socket of the
+/// server it really got. The account's folder only changes the shell's
+/// variables, which the spawn has set.
+fn completed(
+    mut request: LaunchRequest,
+    shell: Option<&ShellInfo>,
+    server: Option<&ServerState>,
+) -> LaunchRequest {
+    let started = shell
+        .filter(|shell| hangar_core::shells::program_exists(&shell.program))
+        .cloned()
+        .or_else(hangar_core::shells::default_shell);
+    request.shell = started.as_ref().and_then(ShellSyntax::of);
+    request.server_socket = match server {
+        Some(ServerState::Attached { socket }) => Some(socket.clone()),
+        _ => None,
+    };
+    request.account_dir = None;
+    request.resume = None;
+    request
 }
 
 /// How a remote pane's shell started.
@@ -313,16 +472,6 @@ fn role_flags(ws: &Workspace, pane: &Pane) -> (Option<String>, Vec<String>) {
     (orchestration_of(ws).permission_mode, tools)
 }
 
-/// The Claude account choices of a launch, the settings', the workspace's
-/// and the pane's, which P8's `launch_account` resolves (pane, workspace,
-/// default, then main) off the UI thread: it reads the accounts' files.
-#[derive(Debug, Clone, Default)]
-struct AccountChoice {
-    default: Option<String>,
-    workspace: Option<String>,
-    pane: Option<String>,
-}
-
 /// What `pty_spawn` is called with, gathered on the UI thread.
 struct Spawn {
     id: PaneId,
@@ -339,9 +488,18 @@ struct Spawn {
     /// `None` for a login pane, which starts with no kit.
     kits: Option<KitChoice>,
     agent: AgentId,
-    /// A Claude Code pane's: the account it is launched on.
-    account: Option<AccountChoice>,
-    /// The workspace's MCP choice applies (a Claude Code that is not a login
+    /// An agent pane's launch, as the pane asks for it ([`launch_request`]);
+    /// `None` for a shell and a login pane, whose shells start bare.
+    launch: Option<LaunchRequest>,
+    /// « Attach Hangar to Codex »: a kind that has a server of its own runs
+    /// attached to it (D5).
+    attach: bool,
+    /// An agent pane's: the account choices of its kind it is launched on
+    /// (pane, workspace, the workspace's folder, default), which P8 resolves
+    /// off the UI thread (`AccountLevels::launch_of`): it reads the
+    /// accounts' files.
+    account: Option<AccountLevels>,
+    /// The workspace's MCP choice applies (an agent that is not a login
     /// pane).
     mcp: Option<McpLaunch>,
     /// `pane-scopes` is on: the shell goes into a systemd scope of its own.
@@ -358,6 +516,10 @@ struct Spawn {
 
 /// What the MCP scope of a launch is made from (`mcpLaunchConfig`).
 struct McpLaunch {
+    /// How the pane's agent takes its servers (`Capabilities::mcp`): a
+    /// config file (Claude Code), or overrides of its own configuration
+    /// (Codex, D8).
+    injection: McpInjection,
     mode: McpMode,
     enabled: Vec<String>,
     /// An orchestrator or a worker gets Hangar's server even in `inherit`:
@@ -412,12 +574,13 @@ pub fn mount(
 
     let node = crate::nodes::away::node_of(ws, pane);
     let remote = node.is_some();
-    let login = pane.agent == AgentId::Claude && pane.login == Some(true);
-    let account = (pane.agent == AgentId::Claude).then(|| AccountChoice {
-        default: settings.claude_account.clone(),
-        workspace: ws.claude_account.clone(),
-        pane: pane.claude_account.clone(),
-    });
+    // An agent pane runs on an account of its kind; one opened to log an
+    // account in runs that kind's login on it (P8).
+    let login = pane.agent.kind().is_some() && pane.login == Some(true);
+    let account = pane
+        .agent
+        .kind()
+        .map(|kind| AccountLevels::of_kind(m.state(), ws, Some(pane), kind));
     // Resolved again when the shell starts (`start`), once the machine's
     // shells are known.
     let shell = shell_of(m, ws, pane).cloned();
@@ -450,8 +613,11 @@ pub fn mount(
         // on a node starts without them (kits of remote files come later).
         kits: (!login && !remote).then(|| KitChoice::of(settings, ws)),
         agent: pane.agent,
+        launch: launch_request(settings, ws, pane),
+        attach: settings.codex_attach,
         account: account.filter(|_| !remote),
-        mcp: (pane.agent == AgentId::Claude && !login).then(|| McpLaunch {
+        mcp: pane.agent.kind().filter(|_| !login).map(|kind| McpLaunch {
+            injection: kind.info().caps.mcp.injection,
             mode: scope.mode,
             enabled: scope.enabled,
             role: pane.role.is_some(),
@@ -485,13 +651,18 @@ pub fn mount(
         mcp: None,
         launched_role: pane.role,
         role_handled: false,
+        moved_to: None,
+        moved: false,
+        drafted_at: None,
+        follow: FollowRt::default(),
         pending: Some(spawn),
         start_due: false,
         resume: None,
         owed: false,
-        mcp_arg: None,
         look,
         focused: false,
+        side: None,
+        request: None,
         launch: None,
         attach: None,
         seen: reattach_mark(m, ws),
@@ -552,7 +723,7 @@ pub fn start(
         if spawn.hosted {
             let (looking, handle) =
                 Task::perform(attach_hosted(node, label, id.clone()), move |result| {
-                    Message::Panes(Msg::Spawned(id.clone(), result))
+                    Message::Panes(Msg::Spawned(id.clone(), Box::new(result)))
                 })
                 .abortable();
             rt.attach = Some(handle.abort_on_drop());
@@ -560,9 +731,10 @@ pub fn start(
         }
         let asked = spawn.remote(columns, rows);
         let tr = Translator::new(m.locale());
-        return Task::perform(start_remote(node, label, asked, tr), move |result| {
-            Message::Panes(Msg::Spawned(id.clone(), result))
-        });
+        return Task::perform(
+            start_remote(node, label, asked, spawn.launch, tr),
+            move |result| Message::Panes(Msg::Spawned(id.clone(), Box::new(result))),
+        );
     }
     spawn.resolve_shell(m, &rt.ws);
     let sink = rt.link.sink(channel.waker());
@@ -576,7 +748,7 @@ pub fn start(
                 .await
                 .unwrap_or_else(|error| Err(format!("the spawn stopped: {error}")))
         },
-        move |result| Message::Panes(Msg::Spawned(id.clone(), result)),
+        move |result| Message::Panes(Msg::Spawned(id.clone(), Box::new(result))),
     )
 }
 
@@ -586,11 +758,13 @@ const NODE_WAIT: Duration = Duration::from_secs(30);
 
 /// Starts the shell of a remote pane on its node, once the node is
 /// connected (waiting for it as long as it takes: the pane says meanwhile
-/// that its node is away), or finds it still running there.
+/// that its node is away), or finds it still running there. `launch` is
+/// what its agent's line is to be built from.
 async fn start_remote(
     node: String,
     label: String,
     spawn: RemoteSpawn,
+    launch: Option<LaunchRequest>,
     tr: Translator,
 ) -> Result<SpawnReport, String> {
     // Woken as soon as the node is published, not on a polling tick.
@@ -602,7 +776,14 @@ async fn start_remote(
     let started = remote::start(&client, &spawn)
         .await
         .map_err(|error| format!("{label}: {error}"))?;
-    Ok(remote_report(&spawn, started, tr))
+    Ok(remote_report(&spawn, started, launch, tr))
+}
+
+/// Whether the agent `agent` (a pane's id for it) reads its MCP servers from
+/// a config file: the only way a node is asked for them.
+fn reads_config_file(agent: &str) -> bool {
+    AgentKind::from_id(agent)
+        .is_some_and(|kind| kind.info().caps.mcp.injection == McpInjection::ConfigFile)
 }
 
 /// How far apart a pane its node runs itself is looked for on the node
@@ -627,7 +808,8 @@ async fn attach_hosted(node: String, label: String, pane: PaneId) -> Result<Spaw
         missing: None,
         account: None,
         mcp: None,
-        mcp_arg: None,
+        request: None,
+        side: None,
         notes: Vec::new(),
         remote: Some(RemoteStart {
             attached: true,
@@ -637,15 +819,27 @@ async fn attach_hosted(node: String, label: String, pane: PaneId) -> Result<Spaw
     })
 }
 
-/// What a remote start says, as a local spawn says it.
-fn remote_report(spawn: &RemoteSpawn, started: Started, tr: Translator) -> SpawnReport {
+/// What a remote start says, as a local spawn says it. The line of an
+/// agent started there is built from `launch` with what the node gave: the
+/// MCP file it wrote, named by the variable its shell holds. The node runs
+/// a POSIX shell, but its variables are its own: none of the floor's
+/// settings that ride on variables this machine would set is typed
+/// (`shell` unknown), and Hangar's executable is this machine's, so a Codex
+/// there starts with its own servers until its node starts it (T29).
+fn remote_report(
+    spawn: &RemoteSpawn,
+    started: Started,
+    launch: Option<LaunchRequest>,
+    tr: Translator,
+) -> SpawnReport {
     let mut report = SpawnReport {
         kit_issues: Vec::new(),
         resolved: None,
         missing: None,
         account: None,
         mcp: None,
-        mcp_arg: None,
+        request: None,
+        side: None,
         notes: Vec::new(),
         remote: None,
     };
@@ -663,9 +857,15 @@ fn remote_report(spawn: &RemoteSpawn, started: Started, tr: Translator) -> Spawn
                 replay_until: 0,
                 hosted: false,
             });
+            report.request = launch.map(|request| LaunchRequest {
+                shell: None,
+                hangar_mcp: None,
+                ..request
+            });
             let Some(asked) = &spawn.mcp else {
-                // Claude Code with its own servers, as an `inherit` launch.
-                if spawn.agent == AgentId::Claude.as_str() {
+                // An agent that reads a config file, with its own servers, as
+                // an `inherit` launch.
+                if reads_config_file(&spawn.agent) {
                     report.mcp = Some(PaneMcp {
                         mode: PaneMcpMode::Inherit,
                         hangar: Some(false),
@@ -687,8 +887,14 @@ fn remote_report(spawn: &RemoteSpawn, started: Started, tr: Translator) -> Spawn
             }
             // The node runs a POSIX shell: the variable its spawn sets,
             // never the path, is what the command names.
-            report.mcp_arg =
-                mcp_config_arg(&file.path, Some(ShellFamily::Posix)).map(|arg| (arg, asked.strict));
+            let arg = mcp_config_arg(&file.path, Some(ShellFamily::Posix));
+            if let (Some(request), Some(arg)) = (report.request.as_mut(), arg.clone()) {
+                request.mcp = Some(McpRequest {
+                    file: file.path.clone(),
+                    arg,
+                    strict: asked.strict,
+                });
+            }
             report.mcp = Some(PaneMcp {
                 mode: if asked.strict {
                     PaneMcpMode::Custom {
@@ -697,7 +903,7 @@ fn remote_report(spawn: &RemoteSpawn, started: Started, tr: Translator) -> Spawn
                 } else {
                     PaneMcpMode::Inherit
                 },
-                hangar: Some(report.mcp_arg.is_some()),
+                hangar: Some(arg.is_some()),
             });
         }
     }
@@ -707,9 +913,12 @@ fn remote_report(spawn: &RemoteSpawn, started: Started, tr: Translator) -> Spawn
 impl Spawn {
     /// What the node is asked for: the parameters that mean something
     /// there, the MCP scope as the workspace chose it (`mcp_scope`'s rules:
-    /// nothing for an `inherit` pane without a role).
+    /// nothing for an `inherit` pane without a role), for an agent that
+    /// reads its servers from a config file, the only kind a node writes one
+    /// for.
     fn remote(&self, columns: u16, rows: u16) -> RemoteSpawn {
-        let mcp = self.mcp.as_ref().and_then(|launch| {
+        let file = |launch: &&McpLaunch| launch.injection == McpInjection::ConfigFile;
+        let mcp = self.mcp.as_ref().filter(file).and_then(|launch| {
             let inherit = launch.mode == McpMode::Inherit;
             if inherit && !launch.role {
                 return None;
@@ -768,24 +977,68 @@ impl Spawn {
         kits: PaneKits,
     ) -> Result<SpawnReport, String> {
         let mut notes = Vec::new();
-        let resolved = self.account.as_ref().map(|choice| {
-            crate::accounts::launch_account(
-                choice.default.as_deref(),
-                choice.workspace.as_deref(),
-                choice.pane.as_deref(),
-            )
-        });
+        let resolved = self
+            .agent
+            .kind()
+            .zip(self.account.as_ref())
+            .map(|(kind, levels)| levels.launch_of(kind));
         let account = resolved.as_ref().map(|resolved| resolved.id.clone());
         let missing = resolved.and_then(|resolved| resolved.missing);
-        let (mcp, scope) = match &self.mcp {
-            Some(launch) => self.mcp_scope(host, launch, &kits.ids, account.as_deref(), &mut notes),
-            None => (None, None),
+        let mut launch = self.launch.clone();
+        let mcp = match (&self.mcp, launch.as_mut()) {
+            (Some(scope), Some(request)) => self.mcp_scope(
+                host,
+                scope,
+                request,
+                &kits.ids,
+                account.as_deref(),
+                &mut notes,
+            ),
+            _ => None,
         };
-        let spawned = hangar_core::pty::pty_spawn_with(
+        let Some(request) = launch else {
+            // A shell, or a pane opened to log an account in: its shell
+            // alone, the login typed into it once it settles.
+            let spawned = hangar_core::pty::pty_spawn_with(
+                pty,
+                sink,
+                self.id,
+                self.cwd,
+                self.shell,
+                columns,
+                rows,
+                Some(self.name),
+                Some(self.bridge),
+                self.port_base,
+                self.build_env,
+                None,
+                Some(kits.ids),
+                Some(self.agent.as_str().to_owned()),
+                account.clone(),
+                self.scoped,
+            )?;
+            return Ok(SpawnReport {
+                kit_issues: kit_issues(&kits.held, &spawned.kit_issues),
+                resolved: account,
+                missing,
+                account: spawned.account,
+                mcp,
+                request: None,
+                side: None,
+                notes,
+                remote: None,
+            });
+        };
+        let (id, name, shell) = (self.id.clone(), self.name.clone(), self.shell.clone());
+        let kind = request.kind;
+        // The shell starts with the launch's variables (the MCP file's path
+        // in `HANGAR_MCP_CONFIG`, a Codex floor's settings in its own: the
+        // line names them, never the paths, which hold the person's name),
+        // after the pane's own Codex server when it is to run attached.
+        let spawned = hangar_core::pty::pty_spawn_launch(
             pty,
             sink,
             self.id,
-            self.cwd,
             self.shell,
             columns,
             rows,
@@ -793,25 +1046,127 @@ impl Spawn {
             Some(self.bridge),
             self.port_base,
             self.build_env,
-            // The shell is handed the file's path (`HANGAR_MCP_CONFIG`); the
-            // typed command names the variable, never the path, which holds
-            // the person's name.
-            scope.as_ref().map(|(path, _, _)| path.clone()),
             Some(kits.ids),
-            Some(self.agent.as_str().to_owned()),
             account.clone(),
             self.scoped,
+            AgentLaunch {
+                request: request.clone(),
+                attach: self.attach,
+            },
         )?;
+        // Hangar's client of the pane's own Codex server (D5): it waits for
+        // the TUI the line starts to connect first, then follows its threads
+        // and reports them as the mod does. It lets go when the pane's shell
+        // ends ([`exited`]) or is killed (`pty_kill`).
+        if let Some(ServerState::Attached { socket }) = &spawned.server {
+            codex_attach::attach(host, &id, &name, PathBuf::from(socket));
+        }
         Ok(SpawnReport {
             kit_issues: kit_issues(&kits.held, &spawned.kit_issues),
             resolved: account,
             missing,
             account: spawned.account,
             mcp,
-            mcp_arg: scope.map(|(_, arg, strict)| (arg, strict)),
+            request: Some(completed(request, shell.as_ref(), spawned.server.as_ref())),
+            side: Some(Side::of(kind, spawned.server.as_ref(), self.bridge)),
             notes,
             remote: None,
         })
+    }
+
+    /// The MCP servers of this launch, as the pane's agent takes them
+    /// (`Capabilities::mcp`), put in `request`; what the inspector says the
+    /// pane started with.
+    fn mcp_scope(
+        &self,
+        host: &hangar_core::Host,
+        launch: &McpLaunch,
+        request: &mut LaunchRequest,
+        kits: &[String],
+        account: Option<&str>,
+        notes: &mut Vec<String>,
+    ) -> Option<PaneMcp> {
+        match launch.injection {
+            McpInjection::ConfigFile => {
+                let (mcp, scope) = self.mcp_file(host, launch, kits, account, notes);
+                request.mcp = scope.map(|(file, arg, strict)| McpRequest { file, arg, strict });
+                mcp
+            }
+            McpInjection::Overrides => {
+                Some(self.mcp_overrides(launch, request, kits, account, notes))
+            }
+        }
+    }
+
+    /// For an agent that takes its servers as overrides of its own
+    /// configuration (Codex, D8): Hangar's server on every launch, and
+    /// beside it the servers of the kits the pane starts with and, in
+    /// « custom » mode, every server of its own the workspace did not choose
+    /// turned off (`mcp_scope::codex_mcp_scope`). Its configuration is never
+    /// written. Hangar's executable not found, the agent starts without
+    /// Hangar's tools, which the log says.
+    fn mcp_overrides(
+        &self,
+        launch: &McpLaunch,
+        request: &mut LaunchRequest,
+        kits: &[String],
+        account: Option<&str>,
+        notes: &mut Vec<String>,
+    ) -> PaneMcp {
+        let tr = launch.tr;
+        request.hangar_mcp = match hangar_core::executable::stable() {
+            Ok(path) => Some(path.to_string_lossy().into_owned()),
+            Err(error) => {
+                eprintln!(
+                    "pane {}: Hangar's executable could not be found ({error}); it starts without Hangar's tools",
+                    self.id
+                );
+                None
+            }
+        };
+        let custom = launch.mode == McpMode::Custom;
+        let scope = hangar_core::mcp_scope::codex_mcp_scope(
+            self.cwd.clone(),
+            custom.then(|| launch.enabled.clone()),
+            kits.to_vec(),
+            account.map(str::to_owned),
+        );
+        if let Some(error) = &scope.unlisted {
+            notes.push(
+                tr.t_with(
+                    Key::McpScopeWarnFailed,
+                    &args!("error" => error.trim_start_matches("Error: ")),
+                )
+                .into_owned(),
+            );
+        }
+        if !scope.missing.is_empty() {
+            notes.push(
+                tr.t_with(
+                    Key::McpScopeWarnMissing,
+                    &args!("names" => scope.missing.join(", ")),
+                )
+                .into_owned(),
+            );
+        }
+        request.mcp_overrides = scope.overrides;
+        let hangar = request.hangar_mcp.is_some();
+        PaneMcp {
+            // As a file's servers are said: Hangar's, then every chosen name
+            // its configuration defines.
+            mode: if custom && scope.unlisted.is_none() {
+                let servers = hangar
+                    .then(|| "hangar".to_owned())
+                    .into_iter()
+                    .chain(scope.servers)
+                    .chain(scope.stay_off)
+                    .collect();
+                PaneMcpMode::Custom { servers }
+            } else {
+                PaneMcpMode::Inherit
+            },
+            hangar: Some(hangar),
+        }
     }
 
     /// The `--mcp-config` file of this launch, when the workspace chose its
@@ -820,7 +1175,7 @@ impl Spawn {
     /// configuration as it stands. Whatever goes wrong (a WSL pane, a path
     /// the shell cannot be handed, a failed write), the agent still starts
     /// with its own servers, and the pane says so.
-    fn mcp_scope(
+    fn mcp_file(
         &self,
         host: &hangar_core::Host,
         launch: &McpLaunch,
@@ -942,10 +1297,16 @@ pub fn spawned(
     let (columns, rows) = rt.link.lock().size();
     rt.link.resize(columns, rows);
     rt.mcp = report.mcp.clone();
-    rt.mcp_arg = report.mcp_arg.clone();
+    rt.request = report.request.clone();
     // The inspector's MCP row and the MCP panel's "is it up to date" read the
     // servers a pane started with from P4's read-model, not from here.
     m.live.panes_logic.set_launch_mcp(&id, report.mcp.clone());
+    // How its side channel was set up, for what reads the pane's live
+    // capabilities: attached, or the floor and why.
+    rt.side = report.side.clone();
+    if let Some(side) = &rt.side {
+        m.live.panes_logic.set_side_channel(&id, side.channel());
+    }
 
     let Some((ws, pane)) = find(m, &rt.ws, &id) else {
         return status(&id, PaneStatus::Running);
@@ -978,7 +1339,7 @@ pub fn spawned(
     let fell_back =
         report.missing.is_some() || (report.account.is_some() && report.account != report.resolved);
     // Not a pane its node runs itself: the account it runs on is the node's.
-    if rt.agent == AgentId::Claude && !rt.hosted {
+    if rt.agent.kind().is_some() && !rt.hosted {
         if let Some(missing) = &report.missing {
             notes.push(
                 tr.t_with(Key::AccountsPickerMissing, &args!("id" => missing.as_str()))
@@ -1012,7 +1373,7 @@ pub fn spawned(
     // The person logs in in the browser; nothing to resume or follow. Never
     // on an account the pane fell back to: logging in to an account that is
     // gone would log main in again in its place.
-    if pane.login == Some(true) && rt.agent == AgentId::Claude {
+    if pane.login == Some(true) && rt.agent.kind().is_some() {
         if fell_back {
             return running;
         }
@@ -1028,7 +1389,9 @@ pub fn spawned(
     // says: a sleep stops an agent to free memory, and must not cost a
     // conversation.
     let owed = m.live.panes_logic.must_resume(&id, false);
-    let saved = (auto_resume || owed)
+    // A move to another account keeps the conversation whatever the setting
+    // says: the person chose an account, not a new conversation.
+    let saved = (auto_resume || owed || rt.moved)
         .then(|| pane.session_id.clone())
         .flatten()
         .filter(|_| is_resumable(rt.agent));
@@ -1039,9 +1402,10 @@ pub fn spawned(
     // Claude Code names a session the moment it starts but writes its
     // transcript only on the first message, so a pane reset and left alone
     // holds an id with nothing behind it, and resuming that only prints "No
-    // conversation found". Asked while the shell settles; the transcripts
-    // known before the launch are read then too, so a brand new one stands
-    // out to the session hunt.
+    // conversation found". Asked of where the pane's agent keeps its
+    // conversations (Claude Code's transcripts, Codex's rollouts) while the
+    // shell settles; the ones known before the launch are read then too, so
+    // a brand new one stands out to the session hunt.
     let link = rt.link.clone();
     // The transcripts of a remote pane are the node's: none is looked for
     // here, and its sessions are not followed (the chat view of a remote
@@ -1050,9 +1414,9 @@ pub fn spawned(
     let (task, handle) = Task::perform(
         async move {
             let exists = async {
-                match saved.filter(|_| local) {
-                    Some(id) => transcript_exists(id).await,
-                    None => None,
+                match (agent.kind(), saved.filter(|_| local)) {
+                    (Some(kind), Some(id)) => transcript_exists(kind, id).await,
+                    _ => None,
                 }
             };
             let known = async move {
@@ -1086,15 +1450,18 @@ async fn shell_ready(link: Arc<PaneLink>, min: Duration) {
     }
 }
 
-/// Whether the transcript of `session` is on disk. A "no" is asked again a
-/// moment later: at a relaunch the disk is busy, and a "no" costs the pane
-/// its resume.
-async fn transcript_exists(session: String) -> Option<bool> {
+/// Whether the conversation `session` of an agent of `kind` is on disk,
+/// where that kind keeps it (`sessions::session_exists_for`). A "no" is
+/// asked again a moment later: at a relaunch the disk is busy, and a "no"
+/// costs the pane its resume.
+async fn transcript_exists(kind: AgentKind, session: String) -> Option<bool> {
     let ask = |session: String| async move {
-        tokio::task::spawn_blocking(move || hangar_core::sessions::session_exists(session))
-            .await
-            .ok()
-            .flatten()
+        tokio::task::spawn_blocking(move || {
+            hangar_core::sessions::session_exists_for(kind, session)
+        })
+        .await
+        .ok()
+        .flatten()
     };
     match ask(session.clone()).await {
         Some(false) => {
@@ -1211,24 +1578,22 @@ pub fn launch_ready(
         }
         resume = None;
     }
-    let settings = m.settings();
-    let (permission_mode, tools) = role_flags(&ws, &pane);
-    // Read when the agent starts: a workspace renamed later shows on the
-    // next launch.
-    let name = crate::state::pane_names::session_name(&pane.name, &ws.name);
-    let options = LaunchOptions {
-        extra_roots: &ws.extra_roots,
-        command: settings.agent_commands.claude.as_deref(),
-        name: Some(&name),
-        mcp_config: rt.mcp_arg.as_ref().map(|(arg, _)| arg.as_str()),
-        mcp_strict: rt.mcp_arg.as_ref().map(|(_, strict)| *strict),
-        permission_mode: permission_mode.as_deref(),
-        allowed_tools: &tools,
-        model: pane.model.as_deref(),
-    };
+    // Said once it is known whether the conversation came along: a session
+    // with no id yet, or whose transcript is not found, starts afresh.
+    if rt.moved {
+        rt.moved = false;
+        let note = moved_note(m, rt.agent, rt.account.as_deref(), resume.is_some());
+        rt.notes.push(note);
+    }
+    // Core's line for the launch the spawn started, on the conversation
+    // when it is there: a shell has none, and types nothing.
+    let line = rt
+        .request
+        .as_ref()
+        .and_then(|request| launch_line(request, resume.as_deref()));
     let mut launched = None;
     let mut check = Task::none();
-    if let Some(command) = launch_command(rt.agent, resume.as_deref(), &options) {
+    if let Some(command) = line {
         if let Some(id) = &resume {
             m.live.panes_logic.claim_session(id);
         }
@@ -1270,10 +1635,13 @@ pub fn launch_ready(
     }
 }
 
-/// The login pane's shell has settled.
+/// The login pane's shell has settled: its agent's login, on the account the
+/// pane started on (`claude auth login`, `codex login`).
 pub fn login_ready(rt: &mut PaneRt) {
     rt.launch = None;
-    type_line(rt, crate::accounts::LOGIN_COMMAND);
+    if let Some(kind) = rt.agent.kind() {
+        type_line(rt, crate::accounts::login_command(kind));
+    }
 }
 
 /// The workspace and the pane of `pane`, if both still exist.
@@ -1372,19 +1740,23 @@ pub fn kill_remote(node: String, pane: PaneId) -> Task<Message> {
 }
 
 /// The shell ended by itself: P4 and the orchestration engine hear of it
-/// as core's `pty:exit` (inventory §1.9).
+/// as core's `pty:exit` (inventory §1.9). Hangar's client of its Codex
+/// server, if it had one, goes with it, as it does on the engine's host: the
+/// pane that comes back is attached to its new server.
 pub fn exited(rt: &mut PaneRt, m: &mut Model, sv: &Services) {
     rt.status = PaneStatus::Exited;
     rt.launch = None;
+    codex_attach::detach(&rt.link.id);
     m.live.accounts.launched.note(&rt.link.id, None);
     sv.send(Message::Core(CoreEvent::PtyExit {
         pane: rt.link.id.clone(),
     }));
 }
 
-/// A Claude Code pinned (or given a role) while it runs, started without
+/// An agent pinned (or given a role) while it runs, started without
 /// Hangar's server, restarts on its own conversation, at once or when its
-/// turn ends, so the role comes with the tools (`roleRestart`, P10's).
+/// turn ends, so the role comes with the tools (`roleRestart`, P10's). The
+/// conversation is looked for where its kind keeps it.
 pub fn role_check(rt: &mut PaneRt, m: &Model, locale: Locale) -> Task<Message> {
     let id = rt.link.id.clone();
     let Some((ws, pane)) = find(m, &rt.ws, &id) else {
@@ -1411,6 +1783,7 @@ pub fn role_check(rt: &mut PaneRt, m: &Model, locale: Locale) -> Task<Message> {
         rt.link.lock().feed(line.as_bytes());
     };
     let session = pane.session_id.clone();
+    let kind = pane.agent.kind();
     match (verdict, session) {
         (RoleRestart::Skip | RoleRestart::Wait, _) => Task::none(),
         (RoleRestart::Unresumable, _) | (RoleRestart::Now, None) => {
@@ -1427,7 +1800,9 @@ pub fn role_check(rt: &mut PaneRt, m: &Model, locale: Locale) -> Task<Message> {
             let ws = ws.id.clone();
             Task::perform(
                 tokio::task::spawn_blocking(move || {
-                    let found = hangar_core::sessions::session_exists(session.clone());
+                    let found = kind.and_then(|kind| {
+                        hangar_core::sessions::session_exists_for(kind, session.clone())
+                    });
                     (found == Some(true), session)
                 }),
                 move |answer| {
@@ -1437,6 +1812,304 @@ pub fn role_check(rt: &mut PaneRt, m: &Model, locale: Locale) -> Task<Message> {
             )
         }
     }
+}
+
+/// How long what the person put in a pane's prompt and did not send holds a
+/// move back: past it, the draft reads as given up (a prompt cleared with
+/// Ctrl+C, a window left with a word typed). Claude Code keeps no draft
+/// across a restart, so this errs long; the header says meanwhile that the
+/// pane waits.
+pub const DRAFT_HOLD: Duration = Duration::from_secs(90);
+
+/// How long a pane waiting to move, whose agent has a command of its own
+/// running below it (or whose process table could not be read), waits
+/// before it is asked again.
+pub const JOB_RECHECK: Duration = Duration::from_secs(15);
+
+/// Where a pane's move to another account stands between two looks
+/// (`account_follow`).
+#[derive(Debug, Default)]
+pub struct FollowRt {
+    /// The last look found it waiting to move: its turn, which it waits on,
+    /// is part of the panes' signature, so that the turn's end looks again.
+    pub pending: bool,
+    /// Asked whether a command of its own runs: the answer is on its way.
+    checking: bool,
+    /// The last answer found one running, or could not tell: not asked
+    /// again before this.
+    ask_after: Option<Instant>,
+    /// What that answer found, which the header says meanwhile.
+    busy: Option<Hold>,
+    /// The look a timer is set for: a draft that will read as given up, a
+    /// command to ask about again.
+    wake: Option<Instant>,
+}
+
+/// What a look at a pane's account asks of the panes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FollowStep {
+    Nothing,
+    /// Ask whether a command its agent started still runs below its shell
+    /// (`hangar_core::pty::pane_job`, off the UI thread).
+    Ask,
+    /// Look at it again at this instant (`Msg::FollowWake`).
+    Wake(Instant),
+    /// Restart it on its conversation: it moves.
+    Restart,
+}
+
+/// What a look at a pane's account found (`account_follow`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FollowLook {
+    pub verdict: Follow,
+    /// The account it is about.
+    pub to: String,
+    /// What the panes are to do.
+    pub step: FollowStep,
+    /// What holds its move back, which its header says; `None` when there
+    /// is no move to wait for.
+    pub hold: Option<Hold>,
+}
+
+/// Whether the person put something in the pane's prompt since its last
+/// turn, recently enough to count as a draft still being written.
+pub fn drafting(rt: &PaneRt, now: Instant) -> bool {
+    rt.drafted_at
+        .is_some_and(|at| now.saturating_duration_since(at) < DRAFT_HOLD)
+}
+
+/// The person put something in the pane's prompt (typed, pasted, dropped,
+/// or dictated without sending it): between two turns, a draft a restart
+/// would lose; inside one, an answer.
+pub fn drafted(rt: &mut PaneRt, m: &Model, now: Instant) {
+    if !m.live.panes_logic.is_mid_turn(&rt.link.id) {
+        rt.drafted_at = Some(now);
+    }
+}
+
+/// Where the pane's agent stands in its turns, when its live capabilities
+/// say its turns are reported (its side channel speaks: the hangar-bridge
+/// mod, Hangar's client of its Codex server): otherwise its state is a
+/// guess read off the screen, which is no ground for a restart.
+pub fn turn_of(m: &Model, pane: &str) -> Turn {
+    let logic = &m.live.panes_logic;
+    let Some(entry) = logic.pane_activity(pane) else {
+        return Turn::Unknown;
+    };
+    let reported = m
+        .find_pane(pane)
+        .and_then(|(_, found)| found.agent.kind())
+        .is_some_and(|kind| {
+            live_caps(&kind.info().caps, entry.bridged).turns == TurnSignal::Reported
+        });
+    if !reported {
+        Turn::Unknown
+    } else if logic.is_mid_turn(pane) {
+        Turn::Inside
+    } else {
+        Turn::Between
+    }
+}
+
+/// When the pane's agent last started a turn, as its mod reported it: a
+/// different answer later means a turn started (and may have ended) in
+/// between.
+pub type TurnMark = Option<u64>;
+
+/// The pane's `TurnMark` now: the time of the last turn start its mod
+/// reported.
+pub fn turn_mark(m: &Model, pane: &str) -> TurnMark {
+    m.live
+        .panes_logic
+        .insight(pane)
+        .events
+        .iter()
+        .find(|event| matches!(event.detail, PaneEventDetail::TurnStart))
+        .map(|event| event.at)
+}
+
+/// Whether `rt` is a pane an account moves: a running agent of this
+/// computer, of a kind that can restart on another account with its
+/// conversation (`accounts::movable_kind`), not opened to log in. Not a pane
+/// on a node, whether the node runs it itself, its workspace lives there or
+/// it is a worker sent there: its agent starts on the node's login, never on
+/// an account of this computer.
+pub fn movable(rt: &PaneRt, pane: &Pane) -> bool {
+    rt.agent.kind().is_some_and(crate::accounts::movable_kind)
+        && !rt.hosted
+        && rt.link.node().is_none()
+        && pane.login != Some(true)
+        && rt.status == PaneStatus::Running
+}
+
+/// The account `pane` of `ws` should run on now (pane > workspace > its
+/// folder > default), and whether it is logged in (`None` when it is not
+/// listed); nothing while the accounts are not known.
+pub fn wanted_account(m: &Model, ws: &Workspace, pane: &Pane) -> Option<(String, Option<bool>)> {
+    let kind = pane.agent.kind()?;
+    let accounts = m.live.accounts.of(kind)?;
+    let wanted = AccountLevels::of_kind(m.state(), ws, Some(pane), kind).resolve(accounts);
+    let logged_in = accounts
+        .iter()
+        .find(|account| account.id == wanted.id)
+        .map(|account| account.logged_in);
+    Some((wanted.id, logged_in))
+}
+
+/// Looks at whether a running Claude Code is to move to the account it
+/// should now run on, by itself, when the person does not want to be asked
+/// (`Settings::account_switch_ask` off): it moves, on its conversation, once
+/// Hangar knows it has nothing to lose (`accounts::follow`). `job` is what
+/// is known of the commands its agent started: `Unasked` but from the
+/// answer to `FollowStep::Ask` (`job_answered`).
+pub fn account_follow(rt: &mut PaneRt, m: &Model, now: Instant, job: Job) -> FollowLook {
+    rt.follow.pending = false;
+    let stay = FollowLook {
+        verdict: Follow::Stay,
+        to: String::new(),
+        step: FollowStep::Nothing,
+        hold: None,
+    };
+    if m.settings().account_switch_ask {
+        return stay;
+    }
+    let id = rt.link.id.clone();
+    let Some((ws, pane)) = find(m, &rt.ws, &id) else {
+        return stay;
+    };
+    let Some((wanted, wanted_logged_in)) = wanted_account(m, ws, pane) else {
+        return stay;
+    };
+    let turn = turn_of(m, &id);
+    // A turn begun means what was typed was sent.
+    if turn == Turn::Inside {
+        rt.drafted_at = None;
+    }
+    let verdict = follow(&FollowInput {
+        movable: movable(rt, pane),
+        launched: rt.account.as_deref(),
+        wanted: &wanted,
+        wanted_logged_in,
+        tried: rt.moved_to.as_deref(),
+        turn,
+        drafting: drafting(rt, now),
+        job,
+    });
+    rt.follow.pending = verdict.pending();
+    let step = match verdict {
+        Follow::Now => {
+            rt.moved_to = Some(wanted.clone());
+            FollowStep::Restart
+        }
+        Follow::Check if rt.follow.checking => FollowStep::Nothing,
+        Follow::Check => match rt.follow.ask_after.filter(|at| *at > now) {
+            Some(at) => wake(rt, at, now),
+            None => {
+                rt.follow.checking = true;
+                FollowStep::Ask
+            }
+        },
+        Follow::AfterJob => {
+            let at = now + JOB_RECHECK;
+            rt.follow.ask_after = Some(at);
+            wake(rt, at, now)
+        }
+        Follow::AfterDraft => match rt.drafted_at {
+            Some(at) => wake(rt, at + DRAFT_HOLD, now),
+            None => FollowStep::Nothing,
+        },
+        // Its turn's end, or its mod's first report, changes the panes'
+        // signature: the sync looks again then. What a turn runs is asked
+        // afresh after it.
+        Follow::AfterTurn => {
+            rt.follow.ask_after = None;
+            rt.follow.busy = None;
+            FollowStep::Nothing
+        }
+        Follow::Stay | Follow::NotLoggedIn => FollowStep::Nothing,
+    };
+    if matches!(verdict, Follow::Now | Follow::Stay | Follow::NotLoggedIn) {
+        rt.follow.ask_after = None;
+        rt.follow.busy = None;
+    }
+    let hold = match verdict {
+        Follow::Stay | Follow::Now => None,
+        Follow::NotLoggedIn => Some(Hold::NotLoggedIn),
+        Follow::AfterTurn if turn == Turn::Unknown => Some(Hold::Unreported),
+        Follow::AfterTurn => Some(Hold::Turn),
+        Follow::AfterDraft => Some(Hold::Draft),
+        Follow::Check | Follow::AfterJob => Some(rt.follow.busy.clone().unwrap_or(Hold::Checking)),
+    };
+    FollowLook {
+        verdict,
+        to: wanted,
+        step,
+        hold,
+    }
+}
+
+/// A look at `at`, unless one is set already for then or before (it looks
+/// again, and sets the next one).
+fn wake(rt: &mut PaneRt, at: Instant, now: Instant) -> FollowStep {
+    if rt.follow.wake.is_some_and(|set| (now..=at).contains(&set)) {
+        return FollowStep::Nothing;
+    }
+    rt.follow.wake = Some(at);
+    FollowStep::Wake(at)
+}
+
+/// The timer set for `at` went off.
+pub fn woke(rt: &mut PaneRt, at: Instant) {
+    if rt.follow.wake == Some(at) {
+        rt.follow.wake = None;
+    }
+}
+
+/// The answer to `FollowStep::Ask` came, asked when the agent's last turn
+/// had started at `mark`: what it tells of the commands the agent runs, for
+/// `account_follow`. A turn started since makes it stale (it may even have
+/// ended while the process table was read): it is asked again.
+pub fn job_answered(rt: &mut PaneRt, m: &Model, mark: TurnMark, answer: PaneJob) -> Job {
+    rt.follow.checking = false;
+    if turn_mark(m, &rt.link.id) != mark {
+        return Job::Unasked;
+    }
+    let (job, busy) = match answer {
+        PaneJob::Nothing => (Job::Nothing, None),
+        PaneJob::Running(what) => (Job::Busy, Some(Hold::Command(what))),
+        PaneJob::Unknown => (Job::Busy, Some(Hold::Unreadable)),
+    };
+    rt.follow.busy = busy;
+    job
+}
+
+/// The pane is the one a move to another account restarted: the account,
+/// when known, is remembered against a launch core had to put elsewhere,
+/// and its conversation is resumed.
+pub fn moved_in(rt: &mut PaneRt, account: Option<String>) {
+    if account.is_some() {
+        rt.moved_to = account;
+    }
+    rt.moved = true;
+}
+
+/// What a pane moved to another account says as it starts there: the
+/// account core started it on, and whether its conversation came along.
+fn moved_note(m: &Model, agent: AgentId, account: Option<&str>, resumed: bool) -> String {
+    let accounts = agent
+        .kind()
+        .and_then(|kind| m.live.accounts.of(kind))
+        .unwrap_or(&[]);
+    let id = account.unwrap_or(crate::accounts::MAIN_ACCOUNT);
+    let name = crate::accounts::account_label(accounts, id);
+    let key = if resumed {
+        Key::AccountsMovedNote
+    } else {
+        Key::AccountsMovedNoteFresh
+    };
+    Translator::new(m.locale())
+        .t_with(key, &args!("name" => name.as_str()))
+        .into_owned()
 }
 
 /// The session the restart for a role was to resume exists, or not.
@@ -1487,13 +2160,18 @@ pub(crate) fn mounted(ws: &Workspace, pane: &Pane) -> PaneRt {
         mcp: None,
         launched_role: pane.role,
         role_handled: false,
+        moved_to: None,
+        moved: false,
+        drafted_at: None,
+        follow: FollowRt::default(),
         pending: None,
         start_due: false,
         resume: None,
         owed: false,
-        mcp_arg: None,
         look: look::look(&crate::state::Settings::default(), ws, pane.agent),
         focused: false,
+        side: None,
+        request: None,
         launch: None,
         attach: None,
         seen: 0,
@@ -1507,7 +2185,6 @@ mod tests {
     use hangar_core::kits::{GitSource, IssueReason, Source};
 
     use super::*;
-    use crate::panes_logic::agents::launch_command;
     use crate::state::types::{AppState, OrchestrationSettings, WorkspaceKit};
 
     /// What a workspace that accepted a kit's hooks holds for it.
@@ -1518,6 +2195,343 @@ mod tests {
             .build()
             .expect("runtime")
             .block_on(future)
+    }
+
+    /// The verdict, the step and what the header says of a look at a pane
+    /// that is to move to `perso`.
+    fn look_at(
+        rt: &mut PaneRt,
+        m: &Model,
+        at: Instant,
+        job: Job,
+    ) -> (Follow, FollowStep, Option<Hold>) {
+        let look = account_follow(rt, m, at, job);
+        assert_eq!(look.to, "perso");
+        (look.verdict, look.step, look.hold)
+    }
+
+    /// A Claude Code agent moves by itself to the account its workspace now
+    /// uses, on its conversation, and only once Hangar knows it has nothing
+    /// to lose: its turn over as its mod reports it, nothing typed in its
+    /// prompt, no command of its own running. Whatever is not known waits,
+    /// says why in the header, and is looked at again on a timer, never on
+    /// every update.
+    #[test]
+    fn an_agent_moves_only_once_hangar_knows_it_has_nothing_to_lose() {
+        use crate::state::live::AgentActivity;
+        use crate::workspace_dialog::testing::Harness;
+
+        let mut h = Harness::new(Locale::En, "graphite")
+            .edit(|state| state.workspaces[0].claude_account = Some("perso".into()));
+        let ws = h.model.workspace("w1").expect("w1").clone();
+        let mut rt = mounted(&ws, &ws.panes[0]);
+        rt.status = PaneStatus::Running;
+        rt.account = Some("main".into());
+        let now = Instant::now();
+
+        // No mod has reported: its turn is a guess off the screen.
+        assert_eq!(
+            look_at(&mut rt, &h.model, now, Job::Unasked),
+            (
+                Follow::AfterTurn,
+                FollowStep::Nothing,
+                Some(Hold::Unreported)
+            )
+        );
+        assert!(rt.follow.pending, "its header says it is to move");
+        // In a turn, or waiting on the person: after it.
+        for busy in [AgentActivity::Working, AgentActivity::Waiting] {
+            h.model.live.panes_logic.seed_activity("p1", "w1", busy);
+            assert_eq!(
+                look_at(&mut rt, &h.model, now, Job::Unasked),
+                (Follow::AfterTurn, FollowStep::Nothing, Some(Hold::Turn))
+            );
+        }
+        // The turn is over, but the person typed a prompt not sent yet: a
+        // look is set for when it reads as given up, once.
+        h.model
+            .live
+            .panes_logic
+            .seed_activity("p1", "w1", AgentActivity::Yours);
+        rt.drafted_at = Some(now);
+        let expiry = now + DRAFT_HOLD;
+        assert_eq!(
+            look_at(&mut rt, &h.model, now, Job::Unasked),
+            (
+                Follow::AfterDraft,
+                FollowStep::Wake(expiry),
+                Some(Hold::Draft)
+            )
+        );
+        assert_eq!(
+            look_at(&mut rt, &h.model, now, Job::Unasked).1,
+            FollowStep::Nothing
+        );
+        // The draft given up: whether a command of its own runs is asked,
+        // once.
+        woke(&mut rt, expiry);
+        assert_eq!(
+            look_at(&mut rt, &h.model, expiry, Job::Unasked),
+            (Follow::Check, FollowStep::Ask, Some(Hold::Checking))
+        );
+        assert_eq!(
+            look_at(&mut rt, &h.model, expiry, Job::Unasked).1,
+            FollowStep::Nothing
+        );
+        // A build runs below it: the header names it, and it is asked again
+        // later.
+        let mark = turn_mark(&h.model, "p1");
+        let build = Hold::Command("cargo build --release".into());
+        let job = job_answered(
+            &mut rt,
+            &h.model,
+            mark,
+            PaneJob::Running("cargo build --release".into()),
+        );
+        assert_eq!(job, Job::Busy);
+        let again = expiry + JOB_RECHECK;
+        assert_eq!(
+            look_at(&mut rt, &h.model, expiry, job),
+            (
+                Follow::AfterJob,
+                FollowStep::Wake(again),
+                Some(build.clone())
+            )
+        );
+        // Another update meanwhile asks nothing, and still names it.
+        assert_eq!(
+            look_at(&mut rt, &h.model, expiry, Job::Unasked),
+            (Follow::Check, FollowStep::Nothing, Some(build))
+        );
+        woke(&mut rt, again);
+        assert_eq!(
+            look_at(&mut rt, &h.model, again, Job::Unasked).1,
+            FollowStep::Ask
+        );
+        // A process table that cannot be read is as good as a command.
+        let job = job_answered(&mut rt, &h.model, mark, PaneJob::Unknown);
+        assert_eq!(job, Job::Busy);
+        assert_eq!(
+            look_at(&mut rt, &h.model, again, job).2,
+            Some(Hold::Unreadable)
+        );
+        let last = again + JOB_RECHECK;
+        woke(&mut rt, last);
+        assert_eq!(
+            look_at(&mut rt, &h.model, last, Job::Unasked).1,
+            FollowStep::Ask
+        );
+        // Nothing runs any more: it moves.
+        let job = job_answered(&mut rt, &h.model, mark, PaneJob::Nothing);
+        assert_eq!(
+            look_at(&mut rt, &h.model, last, job),
+            (Follow::Now, FollowStep::Restart, None)
+        );
+        assert_eq!(rt.moved_to.as_deref(), Some("perso"));
+        assert!(!rt.follow.pending);
+        // Started for perso: not again, even if core had to fall back.
+        assert_eq!(
+            look_at(&mut rt, &h.model, last, Job::Nothing),
+            (Follow::Stay, FollowStep::Nothing, None)
+        );
+
+        // An account not logged in: the pane stays, and says why.
+        let mut h = h.edit(|state| state.workspaces[0].claude_account = Some("pro".into()));
+        h.model
+            .live
+            .panes_logic
+            .seed_activity("p1", "w1", AgentActivity::Yours);
+        let mut rt = mounted(&ws, &ws.panes[0]);
+        rt.status = PaneStatus::Running;
+        rt.account = Some("main".into());
+        let look = account_follow(&mut rt, &h.model, now, Job::Nothing);
+        assert_eq!(
+            (look.verdict, look.to.as_str(), look.step, look.hold),
+            (
+                Follow::NotLoggedIn,
+                "pro",
+                FollowStep::Nothing,
+                Some(Hold::NotLoggedIn)
+            )
+        );
+
+        // Asked to be asked: nothing moves by itself.
+        h = h.edit(|state| {
+            state.workspaces[0].claude_account = Some("perso".into());
+            state.settings.account_switch_ask = true;
+        });
+        let look = account_follow(&mut rt, &h.model, now, Job::Nothing);
+        assert_eq!(
+            (look.verdict, look.step),
+            (Follow::Stay, FollowStep::Nothing)
+        );
+
+        // A shell has no account to follow.
+        let h = Harness::new(Locale::En, "graphite")
+            .edit(|state| state.workspaces[0].claude_account = Some("perso".into()));
+        let mut shell = mounted(&ws, &ws.panes[1]);
+        shell.status = PaneStatus::Running;
+        shell.account = Some("main".into());
+        let look = account_follow(&mut shell, &h.model, now, Job::Nothing);
+        assert_eq!(look.verdict, Follow::Stay);
+    }
+
+    /// An answer that nothing runs, read while the agent started a turn (and
+    /// maybe ended it: `ps` takes its time), is stale: the pane is asked
+    /// again instead of restarted.
+    #[test]
+    fn an_answer_older_than_the_last_turn_is_asked_again() {
+        use crate::state::live::{AgentActivity, PaneEvent};
+        use crate::workspace_dialog::testing::Harness;
+
+        let mut h = Harness::new(Locale::En, "graphite")
+            .edit(|state| state.workspaces[0].claude_account = Some("perso".into()));
+        h.model
+            .live
+            .panes_logic
+            .seed_activity("p1", "w1", AgentActivity::Yours);
+        let ws = h.model.workspace("w1").expect("w1").clone();
+        let mut rt = mounted(&ws, &ws.panes[0]);
+        rt.status = PaneStatus::Running;
+        rt.account = Some("main".into());
+        let now = Instant::now();
+        assert_eq!(
+            look_at(&mut rt, &h.model, now, Job::Unasked).1,
+            FollowStep::Ask
+        );
+        let mark = turn_mark(&h.model, "p1");
+
+        // A turn starts, and ends, before the process table answers.
+        h.model.live.panes_logic.seed_insight("p1", |insight| {
+            insight.events.insert(
+                0,
+                PaneEvent {
+                    at: 42,
+                    detail: PaneEventDetail::TurnStart,
+                },
+            );
+        });
+        assert_ne!(turn_mark(&h.model, "p1"), mark);
+        let job = job_answered(&mut rt, &h.model, mark, PaneJob::Nothing);
+        assert_eq!(job, Job::Unasked);
+        assert_eq!(
+            look_at(&mut rt, &h.model, now, job),
+            (Follow::Check, FollowStep::Ask, Some(Hold::Checking))
+        );
+        // Asked again from there, nothing runs: it moves.
+        let job = job_answered(
+            &mut rt,
+            &h.model,
+            turn_mark(&h.model, "p1"),
+            PaneJob::Nothing,
+        );
+        assert_eq!(look_at(&mut rt, &h.model, now, job).1, FollowStep::Restart);
+    }
+
+    /// A Claude Code on a node starts on the node's login, and its pane
+    /// reports main: whether its workspace lives on the node or it is a
+    /// worker sent there, it is never restarted toward an account of this
+    /// computer (it would come back on main, over and over).
+    #[test]
+    fn a_pane_on_a_node_never_moves_to_an_account_of_this_computer() {
+        use crate::state::live::AgentActivity;
+        use crate::workspace_dialog::testing::Harness;
+
+        let claude = |id: &str, node: Option<&str>| Pane {
+            id: id.into(),
+            name: id.into(),
+            agent: AgentId::Claude,
+            node: node.map(str::to_owned),
+            ..Pane::default()
+        };
+        let mut h = Harness::new(Locale::En, "graphite").edit(|state| {
+            state.settings.claude_account = Some("perso".into());
+            state.workspaces[0]
+                .panes
+                .push(claude("follow-sent", Some("n1")));
+            state.workspaces.push(Workspace {
+                id: "follow-on-node".into(),
+                name: "far".into(),
+                cwd: "/srv/far".into(),
+                node: Some("n1".into()),
+                panes: vec![claude("follow-far", None)],
+                ..Workspace::default()
+            });
+        });
+        let now = Instant::now();
+        for (ws, pane) in [("w1", "follow-sent"), ("follow-on-node", "follow-far")] {
+            h.model
+                .live
+                .panes_logic
+                .seed_activity(pane, ws, AgentActivity::Yours);
+            let (ws, pane) = find(&h.model, ws, pane).expect("the pane");
+            let mut rt = mounted(ws, pane);
+            assert!(rt.link.node().is_some(), "{} runs on its node", pane.id);
+            rt.status = PaneStatus::Running;
+            rt.account = Some("main".into());
+            assert!(!movable(&rt, pane));
+            let look = account_follow(&mut rt, &h.model, now, Job::Nothing);
+            assert_eq!(
+                (look.verdict, look.step, look.hold),
+                (Follow::Stay, FollowStep::Nothing, None)
+            );
+        }
+    }
+
+    /// The launch of a pane a move restarted resumes its conversation even
+    /// with `auto_resume` off, and says so; without a conversation to
+    /// resume, it says it started a new one.
+    #[test]
+    fn a_moved_pane_resumes_its_conversation_and_says_whether_it_did() {
+        use crate::workspace_dialog::testing::Harness;
+
+        let mut h = Harness::new(Locale::En, "graphite").edit(|state| {
+            state.settings.auto_resume = false;
+            state.workspaces[0].panes[0].session_id = Some("s-moved".into());
+        });
+        let ws = h.model.workspace("w1").expect("w1").clone();
+        let fresh_report = || SpawnReport {
+            account: Some("perso".into()),
+            resolved: Some("perso".into()),
+            ..report(Vec::new())
+        };
+
+        // Not moved: the setting decides, and it is off.
+        let mut rt = mounted(&ws, &ws.panes[0]);
+        let _ = spawned(
+            &mut rt,
+            &mut h.model,
+            &HubChannel::default(),
+            Ok(fresh_report()),
+        );
+        assert!(rt.resume.is_none());
+
+        // Moved: resumed all the same.
+        let mut rt = mounted(&ws, &ws.panes[0]);
+        moved_in(&mut rt, Some("perso".into()));
+        let _ = spawned(
+            &mut rt,
+            &mut h.model,
+            &HubChannel::default(),
+            Ok(fresh_report()),
+        );
+        assert_eq!(rt.resume.as_deref(), Some("s-moved"));
+        assert_eq!(rt.moved_to.as_deref(), Some("perso"));
+        let tr = Translator::new(Locale::En);
+        let said = |key| tr.t_with(key, &args!("name" => "Perso")).into_owned();
+        assert_eq!(
+            moved_note(&h.model, rt.agent, rt.account.as_deref(), true),
+            said(Key::AccountsMovedNote)
+        );
+        // Its transcript is not found, or it never had a conversation.
+        assert_eq!(
+            moved_note(&h.model, rt.agent, rt.account.as_deref(), false),
+            said(Key::AccountsMovedNoteFresh)
+        );
+        assert_ne!(
+            said(Key::AccountsMovedNote),
+            said(Key::AccountsMovedNoteFresh)
+        );
     }
 
     /// A terminal nothing will measure (the chat view's) starts wide and tall
@@ -1633,7 +2647,8 @@ mod tests {
             missing: None,
             account: None,
             mcp: None,
-            mcp_arg: None,
+            request: None,
+            side: None,
             notes: Vec::new(),
             remote: None,
         }
@@ -1747,8 +2762,11 @@ mod tests {
             build_env: Vec::new(),
             kits: None,
             agent: pane.agent,
+            launch: launch_request(&Settings::default(), &ws, &pane),
+            attach: true,
             account: None,
             mcp: Some(McpLaunch {
+                injection: McpInjection::ConfigFile,
                 mode: McpMode::default(),
                 enabled: Vec::new(),
                 role: false,
@@ -1777,9 +2795,10 @@ mod tests {
         );
     }
 
-    /// A Codex pane of the old app's file: a shell now, which says so in its
-    /// bar the first time it starts, in English or French, and never again.
-    /// Saying it saves the pane as the shell it is.
+    /// A Gemini CLI pane of the old app's file: a shell now, which says so
+    /// in its bar the first time it starts, in English or French, and never
+    /// again. Saying it saves the pane as the shell it is. (Its Codex pane is
+    /// Codex again, and says nothing of the kind.)
     #[test]
     fn a_pane_of_a_retired_agent_says_once_that_it_is_a_shell_now() {
         let raw = serde_json::from_str(include_str!(
@@ -1790,14 +2809,18 @@ mod tests {
         let mut m = Model::default();
         m.hydrate_read(state, kept);
         let ws = m.state().workspaces[0].clone();
-        let bob = ws.panes[1].clone();
         assert_eq!(
-            (bob.agent, bob.retired_agent),
-            (AgentId::Shell, Some("Codex"))
+            (ws.panes[1].agent, ws.panes[1].retired_agent),
+            (AgentId::Codex, None)
+        );
+        let cleo = ws.panes[2].clone();
+        assert_eq!(
+            (cleo.agent, cleo.retired_agent),
+            (AgentId::Shell, Some("Gemini CLI"))
         );
 
         let revision = m.revision();
-        let mut rt = mounted(&ws, &bob);
+        let mut rt = mounted(&ws, &cleo);
         let _ = spawned(
             &mut rt,
             &mut m,
@@ -1805,14 +2828,17 @@ mod tests {
             Ok(report(Vec::new())),
         );
         let note = Translator::new(Locale::En)
-            .t_with(Key::PaneAgentRetired, &args!("agent" => "Codex"))
+            .t_with(Key::PaneAgentRetired, &args!("agent" => "Gemini CLI"))
             .into_owned();
-        assert!(note.contains("Codex") && note.contains("shell"), "{note}");
+        assert!(
+            note.contains("Gemini CLI") && note.contains("shell"),
+            "{note}"
+        );
         assert_eq!(rt.notes, [note]);
-        let saved = &m.state().workspaces[0].panes[1];
+        let saved = &m.state().workspaces[0].panes[2];
         assert_eq!(saved.retired_agent, None);
         assert!(m.revision() > revision, "the shell is saved");
-        assert_eq!(m.to_json()["workspaces"][0]["panes"][1]["agent"], "shell");
+        assert_eq!(m.to_json()["workspaces"][0]["panes"][2]["agent"], "shell");
 
         // Restarted or woken up: nothing more to say.
         let mut again = mounted(&ws, saved);
@@ -1898,16 +2924,14 @@ mod tests {
     #[test]
     fn an_orchestration_pane_gets_its_workspace_mode_and_hangars_tools() {
         let ws = role_ws(Some("acceptEdits"));
-        let (mode, tools) = role_flags(&ws, &with_role(Some(PaneRole::Worker)));
+        let worker = with_role(Some(PaneRole::Worker));
+        let (mode, tools) = role_flags(&ws, &worker);
         assert_eq!(mode.as_deref(), Some("acceptEdits"));
         assert_eq!(tools, ["mcp__hangar"]);
-        let options = LaunchOptions {
-            permission_mode: mode.as_deref(),
-            allowed_tools: &tools,
-            ..LaunchOptions::default()
-        };
+        let request = launch_request(&Settings::default(), &ws, &worker).expect("an agent's");
+        assert_eq!(request.permission_mode, Some(PermissionMode::AcceptEdits));
         assert_eq!(
-            launch_command(AgentId::Claude, None, &options).as_deref(),
+            launch_line(&request, None).as_deref(),
             Some("claude --permission-mode acceptEdits --allowedTools mcp__hangar")
         );
     }
@@ -1917,9 +2941,12 @@ mod tests {
         // Typed into state.json by hand: plain letters, which the command
         // line would have taken, and not a mode the workspace can choose.
         let ws = role_ws(Some("dontAsk"));
-        let (mode, tools) = role_flags(&ws, &with_role(Some(PaneRole::Orchestrator)));
+        let orchestrator = with_role(Some(PaneRole::Orchestrator));
+        let (mode, tools) = role_flags(&ws, &orchestrator);
         assert_eq!(mode, None);
         assert_eq!(tools, ["mcp__hangar"]);
+        let request = launch_request(&Settings::default(), &ws, &orchestrator).expect("an agent's");
+        assert_eq!(request.permission_mode, None);
     }
 
     #[test]
@@ -1930,34 +2957,56 @@ mod tests {
 
     // The four cases of mcpScope.test.ts, "launchCommand with a server
     // choice": the argument the launch hands the command, quoted for
-    // PowerShell as `mcp_config_arg` quotes it.
+    // PowerShell as `mcp_config_arg` quotes it, now in core's builder.
     fn ps_file() -> String {
         crate::mcp::scope::quote_arg("C:\\data\\mcp\\ws-1.json", Some(ShellFamily::Powershell))
             .unwrap()
     }
 
+    /// A Claude Code pane's launch with `file` as its servers, strictly.
+    fn claude_with_servers(file: &str) -> LaunchRequest {
+        LaunchRequest {
+            kind: AgentKind::Claude,
+            mcp: Some(McpRequest {
+                file: "C:\\data\\mcp\\ws-1.json".into(),
+                arg: file.into(),
+                strict: true,
+            }),
+            ..LaunchRequest::default()
+        }
+    }
+
     #[test]
     fn a_server_choice_adds_nothing_in_inherit_mode() {
-        assert_eq!(
-            launch_command(AgentId::Claude, None, &LaunchOptions::default()).as_deref(),
-            Some("claude")
-        );
+        let pane = Pane {
+            agent: AgentId::Claude,
+            ..Pane::default()
+        };
+        let request =
+            launch_request(&Settings::default(), &Workspace::default(), &pane).expect("an agent's");
+        assert_eq!(request.mcp, None);
+        assert_eq!(launch_line(&request, None).as_deref(), Some("claude"));
     }
 
     #[test]
     fn a_server_choice_goes_between_the_resume_and_the_directories() {
         let file = ps_file();
-        let roots = vec!["D:\\shared".to_string()];
-        let options = LaunchOptions {
-            name: Some("Ava"),
-            mcp_config: Some(&file),
-            extra_roots: &roots,
-            ..LaunchOptions::default()
+        let request = LaunchRequest {
+            name: Some("Ava".into()),
+            extra_roots: vec!["D:\\shared".into()],
+            ..claude_with_servers(&file)
         };
         assert_eq!(
-            launch_command(AgentId::Claude, Some("abc"), &options),
+            launch_line(&request, Some("abc")),
             Some(format!(
                 "claude --resume abc --name Ava --mcp-config {file} --strict-mcp-config --add-dir \"D:\\shared\""
+            ))
+        );
+        // The same launch fresh: only the resume goes.
+        assert_eq!(
+            launch_line(&request, None),
+            Some(format!(
+                "claude --name Ava --mcp-config {file} --strict-mcp-config --add-dir \"D:\\shared\""
             ))
         );
     }
@@ -1965,27 +3014,327 @@ mod tests {
     #[test]
     fn a_server_choice_keeps_a_custom_launcher_in_front() {
         let file = ps_file();
-        let options = LaunchOptions {
-            command: Some("claude --model haiku"),
-            mcp_config: Some(&file),
-            ..LaunchOptions::default()
+        let request = LaunchRequest {
+            command: Some("claude --model haiku".into()),
+            ..claude_with_servers(&file)
         };
         assert_eq!(
-            launch_command(AgentId::Claude, None, &options),
+            launch_line(&request, None),
             Some(format!(
                 "claude --model haiku --mcp-config {file} --strict-mcp-config"
             ))
         );
     }
 
+    /// A shell types nothing, and a pane opened to log an account in types
+    /// its kind's login rather than a launch.
     #[test]
     fn a_server_choice_leaves_a_shell_alone() {
-        let file = ps_file();
-        let options = LaunchOptions {
-            mcp_config: Some(&file),
-            ..LaunchOptions::default()
+        let ws = Workspace::default();
+        let settings = Settings::default();
+        let shell = Pane::default();
+        assert_eq!(launch_request(&settings, &ws, &shell), None);
+        for agent in [AgentId::Claude, AgentId::Codex] {
+            let login = Pane {
+                agent,
+                login: Some(true),
+                ..Pane::default()
+            };
+            assert_eq!(launch_request(&settings, &ws, &login), None, "{agent:?}");
+        }
+    }
+
+    /// A Codex pane is launched as a Claude Code one is, through core's
+    /// builder with its own spellings: its command from the settings, its
+    /// session by name, its model; and Hangar's server for every pane (D8),
+    /// which the spawn adds as overrides, never as a file.
+    #[test]
+    fn a_codex_pane_asks_for_its_launch_in_the_same_words() {
+        let mut settings = Settings::default();
+        settings.agent_commands.codex = Some("codex-beta".into());
+        settings.agent_commands.claude = Some("ccr code".into());
+        let ws = Workspace {
+            name: "Shop".into(),
+            cwd: "/work/shop".into(),
+            extra_roots: vec!["/work/assets".into()],
+            ..Workspace::default()
         };
-        assert_eq!(launch_command(AgentId::Shell, Some("s1"), &options), None);
+        let pane = Pane {
+            name: "Iris".into(),
+            agent: AgentId::Codex,
+            model: Some("gpt-5.5-codex".into()),
+            role: Some(PaneRole::Worker),
+            ..Pane::default()
+        };
+        let request = launch_request(&settings, &ws, &pane).expect("an agent's");
+        assert_eq!(request.kind, AgentKind::Codex);
+        assert_eq!(request.command.as_deref(), Some("codex-beta"));
+        assert_eq!(request.cwd, "/work/shop");
+        assert_eq!(request.extra_roots, ["/work/assets"]);
+        assert_eq!(request.name.as_deref(), Some("Iris (Shop)"));
+        assert_eq!(request.model.as_deref(), Some("gpt-5.5-codex"));
+        assert_eq!(request.allowed_tools, ["mcp__hangar"]);
+        assert_eq!(
+            (request.mcp.as_ref(), request.resume.as_ref()),
+            (None, None)
+        );
+        // Its servers go as overrides of its configuration, the only way a
+        // Codex takes them; a Claude Code reads a file.
+        assert_eq!(
+            AgentKind::Codex.info().caps.mcp.injection,
+            McpInjection::Overrides
+        );
+        assert_eq!(
+            AgentKind::Claude.info().caps.mcp.injection,
+            McpInjection::ConfigFile
+        );
+    }
+
+    /// The line of a Codex pane attached to its own server points the TUI
+    /// at the server's socket, and resumes its thread last; on the floor it
+    /// is the plain `codex`, Hangar's server named by the variable its
+    /// shell holds, never by its path.
+    #[test]
+    fn a_codex_line_attaches_to_the_panes_server_or_runs_the_floor() {
+        const THREAD: &str = "0199a213-81c0-7800-8aa1-bbab2a035a53";
+        let request = LaunchRequest {
+            kind: AgentKind::Codex,
+            hangar_mcp: Some("/home/Ann Lee/.local/bin/hangar-ai".into()),
+            shell: Some(ShellSyntax::Posix),
+            ..LaunchRequest::default()
+        };
+        let attached = LaunchRequest {
+            server_socket: Some("/run/user/1000/hangar/codex-0a1b2c.sock".into()),
+            ..request.clone()
+        };
+        let line = launch_line(&attached, Some(THREAD)).expect("a line");
+        assert_eq!(
+            line,
+            format!(
+                "codex --remote unix:///run/user/1000/hangar/codex-0a1b2c.sock resume {THREAD}"
+            )
+        );
+        let fresh = launch_line(&attached, None).expect("a line");
+        assert_eq!(format!("{fresh} resume {THREAD}"), line);
+
+        let floor = launch_line(&request, Some(THREAD)).expect("a line");
+        assert!(floor.starts_with("codex "), "{floor}");
+        assert!(!floor.contains("--remote"), "{floor}");
+        assert!(floor.contains("-c \"$HANGAR_CODEX_MCP\""), "{floor}");
+        assert!(!floor.contains("Ann Lee"), "{floor}");
+        assert!(floor.ends_with(&format!(" resume {THREAD}")), "{floor}");
+    }
+
+    /// The launch's line is built from what the spawn really started: the
+    /// syntax of its shell (the machine's default when the one asked for is
+    /// gone, as the spawn falls back), the socket of the server it really got
+    /// and none otherwise; never a resume, which the launch decides later.
+    #[test]
+    fn the_line_is_completed_from_what_the_spawn_started() {
+        let here = std::env::current_exe().expect("the test's executable");
+        let bash = ShellInfo {
+            id: "bash".into(),
+            label: "Bash".into(),
+            program: here.to_string_lossy().into_owned(),
+            args: Vec::new(),
+        };
+        let request = LaunchRequest {
+            kind: AgentKind::Codex,
+            resume: Some("old".into()),
+            server_socket: Some("/stale.sock".into()),
+            account_dir: Some("/accounts/perso".into()),
+            ..LaunchRequest::default()
+        };
+        let socket = "/run/hangar/codex-1.sock".to_owned();
+        let attached = ServerState::Attached {
+            socket: socket.clone(),
+        };
+        let done = completed(request.clone(), Some(&bash), Some(&attached));
+        assert_eq!(done.shell, Some(ShellSyntax::Posix));
+        assert_eq!(done.server_socket.as_deref(), Some(socket.as_str()));
+        assert_eq!((done.resume, done.account_dir), (None, None));
+
+        let floor = ServerState::Floor {
+            reason: FloorReason::Timeout { seconds: 10 },
+        };
+        let done = completed(request.clone(), Some(&bash), Some(&floor));
+        assert_eq!(done.server_socket, None);
+        assert_eq!(
+            completed(request.clone(), Some(&bash), None).server_socket,
+            None
+        );
+
+        let gone = ShellInfo {
+            program: "/nowhere/to/be/found/zsh".into(),
+            id: "zsh".into(),
+            ..bash
+        };
+        assert_eq!(
+            completed(request, Some(&gone), None).shell,
+            hangar_core::shells::default_shell()
+                .as_ref()
+                .and_then(ShellSyntax::of)
+        );
+    }
+
+    /// What the spawn says of the side channel: a Codex pane attached to its
+    /// server, or on the floor and why, or with « Attach Hangar to Codex »
+    /// off; a Claude Code with the hangar-bridge mod or without it, as the
+    /// engine's host says it.
+    #[test]
+    fn the_side_channel_is_what_the_spawn_set_up() {
+        let attached = ServerState::Attached {
+            socket: "/run/hangar/codex-1.sock".into(),
+        };
+        let timeout = FloorReason::Timeout { seconds: 10 };
+        let floor = ServerState::Floor {
+            reason: timeout.clone(),
+        };
+        let codex = AgentKind::Codex;
+        assert_eq!(Side::of(codex, Some(&attached), false), Side::Attached);
+        assert_eq!(
+            Side::of(codex, Some(&floor), true),
+            Side::Floor(timeout.clone())
+        );
+        assert_eq!(Side::of(codex, None, true), Side::Off);
+        assert_eq!(Side::of(AgentKind::Claude, None, true), Side::Attached);
+        assert_eq!(Side::of(AgentKind::Claude, None, false), Side::Off);
+
+        assert_eq!(Side::Attached.channel(), SideChannel::Attached);
+        assert_eq!(Side::Off.channel(), SideChannel::Floor { reason: None });
+        assert_eq!(
+            Side::Floor(timeout.clone()).channel(),
+            SideChannel::Floor {
+                reason: Some(timeout.to_string())
+            }
+        );
+    }
+
+    /// Once its shell runs, the pane's machine hears how its side channel
+    /// was set up, which its header reads too; the line the launch types is
+    /// the one its spawn completed.
+    #[test]
+    fn a_spawned_codex_pane_tells_its_machine_how_it_was_started() {
+        let pane = Pane {
+            id: "cx".into(),
+            name: "Iris".into(),
+            agent: AgentId::Codex,
+            ..Pane::default()
+        };
+        let ws = Workspace {
+            id: "w1".into(),
+            name: "hangar".into(),
+            cwd: "/work/hangar".into(),
+            panes: vec![pane.clone()],
+            ..Workspace::default()
+        };
+        let mut m = Model::default();
+        m.hydrate(AppState {
+            workspaces: vec![ws.clone()],
+            ..AppState::default()
+        });
+        m.live.panes_logic.mount_pane("cx", "w1", "Iris", 0);
+        let reason = FloorReason::Exited {
+            code: Some(2),
+            said: "error: unexpected argument '--listen'".into(),
+        };
+        let request = LaunchRequest {
+            kind: AgentKind::Codex,
+            shell: Some(ShellSyntax::Posix),
+            ..LaunchRequest::default()
+        };
+        let mut rt = mounted(&ws, &pane);
+        let _ = spawned(
+            &mut rt,
+            &mut m,
+            &HubChannel::default(),
+            Ok(SpawnReport {
+                request: Some(request.clone()),
+                side: Some(Side::Floor(reason.clone())),
+                ..report(Vec::new())
+            }),
+        );
+        assert_eq!(rt.side, Some(Side::Floor(reason.clone())));
+        assert_eq!(rt.request, Some(request));
+        assert_eq!(
+            m.live.panes_logic.side_channel("cx"),
+            Some(&SideChannel::Floor {
+                reason: Some(reason.to_string())
+            })
+        );
+    }
+
+    /// A Claude Code started on a node gets the MCP file the node wrote,
+    /// named by the variable the node's shell holds; a Codex there gets none
+    /// of this machine's: not its executable, not a variable its shell would
+    /// not have.
+    #[test]
+    fn a_pane_on_a_node_is_launched_with_what_the_node_gave() {
+        let asked = |agent: AgentId, mcp: Option<RemoteMcp>| RemoteSpawn {
+            id: "far".into(),
+            cwd: "/srv/far".into(),
+            cols: 80,
+            rows: 24,
+            name: "Far".into(),
+            agent: agent.as_str().into(),
+            bridge: true,
+            port_base: None,
+            mcp,
+            env: Vec::new(),
+        };
+        let file = crate::nodes::remote::RemoteScope {
+            path: "/home/far/.hangar/mcp/w1.json".into(),
+            servers: vec!["hangar".into()],
+            missing: Vec::new(),
+        };
+        let strict = RemoteMcp {
+            workspace_id: "w1".into(),
+            workspace_cwd: "/srv/far".into(),
+            enabled: vec!["hangar".into()],
+            strict: true,
+        };
+        let claude = LaunchRequest {
+            kind: AgentKind::Claude,
+            name: Some("Far".into()),
+            ..LaunchRequest::default()
+        };
+        let report = remote_report(
+            &asked(AgentId::Claude, Some(strict)),
+            Started::Spawned { mcp: Some(file) },
+            Some(claude),
+            Translator::new(Locale::En),
+        );
+        let request = report.request.expect("a launch");
+        assert_eq!(
+            launch_line(&request, None).as_deref(),
+            Some("claude --name Far --mcp-config \"$HANGAR_MCP_CONFIG\" --strict-mcp-config")
+        );
+        assert_eq!(report.side, None, "its side channel is its node's");
+
+        let codex = LaunchRequest {
+            kind: AgentKind::Codex,
+            hangar_mcp: Some("/home/me/.local/bin/hangar-ai".into()),
+            shell: Some(ShellSyntax::Posix),
+            ..LaunchRequest::default()
+        };
+        let report = remote_report(
+            &asked(AgentId::Codex, None),
+            Started::Spawned { mcp: None },
+            Some(codex),
+            Translator::new(Locale::En),
+        );
+        let request = report.request.expect("a launch");
+        assert_eq!((request.hangar_mcp, request.shell), (None, None));
+        assert_eq!(report.mcp, None, "a Codex reads no file a node writes");
+
+        // Found running there: nothing is typed.
+        let report = remote_report(
+            &asked(AgentId::Claude, None),
+            Started::Attached { seq: 7 },
+            Some(LaunchRequest::default()),
+            Translator::new(Locale::En),
+        );
+        assert_eq!(report.request, None);
     }
 
     /// Sixteen panes printing cost one wake-up, then one look a frame: the

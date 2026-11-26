@@ -8,8 +8,11 @@ use serde_json::{Value, json};
 use tokio::sync::oneshot;
 
 use hangar_core::accounts::Account;
+use hangar_core::agent::AgentKind;
 use hangar_core::board::{Board, Comment, Task, TaskPatch};
-use hangar_core::delivery::{Cleanup, Delivery, Kind, Outcome, Plan, Running, Tested};
+use hangar_core::delivery::{
+    Cleanup, Delivery, Kind, Outcome, Plan, ReviewerChoice, Running, Tested,
+};
 use hangar_core::git::{ChangedFile, Changes, FileDiff};
 use hangar_core::shells::ShellInfo;
 
@@ -196,7 +199,11 @@ impl DeliveryDeps for FakeDelivery {
         }))
     }
 
-    fn run(&self, delivery: Delivery) -> BoxFuture<Result<Outcome, String>> {
+    fn run(
+        &self,
+        delivery: Delivery,
+        _reviewer: ReviewerChoice,
+    ) -> BoxFuture<Result<Outcome, String>> {
         self.push(format!("run:{}:{}", delivery.land, delivery.reuse));
         *locked(&self.shown) = Some(self.app.is_delivering("w1"));
         match &*locked(&self.next) {
@@ -227,7 +234,7 @@ impl DeliveryDeps for FakeDelivery {
         ready(Ok(locked(&self.running).clone()))
     }
 
-    fn accounts(&self) -> BoxFuture<Result<Vec<Account>, String>> {
+    fn accounts(&self, _kind: AgentKind) -> BoxFuture<Result<Vec<Account>, String>> {
         ready(Ok(Vec::new()))
     }
 

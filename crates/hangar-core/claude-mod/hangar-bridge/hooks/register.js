@@ -1,4 +1,4 @@
-// hangar-bridge — tells Hangar.AI what the Claude Code session in one of its
+// hangar-bridge — tells HangarAI what the Claude Code session in one of its
 // panes is doing, and takes prompts Hangar queued for it.
 //
 // Hangar loads this module through CLAUDE_CODE_PLUGIN_DIRS for the panes it

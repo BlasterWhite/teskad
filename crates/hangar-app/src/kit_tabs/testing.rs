@@ -19,6 +19,7 @@ pub fn manifest(id: &str, tabs: Vec<Tab>) -> Manifest {
         icon: None,
         hangar: None,
         plugin: None,
+        agents: vec![hangar_core::agent::AgentKind::Claude],
         tabs,
         setup: Vec::new(),
         commands: BTreeMap::new(),

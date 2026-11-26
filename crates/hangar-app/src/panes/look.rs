@@ -24,6 +24,7 @@ pub struct Look {
 /// set them.
 pub fn theme_of(settings: &Settings, ws: &Workspace) -> &'static Theme {
     hangar_theme::by_id_or_default(ws.theme_id.as_deref().unwrap_or(&settings.theme_id))
+        .with_window_opacity(settings.window_opacity)
 }
 
 /// The terminal colours of a theme, with its search marks: matches in the
@@ -35,6 +36,9 @@ pub fn palette(theme: &Theme) -> Palette {
     Palette {
         foreground: terminal.foreground,
         background: terminal.background,
+        // A window the desktop shows through has its page under the grid
+        // already (shell/frame.rs): the terminal leaves that to it.
+        background_opacity: if theme.is_translucent() { 0.0 } else { 1.0 },
         cursor: terminal.cursor,
         cursor_text: terminal.cursor_text,
         selection_background: terminal.selection,
@@ -45,11 +49,21 @@ pub fn palette(theme: &Theme) -> Palette {
     }
 }
 
+/// What Shift+Enter sends in a pane running `agent`: what its prompt reads as
+/// "a new line, not sent" from a terminal that does not speak the kitty
+/// protocol (see [`config`]), as its kind's row spells it
+/// (`AgentInfo::newline`: Claude Code's Alt+Enter, Codex's Ctrl+J). `None`
+/// for a shell, which keeps it as Enter, since ESC would revert the line in
+/// PSReadLine or cmd.
+pub fn newline(agent: AgentId) -> Option<&'static [u8]> {
+    agent.kind().map(|kind| kind.info().newline)
+}
+
 /// The behaviour of a pane's terminal.
 ///
-/// - Shift+Enter opens a line instead of sending one in an agent pane: ESC+CR
-///   is what the CLIs read as a newline. A shell keeps it as Enter, since ESC
-///   would revert the line in PSReadLine or cmd.
+/// - Shift+Enter opens a line instead of sending one in an agent pane, in
+///   the bytes its agent reads as a newline ([`newline`]). A shell keeps it
+///   as Enter.
 /// - Ctrl+V pastes, as it does everywhere else on the machine; readline's
 ///   quoted-insert is lost on purpose, the bargain Windows Terminal makes.
 /// - Programs may neither write nor read the clipboard (`OSC 52`). xterm.js
@@ -79,7 +93,7 @@ pub fn config(settings: &Settings, agent: AgentId) -> Config {
             CursorStyle::Underline => CursorShape::Underline,
         },
         cursor_blink: settings.cursor_blink,
-        shift_enter: (agent != AgentId::Shell).then(|| b"\x1b\r".to_vec()),
+        shift_enter: newline(agent).map(<[u8]>::to_vec),
         ctrl_v_pastes: true,
         // xterm.js copied nothing on select and flashed nothing on a bell;
         // the bell only settles the activity watcher.
@@ -136,6 +150,41 @@ mod tests {
         assert!(config(&settings, AgentId::Shell).ctrl_v_pastes);
     }
 
+    /// Shift+Enter in a Codex pane is Ctrl+J, the one byte Codex reads as a
+    /// newline: never an ESC, which Codex could read on its own as Esc and
+    /// interrupt its turn. Everything else about its terminal is a Claude
+    /// Code pane's.
+    #[test]
+    fn shift_enter_in_a_codex_pane_is_codex_s_own_newline() {
+        let settings = Settings::default();
+        let codex = config(&settings, AgentId::Codex);
+        assert_eq!(codex.shift_enter.as_deref(), Some(&b"\n"[..]));
+        assert!(
+            !codex
+                .shift_enter
+                .as_deref()
+                .unwrap_or_default()
+                .contains(&0x1b)
+        );
+        assert_eq!(
+            Config {
+                shift_enter: None,
+                ..codex
+            },
+            Config {
+                shift_enter: None,
+                ..config(&settings, AgentId::Claude)
+            }
+        );
+        // And the look a change of agent restyles a pane with differs only
+        // there.
+        let ws = Workspace::default();
+        assert_ne!(
+            look(&settings, &ws, AgentId::Codex),
+            look(&settings, &ws, AgentId::Claude)
+        );
+    }
+
     #[test]
     fn a_program_cannot_reach_the_clipboard() {
         use hangar_term::{Event, Terminal};
@@ -182,7 +231,7 @@ mod tests {
             text: None,
             kind: KeyEventKind::Press,
         };
-        for agent in [AgentId::Shell, AgentId::Claude] {
+        for agent in [AgentId::Shell, AgentId::Claude, AgentId::Codex] {
             let config = config(&Settings::default(), agent);
             let options = KeyOptions {
                 alt_sends_escape: config.alt_sends_escape,
@@ -211,7 +260,7 @@ mod tests {
             );
 
             // So the keys are the classic ones: Escape is one byte, Ctrl+C
-            // the interrupt, and Shift+Enter what the agent panes bind it to.
+            // the interrupt, and Shift+Enter what each agent pane binds it to.
             let bytes = |key: Key, modifiers: Modifiers| {
                 encode_key(&press(key, modifiers), terminal.mode(), &options)
             };
@@ -230,7 +279,7 @@ mod tests {
                 Some(b"\x03".to_vec())
             );
             let shift_enter = bytes(Key::Named(Named::Enter), Modifiers::SHIFT);
-            let expected = (agent != AgentId::Shell).then(|| b"\x1b\r".to_vec());
+            let expected = newline(agent).map(<[u8]>::to_vec);
             assert_eq!(shift_enter, expected.or(Some(b"\r".to_vec())), "{agent:?}");
         }
         // The same bytes, in a terminal that does offer the protocol: the
@@ -266,6 +315,42 @@ mod tests {
         // WCAG's floor for large text; xterm.js made no promise, and the
         // dimmest pairs of the 33 themes are above it.
         assert!(worst.0 >= 3.0, "{worst:?}");
+    }
+
+    #[test]
+    fn a_terminal_paints_its_background_unless_the_desktop_shows_through_it() {
+        for theme in hangar_theme::themes() {
+            assert_eq!(palette(theme).background_opacity, 1.0, "{}", theme.id);
+        }
+        // At the opacity the settings give every theme, on Linux, the page
+        // under the grid is the terminal's background.
+        let mut settings = Settings {
+            theme_id: "tokyo-night".into(),
+            window_opacity: 0.85,
+            ..Settings::default()
+        };
+        let ws = Workspace::default();
+        let theme = theme_of(&settings, &ws);
+        assert_eq!(theme.id, "tokyo-night");
+        let expected = if cfg!(target_os = "linux") { 0.0 } else { 1.0 };
+        assert_eq!(
+            look(&settings, &ws, AgentId::Shell)
+                .palette
+                .background_opacity,
+            expected
+        );
+        // Its colours are Tokyo Night's whatever the opacity.
+        assert_eq!(
+            palette(theme).background,
+            palette(hangar_theme::by_id_or_default("tokyo-night")).background
+        );
+        settings.window_opacity = 1.0;
+        assert_eq!(
+            look(&settings, &ws, AgentId::Shell)
+                .palette
+                .background_opacity,
+            1.0
+        );
     }
 
     #[test]

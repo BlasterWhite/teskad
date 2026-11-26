@@ -8,6 +8,10 @@
 //! Code became the only agent, owner's decision of 2026-11-03), ticks it when
 //! Claude Code is installed and not wired up yet (or its entry is broken,
 //! since reinstalling is the repair), and reports what each write did.
+//!
+//! The playbook goes into the instructions file of each agent the workspace
+//! runs (`CLAUDE.md` for Claude Code, `AGENTS.md` for Codex): [`playbook_agents`]
+//! says which, and the panel lists the files it will write.
 
 use std::collections::HashSet;
 
@@ -24,7 +28,9 @@ use super::{Msg, State};
 use crate::ctx::Ctx;
 use crate::message::{Intent, Message};
 use crate::services::Services;
+use crate::shell::setup;
 use crate::state::Model;
+use crate::state::types::{AgentKind, OrchestrationRole, Workspace};
 
 /// A tool that can be configured, as `mcp_targets` reports it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -102,6 +108,9 @@ pub enum InstallMsg {
 #[derive(Debug)]
 pub struct Install {
     cwd: String,
+    /// The agents the workspace runs, as the panel opened: whose instructions
+    /// files the playbook goes into. Never empty.
+    agents: Vec<AgentKind>,
     targets: Vec<Target>,
     selected: HashSet<String>,
     reports: Option<Vec<Report>>,
@@ -111,14 +120,90 @@ pub struct Install {
     playbook_present: bool,
 }
 
+/// The agents `ws` runs: the kinds of its agent panes and the agents its
+/// orchestration chose for its orchestrator, its workers and its reviewer,
+/// each once, in the pickers' order (`AgentKind::ALL`).
+///
+/// A workspace that names none (shells alone, no choice of orchestration)
+/// runs what is installed, so that a machine with Codex gets `AGENTS.md`
+/// before the first pane starts it. With nothing installed either, or no
+/// workspace at all, it is Claude Code, as everywhere in Hangar: never an
+/// empty list, which would read as nothing to write.
+fn playbook_agents(
+    ws: Option<&Workspace>,
+    installed: impl Fn(AgentKind) -> bool,
+) -> Vec<AgentKind> {
+    let named = |kind: &AgentKind| {
+        ws.is_some_and(|ws| {
+            let chosen = ws.orchestration.as_ref().is_some_and(|orchestration| {
+                [
+                    OrchestrationRole::Orchestrator,
+                    OrchestrationRole::Worker,
+                    OrchestrationRole::Reviewer,
+                ]
+                .into_iter()
+                .any(|role| orchestration.agent(role) == Some(*kind))
+            });
+            chosen || ws.panes.iter().any(|pane| pane.agent.kind() == Some(*kind))
+        })
+    };
+    let agents: Vec<AgentKind> = AgentKind::ALL.into_iter().filter(named).collect();
+    if !agents.is_empty() {
+        return agents;
+    }
+    let agents: Vec<AgentKind> = AgentKind::ALL
+        .into_iter()
+        .filter(|kind| installed(*kind))
+        .collect();
+    if agents.is_empty() {
+        vec![AgentKind::default()]
+    } else {
+        agents
+    }
+}
+
+/// The instructions file of each agent in `agents`, each once, in order: the
+/// files the playbook is written into.
+fn playbook_files(agents: &[AgentKind]) -> Vec<&'static str> {
+    let mut files: Vec<&'static str> = Vec::with_capacity(agents.len());
+    for agent in agents {
+        let file = agent.info().instructions_file;
+        if !files.contains(&file) {
+            files.push(file);
+        }
+    }
+    files
+}
+
+/// The playbook row's line under its label: « CLAUDE.md · adds .hangar/ to
+/// .gitignore », with the files the panel will write in the place of the one
+/// the text names.
+fn playbook_hint(files: &[&str], text: &str) -> String {
+    let rest = text.split_once(" · ").map_or(text, |(_, rest)| rest);
+    format!("{} · {rest}", files.join(", "))
+}
+
+/// Runs `work` off the interface's thread, on the panel's folder, and sends
+/// what it answers to the panel.
+fn ask(work: impl FnOnce(String) -> InstallMsg + Send + 'static, cwd: String) -> Task<Message> {
+    Task::perform(
+        async move {
+            tokio::task::spawn_blocking(move || work(cwd))
+                .await
+                .unwrap_or_else(|_| InstallMsg::Found(Vec::new()))
+        },
+        |message| Message::Mcp(Msg::Install(message)),
+    )
+}
+
 /// Opens the panel on `cwd` and asks for what it shows.
 pub fn open(st: &mut State, m: &Model) -> Task<Message> {
-    let cwd = m
-        .active_workspace()
-        .map(|ws| ws.cwd.clone())
-        .unwrap_or_default();
+    let workspace = m.active_workspace();
+    let cwd = workspace.map(|ws| ws.cwd.clone()).unwrap_or_default();
+    let agents = playbook_agents(workspace, |kind| setup::installed(m, kind));
     st.install = Some(Install {
         cwd: cwd.clone(),
+        agents: agents.clone(),
         targets: Vec::new(),
         selected: HashSet::new(),
         reports: None,
@@ -127,16 +212,6 @@ pub fn open(st: &mut State, m: &Model) -> Task<Message> {
         write_playbook: true,
         playbook_present: false,
     });
-    let ask = |work: fn(String) -> InstallMsg, cwd: String| {
-        Task::perform(
-            async move {
-                tokio::task::spawn_blocking(move || work(cwd))
-                    .await
-                    .unwrap_or_else(|_| InstallMsg::Found(Vec::new()))
-            },
-            |message| Message::Mcp(Msg::Install(message)),
-        )
-    };
     Task::batch([
         ask(
             |cwd| {
@@ -160,10 +235,27 @@ pub fn open(st: &mut State, m: &Model) -> Task<Message> {
             cwd.clone(),
         ),
         ask(
-            |cwd| InstallMsg::PlaybookPresent(instructions::agent_instructions_status(cwd)),
+            move |cwd| {
+                InstallMsg::PlaybookPresent(instructions::agent_instructions_status_for(
+                    cwd, &agents,
+                ))
+            },
             cwd,
         ),
     ])
+}
+
+/// Writes the playbook into the file of each agent in `agents`, one report
+/// per file (the `.gitignore` rule included), each under its file's name.
+fn write_playbook(cwd: String, agents: &[AgentKind]) -> Vec<Report> {
+    instructions::write_agent_instructions_for(cwd, agents)
+        .into_iter()
+        .map(|written| Report {
+            id: file_name(&written.path),
+            ok: written.ok,
+            message: written.message,
+        })
+        .collect()
 }
 
 /// The id a playbook file is reported under: its name, not its path.
@@ -209,9 +301,10 @@ pub fn update(st: &mut State, _m: &mut Model, _sv: &Services, msg: InstallMsg) -
                 .map(|target| target.id.clone())
                 .collect();
             let (cwd, playbook) = (panel.cwd.clone(), panel.write_playbook);
+            let agents = panel.agents.clone();
             return Task::perform(
                 async move {
-                    tokio::task::spawn_blocking(move || run(ids, cwd, playbook))
+                    tokio::task::spawn_blocking(move || run(ids, cwd, playbook, &agents))
                         .await
                         .unwrap_or_else(|error| InstallMsg::Installed {
                             reports: vec![Report {
@@ -246,8 +339,9 @@ pub fn update(st: &mut State, _m: &mut Model, _sv: &Services, msg: InstallMsg) -
     Task::none()
 }
 
-/// The install, then the playbook if it is ticked, then the list again.
-fn run(ids: Vec<String>, cwd: String, playbook: bool) -> InstallMsg {
+/// The install, then the playbook if it is ticked (into the file of each of
+/// `agents`), then the list again.
+fn run(ids: Vec<String>, cwd: String, playbook: bool, agents: &[AgentKind]) -> InstallMsg {
     let mut reports: Vec<Report> = install::mcp_install(ids, cwd.clone())
         .into_iter()
         .map(|report| Report {
@@ -257,15 +351,7 @@ fn run(ids: Vec<String>, cwd: String, playbook: bool) -> InstallMsg {
         })
         .collect();
     if playbook {
-        reports.extend(
-            instructions::write_agent_instructions(cwd.clone())
-                .into_iter()
-                .map(|written| Report {
-                    id: file_name(&written.path),
-                    ok: written.ok,
-                    message: written.message,
-                }),
-        );
+        reports.extend(write_playbook(cwd.clone(), agents));
     }
     let targets = install::mcp_targets(cwd)
         .into_iter()
@@ -429,10 +515,13 @@ fn playbook_row<'a>(ctx: Ctx<'a>, panel: &'a Install) -> Element<'a, Message> {
         |on| msg(InstallMsg::Playbook(on)),
         badges,
         vec![
-            typography::mono(t, ctx.t(Key::McpPlaybookHint))
-                .size(tokens::font_size::CAPTION)
-                .style(style::text::subtle(t))
-                .into(),
+            typography::mono(
+                t,
+                playbook_hint(&playbook_files(&panel.agents), &ctx.t(Key::McpPlaybookHint)),
+            )
+            .size(tokens::font_size::CAPTION)
+            .style(style::text::subtle(t))
+            .into(),
         ],
     )
 }
@@ -504,3 +593,6 @@ fn manual_view<'a>(ctx: Ctx<'a>, manual: &'a Manual) -> Element<'a, Message> {
     .spacing(tokens::space::MD)
     .into()
 }
+
+#[cfg(test)]
+mod tests;

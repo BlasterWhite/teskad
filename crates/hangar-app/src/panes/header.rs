@@ -6,29 +6,37 @@
 //! branch) is read from P4's `panes_logic::Live`; what it says about the
 //! shell and the launch is this package's.
 //!
+//! The agent is named with its « beta » while Hangar labels its support so
+//! (`accounts::BETA`); an agent Hangar reaches through a server of the
+//! pane's own (Codex, D5) also says whether Hangar is attached to it, and on
+//! the floor why not, in the words of the reason its spawn gave.
+//!
 //! A narrowing pane drops its details in a fixed order, so nothing ever wraps
 //! or overlaps, down to eight panes beside both side panels in the smallest
 //! window. The web app did it with container queries in `em` of the header's
 //! 12 px font; [`Fit::of`] is the same table over the header's content width
 //! (the pane's width less its 16 px of padding).
 
-use hangar_i18n::{Key, args};
+use hangar_core::pty::FloorReason;
+use hangar_i18n::{Key, Translator, args};
 use hangar_theme::{AgentState, style, tokens};
+use hangar_ui::badge::{self, Tone};
 use hangar_ui::{Icon, button, glyph, icon, menu, tip};
-use iced::widget::{Space, container, mouse_area, row, text};
+use iced::widget::{Id, Space, container, mouse_area, row, text};
 use iced::{Alignment, Element, Length, Padding};
 
 use crate::ctx::Ctx;
 use crate::message::Message;
 use crate::pane_menu::Folded;
-use crate::panes::controller::{PaneRt, folder_of};
+use crate::panes::controller::{PaneRt, Side, folder_of};
 use crate::panes::gauge;
 use crate::panes::status::{shell_short_name, state_key, ui_glyph};
 use crate::panes::{Msg, Picker};
+use crate::panes_logic::agents::is_resumable;
 use crate::panes_logic::{PaneBranch, short_session_id};
 use crate::state::live::PaneStatus;
-use crate::state::types::{AGENTS, AgentId, Pane, ShellInfo, Workspace};
-use crate::state::{AgentActivity, GlyphState};
+use crate::state::types::{AGENTS, AgentId, Pane, PinEdge, ShellInfo, Workspace};
+use crate::state::{AgentActivity, GlyphState, WsId};
 
 /// The header's font size, which its breakpoints are counted in.
 const EM: f32 = 12.0;
@@ -37,6 +45,10 @@ pub const PADDING_X: f32 = 16.0;
 /// The branch label's widest (`max-width: 18ch` at the header's 10.8 px
 /// mono).
 const BRANCH_MAX: f32 = 18.0 * 6.5;
+/// The pin of a pinned pane: a button as small as the header's chips, its
+/// glyph the size of the queue's tray.
+const PIN_SIDE: f32 = 18.0;
+const PIN_ICON: f32 = 11.0;
 
 /// What a header of a given width shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -219,6 +231,11 @@ pub fn view<'a>(ctx: Ctx<'a>, head: Head<'a>) -> Element<'a, Message> {
         name_tip,
     ));
 
+    // Pinned to an edge of the grid: the pin says which, and lets it go.
+    if let Some(pin) = head.ws.pin_of(&pane.id) {
+        bar = bar.push(pin_glyph(ctx, &head.ws.id, &pane.id, pin.edge));
+    }
+
     // A worker sent to a node from this workspace: where it runs.
     if let Some(node) = crate::nodes::away::pane_node(pane) {
         bar = bar.push(node_label(ctx, &node));
@@ -250,14 +267,23 @@ pub fn view<'a>(ctx: Ctx<'a>, head: Head<'a>) -> Element<'a, Message> {
 
     if fit.agent {
         bar = bar.push(agent_picker(ctx, &head, fit));
+        // Beside its full name, not its first word.
+        if !fit.short_agent
+            && let Some(beta) = beta_badge(ctx, pane.agent)
+        {
+            bar = bar.push(beta);
+        }
     }
 
     if fit.meta {
         let mut meta = row![].spacing(tokens::space::SM).align_y(Alignment::Center);
+        if let Some(side) = side_chip(ctx, pane.agent, rt.side.as_ref(), bridged) {
+            meta = meta.push(side);
+        }
         if fit.shell {
             meta = meta.push(shell_picker(ctx, &head));
         }
-        if fit.session && pane.agent.info().resumable {
+        if fit.session && is_resumable(pane.agent) {
             meta = meta.push(session_button(ctx, &head, fit));
         }
         if let Some(reading) = &insight.context {
@@ -336,8 +362,7 @@ pub fn view<'a>(ctx: Ctx<'a>, head: Head<'a>) -> Element<'a, Message> {
         ));
     }
 
-    let missing = pane.agent == AgentId::Claude && !ctx.model.ui.claude_installed;
-    if missing {
+    if missing(ctx, pane.agent) {
         let words = ctx
             .i18n
             .t_with(Key::PaneNotOnPath, &args!("agent" => pane.agent.as_str()))
@@ -401,6 +426,32 @@ pub fn view<'a>(ctx: Ctx<'a>, head: Head<'a>) -> Element<'a, Message> {
         .on_enter(wrap(Msg::Hover(Some(id))))
         .on_exit(wrap(Msg::Hover(None)))
         .into()
+}
+
+/// The id of the pin a pinned pane's header shows (`pin_glyph`).
+pub fn pin_glyph_id(pane: &str) -> Id {
+    Id::from(format!("pane-pin-{pane}"))
+}
+
+/// The pin beside a pinned pane's name, a terminal's or a view's: always
+/// there, pressed in, its tip saying which edge it keeps to and that a
+/// click lets it go, which is what the click does.
+pub fn pin_glyph<'a>(ctx: Ctx<'a>, ws: &WsId, pane: &str, edge: PinEdge) -> Element<'a, Message> {
+    let words = ctx.t(match edge {
+        PinEdge::Left => Key::PanePinnedLeft,
+        PinEdge::Right => Key::PanePinnedRight,
+        PinEdge::Top => Key::PanePinnedTop,
+        PinEdge::Bottom => Key::PanePinnedBottom,
+    });
+    container(
+        button::toggle_button(ctx.theme, Icon::Pin, true)
+            .side(PIN_SIDE)
+            .icon_size(PIN_ICON)
+            .tip(words.into_owned())
+            .on_press(wrap(Msg::Pin(ws.clone(), pane.to_owned(), false))),
+    )
+    .id(pin_glyph_id(pane))
+    .into()
 }
 
 /// The git branch of the pane's folder, beside its name; a detached head
@@ -613,9 +664,8 @@ fn agent_picker<'a>(ctx: Ctx<'a>, head: &Head<'a>, fit: Fit) -> Element<'a, Mess
         AGENTS
             .iter()
             .map(|agent| {
-                let missing = agent.id == AgentId::Claude && !ctx.model.ui.claude_installed;
                 let mut label = agent.label.to_owned();
-                if missing {
+                if missing(ctx, agent.id) {
                     label.push_str(&ctx.t(Key::PaneMissing));
                 }
                 menu::item(label)
@@ -634,6 +684,159 @@ fn agent_picker<'a>(ctx: Ctx<'a>, head: &Head<'a>, fit: Fit) -> Element<'a, Mess
         menu::dropdown(t, anchor, entries).on_dismiss(wrap(Msg::ClosePicker)),
         ctx.t(Key::PaneAgent).into_owned(),
     )
+}
+
+/// Whether `agent` is an agent this machine was found not to have.
+fn missing(ctx: Ctx<'_>, agent: AgentId) -> bool {
+    agent
+        .kind()
+        .is_some_and(|kind| !crate::shell::setup::installed(ctx.model, kind))
+}
+
+/// The « beta » beside the name of an agent whose support Hangar labels so
+/// until real users confirm it (`accounts::BETA`, docs/native/agents.md §7,
+/// decision 5); `None` for any other, and for a shell.
+fn beta_badge<'a>(ctx: Ctx<'a>, agent: AgentId) -> Option<Element<'a, Message>> {
+    let kind = agent
+        .kind()
+        .filter(|kind| crate::accounts::BETA.contains(kind))?;
+    let words = ctx
+        .i18n
+        .t_with(Key::PaneAgentBetaHint, &args!("agent" => kind.info().label))
+        .into_owned();
+    Some(tip::bottom(
+        ctx.theme,
+        badge::badge(ctx.theme, ctx.t(Key::PaneAgentBeta), Tone::Accent),
+        words,
+    ))
+}
+
+/// Whether the header says how `agent`'s side channel stands: for a kind
+/// Hangar reaches through a server of the pane's own (`headless.app_server`,
+/// Codex, D5), which can be missing for a reason the person can act on. A
+/// Claude Code's mod says what it has to through the state's tip, reported
+/// or guessed, as it always did.
+pub fn shows_side(agent: AgentId) -> bool {
+    agent
+        .kind()
+        .is_some_and(|kind| kind.info().caps.headless.app_server)
+}
+
+/// What the side channel's chip says, and its tip: attached, and whether its
+/// client has heard from the agent yet (`bridged`); or not, and why.
+pub fn side_words(tr: Translator, agent: AgentId, side: &Side, bridged: bool) -> (String, String) {
+    let label = agent.kind().map_or("", |kind| kind.info().label);
+    match side {
+        Side::Attached => (
+            tr.t(Key::PaneAttached).into_owned(),
+            tr.t_with(
+                if bridged {
+                    Key::PaneAttachedHint
+                } else {
+                    Key::PaneAttachedQuietHint
+                },
+                &args!("agent" => label),
+            )
+            .into_owned(),
+        ),
+        Side::Off => (
+            tr.t(Key::PaneUnattached).into_owned(),
+            tr.t_with(
+                Key::PaneUnattachedOffHint,
+                &args!(
+                    "setting" => tr.t(Key::SettingsCodexAttach),
+                    "agent" => label,
+                ),
+            )
+            .into_owned(),
+        ),
+        Side::Floor(reason) => (
+            tr.t(Key::PaneUnattached).into_owned(),
+            tr.t_with(
+                Key::PaneUnattachedHint,
+                &args!(
+                    "agent" => label,
+                    "reason" => floor_reason(tr, reason).as_str(),
+                ),
+            )
+            .into_owned(),
+        ),
+    }
+}
+
+/// Why a pane that was to run attached runs the floor, in the person's
+/// language: what `FloorReason` says in English for the log.
+pub fn floor_reason(tr: Translator, reason: &FloorReason) -> String {
+    let detail = |reason: String, detail: &str| {
+        if detail.trim().is_empty() {
+            return reason;
+        }
+        tr.t_with(
+            Key::PaneFloorDetail,
+            &args!("reason" => reason.as_str(), "detail" => detail.trim()),
+        )
+        .into_owned()
+    };
+    match reason {
+        FloorReason::Unsupported => tr.t(Key::PaneFloorUnsupported).into_owned(),
+        FloorReason::RuntimeFolder { detail: what } => {
+            detail(tr.t(Key::PaneFloorFolder).into_owned(), what.as_str())
+        }
+        FloorReason::Untypable => tr.t(Key::PaneFloorUntypable).into_owned(),
+        FloorReason::NotStarted {
+            program,
+            detail: what,
+        } => detail(
+            tr.t_with(
+                Key::PaneFloorNotStarted,
+                &args!("program" => program.as_str()),
+            )
+            .into_owned(),
+            what.as_str(),
+        ),
+        FloorReason::Exited { code, said } => {
+            let mut reason = tr.t(Key::PaneFloorExited).into_owned();
+            if let Some(code) = code {
+                reason = tr
+                    .t_with(
+                        Key::PaneFloorExitCode,
+                        &args!("reason" => reason.as_str(), "code" => code.to_string()),
+                    )
+                    .into_owned();
+            }
+            detail(reason, said.as_str())
+        }
+        FloorReason::Timeout { seconds } => tr
+            .t_with(
+                Key::PaneFloorTimeout,
+                &args!("seconds" => seconds.to_string()),
+            )
+            .into_owned(),
+    }
+}
+
+/// The chip that says whether Hangar is attached to the pane's agent, for
+/// an agent [`shows_side`] is true of, once its spawn said (`side`).
+fn side_chip<'a>(
+    ctx: Ctx<'a>,
+    agent: AgentId,
+    side: Option<&Side>,
+    bridged: bool,
+) -> Option<Element<'a, Message>> {
+    let side = side.filter(|_| shows_side(agent))?;
+    let t = ctx.theme;
+    let (label, words) = side_words(ctx.i18n, agent, side, bridged);
+    let (tone, lead) = match side {
+        Side::Attached => (Tone::Neutral, Some(Icon::Link)),
+        // The person's choice: nothing to warn of.
+        Side::Off => (Tone::Neutral, None),
+        Side::Floor(_) => (Tone::Warning, Some(Icon::Alert)),
+    };
+    Some(tip::bottom(
+        t,
+        badge::named(t, label, tone).icon(lead),
+        words,
+    ))
 }
 
 fn shell_picker<'a>(ctx: Ctx<'a>, head: &Head<'a>) -> Element<'a, Message> {
@@ -749,7 +952,212 @@ pub fn activity_word(ctx: &Ctx<'_>, activity: AgentActivity) -> String {
 
 #[cfg(test)]
 mod tests {
+    use hangar_i18n::Locale;
+
     use super::*;
+    use crate::app::Packages;
+    use crate::navigator::testing::{ctx, model_of, pane, simulate, workspace};
+    use crate::state::Model;
+    use crate::state::types::AppState;
+
+    const WS: &str = "head-ws";
+
+    /// A Codex pane and a Claude Code pane, mounted, both agents installed.
+    fn two_agents() -> (Model, Packages) {
+        let mut m = model_of(AppState {
+            workspaces: vec![workspace(
+                WS,
+                "Shop",
+                None,
+                vec![
+                    pane("cx", "Iris", AgentId::Codex),
+                    pane("cl", "Ava", AgentId::Claude),
+                ],
+            )],
+            active_workspace_id: Some(WS.into()),
+            ..AppState::default()
+        });
+        m.ui.claude_installed = true;
+        m.ui.codex_installed = true;
+        let mut pkg = Packages::default();
+        pkg.panes
+            .mount_for_test(m.workspace(WS).expect("the workspace"));
+        (m, pkg)
+    }
+
+    /// What `pane` says how it was started, as its spawn would.
+    fn started(pkg: &mut Packages, pane: &str, side: Side) {
+        let rt = pkg.panes.panes.get_mut(pane).expect("mounted");
+        rt.status = PaneStatus::Running;
+        rt.side = Some(side);
+    }
+
+    /// The header of `pane`, focused, as wide as a pane alone in the window.
+    fn header_of<'a>(m: &'a Model, pkg: &'a Packages, pane: &str) -> Element<'a, Message> {
+        let ws = m.workspace(WS).expect("the workspace");
+        let entry = ws.panes.iter().find(|p| p.id == pane).expect("the pane");
+        view(
+            ctx(m, pkg),
+            Head {
+                ws,
+                pane: entry,
+                rt: &pkg.panes.panes[pane],
+                focused: true,
+                hovered: false,
+                zoomed: false,
+                can_close: true,
+                can_zoom: true,
+                width: 1000.0,
+                index: 0,
+                shell: None,
+                picker: None,
+            },
+        )
+    }
+
+    fn says(m: &Model, pkg: &Packages, pane: &str, words: &str) -> bool {
+        simulate(header_of(m, pkg, pane)).find(words).is_ok()
+    }
+
+    /// A Codex pane is named with its « beta », and says Hangar is attached
+    /// to it; a Claude Code pane's header has neither, as before.
+    #[test]
+    fn a_codex_header_names_its_agent_in_beta_and_says_hangar_is_attached() {
+        let (m, mut pkg) = two_agents();
+        started(&mut pkg, "cx", Side::Attached);
+        started(&mut pkg, "cl", Side::Attached);
+        assert!(says(&m, &pkg, "cx", "Codex"));
+        assert!(says(&m, &pkg, "cx", "beta"));
+        assert!(says(&m, &pkg, "cx", "attached"));
+        assert!(says(&m, &pkg, "cl", "Claude Code"));
+        for word in ["beta", "attached", "not attached"] {
+            assert!(!says(&m, &pkg, "cl", word), "{word}");
+        }
+    }
+
+    /// On the floor, the chip says it is not attached; before its spawn
+    /// has said, it says nothing either way.
+    #[test]
+    fn a_codex_header_on_the_floor_says_it_is_not_attached() {
+        let (m, mut pkg) = two_agents();
+        assert!(!says(&m, &pkg, "cx", "attached"));
+        assert!(!says(&m, &pkg, "cx", "not attached"));
+        started(
+            &mut pkg,
+            "cx",
+            Side::Floor(FloorReason::Timeout { seconds: 10 }),
+        );
+        assert!(says(&m, &pkg, "cx", "not attached"));
+        assert!(!says(&m, &pkg, "cx", "attached"));
+        started(&mut pkg, "cx", Side::Off);
+        assert!(says(&m, &pkg, "cx", "not attached"));
+        // A Claude Code without the mod keeps its header as it was.
+        started(&mut pkg, "cl", Side::Off);
+        assert!(!says(&m, &pkg, "cl", "not attached"));
+    }
+
+    /// A narrow header names the agent by its first word and drops the
+    /// badge; narrower, the chip goes with the other details.
+    #[test]
+    fn a_narrow_header_drops_the_badge_then_the_chip() {
+        let (m, mut pkg) = two_agents();
+        started(&mut pkg, "cx", Side::Attached);
+        let drawn = |width: f32| {
+            let ws = m.workspace(WS).expect("the workspace");
+            let entry = &ws.panes[0];
+            let element = view(
+                ctx(&m, &pkg),
+                Head {
+                    ws,
+                    pane: entry,
+                    rt: &pkg.panes.panes["cx"],
+                    focused: false,
+                    hovered: false,
+                    zoomed: false,
+                    can_close: true,
+                    can_zoom: false,
+                    width,
+                    index: 0,
+                    shell: None,
+                    picker: None,
+                },
+            );
+            let mut ui = simulate(element);
+            (ui.find("beta").is_ok(), ui.find("attached").is_ok())
+        };
+        assert_eq!(drawn(800.0), (true, true));
+        // 22em: the metadata goes, the name stays whole.
+        assert_eq!(drawn(22.0 * EM + PADDING_X), (true, false));
+        // 20em: the agent's first word, no badge.
+        assert_eq!(drawn(20.0 * EM + PADDING_X), (false, false));
+    }
+
+    /// Each reason a pane runs the floor is said in the person's language,
+    /// with what its spawn knew of it; the tip says the reason and how
+    /// Hangar reads the agent meanwhile.
+    #[test]
+    fn the_floors_reason_is_said_in_english_and_in_french() {
+        let reasons = [
+            FloorReason::Unsupported,
+            FloorReason::RuntimeFolder {
+                detail: "Permission denied".into(),
+            },
+            FloorReason::Untypable,
+            FloorReason::NotStarted {
+                program: "codex".into(),
+                detail: "No such file or directory".into(),
+            },
+            FloorReason::Exited {
+                code: Some(2),
+                said: "error: unexpected argument '--listen'".into(),
+            },
+            FloorReason::Exited {
+                code: None,
+                said: String::new(),
+            },
+            FloorReason::Timeout { seconds: 10 },
+        ];
+        let en = Translator::new(Locale::En);
+        let fr = Translator::new(Locale::Fr);
+        for reason in &reasons {
+            let (english, french) = (floor_reason(en, reason), floor_reason(fr, reason));
+            assert!(!english.is_empty() && !french.is_empty(), "{reason:?}");
+            assert_ne!(english, french, "{reason:?}");
+            let (label, tip) = side_words(en, AgentId::Codex, &Side::Floor(reason.clone()), false);
+            assert_eq!(label, "not attached");
+            assert!(tip.contains(&english) && tip.contains("Codex"), "{tip}");
+        }
+        assert_eq!(
+            floor_reason(en, &reasons[4]),
+            "its server stopped before it listened (exit 2): error: unexpected argument '--listen'"
+        );
+        assert_eq!(
+            floor_reason(en, &reasons[6]),
+            "its server did not listen within 10\u{a0}s"
+        );
+        assert!(floor_reason(fr, &reasons[3]).contains("«\u{202f}codex app-server\u{202f}»"));
+        assert!(floor_reason(fr, &reasons[1]).ends_with("Permission denied"));
+
+        // Attached, the tip says whether its client has heard from it yet;
+        // off, it names the setting.
+        let (label, heard) = side_words(en, AgentId::Codex, &Side::Attached, true);
+        let (_, quiet) = side_words(en, AgentId::Codex, &Side::Attached, false);
+        assert_eq!(label, "attached");
+        assert_ne!(heard, quiet);
+        let (_, off) = side_words(fr, AgentId::Codex, &Side::Off, false);
+        assert!(off.contains(&*fr.t(Key::SettingsCodexAttach)), "{off}");
+        assert_eq!(fr.t(Key::PaneAgentBeta), "bêta");
+    }
+
+    /// The side channel is said for an agent Hangar reaches through a server
+    /// of the pane's own, by its capabilities: not for a Claude Code, nor a
+    /// shell.
+    #[test]
+    fn only_an_agent_with_a_server_of_its_own_says_how_it_is_attached() {
+        assert!(shows_side(AgentId::Codex));
+        assert!(!shows_side(AgentId::Claude));
+        assert!(!shows_side(AgentId::Shell));
+    }
 
     #[test]
     fn the_name_tells_the_key_that_jumps_to_the_first_nine_panes() {

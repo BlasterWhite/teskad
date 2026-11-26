@@ -18,10 +18,11 @@ use crate::accounts;
 use crate::ctx::Ctx;
 use crate::git_flow::clone::{ParseResult, overall_percent, progress_label};
 use crate::git_flow::paths::clone_destination;
-use crate::message::Message;
-use crate::state::types::{AGENTS, AgentId};
+use crate::message::{Intent, Message};
+use crate::shell::Overlay;
+use crate::state::types::{AgentId, AgentKind};
 
-use super::folder::{self, LAYOUTS, Root};
+use super::folder::{self, LAYOUTS, Root, Workers};
 use super::git_form::{self, FromGitStatus};
 use super::hooks;
 use super::sweep;
@@ -165,6 +166,106 @@ fn submit_message(st: &State, ctx: Ctx<'_>) -> Message {
     msg(Msg::Submit(kits))
 }
 
+// ── the agents ────────────────────────────────────────────────────────
+
+/// The name a picker gives `kind`: the dictionary's, « beta » included
+/// while its support is one ([`folder::picker_label_id`]), else its own.
+fn kind_name(ctx: Ctx<'_>, kind: AgentKind) -> String {
+    let id = folder::picker_label_id(kind);
+    let name = ctx.i18n.t(id.as_str());
+    if name == id.as_str() {
+        kind.info().label.to_owned()
+    } else {
+        name.into_owned()
+    }
+}
+
+/// The name a picker gives what a pane runs: an agent's ([`kind_name`]),
+/// or a shell's.
+fn agent_name(ctx: Ctx<'_>, agent: AgentId) -> String {
+    agent.kind().map_or_else(
+        || agent.info().label.to_owned(),
+        |kind| kind_name(ctx, kind),
+    )
+}
+
+/// « Set up Codex »: the setup sheet, where an agent that is not installed
+/// is installed and signed in to.
+fn set_up<'a>(ctx: Ctx<'a>, kind: AgentKind) -> Element<'a, Message> {
+    ui_button::link(
+        ctx.theme,
+        ctx.i18n
+            .t_with(Key::CreateSetUp, &args!("agent" => kind.info().label))
+            .into_owned(),
+        Message::Intent(Intent::OpenOverlay(Overlay::AgentSetup)),
+    )
+}
+
+/// One link to the setup per agent this machine lacks, on a line.
+fn set_up_missing<'a>(st: &State, ctx: Ctx<'a>) -> Option<Element<'a, Message>> {
+    let installed = st.installed(ctx.model);
+    let links: Vec<Element<'a, Message>> =
+        installed.missing().map(|kind| set_up(ctx, kind)).collect();
+    (!links.is_empty()).then(|| {
+        iced::widget::Row::with_children(links)
+            .spacing(tokens::space::XL)
+            .into()
+    })
+}
+
+/// The orchestrator's agent (D20): Claude Code or Codex, the one that is not
+/// installed greyed with the reason; the one chosen raised, none when
+/// neither is installed.
+fn orchestrator_choice<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
+    let installed = st.installed(ctx.model);
+    let missing = ctx.t(Key::CreateNotInstalled).into_owned();
+    let options = AgentKind::ALL
+        .into_iter()
+        .map(|kind| {
+            let segment = input::Segment::new(Some(kind), None, kind_name(ctx, kind));
+            if installed.has(kind) {
+                segment
+            } else {
+                segment.unavailable(missing.clone())
+            }
+        })
+        .collect();
+    input::segmented_icons(ctx.theme, options, &st.orchestrator(ctx.model), |kind| {
+        kind.map_or(Message::Noop, |kind| msg(Msg::Orchestrator(kind)))
+    })
+}
+
+/// What the workers run: « Same as the orchestrator », or an agent, the one
+/// that is not installed greyed with the reason.
+fn workers_choice<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
+    let t = ctx.theme;
+    let installed = st.installed(ctx.model);
+    let missing = ctx.t(Key::CreateNotInstalled).into_owned();
+    let same = input::Segment::new(
+        Workers::Same,
+        None,
+        ctx.t(Key::CreateWorkersSame).into_owned(),
+    );
+    let options = std::iter::once(same)
+        .chain(AgentKind::ALL.into_iter().map(|kind| {
+            let segment = input::Segment::new(Workers::Agent(kind), None, kind_name(ctx, kind));
+            if installed.has(kind) {
+                segment
+            } else {
+                segment.unavailable(missing.clone())
+            }
+        }))
+        .collect();
+    column![
+        input::segmented_icons(t, options, &st.workers(ctx.model), |workers| {
+            msg(Msg::Workers(workers))
+        }),
+        typography::hint(t, ctx.t(Key::CreateWorkersHint)),
+    ]
+    .spacing(tokens::space::SM)
+    .into()
+}
+
 // ── the dialog ────────────────────────────────────────────────────────
 
 pub fn dialog<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
@@ -247,7 +348,19 @@ pub fn dialog<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
             .on_press_maybe((!st.folder.cwd.is_empty()).then(|| submit_message(st, ctx))),
     };
 
-    let panel = dialog::dialog(t, ctx.t(Key::CreateTitle), form)
+    let mut panel = dialog::dialog(t, ctx.t(Key::CreateTitle), form);
+    // Opened from a navigator folder: the workspace is filed there.
+    if let Some(folder) = st.target_folder(ctx.model) {
+        panel = panel.subtitle(
+            ctx.i18n
+                .t_with(
+                    Key::CreateInFolder,
+                    &args!("folder" => folder.name.as_str()),
+                )
+                .into_owned(),
+        );
+    }
+    let panel = panel
         .width(640.0)
         .body_max_height(BODY_HEIGHT)
         .body_padding(Padding::from([18.0, 22.0]))
@@ -750,24 +863,36 @@ fn folder_agents<'a>(
     form.push(fold)
 }
 
-/// One line on what the workspace starts with, and what to know about it:
-/// Claude Code missing, a folder that is not a Git repository.
+/// What the workspace starts with: the orchestrator's agent to choose
+/// (D20), one line on what that makes, and what to know about it: no agent
+/// installed, a folder that is not a Git repository, an agent to set up.
 fn start_summary<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
-    let start = folder::start_of(st.folder.custom, ctx.model.ui.claude_installed);
-    let said = match start {
-        folder::Start::Orchestrator => ctx.t(Key::CreateStartOrchestrator).into_owned(),
-        folder::Start::Shell => ctx.t(Key::CreateStartShell).into_owned(),
-        folder::Start::Custom => ctx
+    let orchestrator = st.orchestrator(ctx.model);
+    let start = folder::start_of(st.folder.custom, orchestrator.is_some());
+    let said = match (start, orchestrator) {
+        (folder::Start::Orchestrator, Some(kind)) => ctx
+            .i18n
+            .t_with(
+                Key::CreateStartOrchestrator,
+                &args!("agent" => kind.info().label),
+            )
+            .into_owned(),
+        (folder::Start::Custom, _) => ctx
             .i18n
             .tn(Key::CreateStartCustom, st.folder.assignments.len(), &[])
             .into_owned(),
+        _ => ctx.t(Key::CreateStartShell).into_owned(),
     };
-    let mut lines = column![text(said).size(tokens::font_size::UI)].spacing(tokens::space::SM);
+    let mut lines = column![].spacing(tokens::space::SM);
+    if start != folder::Start::Custom {
+        lines = lines.push(orchestrator_choice(st, ctx));
+    }
+    lines = lines.push(text(said).size(tokens::font_size::UI));
     match start {
         folder::Start::Shell => {
             lines = lines.push(notice(
                 ctx,
-                text(ctx.t(Key::CreateStartNoClaude))
+                text(ctx.t(Key::CreateStartNoAgent))
                     .size(tokens::font_size::UI)
                     .into(),
                 false,
@@ -783,6 +908,12 @@ fn start_summary<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
             ));
         }
         _ => {}
+    }
+    // The panes picked by hand say it beside each agent.
+    if start != folder::Start::Custom
+        && let Some(links) = set_up_missing(st, ctx)
+    {
+        lines = lines.push(links);
     }
     lines.into()
 }
@@ -812,6 +943,12 @@ fn more_options<'a>(
     ));
     if st.folder.custom {
         form = custom_panes(form, st, ctx);
+    } else {
+        form = form.push(labelled(
+            ctx,
+            Some(ctx.t(Key::CreateWorkers).into_owned()),
+            workers_choice(st, ctx),
+        ));
     }
 
     // The shell.
@@ -859,12 +996,21 @@ fn more_options<'a>(
         .align_y(Alignment::Center),
     ));
 
-    // The Claude account, when there are accounts to choose from.
-    if accounts::has_any(ctx) {
+    // The account of the agent the orchestrator runs, when there are
+    // accounts of it to choose from.
+    if let Some(kind) = st
+        .orchestrator(ctx.model)
+        .filter(|kind| accounts::has_any_of(ctx, *kind))
+    {
         form = form.push(labelled(
             ctx,
-            Some(ctx.t(Key::AccountsPickerLabel).into_owned()),
-            accounts::workspace_picker(ctx, st.folder.claude_account.as_deref()),
+            Some(accounts::picker_label(ctx.i18n, kind)),
+            accounts::workspace_picker(
+                ctx,
+                kind,
+                st.picked_account(kind),
+                st.inherited_account(ctx.model),
+            ),
         ));
     }
 
@@ -917,12 +1063,11 @@ fn custom_panes<'a>(
         })],
     ));
 
-    // The agents.
+    // The agents, each kind in the pickers' order.
     let free = folder::count_of(&st.folder.assignments, AgentId::Shell);
-    let counters: Vec<Element<'a, Message>> = AGENTS
-        .iter()
-        .filter(|agent| agent.id != AgentId::Shell)
-        .map(|agent| counter(st, ctx, agent.id, agent.label, free))
+    let counters: Vec<Element<'a, Message>> = AgentKind::ALL
+        .into_iter()
+        .map(|kind| counter(st, ctx, kind, free))
         .collect();
     let mut counter_rows = column![].width(Length::Fill);
     let mut pending: Vec<Element<'a, Message>> = counters;
@@ -966,33 +1111,43 @@ fn custom_panes<'a>(
     form
 }
 
-/// One agent's line of the counters: its name, « not installed » when it is
-/// missing, and a stepper.
-fn counter<'a>(
-    st: &'a State,
-    ctx: Ctx<'a>,
-    agent: AgentId,
-    label: &'static str,
-    free: usize,
-) -> Element<'a, Message> {
+/// One agent's line of the counters: its name, and a stepper. One that is
+/// not installed is greyed, says so with a link to the setup, and cannot be
+/// added (its panes, if any, can still be taken back).
+fn counter<'a>(st: &'a State, ctx: Ctx<'a>, kind: AgentKind, free: usize) -> Element<'a, Message> {
     let t = ctx.theme;
-    let missing = agent == AgentId::Claude && !ctx.model.ui.claude_installed;
+    let agent = AgentId::from(kind);
+    let label = kind_name(ctx, kind);
+    let missing = !st.installed(ctx.model).has(kind);
     let count = folder::count_of(&st.folder.assignments, agent);
-    let mut name = column![text(label).size(tokens::font_size::BODY)];
+    let mut name = column![text(label.clone()).size(tokens::font_size::BODY).style(
+        move |theme: &iced::Theme| {
+            if missing {
+                style::text::muted(t)(theme)
+            } else {
+                style::text::primary(t)(theme)
+            }
+        }
+    )];
     if missing {
         name = name.push(
-            text(ctx.t(Key::CreateNotInstalled))
-                .size(tokens::font_size::CAPTION)
-                .style(style::text::warning(t)),
+            row![
+                text(ctx.t(Key::CreateNotInstalled))
+                    .size(tokens::font_size::CAPTION)
+                    .style(style::text::warning(t)),
+                set_up(ctx, kind),
+            ]
+            .spacing(tokens::space::MD)
+            .align_y(Alignment::Center),
         );
     }
     let less = ctx
         .i18n
-        .t_with(Key::CreateLess, &args!("agent" => label))
+        .t_with(Key::CreateLess, &args!("agent" => label.as_str()))
         .into_owned();
     let more = ctx
         .i18n
-        .t_with(Key::CreateMore, &args!("agent" => label))
+        .t_with(Key::CreateMore, &args!("agent" => label.as_str()))
         .into_owned();
     let stepper = container(
         row![
@@ -1009,7 +1164,7 @@ fn counter<'a>(
             ui_button::icon_button(t, Icon::Plus)
                 .small()
                 .tip(more)
-                .on_press_maybe((free > 0).then(|| msg(Msg::More(agent)))),
+                .on_press_maybe((free > 0 && !missing).then(|| msg(Msg::More(agent)))),
         ]
         .align_y(Alignment::Center),
     )
@@ -1096,7 +1251,7 @@ fn preview<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
                     }
                 })
                 .on_press(msg(Msg::Cycle(index)));
-            ui_tip(t, cell.into(), agent.info().label)
+            ui_tip(t, cell.into(), agent_name(ctx, *agent))
         })
         .collect();
 
@@ -1137,7 +1292,7 @@ fn preview<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
 fn ui_tip<'a>(
     t: &'a hangar_theme::Theme,
     content: Element<'a, Message>,
-    words: &'static str,
+    words: String,
 ) -> Element<'a, Message> {
     hangar_ui::tip::over(t, content, words)
 }

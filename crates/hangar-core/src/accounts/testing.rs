@@ -1,12 +1,13 @@
-//! Scratch folders for the tests: a main account and a profile store in the
-//! temp directory, never the person's own `~/.claude`.
+//! Scratch folders for the tests: a main account of each kind and a profile
+//! store in the temp directory, never the person's own `~/.claude` or
+//! `~/.codex`.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
-use super::ClaudeHome;
+use super::{ClaudeHome, CodexHome};
 
 /// A folder in the temp directory, removed when dropped.
 pub struct Scratch {
@@ -47,6 +48,12 @@ impl Scratch {
             dir: home.join(".claude"),
             config: home.join(".claude.json"),
         }
+    }
+
+    /// A main Codex home laid out as Codex's default one, `home/.codex`, not
+    /// created: Codex makes it on its first run.
+    pub fn codex_home(&self) -> CodexHome {
+        CodexHome::at(self.dir("home").join(".codex"))
     }
 }
 

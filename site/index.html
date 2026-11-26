@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hangar.AI: a team of Claude Code agents in one native window</title>
-<meta name="description" content="Hangar.AI runs many Claude Code sessions in one native window, with a shared board, a shared memory and an orchestrator that hands work to workers in git worktrees. Talk to it in a chat, steer it from your phone. Free and open source.">
-<link rel="canonical" href="https://hangar.simnjs.fr/">
+<title>HangarAI: a team of coding agents in one native window</title>
+<meta name="description" content="HangarAI runs your coding agents, Claude Code and Codex (beta), side by side in one native window, with a shared board, a shared memory and an orchestrator that hands work to workers in git worktrees. Talk to it in a chat, steer it from your phone. Free and open source.">
+<link rel="canonical" href="https://hangarai.dev/">
 <meta name="color-scheme" content="dark light">
 <meta name="theme-color" content="#202124" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#f0f0f0" media="(prefers-color-scheme: light)">
@@ -15,24 +15,24 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="Hangar.AI">
-<meta property="og:url" content="https://hangar.simnjs.fr/">
-<meta property="og:title" content="Hangar.AI 2.2: a team of Claude Code agents, in one native window">
-<meta property="og:description" content="Run many Claude Code sessions in a native app written in Rust. An orchestrator plans on a shared board and hands tasks to workers in their own git worktrees; Hangar checks, reviews and lands what they deliver. Talk to it in a chat, steer it from your phone. Free, open source, local.">
-<meta property="og:image" content="https://hangar.simnjs.fr/og.png?v=f594f112f0">
+<meta property="og:site_name" content="HangarAI">
+<meta property="og:url" content="https://hangarai.dev/">
+<meta property="og:title" content="HangarAI 2.5: a team of coding agents, in one native window">
+<meta property="og:description" content="Run Claude Code and Codex (beta) side by side in a native app written in Rust. An orchestrator plans on a shared board and hands tasks to workers in their own git worktrees; Hangar checks, reviews and lands what they deliver. Talk to it in a chat, steer it from your phone. Free, open source, local.">
+<meta property="og:image" content="https://hangarai.dev/og.png?v=0cc46fece2">
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Hangar.AI's chat view: Iris, the orchestrator, sums up a recipe app's progress beside the board's tasks, under the title: a team of Claude Code agents, in one native window.">
+<meta property="og:image:alt" content="HangarAI's chat view: Iris, the orchestrator, sums up a recipe app's progress beside the board's tasks, under the title: a team of coding agents, in one native window.">
 <meta property="og:locale" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Hangar.AI 2.2: a team of Claude Code agents, in one native window">
-<meta name="twitter:description" content="Many Claude Code sessions, one native window, a shared board and an orchestrator that delegates to workers in git worktrees. Talk to it in a chat, steer it from your phone. Free and open source.">
-<meta name="twitter:image" content="https://hangar.simnjs.fr/og.png?v=f594f112f0">
-<meta name="twitter:image:alt" content="Hangar.AI's chat view: Iris, the orchestrator, sums up a recipe app's progress beside the board's tasks.">
+<meta name="twitter:title" content="HangarAI 2.5: a team of coding agents, in one native window">
+<meta name="twitter:description" content="Claude Code and Codex (beta), side by side in one native window, a shared board and an orchestrator that delegates to workers in git worktrees. Talk to it in a chat, steer it from your phone. Free and open source.">
+<meta name="twitter:image" content="https://hangarai.dev/og.png?v=0cc46fece2">
+<meta name="twitter:image:alt" content="HangarAI's chat view: Iris, the orchestrator, sums up a recipe app's progress beside the board's tasks.">
 
 <link rel="preload" href="fonts/inter-latin-opsz.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="styles.css?v=36067723b1">
+<link rel="stylesheet" href="styles.css?v=99cda38cb4">
 <link rel="stylesheet" href="assets/mobile.css?v=f8c856a9c0">
 <script>
 (function (r) {
@@ -49,14 +49,14 @@
 {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
-  "name": "Hangar.AI",
-  "softwareVersion": "2.2.0",
+  "name": "HangarAI",
+  "softwareVersion": "2.5.0",
   "applicationCategory": "DeveloperApplication",
   "operatingSystem": "Windows, macOS, Linux",
-  "url": "https://hangar.simnjs.fr/",
+  "url": "https://hangarai.dev/",
   "downloadUrl": "https://github.com/BlasterWhite/hangar/releases/latest",
   "license": "https://opensource.org/licenses/MIT",
-  "image": "https://hangar.simnjs.fr/og.png?v=f594f112f0",
+  "image": "https://hangarai.dev/og.png?v=0cc46fece2",
   "author": { "@type": "Person", "name": "simnJS", "url": "https://github.com/simnJS" },
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
 }
@@ -68,14 +68,14 @@
 
 <header class="bar" id="bar">
   <div class="bar__in">
-    <a class="brand" href="#top" aria-label="Hangar.AI 2.2.0, back to top">
+    <a class="brand" href="#top" aria-label="HangarAI 2.5.0, back to top">
       <svg class="brand__mark" width="18" height="18" viewBox="200 200 624 624" aria-hidden="true">
         <rect x="200" y="200" width="260" height="624" fill="var(--accent)"></rect>
         <rect x="538" y="200" width="286" height="260" fill="var(--fg-hi)"></rect>
         <rect x="538" y="538" width="286" height="286" fill="var(--fg-hi)"></rect>
       </svg>
-      <span class="brand__name">Hangar.AI</span>
-      <span class="brand__ver">2.2.0</span>
+      <span class="brand__name">HangarAI</span>
+      <span class="brand__ver">2.5.0</span>
     </a>
 
     <nav class="seg" id="nav" aria-label="Sections">
@@ -92,7 +92,7 @@
         <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38l-.01-1.34c-2.23.48-2.7-1.07-2.7-1.07-.36-.93-.89-1.18-.89-1.18-.73-.5.05-.49.05-.49.8.06 1.23.83 1.23.83.72 1.23 1.88.87 2.34.67.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48l-.01 2.2c0 .21.15.46.55.38A8 8 0 0 0 8 0Z"></path></svg>
         <span class="iconlink__text">GitHub</span>
       </a>
-      <a class="iconlink" href="https://discord.gg/hangarai" aria-label="Hangar.AI on Discord">
+      <a class="iconlink" href="https://discord.gg/hangarai" aria-label="HangarAI on Discord">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.32 4.37a19.8 19.8 0 0 0-4.89-1.52.07.07 0 0 0-.08.04c-.21.37-.44.86-.61 1.25a18.27 18.27 0 0 0-5.49 0 12.6 12.6 0 0 0-.62-1.25.08.08 0 0 0-.08-.04 19.74 19.74 0 0 0-4.88 1.52.07.07 0 0 0-.03.03C.53 9.05-.32 13.58.1 18.06a.08.08 0 0 0 .03.06 19.9 19.9 0 0 0 5.99 3.03.08.08 0 0 0 .08-.03c.46-.63.87-1.3 1.23-1.99a.08.08 0 0 0-.04-.11 13.1 13.1 0 0 1-1.87-.89.08.08 0 0 1-.01-.13l.37-.29a.07.07 0 0 1 .08-.01c3.93 1.79 8.18 1.79 12.06 0a.07.07 0 0 1 .08.01l.37.29a.08.08 0 0 1-.01.13c-.6.35-1.22.64-1.87.89a.08.08 0 0 0-.04.11c.36.7.77 1.36 1.22 1.99a.08.08 0 0 0 .08.03 19.84 19.84 0 0 0 6-3.03.08.08 0 0 0 .04-.06c.5-5.18-.84-9.67-3.55-13.66a.06.06 0 0 0-.03-.03ZM8.02 15.33c-1.18 0-2.16-1.09-2.16-2.42s.96-2.42 2.16-2.42c1.21 0 2.18 1.1 2.16 2.42 0 1.33-.96 2.42-2.16 2.42Zm7.97 0c-1.18 0-2.15-1.09-2.15-2.42s.95-2.42 2.15-2.42c1.21 0 2.18 1.1 2.16 2.42 0 1.33-.95 2.42-2.16 2.42Z"></path></svg>
         <span class="iconlink__text">Discord</span>
       </a>
@@ -107,16 +107,17 @@
 <section class="hero" id="top" aria-labelledby="hero-title">
   <div class="hero__glow" aria-hidden="true"></div>
   <div class="wrap hero__copy">
-    <a class="release" href="#chat">
+    <a class="release" href="#features">
       <span class="release__dot" aria-hidden="true"></span>
-      New in 2.2: a chat with your orchestrator, nodes over SSH
+      New in 2.4: statistics across your machines, NixOS
     </a>
 
-    <h1 class="hero__title" id="hero-title">A team of Claude&nbsp;Code agents, in&nbsp;one native&nbsp;window.</h1>
+    <h1 class="hero__title" id="hero-title">A team of coding agents, in&nbsp;one native&nbsp;window.</h1>
 
     <p class="hero__lede">
-      Hangar runs the Claude Code already on your machine, as many sessions as you need, with a
-      shared board, a shared memory and an orchestrator that hands out the work.<span class="wide-only">
+      Hangar runs the Claude Code and Codex (beta) already on your machine,
+      side by side, as many sessions as you need, with a shared board, a shared memory and an
+      orchestrator that hands out the work. Either one is enough.<span class="wide-only">
       Talk to it in a chat, or watch every terminal at once.</span>
     </p>
 
@@ -125,11 +126,11 @@
       <a class="btn btn--lg" href="https://github.com/BlasterWhite/hangar">View the source</a>
     </div>
     <p class="hero__os" aria-label="Direct downloads">
-      <a href="https://github.com/BlasterWhite/hangar/releases/download/v2.2.0/Hangar.AI_2.2.0_x64-setup.exe">Windows</a>
-      <a href="https://github.com/BlasterWhite/hangar/releases/download/v2.2.0/Hangar.AI_2.2.0_universal.dmg">macOS</a>
-      <a href="https://github.com/BlasterWhite/hangar/releases/download/v2.2.0/Hangar.AI_2.2.0_amd64.AppImage">Linux</a>
+      <a href="https://github.com/BlasterWhite/hangar/releases/download/v2.5.0/Hangar.AI_2.5.0_x64-setup.exe">Windows</a>
+      <a href="https://github.com/BlasterWhite/hangar/releases/download/v2.2.0/Hangar.AI_2.2.0_universal.dmg">macOS 2.2.0</a>
+      <a href="https://github.com/BlasterWhite/hangar/releases/download/v2.5.0/Hangar.AI_2.5.0_amd64.AppImage">Linux</a>
     </p>
-    <p class="hero__fine" id="getnote">Free and open source (MIT). No account, no telemetry, no server of ours.</p>
+    <p class="hero__fine" id="getnote">Free and open source (MIT). No account needed, no telemetry.</p>
   </div>
 
   <figure class="shot shot--hero wrap-wide">
@@ -140,7 +141,7 @@
         <source type="image/avif" data-crop="hero" sizes="(min-width: 1328px) 1280px, calc(100vw - 48px)" srcset="img/hero-1280.avif?v=17939bc94a 1280w, img/hero-1920.avif?v=a9593abfa4 1920w, img/hero-2560.avif?v=6809260202 2560w" width="1280" height="800">
         <source type="image/webp" data-crop="hero" sizes="(min-width: 1328px) 1280px, calc(100vw - 48px)" srcset="img/hero-1280.webp?v=960b9d5bdc 1280w, img/hero-1920.webp?v=775c7dbc70 1920w, img/hero-2560.webp?v=b023dd875b 2560w" width="1280" height="800">
         <img data-crop="hero" fetchpriority="high" decoding="async"
-          alt="Hangar.AI 2.2 in its chat view, on a Recipes workspace. You asked Iris, the orchestrator, for a small recipe app; she split it into tasks, started workers, and reports that the data model has landed, that Ben, Dan and Eva are at work, and that Cleo's recipe page passed its check and review. Asked about sharing a recipe by link, she put the question of the domain in Needs you. Beside the chat, the board's tasks with the progress each agent reported, and three things that wait for you; on the right, the inspector shows Iris's session, 15% of her context used and her cost." src="img/hero-1280.webp?v=960b9d5bdc" width="1280" height="800">
+          alt="HangarAI in its chat view, on a Recipes workspace. You asked Iris, the orchestrator, for a small recipe app; she split it into tasks, started workers, and reports that the data model has landed, that Ben, Dan and Eva are at work, and that Cleo's recipe page passed its check and review. Asked about sharing a recipe by link, she put the question of the domain in Needs you. Beside the chat, the board's tasks with the progress each agent reported, and three things that wait for you; on the right, the inspector shows Iris's session, 15% of her context used and her cost." src="img/hero-1280.webp?v=960b9d5bdc" width="1280" height="800">
       </picture>
       <picture class="for-light">
         <source media="(max-width: 599px)" type="image/avif" data-crop="hero-light-m" sizes="calc(100vw - 32px)" srcset="img/hero-light-m-400.avif?v=a51e32487d 400w, img/hero-light-m-800.avif?v=ea0e269907 800w" width="400" height="545">
@@ -162,8 +163,8 @@
       <p class="eyebrow">Chat view <span class="tag">Experimental</span></p>
       <h2 class="sec__title" id="chat-title">Talk to the orchestrator. Not to sixteen terminals.</h2>
       <p class="sec__lede">
-        Switch a workspace to a chat with its orchestrator. Claude Code keeps running in the panes
-        behind it, and the panes come back as they were.
+        Switch a workspace to a chat with its orchestrator, Claude Code or Codex. The agent keeps
+        running in the panes behind it, and the panes come back as they were.
       </p>
       <ul class="points">
         <li><b>Tasks beside the chat.</b> Each with the progress its agent reports: a percentage and a short note.</li>
@@ -192,9 +193,9 @@
       <p class="eyebrow">Orchestrator, workers, deliveries</p>
       <h2 class="sec__title" id="orch-title">One plans. The others build. Hangar checks.</h2>
       <p class="sec__lede">
-        Pin a Claude Code pane as orchestrator: it splits the work into board tasks and starts a worker
-        for each, on a branch of its own in its own git worktree.<span class="wide-only"> By default Opus
-        plans, Sonnet works and Sonnet reviews.</span>
+        Pin a Claude Code or Codex pane as orchestrator: it splits the work into board tasks and starts
+        a worker for each, of either agent, on a branch of its own in its own git worktree.<span class="wide-only">
+        With Claude Code, by default Opus plans, Sonnet works and Sonnet reviews.</span>
       </p>
     </header>
   </div>
@@ -277,8 +278,20 @@
         <p>Merges are local fast-forwards. Pushing, pull requests and releases stay your call.</p>
       </details>
       <details class="fold" open>
-        <summary>Woken by events</summary>
-        <p>The orchestrator rests while workers run; Hangar wakes it when a task moves or a delivery lands or fails.</p>
+        <summary>Checked in batches</summary>
+        <p>Deliveries that wait together share one run of the check. If it fails, Hangar finds the one that breaks it and sends back only that one.</p>
+      </details>
+      <details class="fold" open>
+        <summary>On the worker's pane</summary>
+        <p>Where its delivery stands: queued, merging, checking, reviewing, landing, then how it ended.</p>
+      </details>
+      <details class="fold" open>
+        <summary>Woken for what matters</summary>
+        <p>The orchestrator rests while workers run. A delivery, a question or a worker that stops wakes it at once; the rest comes in a digest, every five minutes at most.</p>
+      </details>
+      <details class="fold" open>
+        <summary>No false alarms</summary>
+        <p>A worker busy with a long build or test is not reported idle, and one that is idle is reported once, not over and over.</p>
       </details>
       <details class="fold" open>
         <summary>Rules a prompt can't bend</summary>
@@ -295,8 +308,8 @@
       <p class="eyebrow">Hangar Mobile</p>
       <h2 class="sec__title" id="mobile-title">Answer your agents from your phone.</h2>
       <p class="sec__lede">
-        See what waits for you in every project, answer Claude's questions with a tap, allow or deny
-        a permission.<span class="wide-only"> Hangar serves the app itself, over your own Tailscale
+        See what waits for you in every project, answer your agents' questions with a tap, allow or
+        deny a permission.<span class="wide-only"> Hangar serves the app itself, over your own Tailscale
         network: no app store, no account, no server of ours.</span>
       </p>
     </header>
@@ -322,7 +335,7 @@
               alt="Cora's conversation, a Claude Code pane, waiting for your answer: her summary of the checks she ran, then a card, Cora asks you 3 questions. The first, shall I submit the delivery now, offers Submit now, Wait for the screenshots and Other as large buttons, with Next." src="img/mobile-question-300.webp?v=18edcd872b" width="300" height="649">
           </picture>
         </div>
-        <figcaption><b>Claude asks.</b> Its questions as buttons.</figcaption>
+        <figcaption><b>An agent asks.</b> Its questions as buttons.</figcaption>
       </figure>
       <figure class="phones__item">
         <div class="phone">
@@ -379,7 +392,7 @@
       <p class="sec__lede">
         Over MCP, an agent opens images, code, Markdown, PDFs, web pages, videos and 3D models next to
         its pane<span class="wide-only">, then renders snapshots to check its own work</span>. Kits bring
-        a Claude Code plugin and tabs of their own.
+        skills, MCP servers and tabs of their own.
       </p>
     </header>
   </div>
@@ -436,8 +449,9 @@
           <h3>Nodes: Hangar on another machine</h3>
           <p>
             Add a Linux machine you reach over SSH: Hangar installs a headless <code>hangar-node</code>,
-            starts it and keeps a tunnel to it. A workspace can live there, its terminals, Claude Code
-            and board included, and the window shows it like a local one.
+            starts it and keeps a tunnel to it. A workspace can live there, its terminals, agents
+            and board included, and the window shows it like a local one. It keeps working there with
+            your computer off.
           </p>
           <p>
             Or send one worker to the node for a heavy build or a GPU box: its branch comes back to be
@@ -539,12 +553,20 @@
         <p>Notes every agent can search and write, across workspaces: conventions, decisions, traps.</p>
       </details>
       <details class="fold" open>
+        <summary>Claude Code and Codex <span class="tag">Beta</span></summary>
+        <p>Either one is enough. An orchestrator of either agent hands tasks to workers of either agent, and each workspace keeps an account per agent.</p>
+      </details>
+      <details class="fold" open>
+        <summary>Delegate, and images from Codex</summary>
+        <p>An agent hands a sub-task to the other and gets the result back. What Codex draws shows in the chat, on your phone and on Discord.</p>
+      </details>
+      <details class="fold" open>
         <summary>Up to 16 panes per workspace</summary>
-        <p>Claude Code or any shell: PowerShell, cmd, WSL, zsh, bash, fish, Nushell.</p>
+        <p>Claude Code, Codex or any shell: PowerShell, cmd, WSL, zsh, bash, fish, Nushell.</p>
       </details>
       <details class="fold" open>
         <summary>Sessions come back</summary>
-        <p>Reopen the window and every Claude Code pane resumes its conversation, the ones on screen first.</p>
+        <p>Reopen the window and every agent pane resumes its conversation, the ones on screen first.</p>
       </details>
       <details class="fold" open>
         <summary>Idle workspaces sleep</summary>
@@ -552,7 +574,7 @@
       </details>
       <details class="fold" open>
         <summary>Where the tokens go</summary>
-        <p>Tokens, active time and an API-equivalent cost by project and model, read from Claude Code's own transcripts.</p>
+        <p>Tokens, active time and an API-equivalent cost by project, model and agent, read from your agents' own transcripts.</p>
       </details>
       <details class="fold" open>
         <summary>Dictation</summary>
@@ -560,11 +582,27 @@
       </details>
       <details class="fold" open>
         <summary>Broadcast</summary>
-        <p>One instruction to every pane; Claude Code panes can hold it until their agent is free.</p>
+        <p>One instruction to every pane; agent panes can hold it until their agent is free.</p>
       </details>
       <details class="fold" open>
         <summary>A project manager</summary>
         <p>One agent that follows every workspace: ask where they stand, or pass an instruction to an orchestrator.</p>
+      </details>
+      <details class="fold" open>
+        <summary>Your agents, set up for you</summary>
+        <p>When neither Claude Code nor Codex is there, one click installs either with its maker's official installer; then you sign in.</p>
+      </details>
+      <details class="fold" open>
+        <summary>Any file, in the viewers</summary>
+        <p>Images, PDFs, code, videos and 3D models from anywhere on the computer, not only the project. A viewer loads only what was shown.</p>
+      </details>
+      <details class="fold" open>
+        <summary>Hangar on Discord</summary>
+        <p>Experimental: a server of your own as a remote, a channel per workspace and a thread per worker, with the files agents share. ⚡ sends a waiting message at once.</p>
+      </details>
+      <details class="fold" open>
+        <summary>An account, if you want one</summary>
+        <p>Sign in with GitHub to see the statistics of all your machines together. Off by default; <a href="privacy.html">what it stores</a>.</p>
       </details>
     </div>
   </div>
@@ -574,7 +612,7 @@
 <section class="sec download" id="download" aria-labelledby="download-title">
   <div class="wrap">
     <header class="head head--center">
-      <h2 class="sec__title" id="download-title">Download Hangar.AI 2.2.0</h2>
+      <h2 class="sec__title" id="download-title">Download HangarAI 2.5.0</h2>
       <p class="sec__lede">
         Free and open source. Install it once: it offers each new version and installs it in one click.
       </p>
@@ -584,31 +622,35 @@
       <article class="plat" data-os="windows">
         <h3 class="plat__os">Windows</h3>
         <p class="plat__what">64-bit installer, for you alone, no administrator rights.</p>
-        <a class="btn btn--primary plat__get" href="https://github.com/BlasterWhite/hangar/releases/download/v2.2.0/Hangar.AI_2.2.0_x64-setup.exe">Download <span class="ext">.exe</span></a>
+        <a class="btn btn--primary plat__get" href="https://github.com/BlasterWhite/hangar/releases/download/v2.5.0/Hangar.AI_2.5.0_x64-setup.exe">Download <span class="ext">.exe</span></a>
         <p class="plat__note">Not code-signed yet: SmartScreen asks once. <a href="#faq-smartscreen">What to do</a></p>
       </article>
 
       <article class="plat" data-os="macos">
         <h3 class="plat__os">macOS</h3>
-        <p class="plat__what">One universal disk image, Apple Silicon and Intel, macOS 10.15 or later.</p>
-        <a class="btn btn--primary plat__get" href="https://github.com/BlasterWhite/hangar/releases/download/v2.2.0/Hangar.AI_2.2.0_universal.dmg">Download <span class="ext">.dmg</span></a>
-        <p class="plat__note">Signed and notarised.</p>
+        <p class="plat__what">2.2.0, the last version built for the Mac. Universal, macOS 10.15 or later.</p>
+        <a class="btn btn--primary plat__get" href="https://github.com/BlasterWhite/hangar/releases/download/v2.2.0/Hangar.AI_2.2.0_universal.dmg">Download 2.2.0 <span class="ext">.dmg</span></a>
+        <p class="plat__note">Later versions: <a href="https://github.com/BlasterWhite/hangar#build-on-macos">build it on your Mac</a>. <a href="#faq-macos">Why</a></p>
       </article>
 
       <article class="plat" data-os="linux">
         <h3 class="plat__os">Linux</h3>
         <p class="plat__what">x86-64. The AppImage runs on distributions from 2022 on (glibc 2.35).</p>
-        <a class="btn btn--primary plat__get" href="https://github.com/BlasterWhite/hangar/releases/download/v2.2.0/Hangar.AI_2.2.0_amd64.AppImage">Download <span class="ext">.AppImage</span></a>
+        <a class="btn btn--primary plat__get" href="https://github.com/BlasterWhite/hangar/releases/download/v2.5.0/Hangar.AI_2.5.0_amd64.AppImage">Download <span class="ext">.AppImage</span></a>
         <p class="plat__note plat__alts">
           Or a package:
-          <a href="https://github.com/BlasterWhite/hangar/releases/download/v2.2.0/Hangar.AI_2.2.0_amd64.deb">.deb</a>
-          <a href="https://github.com/BlasterWhite/hangar/releases/download/v2.2.0/Hangar.AI-2.2.0-1.x86_64.rpm">.rpm</a>
+          <a href="https://github.com/BlasterWhite/hangar/releases/download/v2.5.0/Hangar.AI_2.5.0_amd64.deb">.deb</a>
+          <a href="https://github.com/BlasterWhite/hangar/releases/download/v2.5.0/Hangar.AI-2.5.0-1.x86_64.rpm">.rpm</a>
+        </p>
+        <p class="plat__note">
+          <a href="https://github.com/BlasterWhite/hangar/blob/main/docs/guide/install.md#nixos-and-nix">NixOS or Nix</a>:
+          <code>nix run github:BlasterWhite/hangar</code>
         </p>
       </article>
     </div>
 
     <p class="after">
-      You also need <a href="https://code.claude.com/docs/en/overview">Claude Code</a>, installed and signed in.
+      You also need <a href="https://code.claude.com/docs/en/overview">Claude Code</a> or <a href="https://learn.chatgpt.com/docs/codex/cli">Codex</a> (beta), or both: Hangar installs them if they are missing, and you sign in once.
       <a href="https://github.com/BlasterWhite/hangar/releases/latest">Every file of the latest release</a> ·
       <a href="https://github.com/BlasterWhite/hangar/blob/main/docs/guide/building.md">Build from source</a>
     </p>
@@ -625,7 +667,7 @@
         <summary>What does it cost?</summary>
         <div class="qa__a">
           <p>
-            Nothing: Hangar.AI is MIT-licensed, with no account and no paid tier. The agents cost what they
+            Nothing: HangarAI is MIT-licensed, with no paid tier and no account needed. The agents cost what they
             already cost you, on your own plan or API key. An orchestrator, its workers and a reviewer run
             at once, so they use a plan's limits faster than a single agent.
           </p>
@@ -633,11 +675,25 @@
       </details>
 
       <details>
-        <summary>Does it work with my Claude Pro or Max plan?</summary>
+        <summary>Does it work with my Claude or ChatGPT plan?</summary>
         <div class="qa__a">
           <p>
-            Yes. Hangar starts the <code>claude</code> you installed, with the login it already has, and
-            never asks for your credentials. The navigator shows your plan's five-hour and weekly usage.
+            Yes. Hangar starts the <code>claude</code> and the <code>codex</code> you installed, with the
+            logins they already have, and never asks for your credentials. The navigator shows your plan's
+            five-hour and weekly usage.
+          </p>
+        </div>
+      </details>
+
+      <details id="faq-codex">
+        <summary>Why is Codex marked beta?</summary>
+        <div class="qa__a">
+          <p>
+            Hangar drives Codex through the protocol OpenAI publishes for it, and was written from that
+            protocol's schema, source and docs rather than from recorded sessions. Until Codex users
+            confirm it, it stays beta. Something wrong in a Codex pane?
+            <a href="https://github.com/BlasterWhite/hangar/issues/new?template=codex-bug.yml">Report it</a>.
+            What works with which agent: <a href="https://github.com/BlasterWhite/hangar/blob/main/docs/guide/codex.md">the Codex guide</a>.
           </p>
         </div>
       </details>
@@ -646,10 +702,24 @@
         <summary>Does my code or data leave my machine?</summary>
         <div class="qa__a">
           <p>
-            Not through Hangar: no server, no telemetry. The board lives in your project
-            (<code>.hangar/board.json</code>); memory, settings and statistics stay in the app's data folder.
-            Hangar goes online to check GitHub for updates, for the dictation model or Groq if you turn
-            them on, and for Hangar Mobile's notifications once you enable them.
+            Not through Hangar: no telemetry, and your code, prompts and transcripts never reach a server
+            of ours. The board lives in your project (<code>.hangar/board.json</code>); memory, settings
+            and statistics stay in the app's data folder. Hangar goes online to check GitHub for updates,
+            for the dictation model or Groq if you turn them on, for Hangar Mobile's notifications and
+            Discord once you enable them, and for the optional Hangar account once you sign in.
+          </p>
+        </div>
+      </details>
+
+      <details id="faq-account">
+        <summary>Do I need a Hangar account?</summary>
+        <div class="qa__a">
+          <p>
+            No. It is off by default, and Hangar works the same without one: it never contacts the account
+            server until you sign in. Sign in with GitHub, in Settings › Hangar account, to link your
+            machines; turn on the statistics sync, a switch of its own, and the Statistics page shows all
+            of them. It never receives a file path, a prompt or a line of code.
+            <a href="privacy.html">What it stores, and how to delete it</a>.
           </p>
         </div>
       </details>
@@ -671,6 +741,20 @@
           <p>
             It is not code-signed yet, so SmartScreen warns the first time: choose <b>More info</b>, then
             <b>Run anyway</b>. The installer is built by GitHub Actions from the public source.
+          </p>
+        </div>
+      </details>
+
+      <details id="faq-macos">
+        <summary>Is there a version for the Mac?</summary>
+        <div class="qa__a">
+          <p>
+            Releases after 2.2.0 are built for Windows and Linux only. 2.2.0's universal disk image,
+            signed and notarised, is the last one for the Mac, and there is none to update it to. For a
+            later version, <a href="https://github.com/BlasterWhite/hangar#build-on-macos">build Hangar on
+            your Mac</a> (Apple Silicon or Intel, macOS 10.15 or later), with Xcode's command-line tools
+            and Rust: the README lists the commands. A build of your own does not update itself: pull
+            and build again.
           </p>
         </div>
       </details>
@@ -703,13 +787,13 @@
 
 <footer class="foot">
   <div class="wrap foot__in">
-    <a class="brand brand--foot" href="#top" aria-label="Hangar.AI, back to top">
+    <a class="brand brand--foot" href="#top" aria-label="HangarAI, back to top">
       <svg class="brand__mark" width="16" height="16" viewBox="200 200 624 624" aria-hidden="true">
         <rect x="200" y="200" width="260" height="624" fill="var(--accent)"></rect>
         <rect x="538" y="200" width="286" height="260" fill="var(--fg-hi)"></rect>
         <rect x="538" y="538" width="286" height="286" fill="var(--fg-hi)"></rect>
       </svg>
-      <span class="brand__name">Hangar.AI</span>
+      <span class="brand__name">HangarAI</span>
     </a>
     <p class="foot__by">Open source under the MIT license. Made by <a href="https://github.com/simnJS">simnJS</a>.</p>
     <nav class="foot__links" aria-label="Project">
@@ -723,9 +807,9 @@
   </div>
 </footer>
 
-<script src="main.js?v=252ab7a37d" defer></script>
+<script src="main.js?v=a34b00d33d" defer></script>
 <script src="vendor/gsap.min.js?v=3.15.0" defer></script>
 <script src="vendor/ScrollTrigger.min.js?v=3.15.0" defer></script>
-<script src="assets/motion.js?v=0278911c0e" defer></script>
+<script src="assets/motion.js?v=28ea0d6bba" defer></script>
 </body>
 </html>

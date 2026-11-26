@@ -4,7 +4,7 @@
 //! used for the OS icon is a bundled asset.
 //!
 //! ```ignore
-//! row![hangar_ui::logo::logo(t, 15.0), text("Hangar.AI")]
+//! row![hangar_ui::logo::logo(t, 15.0), text("HangarAI")]
 //! ```
 //!
 //! Decorative wherever it ships: the name is always written beside it.

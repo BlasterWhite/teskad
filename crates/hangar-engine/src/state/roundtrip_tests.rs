@@ -1,10 +1,13 @@
-//! `state.json` read, hydrated and written back (inventory §1.4), against two
+//! `state.json` read, hydrated and written back (inventory §1.4), against
 //! made-up files shaped like real ones: one as the 1.12 app writes it, one
-//! hand-edited and partly written by a newer version.
+//! hand-edited and partly written by a newer version, one of the old app with
+//! the agents it ran, and one with the fields Codex brought.
 
 use serde_json::{Value, json};
 
-use super::types::{AgentId, PaneRole, SplitDir, SplitNode};
+use super::types::{
+    AgentId, AgentKind, CodexModels, OrchestrationRole, PaneRole, SplitDir, SplitNode,
+};
 use super::{Patch, Settings, Store, StoreAction, Workspace, layout, read_state_keeping};
 
 const TYPICAL: &str = include_str!("fixtures/typical.json");
@@ -12,6 +15,10 @@ const HAND_EDITED: &str = include_str!("fixtures/hand_edited.json");
 /// A file of the old app with a Codex, a Gemini CLI and an OpenCode pane,
 /// and a launch command for each agent.
 const RETIRED_AGENTS: &str = include_str!("fixtures/retired_agents.json");
+/// A file with Codex panes, accounts, agents and models (docs/native/agents.md
+/// T13), and a few of them this version cannot read: an agent it does not
+/// know, a model that is not text, explicit `null`s.
+const CODEX: &str = include_str!("fixtures/codex.json");
 
 fn load(file: &str) -> (Store, Value) {
     let raw: Value = serde_json::from_str(file).unwrap();
@@ -98,9 +105,10 @@ fn a_file_the_app_wrote_comes_back_as_it_was() {
     assert_eq!(state.settings.keybindings["view.stats"], json!([]));
 }
 
-/// Hangar runs Claude Code only (owner's decision, 2026-11-03): the panes of
-/// the agents it dropped open as shells where they were, and the first save
-/// writes them so, with Claude Code's launch command and no other.
+/// Hangar runs Claude Code and Codex: the Codex pane of the old app is Codex
+/// again, its session and model kept, and the panes of the agents it dropped
+/// open as shells where they were. The first save writes them so, with the
+/// launch commands of Claude Code and Codex and no other.
 #[test]
 fn the_panes_of_the_retired_agents_open_as_shells_and_are_saved_as_shells() {
     let (model, raw) = load(RETIRED_AGENTS);
@@ -121,12 +129,7 @@ fn the_panes_of_the_retired_agents_open_as_shells_and_are_saved_as_shells() {
         panes,
         [
             ("Ava", AgentId::Claude, None, None),
-            (
-                "Bob",
-                AgentId::Shell,
-                Some("/home/dev/code/shop/api"),
-                Some("Codex")
-            ),
+            ("Bob", AgentId::Codex, Some("/home/dev/code/shop/api"), None),
             ("Cleo", AgentId::Shell, None, Some("Gemini CLI")),
             (
                 "Dan",
@@ -146,12 +149,21 @@ fn the_panes_of_the_retired_agents_open_as_shells_and_are_saved_as_shells() {
             ws.panes[1].session_id.as_deref(),
             ws.panes[1].model.as_deref()
         ),
-        (None, None)
+        (
+            Some("rollout-2026-10-30T09-12-44-0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b"),
+            Some("gpt-5.5")
+        )
     );
     assert_eq!(
-        model.settings().agent_commands.claude.as_deref(),
-        Some("claude --verbose")
+        (
+            ws.panes[2].session_id.as_deref(),
+            ws.panes[2].model.as_deref()
+        ),
+        (None, None)
     );
+    let commands = &model.settings().agent_commands;
+    assert_eq!(commands.of(AgentKind::Claude), Some("claude --verbose"));
+    assert_eq!(commands.of(AgentKind::Codex), Some("codex --full-auto"));
 
     let written = model.to_json();
     let agents: Vec<&str> = written["workspaces"][0]["panes"]
@@ -160,10 +172,14 @@ fn the_panes_of_the_retired_agents_open_as_shells_and_are_saved_as_shells() {
         .iter()
         .map(|pane| pane["agent"].as_str().unwrap())
         .collect();
-    assert_eq!(agents, ["claude", "shell", "shell", "shell"]);
+    assert_eq!(agents, ["claude", "codex", "shell", "shell"]);
     assert_eq!(
         written["settings"]["agentCommands"],
-        json!({"claude": "claude --verbose"})
+        json!({"claude": "claude --verbose", "codex": "codex --full-auto"})
+    );
+    assert_eq!(
+        written["workspaces"][0]["panes"][1], raw["workspaces"][0]["panes"][1],
+        "the Codex pane is written as it was"
     );
     // Nothing else moved.
     assert_eq!(
@@ -182,6 +198,106 @@ fn the_panes_of_the_retired_agents_open_as_shells_and_are_saved_as_shells() {
             .iter()
             .all(|pane| pane.retired_agent.is_none())
     );
+}
+
+/// A file with everything Codex brought is written back as it was, what this
+/// version cannot read of it included, and reads as the person set it.
+#[test]
+fn a_file_with_codex_in_it_comes_back_as_it_was() {
+    let (model, raw) = load(CODEX);
+    assert_eq!(difference(&model.to_json(), &raw, ""), None);
+
+    let state = model.state();
+    let shop = &state.workspaces[0];
+    let bob = &shop.panes[1];
+    assert_eq!(bob.agent, AgentId::Codex);
+    assert_eq!(bob.agent.kind(), Some(AgentKind::Codex));
+    assert_eq!(bob.retired_agent, None);
+    assert_eq!(bob.model.as_deref(), Some("gpt-5.5"));
+    assert_eq!(bob.account(AgentKind::Codex), Some("team"));
+    assert_eq!(bob.account(AgentKind::Claude), None);
+    assert_eq!(shop.panes[0].account(AgentKind::Claude), Some("pro"));
+    assert_eq!(shop.account(AgentKind::Claude), Some("@default"));
+    assert_eq!(shop.account(AgentKind::Codex), Some("team"));
+    assert_eq!(state.folders[0].account(AgentKind::Codex), Some("perso"));
+
+    let orchestration = shop.orchestration.as_ref().unwrap();
+    assert_eq!(
+        [
+            OrchestrationRole::Orchestrator,
+            OrchestrationRole::Worker,
+            OrchestrationRole::Reviewer
+        ]
+        .map(|role| orchestration.agent(role)),
+        [
+            Some(AgentKind::Claude),
+            Some(AgentKind::Codex),
+            Some(AgentKind::Codex)
+        ]
+    );
+    let worker = OrchestrationRole::Worker;
+    assert_eq!(
+        orchestration.model(worker, AgentKind::Codex),
+        Some("gpt-5.5")
+    );
+    assert_eq!(
+        orchestration.model(worker, AgentKind::Claude),
+        Some("sonnet")
+    );
+    assert_eq!(
+        orchestration.model(OrchestrationRole::Orchestrator, AgentKind::Codex),
+        None,
+        "Codex's own default"
+    );
+    assert_eq!(orchestration.codex_models.extra["planner"], json!("o9"));
+
+    let settings = &state.settings;
+    assert!(!settings.codex_attach);
+    assert_eq!(settings.account(AgentKind::Codex), Some("team"));
+    assert_eq!(settings.account(AgentKind::Claude), Some("main"));
+    assert_eq!(settings.default_orchestrator_agent, Some(AgentKind::Codex));
+    assert_eq!(settings.default_worker_agent, Some(AgentKind::Claude));
+    assert_eq!(
+        settings.agent_commands.of(AgentKind::Codex),
+        Some("codex --search")
+    );
+
+    // What it cannot read reads as unset, and stays in the file.
+    let lab = &state.workspaces[1];
+    assert_eq!(lab.panes[0].agent, AgentId::Codex);
+    assert_eq!(lab.panes[0].codex_account, None);
+    let orchestration = lab.orchestration.as_ref().unwrap();
+    assert_eq!(orchestration.orchestrator_agent, None);
+    assert_eq!(orchestration.worker_agent, None);
+    assert_eq!(orchestration.codex_models, CodexModels::default());
+    assert_eq!(settings.default_reviewer_agent, None);
+}
+
+/// A value this version could not read stays until the app writes that
+/// field: then the app's value is the one written.
+#[test]
+fn an_agent_this_version_does_not_know_is_kept_until_one_is_chosen() {
+    let (mut model, raw) = load(CODEX);
+    assert_eq!(raw["settings"]["defaultReviewerAgent"], json!("aider"));
+    model.apply(StoreAction::UpdateSettings(Patch::new(
+        |s: &mut Settings| s.default_reviewer_agent = Some(AgentKind::Codex),
+    )));
+    let lab = raw["workspaces"][1]["id"].as_str().unwrap().to_string();
+    model.apply(StoreAction::UpdateWorkspace(
+        lab,
+        Patch::new(|ws: &mut Workspace| {
+            if let Some(orchestration) = &mut ws.orchestration {
+                orchestration.orchestrator_agent = Some(AgentKind::Claude);
+            }
+        }),
+    ));
+    let written = model.to_json();
+    assert_eq!(written["settings"]["defaultReviewerAgent"], json!("codex"));
+    let orchestration = &written["workspaces"][1]["orchestration"];
+    assert_eq!(orchestration["orchestratorAgent"], json!("claude"));
+    // The rest of it is as it was.
+    assert_eq!(orchestration["codexModels"], json!({"worker": 5}));
+    assert_eq!(orchestration["workerAgent"], Value::Null);
 }
 
 #[test]

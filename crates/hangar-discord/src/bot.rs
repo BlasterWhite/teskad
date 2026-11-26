@@ -3,12 +3,14 @@
 //!
 //! It keeps the server's structure after the engine's state (a category per
 //! folder, a channel per workspace with a webhook the agents speak through,
-//! a pinned dashboard), follows the panes (the mod's reports: turns,
-//! answers, what waits on the person; the orchestration's journal: workers
-//! started, their threads opened, and stopped, deliveries ready; the files
-//! agents share), and carries what the paired person writes, clicks and
-//! reacts back through the desk, the chat view's own calls (follow.rs,
-//! shares.rs, act.rs).
+//! a pinned dashboard), follows the panes of either agent (what their side
+//! channel reports, Claude Code's mod and the client Hangar attaches to a
+//! Codex pane alike: turns, answers, what waits on the person; the
+//! orchestration's journal: workers started, their threads opened, and
+//! stopped, deliveries ready; the files agents share; the images a Codex
+//! agent generates, on its turn's card), and carries what the paired person
+//! writes, clicks and reacts back through the desk, the chat view's own
+//! calls (follow.rs, shares.rs, images.rs, act.rs).
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -49,7 +51,7 @@ pub(crate) const TURN_EDIT_DUE: Duration = Duration::from_secs(2);
 /// A dashboard is drawn again at most this often.
 const DASHBOARD_EDIT: Duration = Duration::from_secs(5);
 /// How long an agent is seen doing nothing, its turn's end never told
-/// (Claude Code quit mid-turn, a worker killed, a report lost), before its
+/// (the agent quit mid-turn, a worker killed, a report lost), before its
 /// turn's card is folded all the same.
 pub(crate) const TURN_LEFT: Duration = Duration::from_secs(20);
 /// How long after Discord refused a channel or a webhook the structure is
@@ -69,6 +71,9 @@ pub(crate) struct Turn {
     pub message: String,
     pub started: u64,
     pub calls: Vec<String>,
+    /// The images its agent generated, attached to the card (images.rs):
+    /// named again each time the card is edited.
+    pub images: Vec<cards::Image>,
     pub edited: Instant,
     pub dirty: bool,
     /// Since when its agent is seen doing nothing though no end of the
@@ -85,6 +90,9 @@ pub(crate) struct Queued {
     pub channel: String,
     pub text: String,
     pub id: Option<String>,
+    /// The bot's ⚡ is on the message: put once its entry was found, the
+    /// person's ⚡ sending it now from then on.
+    pub zap: bool,
 }
 
 /// A card waiting on the person, and what it asked.
@@ -336,23 +344,46 @@ impl Bot {
     }
 
     pub(crate) async fn edit_as(&self, ws: &str, thread: Option<&str>, message: &str, body: Value) {
-        let Some((id, token)) = self.place(ws).and_then(|place| place.webhook) else {
+        if self.place(ws).and_then(|place| place.webhook).is_none() {
             return;
+        }
+        if let Err(error) = self
+            .edit_as_with(ws, thread, message, body, Vec::new())
+            .await
+        {
+            eprintln!("discord: a card could not be edited: {error}");
+        }
+    }
+
+    /// A message of the workspace's webhook edited, `files` added to those
+    /// it carries already (Discord keeps them when the edit does not list
+    /// the attachments).
+    pub(crate) async fn edit_as_with(
+        &self,
+        ws: &str,
+        thread: Option<&str>,
+        message: &str,
+        body: Value,
+        files: Vec<Upload>,
+    ) -> Result<(), Refused> {
+        let Some((id, token)) = self.place(ws).and_then(|place| place.webhook) else {
+            return Err(Refused {
+                status: 0,
+                message: "the workspace has no webhook".into(),
+            });
         };
         let thread = thread
             .map(|thread| format!("&thread_id={thread}"))
             .unwrap_or_default();
-        let edited = self
-            .http()
-            .call(
+        self.http()
+            .upload(
                 "PATCH",
                 &format!("/webhooks/{id}/{token}/messages/{message}?with_components=true{thread}"),
-                Some(body),
+                body,
+                files,
             )
-            .await;
-        if let Err(error) = edited {
-            eprintln!("discord: a card could not be edited: {error}");
-        }
+            .await
+            .map(|_| ())
     }
 }
 
@@ -386,16 +417,27 @@ fn webhook_name(name: &str) -> String {
 }
 
 /// The pane a workspace's channel talks to: its orchestrator, else its
-/// first Claude Code pane.
+/// first agent's pane, whichever agent it runs (a shell is nobody to talk
+/// to).
 pub(crate) fn voice(ws: &Workspace) -> Option<&Pane> {
     ws.panes
         .iter()
         .find(|pane| pane.role == Some(PaneRole::Orchestrator))
-        .or_else(|| {
-            ws.panes
-                .iter()
-                .find(|pane| pane.agent == hangar_engine::state::types::AgentId::Claude)
-        })
+        .or_else(|| ws.panes.iter().find(|pane| pane.agent.kind().is_some()))
+}
+
+/// The name of the agent pane `pane` runs, as the dashboard says it beside
+/// the pane's own: only in a workspace whose panes run more than one agent,
+/// where it tells them apart. A workspace of one agent reads as it always
+/// did.
+pub(crate) fn agent_label(ws: &Workspace, pane: &Pane) -> Option<&'static str> {
+    let kind = pane.agent.kind()?;
+    let mixed = ws
+        .panes
+        .iter()
+        .filter_map(|other| other.agent.kind())
+        .any(|other| other != kind);
+    mixed.then(|| kind.info().label)
 }
 
 /// A pane and its workspace.
@@ -585,6 +627,17 @@ async fn hear(bot: Bot, mut core: broadcast::Receiver<hangar_core::Event>) -> Re
                         .lanes
                         .run(&pane_id, async move { job.on_bridge(&pane, report).await });
                 }
+            }
+            // An image a Codex pane generated: in its lane, after the
+            // reports of its turn that came before it (its card posted).
+            Ok(hangar_core::Event::ImageGenerated {
+                pane, path, prompt, ..
+            }) => {
+                let (job, lane) = (bot.clone(), pane.clone());
+                bot.0.lanes.run(
+                    &lane,
+                    async move { job.on_image(&pane, path, prompt).await },
+                );
             }
             Ok(hangar_core::Event::BridgeQueue(queue)) => {
                 let job = bot.clone();
@@ -1027,6 +1080,7 @@ impl Bot {
                 .then(|| (pane.id.as_str(), links.get(&pane.id).map(String::as_str)));
             rows.push(cards::Row {
                 name: &pane.name,
+                agent: agent_label(ws, pane),
                 state,
                 since_secs: None,
                 worker,
@@ -1056,6 +1110,7 @@ impl Bot {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hangar_engine::state::types::AgentId;
 
     #[test]
     fn a_channel_is_named_after_its_workspace_as_discord_keeps_names() {
@@ -1073,6 +1128,82 @@ mod tests {
             .map(|name| avatar(name))
             .collect();
         assert!(faces.len() > 1);
+    }
+
+    fn workspace(panes: &[(&str, AgentId, Option<PaneRole>)]) -> Workspace {
+        Workspace {
+            id: "shop".into(),
+            panes: panes
+                .iter()
+                .map(|(id, agent, role)| Pane {
+                    id: (*id).into(),
+                    name: (*id).into(),
+                    agent: *agent,
+                    role: *role,
+                    ..Pane::default()
+                })
+                .collect(),
+            ..Workspace::default()
+        }
+    }
+
+    #[test]
+    fn a_channel_talks_to_its_orchestrator_else_its_first_agent_of_either_kind() {
+        use AgentId::{Claude, Codex, Shell};
+        let voice_of = |panes| voice(&workspace(panes)).map(|pane| pane.id.clone());
+        // No Claude Code at all: the first Codex pane is talked to.
+        assert_eq!(
+            voice_of(&[
+                ("sh", Shell, None),
+                ("cx", Codex, None),
+                ("cl", Claude, None)
+            ])
+            .as_deref(),
+            Some("cx")
+        );
+        assert_eq!(
+            voice_of(&[
+                ("sh", Shell, None),
+                ("cl", Claude, None),
+                ("cx", Codex, None)
+            ])
+            .as_deref(),
+            Some("cl")
+        );
+        // The orchestrator, whichever agent it runs.
+        assert_eq!(
+            voice_of(&[
+                ("cl", Claude, None),
+                ("cx", Codex, Some(PaneRole::Orchestrator))
+            ])
+            .as_deref(),
+            Some("cx")
+        );
+        // Shells alone: nobody to talk to.
+        assert_eq!(voice_of(&[("sh", Shell, None)]), None);
+    }
+
+    #[test]
+    fn the_dashboard_names_the_agents_only_where_a_workspace_mixes_them() {
+        use AgentId::{Claude, Codex, Shell};
+        let mixed = workspace(&[
+            ("leo", Codex, Some(PaneRole::Orchestrator)),
+            ("ada", Claude, Some(PaneRole::Worker)),
+            ("sh", Shell, None),
+        ]);
+        let label = |ws: &Workspace, pane: usize| agent_label(ws, &ws.panes[pane]);
+        assert_eq!(label(&mixed, 0), Some("Codex"));
+        assert_eq!(label(&mixed, 1), Some("Claude Code"));
+        assert_eq!(label(&mixed, 2), None);
+        // One agent: its workspace reads as it always did.
+        for kind in [Claude, Codex] {
+            let one = workspace(&[
+                ("leo", kind, None),
+                ("ada", kind, None),
+                ("sh", Shell, None),
+            ]);
+            assert_eq!((label(&one, 0), label(&one, 1)), (None, None));
+        }
     }
 
     #[test]

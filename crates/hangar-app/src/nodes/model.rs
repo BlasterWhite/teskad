@@ -4,6 +4,7 @@
 
 use std::path::{Path, PathBuf};
 
+use hangar_core::agent::AgentKind;
 use serde::Deserialize;
 
 use super::commands::{PROBE_END, PROBE_SEP, PROBE_STARTED};
@@ -75,8 +76,52 @@ pub struct NodeInfo {
     pub target: String,
     pub hostname: String,
     pub home: String,
+    /// Claude Code is installed there: all a node said of its agents before
+    /// it said [`NodeInfo::agents`].
     pub claude: bool,
     pub git: bool,
+    /// Each agent as the node has it; empty from a node before Codex.
+    pub agents: NodeAgents,
+}
+
+/// What a node says of its agents (`agents` in `/node/info`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+#[serde(default)]
+pub struct NodeAgents {
+    pub claude: Option<NodeAgent>,
+    pub codex: Option<NodeAgent>,
+}
+
+/// One agent on a node.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct NodeAgent {
+    pub installed: bool,
+    /// Where its command is.
+    pub path: Option<String>,
+    /// Its version number, when it said one in time.
+    pub version: Option<String>,
+    /// Its main account is signed in; `None` when the node did not say.
+    pub signed_in: Option<bool>,
+}
+
+impl NodeInfo {
+    /// Agent `kind` as the node has it. A node that did not say its agents
+    /// (one from before Codex) said whether Claude Code is there, and
+    /// nothing of Codex: none, then.
+    pub fn agent(&self, kind: AgentKind) -> NodeAgent {
+        let said = match kind {
+            AgentKind::Claude => &self.agents.claude,
+            AgentKind::Codex => &self.agents.codex,
+        };
+        match said {
+            Some(agent) => agent.clone(),
+            None => NodeAgent {
+                installed: kind == AgentKind::Claude && self.claude,
+                ..NodeAgent::default()
+            },
+        }
+    }
 }
 
 /// Where a node is.

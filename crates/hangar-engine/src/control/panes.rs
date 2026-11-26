@@ -1,8 +1,16 @@
 //! The pane operations: `workspace_list`, `pane_list`, `pane_create`,
 //! `pane_close`, `pane_restart`, `pane_send`, `pane_read`, `pane_focus`,
 //! `workspace_window` (control.ts).
+//!
+//! They serve every agent Hangar runs by what it can do, never by which one
+//! it is (docs/native/agents.md D3): a pane is created or restarted on any
+//! agent, which its launch then starts (core's builder, `host/launch.rs`),
+//! and a message waits for any agent whose session reads Hangar's queue
+//! (`queue_reader`).
 
 use serde_json::{Value, json};
+
+use hangar_core::agent::{AgentInfo as KindInfo, AgentKind, IdleInject};
 
 use crate::state::types::MAX_PANES;
 use crate::state::{AgentId, AppState, Pane, Patch, Snapshot, Workspace};
@@ -10,7 +18,7 @@ use crate::state::{AgentId, AppState, Pane, Patch, Snapshot, Workspace};
 use super::paths::resolve_folder;
 use super::port::{ModelCmd, Port, activity_of, is_asleep, is_open, object, workspace_in};
 use super::run::{
-    ASLEEP, agent_arg, caller_workspace, effective_cwd, has_pane, key_sequence, ordered, pane_in,
+    ASLEEP, caller_workspace, effective_cwd, has_pane, key_sequence, ordered, pane_in,
 };
 use super::types::{Caller, ControlEvent, text};
 
@@ -20,7 +28,8 @@ const READ_MAX: f64 = 1000.0;
 
 /// Between a paste and the Enter that submits it: Claude Code's interface
 /// must see the paste end before the Enter, or it takes the Enter as part of
-/// it (inventory A6, problem 3).
+/// it (inventory A6, problem 3). A program that needs no gap loses nothing
+/// by it.
 pub const PASTE_GAP_MS: u64 = 120;
 /// Between two keys.
 const KEY_GAP_MS: u64 = 40;
@@ -74,7 +83,7 @@ pub async fn pane_list(ws: &Workspace, caller: &Caller, port: &Port) -> Result<V
     for pane in ordered(ws) {
         let running = open && port.alive(&pane.id).await;
         let activity = activity_of(&snapshot, &pane.id).map(|seen| json!(seen.activity));
-        panes.push(object([
+        let mut entry = object([
             ("name", json!(pane.name)),
             ("agent", json!(pane.agent)),
             ("cwd", json!(effective_cwd(ws, pane))),
@@ -85,7 +94,13 @@ pub async fn pane_list(ws: &Workspace, caller: &Caller, port: &Port) -> Result<V
                 json!(caller.pane_id.as_deref() == Some(pane.id.as_str())),
             ),
             ("id", json!(pane.id)),
-        ]));
+        ]);
+        // A pane the person pinned keeps its edge and its size whatever
+        // opens or closes: said only of those, the edge it keeps to.
+        if let Some(pin) = ws.pin_of(&pane.id) {
+            entry["pinned"] = json!(pin.edge.as_str());
+        }
+        panes.push(entry);
     }
     let asleep = !open && is_asleep(&snapshot, &ws.id);
     let mut workspace = json!({ "name": ws.name, "cwd": ws.cwd, "open": open });
@@ -112,6 +127,50 @@ fn full(ws: &Workspace) -> String {
     )
 }
 
+/// The agent a request names (`agent`, as `state.json` and the MCP tools
+/// spell it): a shell, or any agent Hangar runs — Codex too, which these
+/// tools start although the pickers do not list it yet (`AGENTS`,
+/// docs/native/agents.md T16b, T22). Absent or blank: none named.
+fn agent_named(value: Option<&Value>) -> Result<Option<AgentId>, String> {
+    let Some(wanted) = text(value) else {
+        return Ok(None);
+    };
+    serde_json::from_value(Value::String(wanted.clone()))
+        .map(Some)
+        .map_err(|_| {
+            let ids = std::iter::once(AgentId::Shell)
+                .chain(AgentKind::ALL.map(AgentId::from))
+                .map(AgentId::as_str)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("Unknown agent \"{wanted}\". One of: {ids}.")
+        })
+}
+
+/// The agent that reads what is queued for a pane running `agent` (Hangar's
+/// queue, `Port::enqueue`), by what it can do: every level of its `inject`
+/// capability takes a message once the session is idle — submitted by its
+/// side channel (Claude Code's mod, Hangar's client of an attached Codex:
+/// D9) or typed into its composer where it runs without one (§4.2.4). None
+/// for a shell: nothing would ever read it.
+fn queue_reader(agent: AgentId) -> Option<&'static KindInfo> {
+    let info = agent.kind()?.info();
+    match info.caps.inject.idle {
+        IdleInject::Submit | IdleInject::Type => Some(info),
+    }
+}
+
+/// The agents whose panes read a queued message, for a refusal: « Claude
+/// Code or Codex ».
+fn queue_readers() -> String {
+    AgentKind::ALL
+        .into_iter()
+        .filter_map(|kind| queue_reader(kind.into()))
+        .map(|info| info.label)
+        .collect::<Vec<_>>()
+        .join(" or ")
+}
+
 pub async fn pane_create(
     ws: &Workspace,
     args: &Value,
@@ -122,7 +181,7 @@ pub async fn pane_create(
     if ws.pane_count() >= MAX_PANES {
         return Err(full(ws));
     }
-    let agent = agent_arg(args.get("agent"))?;
+    let agent = agent_named(args.get("agent"))?;
     let name = text(args.get("name"));
     // Unique across every workspace: other sessions reach a pane by name.
     if let Some(name) = &name
@@ -154,12 +213,15 @@ pub async fn pane_create(
         .and_then(Value::as_str)
         .filter(|prompt| !prompt.trim().is_empty())
         .map(str::to_string);
-    if prompt.is_some() && final_agent != AgentId::Claude {
-        return Err(
-            "A prompt can only be handed to a Claude Code pane at creation. Create the pane without it, \
-             then send it with pane_send once pane_read shows the agent has started."
-                .into(),
-        );
+    // The new session reads it from Hangar's queue once it is up.
+    let reader = queue_reader(final_agent);
+    if prompt.is_some() && reader.is_none() {
+        return Err(format!(
+            "A prompt can only be handed at creation to a {} pane, not to a {} one. Create the pane \
+             without it, then send it with pane_send once pane_read shows the agent has started.",
+            queue_readers(),
+            final_agent.as_str()
+        ));
     }
 
     let added = port
@@ -227,8 +289,13 @@ pub async fn pane_create(
             "id": id,
         },
     });
-    if prompt.is_some() {
-        answer["prompt"] = json!("queued: submitted as soon as the Claude Code session is ready");
+    if prompt.is_some()
+        && let Some(reader) = reader
+    {
+        answer["prompt"] = json!(format!(
+            "queued: submitted as soon as the {} session is ready",
+            reader.label
+        ));
     }
     Ok(answer)
 }
@@ -273,7 +340,7 @@ pub async fn pane_restart(
     port: &Port,
 ) -> Result<Value, String> {
     let pane = pane_in(ws, args.get("pane"))?;
-    let agent = agent_arg(args.get("agent"))?;
+    let agent = agent_named(args.get("agent"))?;
     let fresh = args.get("fresh") == Some(&Value::Bool(true)) || agent.is_some();
     let patch = match agent {
         Some(agent) => Patch::new(move |pane: &mut Pane| {
@@ -348,9 +415,10 @@ pub async fn pane_send(
     let open = is_open(&snapshot, &current(&snapshot, ws));
 
     if args.get("when_idle") == Some(&Value::Bool(true)) {
-        if pane.agent != AgentId::Claude {
+        if queue_reader(pane.agent).is_none() {
             return Err(format!(
-                "when_idle only works with Claude Code panes, and \"{}\" runs {}.",
+                "when_idle only works with {} panes, and \"{}\" runs {}.",
+                queue_readers(),
                 pane.name,
                 pane.agent.as_str()
             ));
@@ -364,7 +432,7 @@ pub async fn pane_send(
             Some(caller.pane_name.as_deref().unwrap_or("unknown")),
         )
         .await?;
-        // Held for a Claude Code that is not running, it would wait for good.
+        // Held for an agent that is not running, it would wait for good.
         let mut answer = json!({ "queued": true, "pane": pane.name });
         if !open {
             tell(port, ModelCmd::OpenWorkspace(ws.id.clone())).await;

@@ -766,6 +766,60 @@ fn a_claude_code_with_the_mod_leaves_it_to_its_hello() {
     ));
 }
 
+/// A Codex pane Hangar is attached to names its thread in the hello of
+/// Hangar's client, as a Claude Code with the mod does: the launch leaves
+/// it to it. On the floor (its server could not start, « Attach Hangar to
+/// Codex » off) nothing will say it: the launch dates it.
+#[test]
+fn a_codex_attached_leaves_its_session_to_its_hello_and_the_floor_dates_it() {
+    let (mut m, _) = model(vec![workspace(
+        "w1",
+        vec![pane("co", "Kai", AgentId::Codex)],
+    )]);
+    assert!(m.settings().codex_attach);
+    m.live
+        .panes_logic
+        .set_side_channel("co", SideChannel::Attached);
+    launched(&mut m, "co", None, NOW + 1);
+    let insight = m.live.panes_logic.insight("co");
+    assert_eq!((insight.session_since, insight.events.len()), (None, 0));
+
+    // The mod's setting is Claude Code's side channel, not Codex's.
+    bridge_off(&mut m);
+    launched(&mut m, "co", None, NOW + 2);
+    assert_eq!(m.live.panes_logic.insight("co").session_since, None);
+
+    // Its server could not start: the pane runs Codex's plain terminal.
+    m.live.panes_logic.set_side_channel(
+        "co",
+        SideChannel::Floor {
+            reason: Some("no server".into()),
+        },
+    );
+    launched(&mut m, "co", None, NOW + 3);
+    assert_eq!(
+        m.live.panes_logic.insight("co").session_since,
+        Some(NOW + 3)
+    );
+
+    // Attaching turned off: nothing follows its server.
+    let mut state = m.state().clone();
+    state.settings.codex_attach = false;
+    m.hydrate(state);
+    m.live
+        .panes_logic
+        .set_side_channel("co", SideChannel::Attached);
+    launched(&mut m, "co", Some("0199a5c4-77e1"), NOW + 4);
+    assert_eq!(
+        m.live.panes_logic.insight("co").session_since,
+        Some(NOW + 4)
+    );
+    assert!(matches!(
+        session_line(&m, "co"),
+        Some(PaneEventDetail::Session { resumed: true, .. })
+    ));
+}
+
 #[test]
 fn a_shell_and_a_pane_nobody_mounted_launch_nothing() {
     let mut m = without_the_mod();
@@ -1162,7 +1216,8 @@ fn a_bridged_panes_trust_look_keeps_no_timer_running() {
 fn the_hunt_wakes_slow_only_after_output_and_on_its_cadence() {
     let mut m = at_rest();
     let st = polled_at(NOW);
-    let watch = SessionWatch::new("/work/w1".into(), HashSet::new(), NOW);
+    let watch = SessionWatch::for_agent(AgentId::Claude, "/work/w1".into(), HashSet::new(), NOW)
+        .expect("Claude Code resumes its sessions");
     m.live.panes_logic.watches.insert("sh".into(), watch);
     // Its round is due at NOW + HUNT_MS, but would do nothing: not a wake.
     assert_eq!(next_slow_at(&st, &m), Some(NOW + PANE_BRANCH_REFRESH_MS));
@@ -1216,6 +1271,78 @@ fn a_gauge_to_read_or_to_clear_wakes_slow_for_the_context_poll() {
     let _ = slow(&mut st, &mut m, NOW + CONTEXT_POLL_MS);
     assert!(!m.live.panes_logic.has_transcript_context("p1"));
     assert_eq!(next_slow_at(&st, &m), Some(NOW + PANE_BRANCH_REFRESH_MS));
+}
+
+fn reading(used_tokens: u64, model: &str, window: Option<u64>) -> AgentContextUsage {
+    AgentContextUsage {
+        usage: hangar_core::context::ContextUsage {
+            used_tokens,
+            model: Some(model.into()),
+        },
+        context_window: window,
+    }
+}
+
+/// A Codex rollout names the window it fills: the gauge is read against it,
+/// whatever the model. Claude Code's transcript names none: the table's, by
+/// its model. Neither known, or nothing used yet: no gauge, never a made-up
+/// one.
+#[test]
+fn a_gauge_fills_the_window_the_history_names_else_the_models() {
+    let codex = gauge_of(&reading(68_000, "gpt-5.5-codex", Some(272_000)))
+        .expect("the rollout names its window");
+    assert_eq!(
+        (codex.pct, codex.used_tokens, codex.window),
+        (25.0, 68_000, 272_000)
+    );
+    assert_eq!(codex.model.as_deref(), Some("gpt-5.5-codex"));
+    let over = gauge_of(&reading(300_000, "gpt-5.5-codex", Some(272_000))).unwrap();
+    assert_eq!(over.pct, 100.0, "clamped");
+
+    let claude = reading(50_000, "claude-opus-5-5", None);
+    assert!(gauge_of(&claude).is_some());
+    assert_eq!(gauge_of(&claude), compute_context_gauge(&claude.usage));
+
+    assert_eq!(gauge_of(&reading(1_000, "gpt-5.5-codex", None)), None);
+    assert_eq!(gauge_of(&reading(0, "gpt-5.5-codex", Some(272_000))), None);
+}
+
+/// Both kinds' histories tell the context once their side channel is
+/// silent: Claude Code's transcript, Codex's rollout.
+#[test]
+fn every_kind_s_history_tells_its_context() {
+    for kind in AgentKind::ALL {
+        assert!(history_tells_context(kind), "{kind:?}");
+    }
+}
+
+/// A Codex pane without its side channel, shown and running: its rollout
+/// is read, its gauge shown. A reading that arrives once the pane runs
+/// another agent is not its own: no gauge.
+#[test]
+fn a_codex_pane_s_gauge_is_read_from_its_rollout() {
+    let (mut m, _) = model(vec![workspace(
+        "w1",
+        vec![pane("co", "Kai", AgentId::Codex)],
+    )]);
+    m.live
+        .panes_logic
+        .status
+        .insert("co".into(), PaneStatus::Running);
+    let ws = m.state().workspaces[0].clone();
+    assert!(matches!(
+        context_job(&m, &ws, &ws.panes[0]),
+        Some(ContextJob::Read(AgentKind::Codex, session)) if session == "s-co"
+    ));
+
+    let rollout = reading(68_000, "gpt-5.5-codex", Some(272_000));
+    context_read(&mut m, "co", AgentKind::Codex, Some(rollout.clone()));
+    let shown = m.live.panes_logic.insight("co").context.clone();
+    assert_eq!(shown.map(|gauge| gauge.pct), Some(25.0));
+
+    // A reading of another agent's history is not this pane's.
+    context_read(&mut m, "co", AgentKind::Claude, Some(rollout));
+    assert_eq!(m.live.panes_logic.insight("co").context, None);
 }
 
 /// An agent pane whose Claude Code has no mod, running in the workspace on

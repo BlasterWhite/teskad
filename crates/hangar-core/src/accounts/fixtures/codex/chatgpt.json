@@ -1,0 +1,12 @@
+{
+  "_fixture": "Written by hand for Hangar's tests from the source (codex-rs/login/src/auth/storage.rs `AuthDotJson`, login/src/token_data.rs `TokenData` and `IdClaims`, Codex 0.170.0): what `codex login` keeps for a ChatGPT account. The id_token is a made-up, unsigned JWT whose claims are {\"email\": \"team@example.com\", \"https://api.openai.com/auth\": {\"chatgpt_plan_type\": \"team\", \"chatgpt_user_id\": \"user-fixture\", \"chatgpt_account_id\": \"acct-fixture\"}, \"exp\": 1795000000}; the other two tokens are placeholders.",
+  "auth_mode": "chatgpt",
+  "OPENAI_API_KEY": null,
+  "tokens": {
+    "id_token": "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJlbWFpbCI6InRlYW1AZXhhbXBsZS5jb20iLCJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9wbGFuX3R5cGUiOiJ0ZWFtIiwiY2hhdGdwdF91c2VyX2lkIjoidXNlci1maXh0dXJlIiwiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdC1maXh0dXJlIn0sImV4cCI6MTc5NTAwMDAwMH0.bm90LXNpZ25lZA",
+    "access_token": "fixture-access-placeholder",
+    "refresh_token": "fixture-refresh-placeholder",
+    "account_id": "acct-fixture"
+  },
+  "last_refresh": "2026-11-18T09:00:00Z"
+}

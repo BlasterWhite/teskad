@@ -3,7 +3,8 @@
 
 use std::collections::BTreeMap;
 
-use hangar_core::kits::{GitSource, Inspection, KitInfo, Manifest, Source, Tab};
+use hangar_core::kits::commands::CommandInfo;
+use hangar_core::kits::{CommandArg, GitSource, Hook, Inspection, KitInfo, Manifest, Source, Tab};
 
 use crate::state::types::WorkspaceKit;
 
@@ -46,6 +47,7 @@ pub fn manifest(id: &str, version: &str, tabs: Vec<Tab>) -> Manifest {
         icon: None,
         hangar: None,
         plugin: None,
+        agents: vec![hangar_core::agent::AgentKind::Claude],
         tabs,
         setup: Vec::new(),
         commands: BTreeMap::new(),
@@ -140,5 +142,118 @@ pub fn inspection(tabs: Vec<Tab>) -> Inspection {
         setup: Vec::new(),
         declared_commands: Vec::new(),
         commands_permission: None,
+        by_agent: Vec::new(),
     }
 }
+
+/// The one tab of `ci-status`: a native module that asks for the kit's three
+/// commands and for notifications.
+pub fn ci_tab() -> Tab {
+    Tab {
+        id: "ci".into(),
+        title: "CI".into(),
+        ..native_tab(&[
+            "command:ci-run",
+            "command:ci-list",
+            "command:ci-log",
+            "notify",
+        ])
+    }
+}
+
+/// `ci-status` as the library installs it (hangar-ai/kit-ci): from GitHub, a
+/// Claude Code plugin whose hook runs by itself after a `git push` (its hash
+/// is [`HOOKS`]), three declared commands (`gh run …`, hashed as
+/// [`COMMANDS`]), and one tab that asks for them and for notifications.
+/// Accepting it takes the tab's permissions, the hook and the commands at once.
+pub fn ci_status() -> KitInfo {
+    let mut found = manifest("ci-status", "0.1.1", vec![ci_tab()]);
+    found.name = "CI status".into();
+    found.description = "A tab that follows a GitHub Actions run.".into();
+    found.plugin = Some(".".into());
+    KitInfo {
+        source: git("https://github.com/hangar-ai/kit-ci", None),
+        dir: "/kits/ci-status".into(),
+        installed_version: "0.1.1".into(),
+        manifest: Some(found),
+        hooks_permission: Some(HOOKS.into()),
+        hooks_consent: true,
+        commands_permission: Some(COMMANDS.into()),
+        ..installed("ci-status")
+    }
+}
+
+/// What `kit_inspect` answers for [`ci_status`]: what the person is shown, and
+/// accepts.
+pub fn ci_inspection() -> Inspection {
+    Inspection {
+        skills: vec!["ci-status".into()],
+        hooks: vec![Hook {
+            event: "PostToolUse".into(),
+            matcher: "Bash".into(),
+            command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/open-ci.js\"".into(),
+        }],
+        hooks_permission: Some(HOOKS.into()),
+        declared_commands: vec![
+            ci_command(
+                "ci-list",
+                "The 15 most recent GitHub Actions runs.",
+                &["gh", "run", "list", "--limit", "15"],
+            ),
+            ci_command(
+                "ci-log",
+                "The log of the steps that failed in one run.",
+                &["gh", "run", "view", "{id}", "--log-failed"],
+            ),
+            ci_command(
+                "ci-run",
+                "The state of one GitHub Actions run.",
+                &[
+                    "gh",
+                    "run",
+                    "view",
+                    "{id}",
+                    "--json",
+                    "status,conclusion,jobs",
+                ],
+            ),
+        ],
+        commands_permission: Some(COMMANDS.into()),
+        ..inspection(vec![ci_tab()])
+    }
+}
+
+/// One of the commands `ci-status` declares, as `kit_inspect` lists it.
+fn ci_command(name: &str, description: &str, argv: &[&str]) -> CommandInfo {
+    let args = argv
+        .contains(&"{id}")
+        .then(|| {
+            (
+                "id".to_owned(),
+                CommandArg {
+                    pattern: "[0-9]+".into(),
+                    description: Some("The run's number".into()),
+                },
+            )
+        })
+        .into_iter()
+        .collect();
+    CommandInfo {
+        name: name.into(),
+        description: description.into(),
+        argv: argv.iter().map(|item| (*item).to_owned()).collect(),
+        args,
+        timeout_seconds: 30,
+    }
+}
+
+/// What accepting [`ci_status`] stores: its tab's permissions in their order,
+/// then the hashes of its hook and of its commands.
+pub const CI_GRANTED: [&str; 6] = [
+    "notify",
+    "command:ci-list",
+    "command:ci-log",
+    "command:ci-run",
+    HOOKS,
+    COMMANDS,
+];

@@ -11,6 +11,11 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
+/// Whether this build may replace itself with a release from the feed. Off in
+/// this fork: the feed is hangar-ai's, and its releases would overwrite the
+/// fork's changes (see [`Install::detect`]).
+pub const SELF_UPDATE: bool = false;
+
 /// The operating system and CPU the feed's keys are built from, in the words
 /// the plugin used: `linux`, `darwin` and `windows`; `x86_64`, `aarch64`,
 /// `i686`, `armv7` and `riscv64`.
@@ -107,7 +112,15 @@ impl Install {
     /// Not being able to tell is a "no" on purpose. The plugin fell back to
     /// treating an unknown Linux binary as an AppImage and overwrote it, which
     /// for a development build is the build the developer is standing on.
+    ///
+    /// Fork: always `None` while [`SELF_UPDATE`] is off. The feed and its
+    /// signing key are upstream's, so an update would replace this fork with
+    /// the official release (on Windows every copy reads as the NSIS install).
+    /// To take upstream's changes, merge them and rebuild (FORK.md).
     pub fn detect() -> Option<Self> {
+        if !SELF_UPDATE {
+            return None;
+        }
         let exe = std::env::current_exe().ok()?;
         let exe = strip_deleted_marker(exe);
 

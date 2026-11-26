@@ -572,6 +572,7 @@ mod the_theme_a_tab_is_told {
                 appearance,
                 terminal,
                 colors: derive_colors(appearance, accent, &terminal),
+                ..*base
             }
         };
         for theme in [

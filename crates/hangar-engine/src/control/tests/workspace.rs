@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::json;
 
-use super::super::fake::{Fake, lock, pane};
+use super::super::fake::{Fake, lock, pane, workspace};
 use super::super::port::{BoxFuture, FromGit, FromGitOutcome, MadeWorkspace};
 use super::super::run::DISABLED;
 use super::super::types::Caller;
@@ -442,4 +442,51 @@ async fn a_panel_edit_made_while_the_check_is_set_survives_it() {
     assert_eq!(saved.branch.as_deref(), Some("develop"));
     assert!(!saved.auto_merge);
     assert_eq!(saved.worker_model, "opus");
+}
+
+/// The new orchestrator's pane, of `agent`, as the flow left it in the state.
+fn with_orchestrator_of(agent: AgentId) -> Arc<Fake> {
+    let (fake, _) = with_git(created(false, false));
+    lock(&fake.state).workspaces.push(workspace(
+        "w50",
+        "shop",
+        "C:\\dev\\shop",
+        vec![pane("p50", "Kai", agent, None)],
+    ));
+    lock(&fake.activity).insert(
+        "p50".into(),
+        PaneActivity {
+            workspace_id: "w50".into(),
+            activity: AgentActivity::Waiting,
+            bridged: false,
+        },
+    );
+    fake
+}
+
+#[tokio::test]
+async fn says_which_agent_the_new_orchestrator_runs_and_names_it_on_the_trust_question() {
+    for (agent, label) in [(AgentId::Codex, "Codex"), (AgentId::Claude, "Claude Code")] {
+        let fake = with_orchestrator_of(agent);
+        let answer = control(
+            "workspace_create",
+            with(from_ava(), json!({"repo": "evil/tool"})),
+            &fake,
+        )
+        .await
+        .unwrap();
+        matches(
+            &answer,
+            json!({"created": true,
+                   "workspace": {"orchestrator": "Kai", "orchestratorAgent": agent.as_str()}}),
+        );
+        fake.settle().await;
+        let told = told_ava(&fake);
+        assert_eq!(told.len(), 1, "{agent:?}");
+        contains(
+            &told[0],
+            &format!("{label} asks them whether to trust the cloned folder"),
+        );
+        contains(&told[0], "Only they can answer");
+    }
 }

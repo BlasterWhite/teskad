@@ -5,8 +5,10 @@
 
 use std::borrow::Cow;
 
+use hangar_core::agent::AgentKind;
 use hangar_i18n::{Key, args};
 use hangar_theme::tokens;
+use hangar_ui::badge::{self, Tone};
 use hangar_ui::menu::{self as ui_menu, Entry};
 use hangar_ui::{Icon, button as ui_button, form, icon, input, text as typography, tip};
 use iced::widget::{column, container, row, text};
@@ -17,7 +19,7 @@ use crate::message::Message;
 use crate::state::types::{MachineKind, NodeConfig};
 
 use super::failure;
-use super::model::{NodeStatus, Step, TargetProblem, target_problem};
+use super::model::{NodeInfo, NodeStatus, Step, TargetProblem, target_problem};
 use super::presence::{self, Presence};
 use super::{Msg, Open, State};
 
@@ -338,7 +340,7 @@ fn machine_row<'a>(st: &'a State, ctx: Ctx<'a>, node: &'a NodeConfig) -> Element
     if let NodeStatus::Connected { info, .. } = &status
         && node.is_on()
     {
-        lines = lines.push(tools_line(ctx, info.claude, info.git));
+        lines = lines.push(tools_line(ctx, info));
     }
     // What it runs itself is in the navigator, with every other workspace:
     // here, only how many, known whether or not it is connected.
@@ -435,24 +437,65 @@ fn under<'a>(content: Element<'a, Message>) -> Element<'a, Message> {
         .into()
 }
 
-/// What the machine has of what the agents need, in one quiet line; what
-/// it lacks stands out.
-fn tools_line<'a>(ctx: Ctx<'a>, claude: bool, git: bool) -> Element<'a, Message> {
+/// How an agent is named on a row, and how it is said missing.
+fn agent_keys(kind: AgentKind) -> (Key, Key) {
+    match kind {
+        AgentKind::Claude => (Key::NodesClaudeFound, Key::NodesClaudeMissing),
+        AgentKind::Codex => (Key::NodesCodexFound, Key::NodesCodexMissing),
+    }
+}
+
+/// Codex is in beta (docs/native/agents.md, decision 5): said wherever it
+/// can be picked.
+fn is_beta(kind: AgentKind) -> bool {
+    matches!(kind, AgentKind::Codex)
+}
+
+/// What the machine has of what the agents need, in one quiet line: each
+/// agent with its version, Codex marked beta, then git. What would stop a
+/// pane stands out: an agent not signed in, git missing, and no agent at
+/// all — one missing while the other is there is only said (either is
+/// enough to run the node's panes).
+fn tools_line<'a>(ctx: Ctx<'a>, info: &NodeInfo) -> Element<'a, Message> {
     let t = ctx.theme;
-    let note = |found: bool, yes: Key, no: Key| {
-        if found {
-            typography::subtle(t, ctx.t(yes))
+    let warn = t.colors.warning;
+    let any_agent = AgentKind::ALL
+        .into_iter()
+        .any(|kind| info.agent(kind).installed);
+    let mut line = row![].spacing(tokens::space::SM).align_y(Alignment::Center);
+    for kind in AgentKind::ALL {
+        let agent = info.agent(kind);
+        let (found, missing) = agent_keys(kind);
+        if !agent.installed {
+            let words = typography::subtle(t, ctx.t(missing));
+            line = line.push(if any_agent { words } else { words.color(warn) });
         } else {
-            typography::subtle(t, ctx.t(no)).color(t.colors.warning)
+            let name = match &agent.version {
+                Some(version) => format!("{} {version}", ctx.t(found)),
+                None => ctx.t(found).into_owned(),
+            };
+            line = line.push(match agent.signed_in {
+                Some(false) => typography::subtle(
+                    t,
+                    ctx.i18n
+                        .t_with(Key::NodesAgentSignedOut, &args!("agent" => name.as_str()))
+                        .into_owned(),
+                )
+                .color(warn),
+                _ => typography::subtle(t, name),
+            });
+            if is_beta(kind) {
+                line = line.push(badge::badge(t, ctx.t(Key::NodesAgentBeta), Tone::Accent));
+            }
         }
+        line = line.push(typography::subtle(t, "·"));
+    }
+    let git = if info.git {
+        typography::subtle(t, ctx.t(Key::NodesGitFound))
+    } else {
+        typography::subtle(t, ctx.t(Key::NodesGitMissing)).color(warn)
     };
-    row![
-        note(claude, Key::NodesClaudeFound, Key::NodesClaudeMissing),
-        typography::subtle(t, "·"),
-        note(git, Key::NodesGitFound, Key::NodesGitMissing),
-    ]
-    .spacing(tokens::space::SM)
-    .into()
+    line.push(git).into()
 }
 
 /// The « … » at the end of a row, and its menu.

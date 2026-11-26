@@ -7,6 +7,9 @@
 
 pub mod activation;
 pub mod activation_model;
+#[cfg(test)]
+mod clicks;
+pub mod codex;
 pub mod gallery;
 pub mod settings;
 #[cfg(test)]
@@ -16,7 +19,8 @@ pub mod workspace_section;
 use iced::widget::{column, container, row, text};
 use iced::{Alignment, Element, Length};
 
-use hangar_i18n::Key;
+use hangar_core::agent::{self, AgentKind};
+use hangar_i18n::{Key, Translator, args};
 use hangar_theme::{fonts, style, tokens};
 use hangar_ui::badge::{self, Tone};
 use hangar_ui::{Icon, button, text as typography};
@@ -37,6 +41,25 @@ pub fn tag<'a>(ctx: Ctx<'a>, tag: &Tag) -> Element<'a, Message> {
         TagTone::Plain => badge::tag(ctx.theme, tag.label.clone()),
         TagTone::Ok => badge::badge(ctx.theme, tag.label.clone(), Tone::Success),
         TagTone::New => badge::badge(ctx.theme, tag.label.clone(), Tone::Warning),
+    }
+}
+
+/// « Claude Code only », « Codex only »: said of a kit whose manifest names
+/// one agent of those Hangar runs (`agents`, docs/native/agents.md §6.4).
+/// Nothing for a kit meant for them all, nor for one whose agents are not
+/// known.
+pub fn agents_tag(t: Translator, agents: &[AgentKind]) -> Option<Tag> {
+    match agents {
+        [one] if AgentKind::ALL.len() > 1 => Some(Tag {
+            label: t
+                .t_with(
+                    Key::KitsAgentOnly,
+                    &args!("agent" => agent::info(*one).label),
+                )
+                .into_owned(),
+            tone: TagTone::Plain,
+        }),
+        _ => None,
     }
 }
 

@@ -11,7 +11,10 @@
 //! The user's login shell is the authority on what their PATH is, so it gets
 //! asked once and its answer goes in front. Well-known install directories are
 //! appended as a floor, for the machine whose shell cannot be probed at all —
-//! an unsupported shell, or an rc file that hangs.
+//! an unsupported shell, or an rc file that hangs. npm's global folder and
+//! Homebrew's are in that floor by name: `npm install -g @openai/codex` and
+//! `brew install --cask codex` put `codex` there, and Claude Code installed
+//! either way puts `claude` there too.
 //!
 //! Doing this to our own process is what makes it reach everything downstream:
 //! shell detection, agent detection, and the panes themselves, which inherit
@@ -19,7 +22,6 @@
 
 #[cfg(unix)]
 use std::collections::HashSet;
-#[cfg(unix)]
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
@@ -32,10 +34,11 @@ pub fn ensure() {
 }
 
 /// Runs the repair again, after something was installed while the app ran:
-/// Claude Code's installer puts `claude` in `~/.local/bin`, a folder that may
-/// not have existed (so was left out) the first time, and adds it to the rc
-/// files the login shell reads. The shell is asked afresh; what PATH already
-/// had stays, after it.
+/// Claude Code's installer puts `claude` in `~/.local/bin`, and a first
+/// `npm install -g` makes npm's global folder — folders that may not have
+/// existed (so were left out) the first time — and adds them to the rc files
+/// the login shell reads. The shell is asked afresh; what PATH already had
+/// stays, after it.
 pub fn refresh() {
     ensure();
     apply();
@@ -43,24 +46,38 @@ pub fn refresh() {
 
 #[cfg(not(unix))]
 fn apply() {
-    // Windows has no login shell to ask. The native installer writes its
-    // folder to the user's PATH in the registry, which a process already
-    // running never sees: the folder is added here when it is there.
-    let Some(home) = dirs::home_dir() else {
-        return;
-    };
-    let current: Vec<std::path::PathBuf> = std::env::var_os("PATH")
+    // Windows has no login shell to ask. An installer writes its folder to
+    // the user's PATH in the registry, which a process already running never
+    // sees: Claude Code's native one (`~/.local/bin`) and npm's global folder,
+    // where `npm install -g` puts `codex.cmd`, are added here when they are
+    // there.
+    let current: Vec<PathBuf> = std::env::var_os("PATH")
         .map(|p| std::env::split_paths(&p).collect())
         .unwrap_or_default();
-    let bin = home.join(".local").join("bin");
-    if !bin.is_dir() || current.contains(&bin) {
+    let mut merged = current.clone();
+    for folder in windows_floor() {
+        if folder.is_dir() && !merged.contains(&folder) {
+            merged.push(folder);
+        }
+    }
+    if merged.len() == current.len() {
         return;
     }
-    let mut merged = current;
-    merged.push(bin);
     if let Ok(joined) = std::env::join_paths(&merged) {
         std::env::set_var("PATH", joined);
     }
+}
+
+/// The folders Windows' PATH gets when they exist and it lacks them, in this
+/// order.
+#[cfg(not(unix))]
+fn windows_floor() -> Vec<PathBuf> {
+    let mut folders = Vec::new();
+    if let Some(home) = dirs::home_dir() {
+        folders.push(home.join(".local").join("bin"));
+    }
+    folders.extend(npm_bins());
+    folders
 }
 
 #[cfg(unix)]
@@ -112,8 +129,22 @@ fn push_all(
     }
 }
 
+/// The floor: the folders developers' tools install into, then Homebrew's on
+/// Linux, then npm's global folder wherever the person put it.
 #[cfg(unix)]
 fn well_known() -> Vec<PathBuf> {
+    let home = dirs::home_dir();
+    let mut paths = install_dirs(home.as_deref());
+    paths.extend(homebrew_bins(
+        home.as_deref(),
+        std::env::var_os("HOMEBREW_PREFIX"),
+    ));
+    paths.extend(npm_bins());
+    paths
+}
+
+#[cfg(unix)]
+fn install_dirs(home: Option<&Path>) -> Vec<PathBuf> {
     // Homebrew moved to /opt/homebrew on Apple Silicon and kept /usr/local on
     // Intel, so both are worth having.
     let mut paths: Vec<PathBuf> = ["/opt/homebrew/bin", "/opt/homebrew/sbin", "/usr/local/bin"]
@@ -121,7 +152,7 @@ fn well_known() -> Vec<PathBuf> {
         .map(PathBuf::from)
         .collect();
 
-    if let Some(home) = dirs::home_dir() {
+    if let Some(home) = home {
         for relative in [
             ".local/bin",
             ".cargo/bin",
@@ -136,6 +167,142 @@ fn well_known() -> Vec<PathBuf> {
     }
 
     paths
+}
+
+/// Homebrew's folders beyond macOS's: on Linux it lives in
+/// `/home/linuxbrew/.linuxbrew`, or in `~/.linuxbrew` for a person who could
+/// not create that user; and wherever it lives, its `shellenv` exports
+/// `HOMEBREW_PREFIX`, which Hangar has when a shell started it.
+#[cfg(unix)]
+fn homebrew_bins(home: Option<&Path>, prefix: Option<std::ffi::OsString>) -> Vec<PathBuf> {
+    let mut prefixes: Vec<PathBuf> = Vec::new();
+    if let Some(prefix) = prefix.filter(|prefix| !prefix.is_empty()) {
+        prefixes.push(PathBuf::from(prefix));
+    }
+    prefixes.push(PathBuf::from("/home/linuxbrew/.linuxbrew"));
+    if let Some(home) = home {
+        prefixes.push(home.join(".linuxbrew"));
+    }
+    prefixes
+        .iter()
+        .flat_map(|prefix| [prefix.join("bin"), prefix.join("sbin")])
+        .collect()
+}
+
+/// npm's global bin folders, where `npm install -g` puts a command:
+/// `<prefix>/bin` on macOS and Linux, `<prefix>` itself on Windows.
+///
+/// The prefix is the person's when they chose one: `npm_config_prefix` in the
+/// environment, `prefix=` in their `.npmrc` (the file `npm_config_userconfig`
+/// names, if it names one). Otherwise it is where Node was installed:
+/// `/usr/local` or Homebrew's on macOS, both well known already, `/usr` on
+/// Linux, on every PATH, and `%APPDATA%\npm` on Windows. A version manager's
+/// (nvm, fnm) moves with the Node version in use, which only the login shell
+/// knows: that one is left to it.
+fn npm_bins() -> Vec<PathBuf> {
+    let home = dirs::home_dir();
+    npm_bins_from(
+        &|name| std::env::var(name).ok(),
+        home.as_deref(),
+        cfg!(windows),
+    )
+}
+
+/// [`npm_bins`] with the environment, the home folder and the platform
+/// passed in.
+fn npm_bins_from(
+    env: &dyn Fn(&str) -> Option<String>,
+    home: Option<&Path>,
+    windows: bool,
+) -> Vec<PathBuf> {
+    // npm reads its variables in either case.
+    let var = |name: &str| {
+        env(name)
+            .or_else(|| env(&name.to_ascii_uppercase()))
+            .filter(|value| !value.is_empty())
+    };
+    let mut prefixes: Vec<PathBuf> = Vec::new();
+    if let Some(prefix) = var("npm_config_prefix").and_then(|value| npm_path(&value, home, env)) {
+        prefixes.push(prefix);
+    }
+    let userconfig = match var("npm_config_userconfig") {
+        Some(file) => npm_path(&file, home, env),
+        None => home.map(|home| home.join(".npmrc")),
+    };
+    if let Some(prefix) = userconfig
+        .and_then(|file| std::fs::read_to_string(file).ok())
+        .and_then(|text| npmrc_prefix(&text, home, env))
+    {
+        prefixes.push(prefix);
+    }
+    if windows {
+        if let Some(appdata) = var("APPDATA") {
+            prefixes.push(PathBuf::from(appdata).join("npm"));
+        }
+    }
+    prefixes
+        .into_iter()
+        .map(|prefix| if windows { prefix } else { prefix.join("bin") })
+        .collect()
+}
+
+/// The `prefix` an `.npmrc` sets: the last one, when it sets it twice.
+fn npmrc_prefix(
+    text: &str,
+    home: Option<&Path>,
+    env: &dyn Fn(&str) -> Option<String>,
+) -> Option<PathBuf> {
+    let value = text
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.starts_with([';', '#']))
+        .filter_map(|line| line.split_once('='))
+        .filter(|(key, _)| key.trim() == "prefix")
+        .map(|(_, value)| value.trim())
+        .next_back()?;
+    let unquoted = ['"', '\'']
+        .iter()
+        .find_map(|quote| value.strip_prefix(*quote)?.strip_suffix(*quote))
+        .unwrap_or(value);
+    npm_path(unquoted, home, env)
+}
+
+/// A path as npm reads it from its configuration: `${VAR}` replaced by the
+/// variable (`${VAR?}` by nothing when it is unset; unset without the `?`,
+/// npm refuses the value, and so does this), a leading `~` by the home
+/// folder. Only an absolute path is kept: a relative one would be relative to
+/// whatever folder npm was run from.
+fn npm_path(
+    value: &str,
+    home: Option<&Path>,
+    env: &dyn Fn(&str) -> Option<String>,
+) -> Option<PathBuf> {
+    let mut expanded = String::new();
+    let mut rest = value;
+    while let Some(start) = rest.find("${") {
+        let (before, after) = rest.split_at(start);
+        let end = after.find('}')?;
+        let name = &after[2..end];
+        let (name, optional) = match name.strip_suffix('?') {
+            Some(name) => (name, true),
+            None => (name, false),
+        };
+        expanded.push_str(before);
+        match env(name) {
+            Some(found) => expanded.push_str(&found),
+            None if optional => {}
+            None => return None,
+        }
+        rest = &after[end + 1..];
+    }
+    expanded.push_str(rest);
+
+    let path = match expanded.strip_prefix('~') {
+        Some("") => home?.to_path_buf(),
+        Some(tail) if tail.starts_with(['/', '\\']) => home?.join(&tail[1..]),
+        _ => PathBuf::from(expanded),
+    };
+    path.is_absolute().then_some(path)
 }
 
 /// Wraps the answer so whatever an rc file prints on the way — a banner, an
@@ -448,6 +615,111 @@ mod tests {
         let joined = std::env::join_paths(&before).unwrap();
         let after = merged(None, Some(joined), vec![local_bin.clone()]);
         assert_eq!(after, vec![first, local_bin]);
+    }
+
+    fn no_env(_: &str) -> Option<String> {
+        None
+    }
+
+    /// `codex` installed by npm under a prefix of the person's, or by
+    /// Homebrew on Linux, is found on a machine whose shell could not be
+    /// asked, after what PATH already had.
+    #[test]
+    fn npm_and_homebrew_folders_join_the_floor() {
+        let dir = tempfile::tempdir().unwrap();
+        let home = dir.path();
+        let usr_bin = home.join("usr-bin");
+        let npm_bin = home.join(".npm-packages/bin");
+        let brew_bin = home.join(".linuxbrew/bin");
+        for folder in [&usr_bin, &npm_bin, &brew_bin] {
+            std::fs::create_dir_all(folder).unwrap();
+        }
+        std::fs::write(home.join(".npmrc"), "prefix=~/.npm-packages\n").unwrap();
+        let current = std::env::join_paths([&usr_bin]).unwrap();
+
+        let mut floor = install_dirs(Some(home));
+        floor.extend(homebrew_bins(Some(home), None));
+        floor.extend(npm_bins_from(&no_env, Some(home), false));
+        let merged = merged(None, Some(current), floor);
+
+        assert_eq!(merged.first(), Some(&usr_bin));
+        assert!(merged.contains(&brew_bin), "{merged:?}");
+        assert!(merged.contains(&npm_bin), "{merged:?}");
+        // A folder that is not there is left out, as before.
+        assert!(!merged.contains(&home.join(".linuxbrew/sbin")));
+    }
+
+    /// The prefix `brew shellenv` exported, when a shell started Hangar.
+    #[test]
+    fn homebrew_s_own_prefix_comes_first() {
+        let home = Path::new("/home/someone");
+        let bins = homebrew_bins(Some(home), Some("/srv/brew".into()));
+        assert_eq!(bins[0], PathBuf::from("/srv/brew/bin"));
+        assert_eq!(bins[1], PathBuf::from("/srv/brew/sbin"));
+        assert!(bins.contains(&PathBuf::from("/home/linuxbrew/.linuxbrew/bin")));
+        assert!(bins.contains(&home.join(".linuxbrew/bin")));
+        assert_eq!(homebrew_bins(None, Some("".into())).len(), 2);
+    }
+
+    /// Where npm puts global commands: the prefix from the environment,
+    /// then the one of the `.npmrc` it is told to read, and on Windows
+    /// `%APPDATA%\npm`; `bin` under each but on Windows.
+    #[test]
+    fn npm_s_prefix_is_the_person_s_choice() {
+        let dir = tempfile::tempdir().unwrap();
+        let home = dir.path().to_path_buf();
+        let rc = home.join("custom.npmrc");
+        std::fs::write(
+            &rc,
+            "; mine\nregistry=https://registry.npmjs.org/\nprefix = \"${HOME}/npm-global\"\n",
+        )
+        .unwrap();
+        let home_text = home.to_str().unwrap().to_owned();
+        let rc_text = rc.to_str().unwrap().to_owned();
+        let env = move |name: &str| match name {
+            "NPM_CONFIG_PREFIX" => Some("/opt/npm".to_owned()),
+            "npm_config_userconfig" => Some(rc_text.clone()),
+            "HOME" => Some(home_text.clone()),
+            "APPDATA" => Some("/appdata".to_owned()),
+            _ => None,
+        };
+
+        assert_eq!(
+            npm_bins_from(&env, Some(&home), false),
+            [PathBuf::from("/opt/npm/bin"), home.join("npm-global/bin")]
+        );
+        assert_eq!(
+            npm_bins_from(&env, Some(&home), true),
+            [
+                PathBuf::from("/opt/npm"),
+                home.join("npm-global"),
+                PathBuf::from("/appdata/npm"),
+            ]
+        );
+        assert!(npm_bins_from(&no_env, Some(&home), false).is_empty());
+    }
+
+    #[test]
+    fn an_npmrc_prefix_is_read_as_npm_reads_it() {
+        let home = Path::new("/home/someone");
+        let env = |name: &str| (name == "NODE_ROOT").then(|| "/srv/node".to_owned());
+        let read = |text: &str| npmrc_prefix(text, Some(home), &env);
+
+        assert_eq!(read("prefix=~/.npm-global"), Some(home.join(".npm-global")));
+        assert_eq!(read("prefix=~"), Some(home.to_path_buf()));
+        assert_eq!(read("prefix = '/opt/node'\n"), Some("/opt/node".into()));
+        assert_eq!(read("prefix=${NODE_ROOT}/g"), Some("/srv/node/g".into()));
+        assert_eq!(read("prefix=/opt${UNSET?}/g"), Some("/opt/g".into()));
+        assert_eq!(
+            read("prefix=/first\nprefix=/second"),
+            Some("/second".into())
+        );
+        // npm refuses a value naming a variable that is not set.
+        assert_eq!(read("prefix=${UNSET}/g"), None);
+        assert_eq!(read("# prefix=/commented\n;prefix=/too"), None);
+        assert_eq!(read("cache=/var/npm\n"), None);
+        assert_eq!(read("prefix=relative/dir"), None);
+        assert_eq!(read("prefix=~someone/dir"), None);
     }
 
     #[test]

@@ -21,10 +21,15 @@
 //!
 //! # For a package with a text field
 //!
-//! Wrap the field in [`guard`]: a shortcut is then taken before the field
-//! can type it or submit on it (Ctrl+Shift+Enter must not also send the
-//! broadcast line). Without the guard the shortcut still runs, after the
-//! field has used the key.
+//! Wrap the field in [`guard`] (or [`guard_in`], for a field that is a
+//! region of its own): a shortcut is then taken before the field can type it
+//! or submit on it (Ctrl+Shift+Enter must not also send the broadcast line),
+//! and the field is watched (`field.rs`): when it takes the keyboard the
+//! model says so (`Model.ui.focus`), so no terminal types what is meant for
+//! it, and when the model gives the keyboard to something else, a pane
+//! clicked or picked by a shortcut, the field is blurred. Without the guard
+//! the shortcut still runs, after the field has used the key, and a focused
+//! terminal types every key along with the field.
 //!
 //! # For the Shortcuts settings (P13)
 //!
@@ -45,6 +50,7 @@
 mod bindings;
 mod chord;
 mod dispatch;
+mod field;
 mod index;
 
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -63,11 +69,13 @@ use crate::commands::CommandId;
 use crate::ctx::Ctx;
 use crate::message::{Intent, Message};
 use crate::services::{CoreEvent, Services};
+use crate::shell::Region;
 use crate::state::{Model, Patch, Settings, StoreAction};
 
 pub use bindings::{Overrides, reset_command, with_binding, without_binding};
 pub use chord::Stroke;
 pub use dispatch::{Dispatcher, Outcome, SEQUENCE_TIMEOUT};
+pub use field::reconcile;
 pub use index::KeymapIndex;
 // The Shortcuts settings (P13) are what these are for; nothing in this
 // package needs them by name.
@@ -89,6 +97,8 @@ pub struct Live {
     pub index: Arc<KeymapIndex>,
     /// The sequence half typed, and the recorders that suspend it.
     pub dispatcher: Dispatcher,
+    /// The text field that has the keyboard in each window (`field.rs`).
+    pub fields: field::Fields,
 }
 
 /// The package's messages, routed by the shell as `Message::Keymap(Msg)`.
@@ -131,10 +141,17 @@ pub enum Msg {
     ResetAll,
     /// Writes these overrides as they are.
     SetOverrides(Overrides),
+    /// A text field took the keyboard or let go of it (`field.rs`).
+    Field(field::FieldFocus),
 }
 
 pub fn update(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Message> {
     let _ = (st, sv);
+    apply(m, msg)
+}
+
+/// What a message does, which touches only the model.
+pub(crate) fn apply(m: &mut Model, msg: Msg) -> Task<Message> {
     refresh(m);
     match msg {
         Msg::Key {
@@ -194,6 +211,10 @@ pub fn update(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Me
         }
         Msg::ResetAll => write(m, Overrides::default()),
         Msg::SetOverrides(next) => write(m, next),
+        Msg::Field(said) => {
+            field::apply(m, said);
+            Task::none()
+        }
     }
 }
 
@@ -268,9 +289,11 @@ pub fn subscription(st: &State, m: &Model) -> Subscription<Message> {
         armed: keymap.dispatcher.is_armed(),
         suspended: keymap.dispatcher.is_suspended(),
     });
+    // The fields say what they did with the keyboard through a channel.
+    let fields = field::subscription(&keymap.fields);
     let keybindings = &m.settings().keybindings;
     if !keymap.index.is_stale(keybindings) {
-        return presses;
+        return Subscription::batch([presses, fields]);
     }
     // The settings changed under the index: one message rebuilds it. Named
     // after what it rebuilds for, so a second change while the first is on
@@ -284,7 +307,7 @@ pub fn subscription(st: &State, m: &Model) -> Subscription<Message> {
         iced::futures::stream::once(async { Message::Keymap(Msg::Refresh) })
             .chain(iced::futures::stream::pending())
     });
-    Subscription::batch([presses, changed])
+    Subscription::batch([presses, fields, changed])
 }
 
 pub fn on_intent(
@@ -335,7 +358,51 @@ pub fn terminal_filter<'a>(ctx: Ctx<'a>) -> impl Fn(&hangar_term::KeyPress) -> b
 /// `field` with the keys the keymap takes spent before it sees them, so a
 /// shortcut never also types or submits in it. The field rules apply: what
 /// the field owns (plain characters, Ctrl+C and the like) still reaches it.
+///
+/// The field is watched too (`field.rs`): while it has the keyboard the model
+/// names it (`Focus::Widget`, by its id or one the guard gives it), so no
+/// terminal is focused, and when the model gives the keyboard to something
+/// else it is blurred.
 pub fn guard<'a>(ctx: Ctx<'a>, field: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
+    self::field::watch(ctx, None, true, spend_shortcuts(ctx, field))
+}
+
+/// [`guard`] for a field that is a region of its own, which F6 enters (the
+/// broadcast field is region `Status`): while it has the keyboard the model
+/// says the region has it, as after F6.
+pub fn guard_in<'a>(
+    ctx: Ctx<'a>,
+    region: Region,
+    field: impl Into<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    self::field::watch(ctx, Some(region), true, spend_shortcuts(ctx, field))
+}
+
+/// What the fields said since the last call, as the messages the
+/// subscription would have sent: for the tests that run the app's loop by
+/// hand.
+#[cfg(test)]
+pub(crate) fn field_messages(m: &Model) -> Vec<Msg> {
+    field::drain(&m.live.keymap.fields)
+        .into_iter()
+        .map(Msg::Field)
+        .collect()
+}
+
+/// The fields in `content` watched as [`guard`] watches its field, without
+/// the keymap's part: for what draws fields the app does not make itself (a
+/// kit's tab in a view pane), so that they too take the keyboard from the
+/// terminals, and are blurred when a terminal takes it back. Looked through
+/// after presses and keys, not at every frame: a preview may be long.
+pub fn watch<'a>(ctx: Ctx<'a>, content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
+    self::field::watch(ctx, None, false, content.into())
+}
+
+/// `field` with the keys the keymap takes spent before it sees them.
+fn spend_shortcuts<'a>(
+    ctx: Ctx<'a>,
+    field: impl Into<Element<'a, Message>>,
+) -> Element<'a, Message> {
     hangar_ui::keys::on_keyboard(field, move |event| match event {
         keyboard::Event::KeyPressed {
             key,

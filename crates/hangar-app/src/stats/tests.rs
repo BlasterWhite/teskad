@@ -1,7 +1,7 @@
 //! The page's keyboard and pointer logic: which key a chart takes, how the
 //! readout moves, and who has the readout, the pointer or the keys.
 
-use hangar_core::stats::{ScanInfo, UsageStats};
+use hangar_core::stats::{ScanInfo, UsageStats, UsageStatsByAgent};
 use iced::keyboard::{Key as KeyboardKey, Modifiers, key::Named};
 
 use super::charts::Event;
@@ -13,17 +13,20 @@ fn named(key: Named) -> KeyboardKey {
 
 /// A page whose last summary is a week with no data in it: seven columns.
 fn week() -> State {
-    let data = UsageStats {
-        generated_at: 0,
-        scan: ScanInfo::default(),
-        sources: Vec::new(),
-        active_gap_cap_ms: 0,
-        sessions: Vec::new(),
-        models: Vec::new(),
-        buckets: Vec::new(),
+    let data = UsageStatsByAgent {
+        stats: UsageStats {
+            generated_at: 0,
+            scan: ScanInfo::default(),
+            sources: Vec::new(),
+            active_gap_cap_ms: 0,
+            sessions: Vec::new(),
+            models: Vec::new(),
+            buckets: Vec::new(),
+        },
+        session_agents: Vec::new(),
     };
     let projects: Vec<Project> = Vec::new();
-    let summary = model::summarize(
+    let summary = model::summarize_by_agent(
         &data,
         &SummaryOptions {
             period: Period::D7,

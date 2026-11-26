@@ -11,7 +11,7 @@ use super::port::{ModelCmd, Port};
 use super::types::{Caller, normalize, same, text};
 
 /// Every operation, while the setting is off.
-pub const DISABLED: &str = "Pane control is turned off in Hangar.AI (Settings › General › Agents). Ask the user to turn it on.";
+pub const DISABLED: &str = "Pane control is turned off in HangarAI (Settings › General › Agents). Ask the user to turn it on.";
 
 /// Said wherever a sleeping workspace is the reason nothing runs.
 pub const ASLEEP: &str = "Hangar put it to sleep to free memory, as nobody had used it for a while: its agents were stopped, \
@@ -82,6 +82,10 @@ pub async fn run(op: &str, args: Value, port: &Port, gate: Gate) -> Result<Value
     }
     if op.starts_with("delivery_") {
         return super::delivery::control(op, &ws, &args, &caller, port).await;
+    }
+    // A sub-task to an agent with no terminal: core's registry, delegate.rs.
+    if super::delegate::OPERATIONS.contains(&op) {
+        return super::delegate::control(op, &ws, &args, &caller, port).await;
     }
 
     match op {

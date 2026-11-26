@@ -1,0 +1,18 @@
+# from the protocol schema (Codex 0.170.0) — the five server requests Hangar handles, their responses, serverRequest/resolved — and, for what the schema does not say, from the source at rust-v0.170.0: app-server/src/outgoing_message.rs (the server numbers its requests from 0; an answer resolves one, then serverRequest/resolved goes to the thread's clients). Written by hand, not recorded.
+# A turn asks five things; Hangar answers each with the response its method takes.
+# ">" is what Hangar sends, "<" what Codex sends, in order. Follows initialize.jsonl.
+< {"id":0,"method":"item/commandExecution/requestApproval","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10","turnId":"turn-1","itemId":"item-3","startedAtMs":1795050010000,"command":"cargo test -p hangar-core","cwd":"/work/hangar","reason":"Run the tests outside the sandbox","commandActions":[{"type":"unknown","command":"cargo test -p hangar-core"}]}}
+> {"id":0,"result":{"decision":"acceptForSession"}}
+< {"method":"serverRequest/resolved","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10","requestId":0}}
+< {"id":1,"method":"item/fileChange/requestApproval","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10","turnId":"turn-1","itemId":"item-4","startedAtMs":1795050020000,"reason":"Write outside the workspace","grantRoot":"/etc/hangar"}}
+> {"id":1,"result":{"decision":"decline"}}
+< {"method":"serverRequest/resolved","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10","requestId":1}}
+< {"id":2,"method":"item/permissions/requestApproval","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10","turnId":"turn-1","itemId":"item-5","startedAtMs":1795050030000,"cwd":"/work/hangar","reason":"Fetch the crate index","permissions":{"network":{"enabled":true}}}}
+> {"id":2,"result":{"permissions":{"network":{"enabled":true}},"scope":"turn"}}
+< {"method":"serverRequest/resolved","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10","requestId":2}}
+< {"id":3,"method":"item/tool/requestUserInput","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10","turnId":"turn-1","itemId":"item-6","isBlocking":true,"questions":[{"id":"target","header":"Target","question":"Which branch should I rebase on?","isOther":true,"options":[{"label":"main","description":"The default branch"},{"label":"release","description":"The release branch"}]}]}}
+> {"id":3,"result":{"answers":{"target":{"answers":["main"]}}}}
+< {"method":"serverRequest/resolved","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10","requestId":3}}
+< {"id":4,"method":"mcpServer/elicitation/request","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10","turnId":"turn-1","serverName":"github","mode":"form","message":"Which repository?","requestedSchema":{"type":"object","properties":{"repo":{"type":"string","title":"Repository"}},"required":["repo"]}}}
+> {"id":4,"result":{"action":"accept","content":{"repo":"hangar-ai/hangar"}}}
+< {"method":"serverRequest/resolved","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10","requestId":4}}

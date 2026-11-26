@@ -14,7 +14,7 @@
 use crate::state::roles::{
     ORCHESTRATION_PERMISSION_MODES, orchestration_defaults, orchestration_of,
 };
-use crate::state::types::{OrchestrationSettings, Workspace};
+use crate::state::types::{AgentKind, CodexModels, OrchestrationSettings, Workspace};
 
 /// Offered under the model fields; Claude Code takes a full model id as well.
 pub const MODEL_SUGGESTIONS: [&str; 3] = ["opus", "sonnet", "haiku"];
@@ -39,6 +39,13 @@ pub struct Draft {
     pub permission_mode: String,
     /// Carried through as it is: the panel has no field for it yet.
     pub batch_size: Option<u32>,
+    /// Carried through as they are, like `batch_size`: the panel has no
+    /// fields for the agents yet (docs/native/agents.md T24b). Codex's models
+    /// are edited here, beside Claude Code's (T23).
+    pub orchestrator_agent: Option<AgentKind>,
+    pub worker_agent: Option<AgentKind>,
+    pub reviewer_agent: Option<AgentKind>,
+    pub codex_models: CodexModels,
 }
 
 /// A field of the draft that can be refused.
@@ -47,6 +54,9 @@ pub enum Field {
     OrchestratorModel,
     WorkerModel,
     ReviewerModel,
+    CodexOrchestratorModel,
+    CodexWorkerModel,
+    CodexReviewerModel,
     Branch,
 }
 
@@ -87,6 +97,10 @@ pub fn draft_of(ws: &Workspace) -> Draft {
         branch: settings.branch.unwrap_or_default(),
         permission_mode: settings.permission_mode.unwrap_or_default(),
         batch_size: settings.batch_size,
+        orchestrator_agent: settings.orchestrator_agent,
+        worker_agent: settings.worker_agent,
+        reviewer_agent: settings.reviewer_agent,
+        codex_models: settings.codex_models,
     }
 }
 
@@ -123,10 +137,23 @@ fn is_bad_branch(name: &str) -> bool {
 /// problem.
 pub fn draft_problems(draft: &Draft) -> Problems {
     let mut problems = Vec::new();
+    let codex = &draft.codex_models;
     for (field, value) in [
-        (Field::OrchestratorModel, &draft.orchestrator_model),
-        (Field::WorkerModel, &draft.worker_model),
-        (Field::ReviewerModel, &draft.reviewer_model),
+        (Field::OrchestratorModel, draft.orchestrator_model.as_str()),
+        (Field::WorkerModel, draft.worker_model.as_str()),
+        (Field::ReviewerModel, draft.reviewer_model.as_str()),
+        (
+            Field::CodexOrchestratorModel,
+            codex.orchestrator.as_deref().unwrap_or_default(),
+        ),
+        (
+            Field::CodexWorkerModel,
+            codex.worker.as_deref().unwrap_or_default(),
+        ),
+        (
+            Field::CodexReviewerModel,
+            codex.reviewer.as_deref().unwrap_or_default(),
+        ),
     ] {
         let name = value.trim();
         if !name.is_empty() && !is_model_name(name) {
@@ -185,7 +212,36 @@ pub fn normalize_draft(draft: &Draft) -> OrchestrationSettings {
             .contains(&draft.permission_mode.as_str())
             .then(|| draft.permission_mode.clone()),
         batch_size: draft.batch_size,
+        orchestrator_agent: draft.orchestrator_agent,
+        worker_agent: draft.worker_agent,
+        reviewer_agent: draft.reviewer_agent,
+        codex_models: CodexModels {
+            orchestrator: codex_model(
+                &problems,
+                Field::CodexOrchestratorModel,
+                draft.codex_models.orchestrator.as_deref(),
+            ),
+            worker: codex_model(
+                &problems,
+                Field::CodexWorkerModel,
+                draft.codex_models.worker.as_deref(),
+            ),
+            reviewer: codex_model(
+                &problems,
+                Field::CodexReviewerModel,
+                draft.codex_models.reviewer.as_deref(),
+            ),
+            // Keys of a newer version are kept.
+            extra: draft.codex_models.extra.clone(),
+        },
     }
+}
+
+/// One of Codex's models as saved: trimmed, and none (Codex's own default)
+/// when blank or refused (`draft_problems`).
+fn codex_model(problems: &Problems, field: Field, value: Option<&str>) -> Option<String> {
+    let value = value?.trim();
+    (problems.get(field).is_none() && !value.is_empty()).then(|| value.to_owned())
 }
 
 pub fn same_settings(a: &OrchestrationSettings, b: &OrchestrationSettings) -> bool {
@@ -229,6 +285,36 @@ mod tests {
         assert_eq!(normalize_draft(&draft_of(&ws)).batch_size, Some(2));
     }
 
+    /// The agents and Codex's models, which the panel does not edit yet, are
+    /// saved as they were rather than put back to their defaults.
+    #[test]
+    fn the_agents_and_codex_s_models_survive_a_save() {
+        let saved = OrchestrationSettings {
+            orchestrator_agent: Some(AgentKind::Codex),
+            worker_agent: Some(AgentKind::Claude),
+            reviewer_agent: Some(AgentKind::Codex),
+            codex_models: CodexModels {
+                worker: Some("gpt-5.5".into()),
+                ..CodexModels::default()
+            },
+            ..orchestration_defaults()
+        };
+        let ws = Workspace {
+            orchestration: Some(saved.clone()),
+            ..Workspace::default()
+        };
+        let mut opened = draft_of(&ws);
+        opened.worker_model = "haiku".into();
+        let next = normalize_draft(&opened);
+        assert_eq!(
+            next,
+            OrchestrationSettings {
+                worker_model: "haiku".into(),
+                ..saved
+            }
+        );
+    }
+
     #[test]
     fn the_default_model_names_are_the_stores_defaults() {
         let base = orchestration_defaults();
@@ -252,6 +338,10 @@ mod tests {
                 branch: String::new(),
                 permission_mode: String::new(),
                 batch_size: None,
+                orchestrator_agent: None,
+                worker_agent: None,
+                reviewer_agent: None,
+                codex_models: CodexModels::default(),
             }
         );
     }
@@ -359,6 +449,49 @@ mod tests {
             draft_problems(&draft(|d| d.reviewer_model = "sonnet\"; rm -rf".into())),
             only(Field::ReviewerModel, Problem::Model)
         );
+    }
+
+    #[test]
+    fn refuses_a_codex_model_name_a_command_line_would_split_or_quote() {
+        assert_eq!(
+            draft_problems(&draft(
+                |d| d.codex_models.orchestrator = Some("gpt 5".into())
+            )),
+            only(Field::CodexOrchestratorModel, Problem::Model)
+        );
+        assert_eq!(
+            draft_problems(&draft(|d| d.codex_models.reviewer = Some("o3\"; rm".into()))),
+            only(Field::CodexReviewerModel, Problem::Model)
+        );
+        // Claude Code's field of the same role is not the one refused.
+        assert!(
+            draft_problems(&draft(|d| d.codex_models.worker = Some("gpt-5.5".into()))).is_empty()
+        );
+    }
+
+    #[test]
+    fn saves_codex_s_models_trimmed_and_a_blank_or_refused_one_as_codex_s_own_default() {
+        let next = normalize_draft(&draft(|d| {
+            d.codex_models = CodexModels {
+                orchestrator: Some("  gpt-5.5 ".into()),
+                worker: Some("   ".into()),
+                reviewer: Some("not a model".into()),
+                ..CodexModels::default()
+            };
+        }));
+        assert_eq!(next.codex_models.orchestrator.as_deref(), Some("gpt-5.5"));
+        assert_eq!(next.codex_models.worker, None);
+        assert_eq!(next.codex_models.reviewer, None);
+    }
+
+    #[test]
+    fn a_codex_models_key_of_a_newer_version_survives_a_save() {
+        let mut saved = CodexModels::default();
+        saved
+            .extra
+            .insert("planner".into(), serde_json::json!("o9"));
+        let next = normalize_draft(&draft(|d| d.codex_models = saved.clone()));
+        assert_eq!(next.codex_models, saved);
     }
 
     #[test]

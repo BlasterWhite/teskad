@@ -94,11 +94,12 @@ pub enum Icon {
     Power,
     MoveToMachine,
     MachinePlus,
+    Pin,
 }
 
 impl Icon {
     /// All of them, in the order of the web app's table.
-    pub const ALL: [Icon; 88] = [
+    pub const ALL: [Icon; 89] = [
         Icon::Layout1,
         Icon::Layout2,
         Icon::Layout4,
@@ -187,6 +188,7 @@ impl Icon {
         Icon::Power,
         Icon::MoveToMachine,
         Icon::MachinePlus,
+        Icon::Pin,
     ];
 
     /// The name the web app knows it by (`"splitRight"`), which is what the
@@ -281,6 +283,7 @@ impl Icon {
             Icon::Power => "power",
             Icon::MoveToMachine => "moveToMachine",
             Icon::MachinePlus => "machinePlus",
+            Icon::Pin => "pin",
         }
     }
 
@@ -384,6 +387,8 @@ impl Icon {
             Icon::MoveToMachine => r##"<path d="M8.5 2.75h3.55a2.2 2.2 0 0 1 2.2 2.2v6.1a2.2 2.2 0 0 1-2.2 2.2H8.5M1.75 8h6.5M5.25 5l3 3-3 3"/><circle cx="11.5" cy="8" r=".8" fill="#000" stroke="none"/>"##,
             // A machine with a plus on its screen: the same thing opened on one more.
             Icon::MachinePlus => r##"<rect x="1.75" y="2.25" width="12.5" height="8.5" rx="1.8"/><path d="M8 10.75v2.75M5.25 13.5h5.5M8 4.65v3.7M6.15 6.5h3.7"/>"##,
+            // A push pin, upright: a pane pinned to its edge of the grid.
+            Icon::Pin => r##"<path d="M5 2.25h6M6.25 2.25v4.1L3.9 9.6h8.2L9.75 6.35v-4.1M8 9.6v4.65"/>"##,
         }
     }
 }

@@ -19,10 +19,11 @@ use crate::panes::grid::{Grid, Slot};
 use crate::panes::header::PADDING_X;
 use crate::panes::zoom_bar::{self, Other};
 use crate::panes::{
-    State, focus_on_panes, focused_pane, keyboard_free, terminal_pane, view_pane, zoomed_pane,
+    State, drawn_tree, focus_on_panes, focused_pane, keyboard_free, terminal_pane, view_pane,
+    zoomed_pane,
 };
-use crate::state::layout as geometry;
-use crate::state::types::SplitDir;
+use crate::state::layout::{self as geometry, Path, Side};
+use crate::state::types::{PanePin, PinEdge, SplitDir, SplitNode};
 use crate::state::{AgentActivity, Workspace};
 
 /// A grid width to fold headers by before the grid has measured itself.
@@ -31,8 +32,10 @@ const UNMEASURED: Size = Size::new(1000.0, 700.0);
 pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, Message> {
     let t = ctx.theme;
     let c = &t.colors;
-    let tree = geometry::grid_tree(ws);
+    // The pinned panes at the pixels they keep, once the grid knows its size.
+    let tree = drawn_tree(&st.grid_sizes, ws);
     let layout = geometry::compute_layout(&tree);
+    let pinned = pin_splits(&tree, &geometry::live_pins(ws));
     let order: Vec<&str> = layout.order.iter().map(String::as_str).collect();
     let focused = focused_pane(ctx.model, ws);
     let zoomed = zoomed_pane(ctx.model, ws);
@@ -162,6 +165,7 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, M
         size,
         move |count| tr.tn(Key::DropPaste, count, &[]).into_owned(),
     )
+    .pinned(pinned)
     .keyboard_elsewhere(!focus_on_panes(ctx.model));
     // The boundaries take keys only where the keyboard is the grid's: no
     // dialog open over it, no field holding it.
@@ -169,6 +173,35 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, M
         grid = grid.boundary_keys(move |handle| boundary_name(tr, &names, handle));
     }
     grid.into()
+}
+
+/// The splits of `tree`, a pinned tree of `pins` (`layout::with_pins`), that
+/// carve each pinned pane out on its edge, by path, with that edge: the
+/// boundaries a drag keeps within what the engine lets a pinned pane take.
+/// Outermost first, as far as the tree holds them.
+pub(crate) fn pin_splits(tree: &SplitNode, pins: &[PanePin]) -> Vec<(Path, PinEdge)> {
+    let mut out = Vec::new();
+    let mut node = tree;
+    let mut path = Path::new();
+    for pin in pins {
+        let SplitNode::Split { dir, a, b, .. } = node else {
+            break;
+        };
+        let (pinned, rest, inwards) = if pin.edge.leads() {
+            (&**a, &**b, Side::B)
+        } else {
+            (&**b, &**a, Side::A)
+        };
+        let holds =
+            *dir == pin.edge.dir() && matches!(pinned, SplitNode::Pane { id } if *id == pin.id);
+        if !holds {
+            break;
+        }
+        out.push((path.clone(), pin.edge));
+        path.push(inwards);
+        node = rest;
+    }
+    out
 }
 
 /// What names a boundary on screen, once the keyboard has it, after the

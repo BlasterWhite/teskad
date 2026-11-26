@@ -12,7 +12,8 @@
 //! - `rest`, `gateway`: the thin client of Discord's own it speaks with;
 //! - `cards`: the messages, as Components V2; `ids`: what a click acts on;
 //! - `bot`: the connector, the server's structure and the dashboards;
-//!   `follow`: the panes followed; `shares`: the files agents share;
+//!   `follow`: the panes followed; `images`: what a Codex agent generates,
+//!   on its turn's card; `shares`: the files agents share;
 //!   `act`: what the person does; `lanes`: what waits on Discord kept in
 //!   order per agent and channel, side by side between them.
 
@@ -24,6 +25,7 @@ mod follow;
 pub mod gateway;
 pub mod hangar;
 pub mod ids;
+pub mod images;
 mod lanes;
 pub mod rest;
 pub mod setup;

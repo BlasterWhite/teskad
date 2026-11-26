@@ -1,0 +1,9 @@
+# from the protocol schema (Codex 0.170.0) — item/tool/call is a server request of 0.170.0 outside Hangar's subset — and, for what the schema does not say, from the source at rust-v0.170.0: app-server/src/outgoing_message.rs (a thread's server requests go to each of its clients; the first answer, an error included, resolves the request, then serverRequest/resolved goes to all). Written by hand, not recorded.
+# Hangar as the second client of a pane's server, beside the TUI (Unhandled::Leave): what it does not handle, and what the TUI answered first, stay unanswered by Hangar.
+# ">" is what Hangar sends, "<" what Codex sends, in order. Follows initialize.jsonl.
+< {"id":12,"method":"item/tool/call","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10","turnId":"turn-3","callId":"call-7","tool":"browser_open","arguments":{"url":"http://localhost:5173"}}}
+< {"id":13,"method":"item/commandExecution/requestApproval","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10","turnId":"turn-3","itemId":"item-12","startedAtMs":1795050050000,"command":"rm -rf target"}}
+< {"id":14,"method":"item/fileChange/requestApproval","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10","turnId":"turn-3"}}
+< {"method":"serverRequest/resolved","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10","requestId":13}}
+> {"id":1,"method":"thread/loaded/list","params":{}}
+< {"id":1,"result":{"data":["019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10"]}}

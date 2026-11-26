@@ -1,9 +1,15 @@
 //! Pinning, unpinning and creating a workspace's orchestrator, and opening
-//! the project manager: the one Claude Code pane of a workspace that plans on
-//! the board and starts its workers (`lib/orchestrationActions.ts`). The pane
+//! the project manager: the one agent pane of a workspace that plans on the
+//! board and starts its workers (`lib/orchestrationActions.ts`). The pane
 //! menu, the palette and the orchestration panel all come through here, so
-//! the rule (one per workspace, Claude Code only, never a worker) is held in
-//! one place.
+//! the rule (one per workspace, an agent that can hold the role, never a
+//! worker) is held in one place.
+//!
+//! Who can hold the role is read from what its agent can do, never from which
+//! agent it is (`roles::lead_refusal`, docs/native/agents.md D3, §6.7), and a
+//! pane made for a role runs the agent the workspace gives that role
+//! (`Settings::agent_for`: its choice, else the settings' default, else the
+//! one installed, Claude Code when both are).
 //!
 //! The store is reached through [`OrchestrationStore`], which `Model`
 //! implements with `apply` and the tests implement in memory, as the TS tests
@@ -17,19 +23,24 @@ use std::sync::Mutex;
 use hangar_i18n::Locale;
 
 use crate::state::live::AgentActivity;
-use crate::state::roles::{hq_of, manager_of, orchestration_of, orchestrator_of};
+use crate::state::roles::{
+    RoleRefusal, hq_of, lead_refusal, manager_of, orchestration_of, orchestrator_of,
+};
 use crate::state::store::{PanePatch, WorkspaceDraft, WorkspacePatch};
-use crate::state::types::{AgentId, AppState, Pane, PaneId, PaneRole, SplitDir, Workspace, WsId};
+use crate::state::types::{
+    AgentId, AgentKind, AppState, OrchestrationRole, OrchestrationSettings, Pane, PaneId, PaneRole,
+    SplitDir, Workspace, WsId,
+};
 use crate::state::{Model, Patch, StoreAction};
 
 /// Why a pane cannot be pinned, or `None` when it can.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PinRefusal {
     /// No such pane in the workspace.
     Missing,
-    /// It runs something else than Claude Code: the briefing is Claude Code's
-    /// mod.
-    NotClaude,
+    /// Its agent cannot hold the role (`roles::lead_refusal`): a plain shell,
+    /// or an agent whose capabilities leave it out.
+    Agent(RoleRefusal),
     /// It is already a worker, on a task of its own.
     Worker,
     /// It is the orchestrator already.
@@ -60,8 +71,8 @@ pub fn pin_refusal(ws: &Workspace, pane_id: &str) -> Option<PinRefusal> {
     if pane.role == Some(PaneRole::Worker) {
         return Some(PinRefusal::Worker);
     }
-    if pane.agent != AgentId::Claude {
-        return Some(PinRefusal::NotClaude);
+    if let Some(refusal) = lead_refusal(pane.agent) {
+        return Some(PinRefusal::Agent(refusal));
     }
     if orchestrator_of(ws).is_some() {
         return Some(PinRefusal::Taken);
@@ -74,22 +85,22 @@ pub fn can_create_orchestrator(ws: &Workspace) -> bool {
     ws.hq != Some(true) && orchestrator_of(ws).is_none()
 }
 
-/// A Claude Code pane that is given a role while it runs keeps the session it
-/// started with, whose `--mcp-config` (Hangar's server: the board, memory and
-/// `worker_*` tools) was only added at launch to panes that had a role then.
-/// Hangar restarts it on the same conversation (`--resume`); the decision is
-/// made here, from plain values, and acted on by the pane (P5).
+/// An agent pane that is given a role while it runs keeps the session it
+/// started with, whose Hangar server (the board, memory and `worker_*` tools)
+/// was only added at launch to panes that had a role then. Hangar restarts it
+/// on the same conversation; the decision is made here, from plain values,
+/// and acted on by the pane (P5).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RoleRestart {
-    /// Nothing to do: not Claude Code, no role, it has the server, or it
-    /// started with the role.
+    /// Nothing to do: no agent, no role, it has the server, or it started
+    /// with the role.
     Skip,
     /// In the middle of a turn: wait for it to end.
     Wait,
     /// Restart now.
     Now,
-    /// It lacks the server but has no conversation to resume: a restart would
-    /// lose it.
+    /// It lacks the server but has no conversation its agent can resume: a
+    /// restart would lose it.
     Unresumable,
 }
 
@@ -114,9 +125,10 @@ pub fn is_mid_turn(activity: AgentActivity) -> bool {
 }
 
 pub fn role_restart(input: &RoleRestartInput) -> RoleRestart {
-    if input.agent != AgentId::Claude {
+    // A plain shell has no agent to give a role to.
+    let Some(kind) = input.agent.kind() else {
         return RoleRestart::Skip;
-    }
+    };
     if input.role.is_none() || input.launched_role.is_some() {
         return RoleRestart::Skip;
     }
@@ -128,7 +140,8 @@ pub fn role_restart(input: &RoleRestartInput) -> RoleRestart {
     if input.mid_turn {
         return RoleRestart::Wait;
     }
-    if input.session_id.is_some() {
+    // The conversation goes on only with an agent that resumes one.
+    if input.session_id.is_some() && kind.info().caps.sessions.resume {
         RoleRestart::Now
     } else {
         RoleRestart::Unresumable
@@ -209,12 +222,17 @@ pub enum OpenManager {
 /// `apply`; the tests, in memory.
 pub trait OrchestrationStore {
     fn app_state(&self) -> &AppState;
+    /// Whether `kind`'s agent is on this computer: what a part nobody chose an
+    /// agent for runs depends on it (`Settings::agent_for`).
+    fn installed(&self, kind: AgentKind) -> bool;
     fn update_pane(&mut self, ws: &str, pane: &str, patch: PanePatch);
-    /// A new Claude Code pane, with `init` applied before anything spawns it
-    /// (the role it must launch with, inventory A6). `None` at `MAX_PANES`.
-    fn add_claude_pane(
+    /// A new pane running `agent`, with `init` applied before anything spawns
+    /// it (the role it must launch with, inventory A6). `None` at
+    /// `MAX_PANES`.
+    fn add_pane(
         &mut self,
         ws: &str,
+        agent: AgentId,
         near: Option<PaneId>,
         dir: Option<SplitDir>,
         init: PanePatch,
@@ -229,6 +247,10 @@ impl OrchestrationStore for Model {
         self.state()
     }
 
+    fn installed(&self, kind: AgentKind) -> bool {
+        crate::shell::setup::installed(self, kind)
+    }
+
     fn update_pane(&mut self, ws: &str, pane: &str, patch: PanePatch) {
         self.apply(StoreAction::UpdatePane {
             ws: ws.to_owned(),
@@ -237,16 +259,17 @@ impl OrchestrationStore for Model {
         });
     }
 
-    fn add_claude_pane(
+    fn add_pane(
         &mut self,
         ws: &str,
+        agent: AgentId,
         near: Option<PaneId>,
         dir: Option<SplitDir>,
         init: PanePatch,
     ) -> Option<PaneId> {
         self.apply(StoreAction::AddPane {
             ws: ws.to_owned(),
-            agent: Some(AgentId::Claude),
+            agent: Some(agent),
             near,
             dir,
             cwd: None,
@@ -271,6 +294,21 @@ impl OrchestrationStore for Model {
 
 fn workspace<'a>(store: &'a impl OrchestrationStore, id: &str) -> Option<&'a Workspace> {
     store.app_state().workspaces.iter().find(|ws| ws.id == id)
+}
+
+/// The agent a new orchestrator (or project manager) of a workspace whose
+/// orchestration is `orchestration` runs: its choice, else the settings'
+/// default, else the one installed, Claude Code when both are (D20).
+fn lead_agent(
+    store: &impl OrchestrationStore,
+    orchestration: Option<&OrchestrationSettings>,
+) -> AgentKind {
+    store.app_state().settings.agent_for(
+        OrchestrationRole::Orchestrator,
+        orchestration,
+        None,
+        |kind| store.installed(kind),
+    )
 }
 
 /// Pins the pane; `false` when `pin_refusal` has a reason not to. The caller
@@ -310,9 +348,9 @@ pub fn unpin(store: &mut impl OrchestrationStore, ws_id: &str, pane_id: &str) ->
     true
 }
 
-/// A new Claude Code pane beside `near`, pinned from the start and on the
-/// orchestrator's model: its id, or `None` when the workspace already has an
-/// orchestrator or no room for a pane.
+/// A new pane of the workspace's orchestrator agent beside `near`, pinned
+/// from the start and on that agent's orchestrator model: its id, or `None`
+/// when the workspace already has an orchestrator or no room for a pane.
 ///
 /// The TS split along the longer side of `near`'s rectangle (`preferredDir`),
 /// read from the DOM. The pane grid (P5) owns that rectangle here, and the
@@ -326,39 +364,51 @@ pub fn create(
     if !can_create_orchestrator(ws) {
         return None;
     }
-    let model = orchestration_of(ws).orchestrator_model;
+    let orchestration = orchestration_of(ws);
+    let kind = lead_agent(store, Some(&orchestration));
+    // None: the agent's own default (Codex's, when the workspace named none).
+    let model = orchestration
+        .model(OrchestrationRole::Orchestrator, kind)
+        .map(str::to_owned);
     // The role goes in with the pane, before it mounts and launches, so it
     // starts as the orchestrator it was created to be.
-    store.add_claude_pane(
+    store.add_pane(
         ws_id,
+        kind.into(),
         near,
         None,
         Patch::new(move |pane: &mut Pane| {
             pane.role = Some(PaneRole::Orchestrator);
-            pane.model = Some(model.clone());
+            pane.model = model.clone();
         }),
     )
 }
 
-/// The first pane of a workspace just made becomes its orchestrator, on the
-/// orchestrator's model: the default of the new-workspace dialog, one Claude
-/// Code pane ready to be talked to. Called in the same update as the
+/// The first pane of a workspace just made becomes its orchestrator, on its
+/// agent's orchestrator model: the default of the new-workspace dialog, one
+/// agent pane ready to be talked to. Called in the same update as the
 /// creation, so the pane mounts, and launches, as the orchestrator (with
 /// Hangar's server). `None`, and nothing changed, when `pin_refusal` has a
-/// reason (no pane, not Claude Code, the HQ).
+/// reason (no pane, a shell, the HQ).
 pub fn pin_first_pane(store: &mut impl OrchestrationStore, ws_id: &str) -> Option<PaneId> {
     let ws = workspace(store, ws_id)?;
-    let pane = ws.panes.first()?.id.clone();
+    let first = ws.panes.first()?;
+    let pane = first.id.clone();
     if pin_refusal(ws, &pane).is_some() {
         return None;
     }
-    let model = orchestration_of(ws).orchestrator_model;
+    let orchestration = orchestration_of(ws);
+    let model = first
+        .agent
+        .kind()
+        .and_then(|kind| orchestration.model(OrchestrationRole::Orchestrator, kind))
+        .map(str::to_owned);
     store.update_pane(
         ws_id,
         &pane,
         Patch::new(move |pane: &mut Pane| {
             pane.role = Some(PaneRole::Orchestrator);
-            pane.model = Some(model.clone());
+            pane.model = model.clone();
         }),
     );
     Some(pane)
@@ -375,8 +425,9 @@ pub enum ManagerStep {
 }
 
 /// « Ouvrir le chef de projet »: the one way to the manager. Hangar has one
-/// manager, in one HQ workspace: with neither, both are made (the pane a
-/// Claude Code with the role from the start, on the orchestrator's model);
+/// manager, in one HQ workspace: with neither, both are made (the pane runs
+/// the agent an orchestrator of the HQ would, with the role from the start,
+/// on that agent's orchestrator model);
 /// with the HQ only, a new manager is added; with both, they are shown. Never
 /// a second manager.
 ///
@@ -417,6 +468,12 @@ fn place_manager(
     let mut created = false;
     // Another request may have made the HQ while its folder was.
     let mut hq_id = hq_of(store.app_state()).map(|ws| ws.id.clone());
+    // The agent an orchestrator of the HQ would run (D20), with no choice
+    // of the HQ's yet when it is still to be made.
+    let kind = {
+        let orchestration = hq_of(store.app_state()).map(orchestration_of);
+        lead_agent(store, orchestration.as_ref())
+    };
     if hq_id.is_none() {
         let Some(cwd) = folder else {
             return OpenManager::Failed { error: None };
@@ -425,7 +482,7 @@ fn place_manager(
             name: hq_name.to_owned(),
             cwd,
             layout: 1,
-            agents: vec![AgentId::Claude],
+            agents: vec![kind.into()],
             ..WorkspaceDraft::default()
         }) else {
             return OpenManager::Failed { error: None };
@@ -438,18 +495,17 @@ fn place_manager(
         return OpenManager::Failed { error: None };
     };
     let hq_id = hq.id.clone();
-    let model = orchestration_of(hq).orchestrator_model;
+    let model = orchestration_of(hq)
+        .model(OrchestrationRole::Orchestrator, kind)
+        .map(str::to_owned);
     let first_pane = hq.panes.first().map(|pane| pane.id.clone());
 
-    let as_manager = {
-        let model = model.clone();
-        Patch::new(move |pane: &mut Pane| {
-            pane.role = Some(PaneRole::Manager);
-            pane.model = Some(model.clone());
-        })
-    };
-    // The first pane of a new HQ is the Claude Code it was made with; an HQ
-    // whose manager was closed gets one again.
+    let as_manager = Patch::new(move |pane: &mut Pane| {
+        pane.role = Some(PaneRole::Manager);
+        pane.model = model.clone();
+    });
+    // The first pane of a new HQ is the agent it was made with; an HQ whose
+    // manager was closed gets one again.
     let pane = if created {
         let Some(pane) = first_pane else {
             return OpenManager::Failed { error: None };
@@ -459,7 +515,7 @@ fn place_manager(
         store.update_pane(&hq_id, &pane, as_manager);
         pane
     } else {
-        match store.add_claude_pane(&hq_id, None, Some(SplitDir::Row), as_manager) {
+        match store.add_pane(&hq_id, kind.into(), None, Some(SplitDir::Row), as_manager) {
             Some(pane) => pane,
             None => return OpenManager::Failed { error: None },
         }
@@ -537,9 +593,15 @@ mod tests {
     }
 
     #[test]
-    fn pins_claude_code_only_the_role_reaches_the_agent_through_its_mod() {
+    fn pins_a_pane_of_either_agent_but_never_a_shell() {
         let ws = ws_of(vec![pane("x", AgentId::Shell, None)]);
-        assert_eq!(pin_refusal(&ws, "x"), Some(PinRefusal::NotClaude));
+        assert_eq!(
+            pin_refusal(&ws, "x"),
+            Some(PinRefusal::Agent(RoleRefusal::NoAgent))
+        );
+        // What it asks is what the agent can do, and Codex can hold the role.
+        let ws = ws_of(vec![pane("c", AgentId::Codex, None)]);
+        assert_eq!(pin_refusal(&ws, "c"), None);
     }
 
     #[test]
@@ -592,9 +654,12 @@ mod tests {
     struct FakeStore {
         state: AppState,
         n: u32,
+        /// The agents on the fake computer.
+        installed: Vec<AgentKind>,
     }
 
     impl FakeStore {
+        /// A computer with Claude Code, as Hangar's has always had.
         fn new(workspaces: Vec<Workspace>) -> Self {
             FakeStore {
                 state: AppState {
@@ -602,6 +667,15 @@ mod tests {
                     ..AppState::default()
                 },
                 n: 0,
+                installed: vec![AgentKind::Claude],
+            }
+        }
+
+        /// A computer with Codex alone.
+        fn codex_only(workspaces: Vec<Workspace>) -> Self {
+            FakeStore {
+                installed: vec![AgentKind::Codex],
+                ..FakeStore::new(workspaces)
             }
         }
 
@@ -625,6 +699,10 @@ mod tests {
             &self.state
         }
 
+        fn installed(&self, kind: AgentKind) -> bool {
+            self.installed.contains(&kind)
+        }
+
         fn update_pane(&mut self, ws: &str, pane: &str, patch: PanePatch) {
             for entry in &mut self.state.workspaces {
                 if entry.id == ws {
@@ -637,15 +715,16 @@ mod tests {
             }
         }
 
-        fn add_claude_pane(
+        fn add_pane(
             &mut self,
             ws: &str,
+            agent: AgentId,
             _near: Option<PaneId>,
             _dir: Option<SplitDir>,
             init: PanePatch,
         ) -> Option<PaneId> {
             let id = self.id("p");
-            let mut fresh = claude(&id);
+            let mut fresh = pane(&id, agent, None);
             init.apply(&mut fresh);
             let entry = self.state.workspaces.iter_mut().find(|w| w.id == ws)?;
             entry.panes.push(fresh);
@@ -655,11 +734,12 @@ mod tests {
         fn add_workspace(&mut self, draft: WorkspaceDraft) -> Option<WsId> {
             let id = self.id("ws");
             let first = self.id("p");
+            let agent = draft.agents.first().copied().unwrap_or_default();
             self.state.workspaces.push(Workspace {
                 id: id.clone(),
                 name: draft.name,
                 cwd: draft.cwd,
-                panes: vec![claude(&first)],
+                panes: vec![pane(&first, agent, None)],
                 ..Workspace::default()
             });
             self.state.active_workspace_id = Some(id.clone());
@@ -825,6 +905,75 @@ mod tests {
         assert_eq!(create(&mut store, "nowhere", None), None);
     }
 
+    /// The panel's « New orchestrator » starts the agent the workspace gives
+    /// the role (D20), on that agent's model: Codex's own default while the
+    /// workspace names none.
+    #[test]
+    fn a_new_orchestrator_runs_the_agent_the_workspace_chose_on_its_model() {
+        let chose = |codex_model: Option<&str>| Workspace {
+            id: "w".into(),
+            orchestration: Some(crate::state::types::OrchestrationSettings {
+                orchestrator_agent: Some(AgentKind::Codex),
+                codex_models: crate::state::types::CodexModels {
+                    orchestrator: codex_model.map(str::to_owned),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }),
+            ..Workspace::default()
+        };
+        let mut store = FakeStore::new(vec![chose(Some("gpt-5.5"))]);
+        let id = create(&mut store, "w", None).expect("a new pane");
+        let made = &store.state.workspaces[0].panes[0];
+        assert_eq!(
+            (made.id.as_str(), made.agent),
+            (id.as_str(), AgentId::Codex)
+        );
+        assert_eq!(made.role, Some(PaneRole::Orchestrator));
+        assert_eq!(made.model.as_deref(), Some("gpt-5.5"));
+
+        let mut store = FakeStore::new(vec![chose(None)]);
+        assert!(create(&mut store, "w", None).is_some());
+        assert_eq!(store.state.workspaces[0].panes[0].model, None);
+    }
+
+    #[test]
+    fn with_codex_alone_a_new_orchestrator_and_the_manager_run_codex() {
+        let mut store = FakeStore::codex_only(vec![Workspace {
+            id: "w".into(),
+            ..Workspace::default()
+        }]);
+        assert!(create(&mut store, "w", None).is_some());
+        assert_eq!(store.state.workspaces[0].panes[0].agent, AgentId::Codex);
+
+        let made = open(&mut store, "/data/hq");
+        assert!(matches!(made, OpenManager::Created { .. }), "{made:?}");
+        let manager = store.managers()[0];
+        assert_eq!(manager.agent, AgentId::Codex);
+        // No Codex model named: Codex picks its own.
+        assert_eq!(manager.model, None);
+    }
+
+    #[test]
+    fn a_codex_pane_pinned_first_takes_codex_s_orchestrator_model() {
+        let mut store = FakeStore::new(vec![Workspace {
+            id: "w".into(),
+            orchestration: Some(crate::state::types::OrchestrationSettings {
+                codex_models: crate::state::types::CodexModels {
+                    orchestrator: Some("gpt-5.5".into()),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }),
+            panes: vec![pane("c", AgentId::Codex, None)],
+            ..Workspace::default()
+        }]);
+        assert_eq!(pin_first_pane(&mut store, "w"), Some("c".into()));
+        let pinned = &store.state.workspaces[0].panes[0];
+        assert_eq!(pinned.role, Some(PaneRole::Orchestrator));
+        assert_eq!(pinned.model.as_deref(), Some("gpt-5.5"));
+    }
+
     #[test]
     fn the_first_pane_of_a_new_workspace_becomes_its_orchestrator_when_it_can() {
         let shell = Pane {
@@ -942,6 +1091,22 @@ mod tests {
             ..base()
         };
         assert_eq!(role_restart(&input), RoleRestart::Skip);
+    }
+
+    /// Codex gets Hangar's server at launch too: pinned while it runs, it is
+    /// started again on its conversation like Claude Code.
+    #[test]
+    fn restarts_a_codex_pane_pinned_without_the_server_on_its_conversation() {
+        let input = RoleRestartInput {
+            agent: AgentId::Codex,
+            ..base()
+        };
+        assert_eq!(role_restart(&input), RoleRestart::Now);
+        let mid = RoleRestartInput {
+            mid_turn: true,
+            ..input
+        };
+        assert_eq!(role_restart(&mid), RoleRestart::Wait);
     }
 
     #[test]

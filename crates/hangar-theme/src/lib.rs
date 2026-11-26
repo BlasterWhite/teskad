@@ -8,7 +8,13 @@
 //!   restyles the whole window, not only the terminals: [`Theme::colors`] has
 //!   every token of the chrome (surfaces, hairlines, text levels, the accent,
 //!   the agent states, the statistics) and [`Theme::terminal`] the colours a
-//!   terminal is drawn with.
+//!   terminal is drawn with. Any theme can let the desktop show through the
+//!   window, at the opacity the person sets ([`Theme::with_window_opacity`]):
+//!   on Linux only, behind the window's page, its bars and the terminals'
+//!   default background, never behind text, cards, menus or dialogs, and
+//!   with every colour of the theme as it is. Blurring what shows through is
+//!   the compositor's (KDE does, GNOME with an extension such as Blur my
+//!   Shell).
 //! - [`tokens`]: what is not a colour: radii, spacing, font sizes, weights,
 //!   durations, the sizes of the window's parts.
 //! - [`to_iced`] and [`style`]: the theme for iced, and the style functions
@@ -29,7 +35,8 @@
 //!    `id` is what settings store: lowercase letters, digits and `-`, never
 //!    changed once released.
 //! 2. Write its `terminal` palette and the `accent` of its `colors`. For the
-//!    rest of `colors`, copy any theme's for now.
+//!    rest of `colors`, copy any theme's for now. Its `window_opacity` is
+//!    `SOLID`, as every theme's.
 //! 3. Run `cargo test -p hangar-theme`. The derivation test fails on the new
 //!    theme and prints the whole `colors: Colors { ... }` entry that
 //!    [`derive_colors`] gives for its palette and accent: paste it over the
@@ -56,8 +63,8 @@ pub use derive::{FILL_CONTRAST, TEXT_CONTRAST, derive_colors};
 pub use iced_theme::to_iced;
 pub use kit::{css, kit_default_themes, kit_tokens};
 pub use theme::{
-    AgentState, Appearance, Colors, DEFAULT_ID, SearchColors, StateColors, TerminalColors, Theme,
-    by_id, by_id_or_default, default_theme, themes,
+    AgentState, Appearance, Colors, DEFAULT_ID, MIN_WINDOW_OPACITY, SearchColors, StateColors,
+    TerminalColors, Theme, by_id, by_id_or_default, default_theme, themes,
 };
 pub(crate) use theme::{rgb, rgba};
 

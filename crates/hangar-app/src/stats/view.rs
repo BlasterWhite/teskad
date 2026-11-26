@@ -8,7 +8,7 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use hangar_i18n::{Key, args};
+use hangar_i18n::{Key, Translator, args};
 use hangar_theme::tokens::{font_size, radius, size, space};
 use hangar_theme::{Theme, fonts, style};
 use hangar_ui::button::{self as ui_button};
@@ -25,12 +25,13 @@ use super::charts::{ChartId, KINDS};
 use super::format::{
     self, format_change, format_compact, format_duration, format_integer, format_share, format_usd,
 };
-use super::model::{Granularity, Measure, PERIODS, Period, Summary, change};
+use super::model::{Granularity, Measure, PERIODS, Period, Ranked, Summary, change, model_agent};
 use super::ranked::{self, List};
 use super::ui::{self, Ui, measure_key, one_line};
 use super::{Computed, Msg, Scope, State, sessions, tables};
 use crate::ctx::Ctx;
 use crate::message::Message;
+use crate::state::types::AgentKind;
 
 /// How many projects show before the rest fold under "N more".
 const PROJECTS_SHOWN: usize = 7;
@@ -74,7 +75,7 @@ fn page<'a>(
     let bar = bar(st, ctx, ui, computed.as_deref(), width);
     let body: Element<'a, Message> = match &computed {
         Some(computed) => {
-            let data = &computed.data;
+            let data = &computed.data.stats;
             if data.buckets.is_empty() && !live.refreshing {
                 empty_state(ui, data)
             } else {
@@ -97,7 +98,9 @@ fn page<'a>(
     // read.
     let stale = ui::is_stale(
         live.refreshing,
-        live.data.as_ref().is_some_and(|data| data.scan.cached_only),
+        live.data
+            .as_ref()
+            .is_some_and(|data| data.stats.scan.cached_only),
         live.refresh_started,
         ctx.now,
     );
@@ -310,7 +313,7 @@ fn status<'a>(ctx: Ctx<'a>, ui: Ui, every: bool) -> Option<Element<'a, Message>>
     }
     live.data
         .as_ref()
-        .filter(|data| data.scan.cached_only)
+        .filter(|data| data.stats.scan.cached_only)
         .map(|_| {
             small(ui.s(Key::StatsFromCache))
                 .style(style::text::subtle(t))
@@ -769,7 +772,7 @@ fn content<'a>(
     ctx: Ctx<'a>,
     ui: Ui,
     computed: &Arc<Computed>,
-    data: &Arc<hangar_core::stats::UsageStats>,
+    data: &hangar_core::stats::UsageStats,
     width: f32,
 ) -> Element<'a, Message> {
     let t = ui.t;
@@ -940,9 +943,13 @@ fn content<'a>(
 
     // Two columns that stack on their own, so a long ranking never leaves a
     // hole beside a short card.
-    let first = column![projects_card(st, ui, summary), models_card(st, ui, summary)]
+    let mut first = column![projects_card(st, ui, summary)]
         .spacing(14)
         .width(Length::Fill);
+    if both_agents(summary) {
+        first = first.push(agents_card(st, ui, summary));
+    }
+    let first = first.push(models_card(st, ui, summary));
     let second = column![
         heat_card(st, ui, summary),
         sessions_card(ui, summary, measure, &measure_name)
@@ -1056,26 +1063,117 @@ fn projects_card<'a>(st: &State, ui: Ui, summary: &Summary) -> Element<'a, Messa
     )
 }
 
+/// Whether the period holds the work of more than one agent. Only then do
+/// the "by agent" card and the agent headings of the model breakdown show: a
+/// ranking of one says nothing (owner's decision, 2026-11-03), so a user of a
+/// single agent has the page as it always was.
+pub(super) fn both_agents(summary: &Summary) -> bool {
+    summary.agents.len() > 1
+}
+
+/// The line under an agent's row: what the ranking's own figure leaves out
+/// (the cost when it ranks tokens, the tokens when it ranks cost), then the
+/// active time. A kind none of whose models has a price says so rather than
+/// show a cost of nothing.
+pub(super) fn agent_details(tr: Translator, row: &Ranked, measure: Measure) -> String {
+    let locale = tr.locale();
+    let other = match measure {
+        Measure::Tokens if row.unpriced && row.totals.cost <= 0.0 => {
+            tr.t(Key::StatsUnpriced).into_owned()
+        }
+        Measure::Tokens => format_usd(row.totals.cost, locale, false),
+        Measure::Cost => tr
+            .t_with(
+                Key::StatsTokensValue,
+                &args!("value" => format_compact(row.totals.tokens as f64, locale)),
+            )
+            .into_owned(),
+    };
+    let active = tr
+        .t_with(
+            Key::StatsSessionActive,
+            &args!("value" => format_duration(row.totals.active_ms as f64, tr)),
+        )
+        .into_owned();
+    format!("{other} · {active}")
+}
+
+/// Claude Code and Codex side by side: tokens, cost and active time of each.
+fn agents_card<'a>(st: &State, ui: Ui, summary: &Summary) -> Element<'a, Message> {
+    let measure = st.measure;
+    let sub = move |row: &Ranked| agent_details(ui.tr, row, measure);
+    let body = ranked::list(
+        ui,
+        List {
+            rows: &summary.agents,
+            measure,
+            selected: None,
+            pick: None,
+            pick_tip: None,
+            sub: Some(&sub),
+        },
+    );
+    card(ui, ui.s(Key::StatsAgentsTitle), None, None, body)
+}
+
+/// The models of the period under the agent each runs under (see
+/// [`model_agent`]), the agents in the order they rank, so the model names
+/// read as "GPT-5.3 Codex" under Codex and "Opus 5.5" under Claude Code. An
+/// agent none of whose models appears has no group.
+pub(super) fn models_by_agent(summary: &Summary) -> Vec<(AgentKind, Vec<Ranked>)> {
+    summary
+        .agents
+        .iter()
+        .filter_map(|agent| AgentKind::from_id(&agent.key))
+        .filter_map(|kind| {
+            let rows: Vec<Ranked> = summary
+                .models
+                .iter()
+                .filter(|row| model_agent(&row.key) == kind)
+                .cloned()
+                .collect();
+            (!rows.is_empty()).then_some((kind, rows))
+        })
+        .collect()
+}
+
 /// The models the period's tokens went to. It shared a card with the agents
 /// until Claude Code became the only one (owner's decision, 2026-11-03): a
-/// ranking of one says nothing.
+/// ranking of one says nothing. With Codex back, the models fall under the
+/// agent they ran in once both have done something in the period.
 fn models_card<'a>(st: &State, ui: Ui, summary: &Summary) -> Element<'a, Message> {
     let t = ui.t;
     let mut body = column![].spacing(space::XL);
-    if summary.models.is_empty() {
-        body = body.push(muted_line(ui, ui.s(Key::StatsNoData)));
-    } else {
-        body = body.push(ranked::list(
+    let list = |rows: &[Ranked]| {
+        ranked::list(
             ui,
             List {
-                rows: &summary.models,
+                rows,
                 measure: st.measure,
                 selected: None,
                 pick: None,
                 pick_tip: None,
                 sub: None,
             },
-        ));
+        )
+    };
+    if summary.models.is_empty() {
+        body = body.push(muted_line(ui, ui.s(Key::StatsNoData)));
+    } else if both_agents(summary) {
+        for (kind, rows) in models_by_agent(summary) {
+            body = body.push(
+                column![
+                    one_line(kind.info().label)
+                        .size(font_size::CAPTION_LG)
+                        .font(fonts::ui_semibold())
+                        .style(style::text::muted(t)),
+                    list(&rows),
+                ]
+                .spacing(space::SM),
+            );
+        }
+    } else {
+        body = body.push(list(&summary.models));
     }
     if summary.unpriced_tokens > 0 {
         body = body.push(

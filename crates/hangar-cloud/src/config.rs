@@ -157,7 +157,7 @@ mod tests {
         let config = config(&[]).unwrap();
         assert_eq!(config.bind, "0.0.0.0:8080".parse().unwrap());
         assert_eq!(config.db, PathBuf::from("/data/hangar-cloud.sqlite"));
-        assert_eq!(config.base_url, "https://hangar-account.simnjs.fr");
+        assert_eq!(config.base_url, "https://account.hangarai.dev");
         assert_eq!(config.trusted_proxies, 1);
         assert_eq!(config.provider(Provider::Github), None);
     }
@@ -200,7 +200,7 @@ mod tests {
             assert!(err.contains(TRUSTED_PROXIES), "{count}: {err}");
         }
         for url in [
-            "hangar-account.simnjs.fr",
+            "account.hangarai.dev",
             "ftp://x",
             "https://",
             "https://x/api",

@@ -69,7 +69,7 @@ pub(crate) fn copy_of(dir: &Path, share: &Share) -> Option<PathBuf> {
 }
 
 /// What Discord says of a file too large for it.
-fn too_large(error: &Refused) -> bool {
+pub(crate) fn too_large(error: &Refused) -> bool {
     error.status == 413 || error.message.to_ascii_lowercase().contains("too large")
 }
 

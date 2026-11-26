@@ -10,6 +10,8 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{json, Value};
 
+use crate::agent::AgentKind;
+
 const PROTOCOL_VERSION: &str = "2024-11-05";
 
 /// ureq stops reading a body at 10 MB unless told otherwise, and a
@@ -101,7 +103,7 @@ impl Api {
             Some(pair) => pair,
             None => {
                 let endpoint = crate::endpoint::read()
-                    .ok_or("Hangar.AI is not running (no endpoint file found)")?;
+                    .ok_or("HangarAI is not running (no endpoint file found)")?;
                 (
                     format!("http://127.0.0.1:{}", endpoint.port),
                     endpoint.token,
@@ -256,6 +258,7 @@ fn tool_definitions() -> Value {
             kit_tool_definitions(),
             manager_tool_definitions(),
             repository_tool_definitions(),
+            delegation_tool_definitions(),
         ] {
             all.extend(more.as_array().into_iter().flatten().cloned());
         }
@@ -263,7 +266,111 @@ fn tool_definitions() -> Value {
     tools
 }
 
+/// What the pane tools' `agent` takes: each kind of agent Hangar runs, by
+/// its id (`agent::AgentKind`), or a plain shell.
+fn pane_agents() -> Value {
+    let mut ids: Vec<&str> = AgentKind::ALL.iter().map(|kind| kind.id()).collect();
+    ids.push("shell");
+    json!(ids)
+}
+
+/// What `worker_spawn`'s `agent` takes: each kind of agent Hangar runs, by
+/// its id. Not a shell: a worker is an agent's pane.
+fn worker_agents() -> Value {
+    let ids: Vec<&str> = AgentKind::ALL.iter().map(|kind| kind.id()).collect();
+    json!(ids)
+}
+
+/// Each kind of agent as the tools describe it: `claude: Claude Code, codex:
+/// Codex`.
+fn agent_labels() -> String {
+    AgentKind::ALL
+        .iter()
+        .map(|kind| format!("{}: {}", kind.id(), kind.info().label))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// A sub-task to an agent that runs with no terminal, and its result back
+/// (delegate.rs; the engine's control/delegate.rs, D14). The parent is the
+/// caller's pane, which the API knows from the pane's own token: no tool
+/// takes one.
+fn delegation_tool_definitions() -> Value {
+    let agent = format!(
+        "The agent that runs it ({}). Defaults to yours. An agent Hangar cannot run with no terminal here is refused with the reason, never replaced by another.",
+        agent_labels()
+    );
+    let wait_max = crate::delegate::WAIT_MAX.as_secs();
+    let wait = format!(
+        "Seconds to wait for it to end or to need the person, {wait_max} at most (a tool call must answer before the agent's own time limit). Default 0: where it stands now."
+    );
+    let id = json!({
+        "type": "string",
+        "description": "The delegation's id, as delegate or delegation_list gave it (d-3)."
+    });
+    json!([
+        {
+            "name": "delegate",
+            "description": "Hand a sub-task to an agent that runs with no terminal, and get its result back: make images, have another agent review a function, answer a question about the repository — work that is not a board task (a board task goes to a worker). The prompt is its whole brief: it sees nothing else of your work. It runs in your folder, or in a worktree and branch of its own (isolation), under the workspace's permission policy; what it asks goes to the person, never to you. The call answers at once with the delegation's id. When it ends, a message from Hangar brings you its result — its final message, the files it changed, the images it made, its branch — so carry on meanwhile, or call delegation_status with wait. Only from an agent in a Hangar pane: the result comes back to that pane.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "prompt": { "type": "string", "description": "The sub-task's whole brief: goal, context, constraints, what to answer with. The agent sees nothing else." },
+                    "agent": { "type": "string", "enum": worker_agents(), "description": agent },
+                    "model": { "type": "string", "description": "Model it runs, as its agent names it. Defaults to its agent's own." },
+                    "isolation": {
+                        "type": "string",
+                        "enum": ["shared", "worktree"],
+                        "description": "shared (default): in your folder, beside you, for work that reads more than it writes. worktree: in a worktree and a branch of its own, made from your last commit — what you have not committed is not copied — whose branch is returned; cancelling it removes them unless they hold commits."
+                    },
+                    "images": { "type": "boolean", "description": "Let it make images, for an agent that does; their files come back in images. Default false: a sub-task that needs none cannot spend image quota." }
+                },
+                "required": ["prompt"]
+            }
+        },
+        {
+            "name": "delegation_status",
+            "description": "Where a delegation of your workspace stands: running, needs_you (its agent waits for the person, who alone answers), done, failed or cancelled; once it ended, its result (its final message), the files it changed, its images, its branch, its tokens and why it failed. With wait, waits for it to end; waitedOut says the wait ran out first. Its end reaches you as a message anyway: wait only when you have nothing else to do.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "id": id,
+                    "wait": { "type": "number", "minimum": 0, "maximum": wait_max, "description": wait }
+                },
+                "required": ["id"]
+            }
+        },
+        {
+            "name": "delegation_cancel",
+            "description": "Stop a delegation: its agent's turn is interrupted, what it asked the person is withdrawn, and its worktree is removed unless it holds commits (the answer then says where they are). Only the pane that asked for it, or the workspace's orchestrator, can cancel it. One that had ended is left as it is.",
+            "inputSchema": {
+                "type": "object",
+                "properties": { "id": id },
+                "required": ["id"]
+            }
+        },
+        {
+            "name": "delegation_list",
+            "description": "List your workspace's delegations, oldest first: id, status, agent, model, the pane that asked for it (parent), title, isolation, branch, when it started and ended, why it failed. delegation_status gives one's result.",
+            "inputSchema": { "type": "object", "properties": {} }
+        }
+    ])
+}
+
 fn base_tool_definitions() -> Value {
+    let agents = pane_agents();
+    let what_to_run = format!(
+        "What to run: an agent ({}) or a plain shell. Defaults to what the pane it is split from runs.",
+        agent_labels()
+    );
+    let switch_to = format!(
+        "Switch the pane to this agent ({}) or to a plain shell, which starts a new conversation.",
+        agent_labels()
+    );
+    let worker_agent = format!(
+        "The agent the worker runs ({}). Defaults to the workspace's worker agent: the one its orchestration settings chose, else Hangar's default, else the agent its orchestrator runs. An agent that cannot run a worker here — not installed, or Hangar's link to it turned off in Settings › Sessions, so the brief would never reach it — is refused with the reason, never replaced by another.",
+        agent_labels()
+    );
     let workspace_arg = json!({
         "type": "string",
         "description": "Workspace name or folder. Defaults to the one you are working in."
@@ -299,7 +406,7 @@ fn base_tool_definitions() -> Value {
                 "type": "object",
                 "properties": {
                     "id": { "type": "string" },
-                    "agent": { "type": "string", "description": "Your identity, e.g. 'claude-1'. Defaults to the pane name; in a Hangar pane it is always the pane name." }
+                    "agent": { "type": "string", "description": "Your identity, e.g. 'worker-1'. Defaults to the pane name; in a Hangar pane it is always the pane name." }
                 },
                 "required": ["id"]
             }
@@ -460,7 +567,7 @@ fn base_tool_definitions() -> Value {
         },
         {
             "name": "workspace_list",
-            "description": "List the workspaces open in Hangar.AI — name, folder, number of panes — and which one you are in. The pane tools act on your own workspace unless you name another one.",
+            "description": "List the workspaces open in HangarAI — name, folder, number of panes — and which one you are in. The pane tools act on your own workspace unless you name another one.",
             "inputSchema": { "type": "object", "properties": {} }
         },
         {
@@ -473,18 +580,18 @@ fn base_tool_definitions() -> Value {
         },
         {
             "name": "pane_create",
-            "description": "Open a new pane in a workspace and start Claude Code in it, or a plain shell. Use it to hand work to another agent: with a prompt, the new Claude Code starts on it as soon as it is ready. Give a cwd (a worktree, for instance) to keep two agents out of each other's files. A workspace holds at most 16 panes.",
+            "description": "Open a new pane in a workspace and start an agent in it, or a plain shell. Use it to hand work to another agent: with a prompt, the new agent starts on it as soon as it is ready. Give a cwd (a worktree, for instance) to keep two agents out of each other's files. A workspace holds at most 16 panes.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "agent": {
                         "type": "string",
-                        "enum": ["claude", "shell"],
-                        "description": "What to run: Claude Code or a plain shell. Defaults to what the pane it is split from runs."
+                        "enum": agents.clone(),
+                        "description": what_to_run
                     },
                     "name": { "type": "string", "description": "Name for the pane, unique across every workspace. Defaults to the next free first name." },
                     "cwd": { "type": "string", "description": "Folder to start in, absolute or relative to the workspace root. Defaults to the workspace root." },
-                    "prompt": { "type": "string", "description": "First message for a Claude Code pane, submitted once its session is ready." },
+                    "prompt": { "type": "string", "description": "First message for an agent's pane, submitted once its session is ready." },
                     "near": { "type": "string", "description": "Name of a pane the new one goes next to. Defaults to the last one. Hangar lays the panes out itself: the orchestrator keeps the biggest pane, the others share the rest in an even grid." },
                     "focus": { "type": "boolean", "description": "Bring the new pane to the front. Default false." },
                     "workspace": workspace_arg
@@ -493,7 +600,7 @@ fn base_tool_definitions() -> Value {
         },
         {
             "name": "pane_close",
-            "description": "Close a pane: its terminal and whatever runs in it are killed. A Claude Code conversation stays on disk and can be resumed from the session picker. The last pane of a workspace cannot be closed. Closing your own pane ends your session.",
+            "description": "Close a pane: its terminal and whatever runs in it are killed. An agent's conversation stays on disk and can be resumed from the session picker. The last pane of a workspace cannot be closed. Closing your own pane ends your session.",
             "inputSchema": {
                 "type": "object",
                 "properties": { "pane": pane_arg, "workspace": workspace_arg },
@@ -502,13 +609,13 @@ fn base_tool_definitions() -> Value {
         },
         {
             "name": "pane_restart",
-            "description": "Restart a pane's terminal. By default its agent resumes the conversation it had; fresh=true starts a new conversation instead (a reset); agent switches the pane between Claude Code and a plain shell, also fresh. The pane keeps its name.",
+            "description": "Restart a pane's terminal. By default its agent resumes the conversation it had; fresh=true starts a new conversation instead (a reset); agent switches the pane to another agent or to a plain shell, also fresh. The pane keeps its name.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "pane": pane_arg,
                     "fresh": { "type": "boolean", "description": "Start a new conversation rather than resuming. Default false." },
-                    "agent": { "type": "string", "enum": ["claude", "shell"] },
+                    "agent": { "type": "string", "enum": agents, "description": switch_to },
                     "workspace": workspace_arg
                 },
                 "required": ["pane"]
@@ -516,7 +623,7 @@ fn base_tool_definitions() -> Value {
         },
         {
             "name": "pane_send",
-            "description": "Type into a pane as if at its keyboard. `text` is pasted and, unless submit=false, followed by Enter. `keys` are pressed after the text, in order — ['escape'] interrupts Claude Code, ['ctrl+c'] stops a command, ['down', 'enter'] picks the next option of a menu. With when_idle=true (Claude Code panes only) the text is queued instead, and submitted once that agent has finished its current turn rather than interrupting it.",
+            "description": "Type into a pane as if at its keyboard. `text` is pasted and, unless submit=false, followed by Enter. `keys` are pressed after the text, in order — ['escape'] interrupts the agent, ['ctrl+c'] stops a command, ['down', 'enter'] picks the next option of a menu. With when_idle=true (agent panes only) the text is queued instead, and submitted once that agent has finished its current turn rather than interrupting it.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -530,7 +637,7 @@ fn base_tool_definitions() -> Value {
                             "enum": ["enter", "escape", "tab", "shift+tab", "backspace", "up", "down", "left", "right", "ctrl+c", "ctrl+d"]
                         }
                     },
-                    "when_idle": { "type": "boolean", "description": "Queue the text until the Claude Code session is idle. Default false." },
+                    "when_idle": { "type": "boolean", "description": "Queue the text until the agent's session is idle. Default false." },
                     "workspace": workspace_arg
                 },
                 "required": ["pane"]
@@ -601,13 +708,14 @@ fn base_tool_definitions() -> Value {
         // orchestration: workers (worker_* tools)
         {
             "name": "worker_spawn",
-            "description": "Start a worker on a board task. Hangar claims the task for it (assignee: the worker, column: doing, one more attempt), checks out a git worktree on a new branch from the workspace's target branch, opens a Claude Code pane there with the worker model and twenty ports of its own, and queues its brief: the task's title and description, the files it owns, the check command, how to report, what to do when blocked and how to deliver. The worker starts with a fresh context and knows nothing else, so write the task's description as its whole brief — goal, constraints, acceptance criteria. With worktree: false, or in a workspace that is not a git repository, the worker starts in the workspace's folder itself, on the branch checked out there, beside you and the other workers, with no worktree, no branch and no delivery to land: it commits its task's files and you integrate them. Pick a worktree for parallel work that may conflict or must be reviewed apart, the same folder for one worker, quick sequential tasks or expensive builds; a task that does not say what it owns cannot run beside another worker there. Refused, with the reason, when the workspace is full (16 panes at most, its terminals included); the task is not in todo or waits on depends_on that are not done; or it owns files a task in doing owns too, or neither of them says what it owns. Hangar sets no limit on how many workers run at once or how many a task gets: that is yours to judge. Only the workspace's orchestrator can call it. You hear what the worker does through events — its comments, its delivery, a wait or an exit — so never poll it.",
+            "description": "Start a worker on a board task. Hangar claims the task for it (assignee: the worker, column: doing, one more attempt), checks out a git worktree on a new branch from the workspace's target branch, opens a pane there with the worker's agent (agent) on its worker model and twenty ports of its own, and queues its brief: the task's title and description, the files it owns, the check command, how to report, what to do when blocked and how to deliver. The worker starts with a fresh context and knows nothing else, so write the task's description as its whole brief — goal, constraints, acceptance criteria. With worktree: false, or in a workspace that is not a git repository, the worker starts in the workspace's folder itself, on the branch checked out there, beside you and the other workers, with no worktree, no branch and no delivery to land: it commits its task's files and you integrate them. Pick a worktree for parallel work that may conflict or must be reviewed apart, the same folder for one worker, quick sequential tasks or expensive builds; a task that does not say what it owns cannot run beside another worker there. Refused, with the reason, when the workspace is full (16 panes at most, its terminals included); its agent cannot run a worker here; the task is not in todo or waits on depends_on that are not done; or it owns files a task in doing owns too, or neither of them says what it owns. Hangar sets no limit on how many workers run at once or how many a task gets: that is yours to judge. Only the workspace's orchestrator can call it. You hear what the worker does through events — its comments, its delivery, a wait or an exit — so never poll it.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "task": { "type": "string", "description": "Id of the board task to hand over." },
                     "name": { "type": "string", "description": "Name for the worker's pane, unique across Hangar. Defaults to the next free first name." },
-                    "model": { "type": "string", "description": "Model the worker runs (--model): sonnet, opus, haiku or a full model id. Defaults to the workspace's worker model." },
+                    "model": { "type": "string", "description": "Model the worker runs, as its agent names it (Claude Code: sonnet, opus, haiku or a full claude-… id; Codex: a gpt-… model id). Defaults to the workspace's worker model for that agent (none set for Codex: its own default)." },
+                    "agent": { "type": "string", "enum": worker_agents(), "description": worker_agent },
                     "worktree": { "type": "boolean", "description": "Default true in a git workspace: the worker gets a worktree and a branch of its own, and Hangar checks, reviews and lands its delivery. false: it starts in the workspace's own folder on its current branch, beside other agents, with no branch and no delivery to land." },
                     "node": { "type": "string", "description": "Run the worker on a node instead of this computer (experimental): the id or name of a connected node, as worker_list shows under nodes — a server or a GPU box for heavy builds. Hangar pushes the target branch to a repository on the node, gives the worker a worktree and a branch there, and when it delivers fetches its branch back here, where it is checked, reviewed and landed as usual. Only in a git workspace on this computer, and never with worktree: false." }
                 },
@@ -1709,6 +1817,28 @@ mod tests {
         );
     }
 
+    /// A worker runs any agent Hangar runs, never a shell; none named, the
+    /// workspace's worker agent.
+    #[test]
+    fn worker_spawn_takes_an_agent() {
+        let agent = &tool("worker_spawn")["inputSchema"]["properties"]["agent"];
+        assert_eq!(agent["type"], "string");
+        assert_eq!(agent["enum"], json!(["claude", "codex"]));
+        let said = agent["description"].as_str().unwrap();
+        assert!(
+            said.contains("claude: Claude Code") && said.contains("codex: Codex"),
+            "{said}"
+        );
+        assert!(
+            said.contains("worker agent") && said.contains("refused"),
+            "{said}"
+        );
+        assert_eq!(
+            tool("worker_spawn")["inputSchema"]["required"],
+            json!(["task"])
+        );
+    }
+
     #[test]
     fn the_board_tools_take_what_an_orchestrator_writes() {
         let create = &tool("board_create_task")["inputSchema"]["properties"];
@@ -1896,6 +2026,112 @@ mod tests {
             let mut args = untouched.clone();
             absolutize_path(&mut args, &here);
             assert_eq!(args, untouched);
+        }
+    }
+
+    /// The pane tools start any agent Hangar runs, or a shell.
+    #[test]
+    fn the_pane_tools_take_every_agent_and_a_shell() {
+        for name in ["pane_create", "pane_restart"] {
+            let agent = &tool(name)["inputSchema"]["properties"]["agent"];
+            assert_eq!(agent["enum"], json!(["claude", "codex", "shell"]), "{name}");
+            let said = agent["description"].as_str().unwrap();
+            assert!(
+                said.contains("claude: Claude Code") && said.contains("codex: Codex"),
+                "{name}: {said}"
+            );
+        }
+    }
+
+    #[test]
+    fn delegate_takes_a_brief_an_agent_an_isolation_and_images() {
+        let schema = &tool("delegate")["inputSchema"];
+        assert_eq!(schema["required"], json!(["prompt"]));
+        let props = schema["properties"].as_object().unwrap();
+        let mut names: Vec<&str> = props.keys().map(String::as_str).collect();
+        names.sort_unstable();
+        assert_eq!(names, ["agent", "images", "isolation", "model", "prompt"]);
+        // Every agent is offered: one that cannot take a delegation here is
+        // refused with the reason by the window, never hidden.
+        assert_eq!(props["agent"]["enum"], json!(["claude", "codex"]));
+        let said = props["agent"]["description"].as_str().unwrap();
+        assert!(said.contains("refused with the reason"), "{said}");
+        assert_eq!(props["isolation"]["enum"], json!(["shared", "worktree"]));
+        assert_eq!(props["images"]["type"], "boolean");
+        let isolation = props["isolation"]["description"].as_str().unwrap();
+        assert!(isolation.contains("not committed"), "{isolation}");
+    }
+
+    /// The parent is the caller's pane, which the API knows from its token:
+    /// no delegation tool lets the model name another, nor a workspace.
+    #[test]
+    fn no_delegation_tool_takes_a_parent() {
+        for name in [
+            "delegate",
+            "delegation_status",
+            "delegation_cancel",
+            "delegation_list",
+        ] {
+            let props = &tool(name)["inputSchema"]["properties"];
+            for key in ["parent", "pane", "workspace", "caller"] {
+                assert!(props.get(key).is_none(), "{name} takes {key}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_delegation_is_followed_by_its_id_and_waited_for_no_longer_than_a_call() {
+        for name in ["delegation_status", "delegation_cancel"] {
+            let schema = &tool(name)["inputSchema"];
+            assert_eq!(schema["required"], json!(["id"]), "{name}");
+            assert_eq!(schema["properties"]["id"]["type"], "string", "{name}");
+        }
+        let wait = &tool("delegation_status")["inputSchema"]["properties"]["wait"];
+        assert_eq!(wait["maximum"], json!(crate::delegate::WAIT_MAX.as_secs()));
+        assert_eq!(wait["maximum"], json!(45));
+        assert_eq!(wait["minimum"], json!(0));
+        assert!(tool("delegation_list")["inputSchema"]
+            .get("required")
+            .is_none());
+    }
+
+    /// They reach the window as control operations, with who asks.
+    #[test]
+    fn the_delegation_tools_are_control_operations() {
+        for name in [
+            "delegate",
+            "delegation_status",
+            "delegation_cancel",
+            "delegation_list",
+        ] {
+            assert!(crate::control::OPERATIONS.contains(&name), "{name}");
+            assert!(!names_a_file(name), "{name}");
+        }
+    }
+
+    /// A tool says "the agent", not one agent's name: a description that
+    /// names an agent names them all.
+    #[test]
+    fn no_tool_speaks_of_one_agent_alone() {
+        fn texts(value: &Value, found: &mut Vec<String>) {
+            match value {
+                Value::Object(map) => {
+                    if let Some(Value::String(text)) = map.get("description") {
+                        found.push(text.clone());
+                    }
+                    map.values().for_each(|value| texts(value, found));
+                }
+                Value::Array(items) => items.iter().for_each(|value| texts(value, found)),
+                _ => {}
+            }
+        }
+        let mut found = Vec::new();
+        texts(&tool_definitions(), &mut found);
+        assert!(found.len() > 50, "{}", found.len());
+        for text in found {
+            let claude = text.contains("Claude");
+            let codex = text.contains("Codex");
+            assert_eq!(claude, codex, "{text}");
         }
     }
 }

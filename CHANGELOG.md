@@ -10,6 +10,84 @@ Every release, with its installers, is on the
 
 ## [Unreleased]
 
+## [2.5.1] - 2026-11-19
+
+### Fixed
+- Codex: the reviewer set for a workspace (Settings › Agents, or the workspace's own choice) now reviews its deliveries, with an account of its own agent; it was always Claude Code.
+- Codex: accounts follow the agent everywhere. A Codex pane, reviewer or new workspace picks among Codex accounts, and the new-workspace dialog's account picker follows the orchestrator you choose.
+- Codex panes: the context gauge, the restart after an MCP change and Hangar Mobile's chat of a node's pane work for Codex too; a cloned repository gets your default orchestrator agent; the Discord presence no longer names Claude Code alone.
+
+## [2.5.0] - 2026-11-19
+
+### Added
+- Codex (beta). HangarAI runs OpenAI's Codex CLI beside Claude Code, or on its own: Hangar works with either one installed, or both.
+  - Setup: both agents on the first-run sheet, installed by their official installers and signed in from a pane; either one is enough.
+  - Workspaces: choose the orchestrator's agent and the workers' agent when you create one; mixed teams work (a Claude Code orchestrator with Codex workers, or the reverse). Settings › Agents sets the defaults, Codex's launch command and models.
+  - Panes: a Codex pane shows whether it works, waits or needs you, like a Claude Code pane. Hangar attaches to the pane's Codex server to follow its turns and answer its approvals (Settings › Attach Hangar to Codex, on by default); without it, the pane still runs, with less to show.
+  - Board, memory, kits and Hangar's tools reach Codex too, through `-c` options: your `~/.codex/config.toml` is never edited. The playbook goes to `AGENTS.md` as well as `CLAUDE.md`.
+  - Accounts: Codex accounts beside Claude ones, each in a home of its own, chosen per pane, workspace or folder.
+  - Images: what Codex generates shows in the chat view, on Hangar Mobile and in Discord.
+  - Delegate: an agent hands a sub-task to a Codex or Claude Code child that runs with no terminal, in its folder or a worktree of its own, and gets back its answer, files, images and branch (`delegate`, `delegation_status`, `delegation_cancel`, `delegation_list`).
+  - Also: sessions resume and sleep for either agent, Hangar Mobile answers Codex's questions, Discord follows Codex panes, nodes run Codex, statistics per agent with OpenAI's prices, the reviewer can be Codex.
+  - Codex is in beta: report what goes wrong with the « Codex bug » issue form.
+
+### Changed
+- README, guide and site speak of both agents.
+
+## [2.4.6] - 2026-11-19
+
+### Fixed
+
+- hangarai.dev also shows in the title bar with the navigator hidden and in workspace windows.
+
+## [2.4.5] - 2026-11-19
+
+### Added
+
+- Pin a pane: a pinned pane keeps its edge and its size while workers and other panes open and close, and presets never close it. Pin and unpin it from the pane's menu or the command palette; a pin marks it in its header.
+- Window opacity, for every theme (Linux): Settings › Appearance › Window opacity lets the desktop show through the window, the panes and the terminals, while each theme keeps its own colours. Blur is the desktop's: KDE does it, GNOME with an extension such as Blur my Shell.
+
+### Changed
+
+- HangarAI: the new name, with hangarai.dev always shown in the title bar (a click opens the site). The program, its folders and its settings keep their names, so nothing moves on an upgrade.
+- Contact: contact@hangarai.dev, for questions about your data, conduct reports and security reports by email.
+
+### Fixed
+
+- Discord: a message written in a channel while its agent was busy could lose its place in the queue, and its ⚡ then did nothing.
+
+## [2.4.4] - 2026-11-19
+
+### Changed
+
+- Hangar's address is now hangarai.dev: the website at https://hangarai.dev and the optional Hangar account's server at https://account.hangarai.dev. The old addresses (hangar.simnjs.fr, hangar-account.simnjs.fr) keep working and lead to the new ones.
+
+### Fixed
+
+- Typing in a text field while a pane was selected went to the pane: the "Send the same instruction to all panes" bar, the terminal's search, renaming in the navigator and adding a card on the board lost the keyboard to the terminal, often after the first letter. A field that takes the keyboard now has it until you click a pane again, everywhere in the app.
+
+## [2.4.3] - 2026-11-18
+
+### Added
+
+- Coloured badges for Claude accounts (Settings › Accounts, off by default): a colour and an icon per account, shown on the toolbar's account button and its menu, and wherever an account other than the default is named. Contributed by SimonB44470.
+- A Claude account per navigator folder: workspaces without an account of their own run on their folder's, and follow it when moved; an explicit choice, "Default" included, still wins. A "+" on a folder's heading creates a workspace in it. Contributed by SimonB44470.
+- With two Claude accounts or more, the navigator's plan block shows each account's own limits and next reset. Contributed by SimonB44470.
+
+### Changed
+
+- Choosing another Claude account no longer asks to restart running agents: each one moves by itself, on the same conversation, as soon as Hangar knows it has nothing to lose (its turn over, no draft in its prompt, no command of its own still running); meanwhile its header shows where it is going and why it waits. "Ask before moving running agents" in Settings › Accounts brings back the question. Contributed by SimonB44470.
+
+## [2.4.2] - 2026-11-18
+
+### Changed
+
+- A quieter orchestrator on big projects. A worker waiting on a job of its own (a build, a benchmark, a CI run it watches) is no longer reported idle every ten minutes. A worker that is really idle is reported once, then again only after it did something or half an hour later. News that can wait (plain comments, idle workers) comes as one digest every five minutes at most, while deliveries, questions, a worker waiting for you or a crash still arrive at once.
+
+### Fixed
+
+- Enabling a kit works again. With its activation sheet open over a workspace's Kits dialog or over Settings, the click on "Accept and enable" went to the dialog underneath: the sheet closed and nothing was enabled, and in Settings the click could flip another switch. Only the dialog in front now takes the mouse and the keyboard.
+
 ## [2.4.1] - 2026-11-17
 
 ### Fixed
@@ -812,6 +890,13 @@ statistics, workspace sleep and per-workspace MCP servers.
 - Automatic updates from signed GitHub releases.
 - An interface in English and French (0.1.1).
 
+[2.5.1]: https://github.com/simnJS/hangar-ai/releases/tag/v2.5.1
+[2.5.0]: https://github.com/simnJS/hangar-ai/releases/tag/v2.5.0
+[2.4.6]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.6
+[2.4.5]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.5
+[2.4.4]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.4
+[2.4.3]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.3
+[2.4.2]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.2
 [2.4.1]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.1
 [2.4.0]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.0
 [2.3.0]: https://github.com/simnJS/hangar-ai/releases/tag/v2.3.0

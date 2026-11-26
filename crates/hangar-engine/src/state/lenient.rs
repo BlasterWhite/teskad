@@ -23,10 +23,16 @@
 //! leaves stored a pane's index (`{type: "pane", index: 1}`), which the TS
 //! mapped onto pane ids each time it read the tree (`migrate`, layout.ts):
 //! it is mapped once here, so the typed tree holds ids. And a pane whose
-//! agent is one this version no longer runs (`RETIRED_AGENTS`: Codex, Gemini
-//! CLI, OpenCode): it becomes a plain shell in the same folder, rather than
-//! a shell whose old agent the next save would write back, and it is marked
-//! so that its bar can say why (`retired_agent`).
+//! agent is one this version no longer runs (`RETIRED_AGENTS`: Gemini CLI,
+//! OpenCode): it becomes a plain shell in the same folder, rather than a
+//! shell whose old agent the next save would write back, and it is marked so
+//! that its bar can say why (`retired_agent`). A Codex pane is not one: it
+//! reads as Codex, its session and its model kept.
+//!
+//! An agent named where this version expects one it runs (a workspace's
+//! `orchestratorAgent`, the settings' `defaultWorkerAgent`…) that it does not
+//! know is set aside like any value it cannot read: the field reads as unset
+//! and the file keeps what it held.
 
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
@@ -89,9 +95,9 @@ pub fn read_checked(mut value: Value) -> Result<(AppState, Vec<Kept>), String> {
 /// it turned and the name of the agent each ran.
 ///
 /// The pane keeps its folder, name and place in the layout. What belonged to
-/// the old agent goes with it: the session id (a conversation Claude Code
-/// cannot resume) and the model (one Claude Code would not start with), so
-/// that switching the pane to Claude Code later starts it clean.
+/// the old agent goes with it: the session id (a conversation no agent of
+/// this version can resume) and the model (one they would not start with),
+/// so that switching the pane to an agent later starts it clean.
 fn retire_agents(value: &mut Value) -> Vec<(String, String, &'static str)> {
     let mut retired = Vec::new();
     let workspaces = value
@@ -478,6 +484,30 @@ mod tests {
     }
 
     #[test]
+    fn the_window_opacity_is_written_once_set_and_read_back_and_a_bad_one_is_opaque() {
+        // Opaque, and not in the file, until it is set.
+        assert_eq!(Settings::default().window_opacity, 1.0);
+        let untouched = serde_json::to_value(Settings::default()).unwrap();
+        assert!(untouched.get("windowOpacity").is_none());
+        let set = Settings {
+            window_opacity: 0.85,
+            ..Settings::default()
+        };
+        let written = serde_json::to_value(&set).unwrap();
+        assert_eq!(written["windowOpacity"], json!(0.85));
+        let state = app_state(json!({ "settings": written }));
+        assert_eq!(state.settings.window_opacity, 0.85);
+        assert_eq!(state.settings, set);
+        // A value that is not a number costs that field only, and is kept.
+        let (state, kept) = read(json!({
+            "settings": {"windowOpacity": "glass", "uiScale": 110}
+        }));
+        assert_eq!(state.settings.window_opacity, 1.0);
+        assert_eq!(state.settings.ui_scale, 110.0);
+        assert_eq!(kept.len(), 1);
+    }
+
+    #[test]
     fn a_bad_value_costs_its_field_and_nothing_else() {
         let (state, kept) = read(json!({
             "workspaces": [
@@ -673,8 +703,9 @@ mod tests {
     }
 
     /// A file of the old app with a Codex, a Gemini CLI and an OpenCode pane:
-    /// each opens as a shell in its own folder, marked for its note, and is
-    /// written back as a shell. Nothing of it is set aside to come back.
+    /// the Codex one is Codex again, its session and model kept; the others
+    /// each open as a shell in its own folder, marked for its note, and are
+    /// written back as shells. Nothing of it is set aside to come back.
     #[test]
     fn a_pane_of_a_retired_agent_reads_as_a_shell_in_the_same_folder() {
         let (state, kept) = read(json!({
@@ -697,14 +728,14 @@ mod tests {
         assert_eq!(panes[0].agent, AgentId::Claude);
         assert_eq!(panes[0].retired_agent, None);
         assert_eq!(panes[0].session_id.as_deref(), Some("s1"));
-        let shells: Vec<_> = panes[1..]
+        let agents: Vec<_> = panes[1..]
             .iter()
             .map(|pane| (pane.name.as_str(), pane.agent, pane.retired_agent))
             .collect();
         assert_eq!(
-            shells,
+            agents,
             [
-                ("Bob", AgentId::Shell, Some("Codex")),
+                ("Bob", AgentId::Codex, None),
                 ("Cy", AgentId::Shell, Some("Gemini CLI")),
                 ("Di", AgentId::Shell, Some("OpenCode")),
             ]
@@ -713,7 +744,7 @@ mod tests {
         assert_eq!(bob.cwd.as_deref(), Some("/code/shop/api"), "its own folder");
         assert_eq!(
             (bob.session_id.as_deref(), bob.model.as_deref()),
-            (None, None)
+            (Some("rollout-1"), Some("gpt-5.5"))
         );
         assert_eq!(panes[3].title.as_deref(), Some("tests"));
         assert!(matches!(
@@ -722,7 +753,12 @@ mod tests {
         ));
 
         let written = serde_json::to_value(&state).unwrap();
-        for (at, pane) in written["workspaces"][0]["panes"].as_array().unwrap()[1..]
+        let bob = &written["workspaces"][0]["panes"][1];
+        assert_eq!(
+            (&bob["agent"], &bob["sessionId"], &bob["model"]),
+            (&json!("codex"), &json!("rollout-1"), &json!("gpt-5.5"))
+        );
+        for (at, pane) in written["workspaces"][0]["panes"].as_array().unwrap()[2..]
             .iter()
             .enumerate()
         {
@@ -744,34 +780,325 @@ mod tests {
     }
 
     /// `agentCommands` of the old app held a command per agent: Claude Code's
-    /// is read, the others' are not, and the next save leaves them out.
+    /// and Codex's are read, the others' are not, and the next save leaves
+    /// them out.
     #[test]
-    fn only_claude_codes_launch_command_is_read_and_written() {
+    fn the_launch_commands_of_claude_code_and_codex_are_read_and_written() {
+        use crate::state::types::AgentKind;
+
         let (state, kept) = read(json!({
             "settings": {"agentCommands": {
                 "claude": "ccr code", "codex": "codex --yolo", "gemini": "gemini -y"
             }}
         }));
         assert!(kept.is_empty());
-        assert_eq!(
-            state.settings.agent_commands.claude.as_deref(),
-            Some("ccr code")
-        );
+        let commands = &state.settings.agent_commands;
+        assert_eq!(commands.of(AgentKind::Claude), Some("ccr code"));
+        assert_eq!(commands.of(AgentKind::Codex), Some("codex --yolo"));
         let written = serde_json::to_value(&state).unwrap();
         assert_eq!(
             written["settings"]["agentCommands"],
-            json!({"claude": "ccr code"})
+            json!({"claude": "ccr code", "codex": "codex --yolo"})
         );
 
-        // None for Claude Code, or one that is not text: not customised, and
+        // None for either, or one that is not text: not customised, and
         // nothing is set aside to come back.
-        for commands in [json!({"opencode": "oc"}), json!({"claude": 5})] {
+        for commands in [
+            json!({"opencode": "oc"}),
+            json!({"claude": 5, "codex": ["codex"]}),
+        ] {
             let (state, kept) = read(json!({"settings": {"agentCommands": commands}}));
             assert!(kept.is_empty());
             assert_eq!(state.settings.agent_commands.claude, None);
+            assert_eq!(state.settings.agent_commands.codex, None);
             let written = serde_json::to_value(&state).unwrap();
             assert_eq!(written["settings"]["agentCommands"], json!({}));
         }
+    }
+
+    /// Every field Codex brought (docs/native/agents.md T13) stays out of a
+    /// file until it is set, so a file from before is written back as it
+    /// was; once set, each is written and read back.
+    #[test]
+    fn the_codex_fields_are_written_only_once_set_and_read_back() {
+        use crate::state::types::{AgentKind, CodexModels};
+
+        let new_keys = [
+            "codexAccount",
+            "codexAttach",
+            "defaultOrchestratorAgent",
+            "defaultWorkerAgent",
+            "defaultReviewerAgent",
+            "orchestratorAgent",
+            "workerAgent",
+            "reviewerAgent",
+            "codexModels",
+        ];
+        let untouched = AppState {
+            workspaces: vec![Workspace {
+                id: "w".into(),
+                panes: vec![Pane::default()],
+                orchestration: Some(OrchestrationSettings::default()),
+                ..Workspace::default()
+            }],
+            folders: vec![WorkspaceFolder::default()],
+            ..AppState::default()
+        };
+        let written = serde_json::to_value(&untouched).unwrap().to_string();
+        for key in new_keys {
+            assert!(!written.contains(&format!("\"{key}\"")), "{key}: {written}");
+        }
+        assert!(Settings::default().codex_attach, "attached by default");
+
+        let mut set = untouched;
+        let ws = &mut set.workspaces[0];
+        ws.codex_account = Some("team".into());
+        ws.panes[0].agent = AgentId::Codex;
+        ws.panes[0].codex_account = Some("@default".into());
+        ws.orchestration = Some(OrchestrationSettings {
+            orchestrator_agent: Some(AgentKind::Codex),
+            worker_agent: Some(AgentKind::Claude),
+            reviewer_agent: Some(AgentKind::Codex),
+            codex_models: CodexModels {
+                worker: Some("gpt-5.5".into()),
+                ..CodexModels::default()
+            },
+            ..OrchestrationSettings::default()
+        });
+        set.folders[0].codex_account = Some("perso".into());
+        let settings = &mut set.settings;
+        settings.codex_attach = false;
+        settings.codex_account = Some("team".into());
+        settings.default_orchestrator_agent = Some(AgentKind::Codex);
+        settings.default_worker_agent = Some(AgentKind::Codex);
+        settings.default_reviewer_agent = Some(AgentKind::Claude);
+        let written = serde_json::to_value(&set).unwrap();
+        let ws = &written["workspaces"][0];
+        assert_eq!(ws["codexAccount"], json!("team"));
+        assert_eq!(ws["panes"][0]["agent"], json!("codex"));
+        assert_eq!(ws["panes"][0]["codexAccount"], json!("@default"));
+        let orchestration = &ws["orchestration"];
+        assert_eq!(orchestration["orchestratorAgent"], json!("codex"));
+        assert_eq!(orchestration["workerAgent"], json!("claude"));
+        assert_eq!(orchestration["reviewerAgent"], json!("codex"));
+        assert_eq!(orchestration["codexModels"], json!({"worker": "gpt-5.5"}));
+        assert_eq!(written["folders"][0]["codexAccount"], json!("perso"));
+        let settings = &written["settings"];
+        assert_eq!(settings["codexAttach"], json!(false));
+        assert_eq!(settings["codexAccount"], json!("team"));
+        assert_eq!(settings["defaultOrchestratorAgent"], json!("codex"));
+        assert_eq!(settings["defaultWorkerAgent"], json!("codex"));
+        assert_eq!(settings["defaultReviewerAgent"], json!("claude"));
+        let (again, kept) = read(written);
+        assert!(kept.is_empty(), "{kept:?}");
+        assert_eq!(again, set);
+    }
+
+    /// An agent this version does not know where it expects one it runs,
+    /// and a value of the wrong type in any of the new fields, cost that
+    /// field alone: it reads as unset, and is set aside to be written back.
+    #[test]
+    fn what_cannot_be_read_of_the_codex_fields_is_kept() {
+        use crate::state::types::{AgentKind, CodexModels};
+
+        let (state, kept) = read(json!({
+            "workspaces": [{
+                "id": "w", "codexAccount": 5,
+                "panes": [{"id": "p", "agent": "codex", "codexAccount": ["team"]}],
+                "orchestration": {
+                    "orchestratorAgent": "gemini", "workerAgent": "codex",
+                    "reviewerAgent": 3, "codexModels": {"worker": 5},
+                    "workerModel": "haiku"
+                }
+            }],
+            "folders": [{"id": "f", "codexAccount": {"id": "perso"}}],
+            "settings": {
+                "codexAttach": "yes", "codexAccount": 7,
+                "defaultOrchestratorAgent": "aider", "defaultWorkerAgent": "codex",
+                "defaultReviewerAgent": "Claude"
+            }
+        }));
+        let ws = &state.workspaces[0];
+        assert_eq!(ws.codex_account, None);
+        assert_eq!(ws.panes[0].agent, AgentId::Codex);
+        assert_eq!(ws.panes[0].codex_account, None);
+        let orchestration = ws.orchestration.as_ref().unwrap();
+        assert_eq!(orchestration.orchestrator_agent, None);
+        assert_eq!(orchestration.worker_agent, Some(AgentKind::Codex));
+        assert_eq!(orchestration.reviewer_agent, None);
+        assert_eq!(orchestration.codex_models, CodexModels::default());
+        assert_eq!(orchestration.worker_model, "haiku", "the rest reads");
+        assert_eq!(state.folders[0].codex_account, None);
+        let settings = &state.settings;
+        assert!(settings.codex_attach);
+        assert_eq!(settings.codex_account, None);
+        assert_eq!(settings.default_orchestrator_agent, None);
+        assert_eq!(settings.default_worker_agent, Some(AgentKind::Codex));
+        assert_eq!(settings.default_reviewer_agent, None, "ids are lowercase");
+
+        let field = |owner: Owner, key: &str, raw: Value| Kept::Field {
+            owner,
+            key: key.into(),
+            raw,
+        };
+        let expected = [
+            field(Owner::Workspace("w".into()), "codexAccount", json!(5)),
+            field(
+                Owner::Pane("w".into(), "p".into()),
+                "codexAccount",
+                json!(["team"]),
+            ),
+            field(
+                Owner::Orchestration("w".into()),
+                "orchestratorAgent",
+                json!("gemini"),
+            ),
+            field(Owner::Orchestration("w".into()), "reviewerAgent", json!(3)),
+            field(
+                Owner::Orchestration("w".into()),
+                "codexModels",
+                json!({"worker": 5}),
+            ),
+            field(
+                Owner::Folder("f".into()),
+                "codexAccount",
+                json!({"id": "perso"}),
+            ),
+            field(Owner::Settings, "codexAttach", json!("yes")),
+            field(Owner::Settings, "codexAccount", json!(7)),
+            field(Owner::Settings, "defaultOrchestratorAgent", json!("aider")),
+            field(Owner::Settings, "defaultReviewerAgent", json!("Claude")),
+        ];
+        for one in &expected {
+            assert!(kept.contains(one), "{one:?} in {kept:?}");
+        }
+        assert_eq!(kept.len(), expected.len(), "{kept:?}");
+    }
+
+    /// The badges' styles are read one account at a time, and the file keeps
+    /// all of them as written: a tone or a key of a newer version, an icon
+    /// that is not text and an entry that is not an object read as a plain
+    /// badge here, and are written back for the version that knows them.
+    #[test]
+    fn account_styles_are_read_one_by_one_and_what_is_unknown_is_kept() {
+        use crate::state::types::{AccountStyle, AccountTone};
+
+        let styles = json!({
+            "perso": {"tone": "success", "icon": "gamepad"},
+            "pro": {"tone": "violet", "icon": 7, "badge": "PRO"},
+            "broken": 3
+        });
+        let (state, kept) = read(json!({"settings": {"accountStyles": styles.clone()}}));
+        assert!(kept.is_empty(), "nothing is set aside: {kept:?}");
+        let settings = &state.settings;
+        assert_eq!(
+            settings.account_style("perso"),
+            AccountStyle {
+                tone: Some(AccountTone::Success),
+                icon: Some("gamepad".into()),
+            }
+        );
+        for plain in ["pro", "broken", "nobody"] {
+            assert_eq!(settings.account_style(plain), AccountStyle::default());
+        }
+        let written = serde_json::to_value(&state).unwrap();
+        assert_eq!(written["settings"]["accountStyles"], styles);
+        assert_eq!(app_state(written), state);
+        // No style, no key: a file from before is written back as it was.
+        let plain = serde_json::to_value(app_state(json!({"settings": {}}))).unwrap();
+        assert!(plain["settings"].get("accountStyles").is_none());
+    }
+
+    /// `accountStyles` that is not an object at all is set aside whole, and
+    /// so written back, rather than read as no style and lost at the save.
+    #[test]
+    fn account_styles_that_are_not_an_object_are_set_aside() {
+        let (state, kept) = read(json!({"settings": {"accountStyles": ["perso"]}}));
+        assert!(state.settings.account_styles.is_empty());
+        assert_eq!(
+            kept,
+            [Kept::Field {
+                owner: Owner::Settings,
+                key: "accountStyles".into(),
+                raw: json!(["perso"]),
+            }]
+        );
+    }
+
+    /// Choosing a tone or an icon writes only that key: what a newer version
+    /// added stays, an entry that was not an object is replaced, and an
+    /// entry left with nothing goes.
+    #[test]
+    fn a_style_chosen_keeps_what_this_version_does_not_know() {
+        use crate::state::types::AccountTone;
+
+        let (mut state, _) = read(json!({"settings": {"accountStyles": {
+            "pro": {"tone": "violet", "badge": "PRO"},
+            "broken": 3
+        }}}));
+        let settings = &mut state.settings;
+        settings.set_account_tone("pro", Some(AccountTone::Danger));
+        settings.set_account_icon("broken", Some("lock"));
+        settings.set_account_icon("perso", Some("gamepad"));
+        assert_eq!(
+            Value::Object(settings.account_styles.clone()),
+            json!({
+                "pro": {"tone": "danger", "badge": "PRO"},
+                "broken": {"icon": "lock"},
+                "perso": {"icon": "gamepad"}
+            })
+        );
+        settings.set_account_icon("perso", None);
+        settings.set_account_tone("pro", None);
+        assert_eq!(
+            Value::Object(settings.account_styles.clone()),
+            json!({"pro": {"badge": "PRO"}, "broken": {"icon": "lock"}})
+        );
+    }
+
+    /// The pinned panes are read one by one: a pin this version cannot read
+    /// (an edge it does not know, an entry that is not one) is set aside
+    /// and written back, the others read, a key of a newer version kept.
+    #[test]
+    fn pins_read_one_by_one_and_one_this_version_cannot_read_is_kept() {
+        use crate::state::types::PinEdge;
+
+        let good = json!({"id": "b", "edge": "right", "px": 640.0, "fraction": 0.4, "since": 3});
+        let (state, kept) = read(json!({
+            "workspaces": [{
+                "id": "w", "panes": [{"id": "a"}, {"id": "b"}],
+                "pins": [good.clone(), {"id": "a", "edge": "middle"}, 5]
+            }]
+        }));
+        let ws = &state.workspaces[0];
+        assert_eq!(ws.panes.len(), 2, "the workspace reads");
+        assert_eq!(ws.pins.len(), 1);
+        assert_eq!(ws.pins[0].edge, PinEdge::Right);
+        assert_eq!(ws.pins[0].px, Some(640.0));
+        assert_eq!(ws.pins[0].fraction, Some(0.4));
+        assert_eq!(ws.pins[0].extra["since"], json!(3));
+        for raw in [json!({"id": "a", "edge": "middle"}), json!(5)] {
+            assert!(
+                kept.contains(&Kept::Item {
+                    owner: Owner::Workspace("w".into()),
+                    list: "pins".into(),
+                    raw,
+                }),
+                "{kept:?}"
+            );
+        }
+        let written = serde_json::to_value(&state).unwrap();
+        assert_eq!(written["workspaces"][0]["pins"], json!([good]));
+        // A pin without its size reads, its size taken from the grid.
+        let (state, kept) = read(json!({
+            "workspaces": [{"id": "w", "panes": [{"id": "a"}], "pins": [{"id": "a", "edge": "top"}]}]
+        }));
+        assert!(kept.is_empty());
+        assert_eq!(state.workspaces[0].pins[0].px, None);
+        // No pin, no key: a file from before is written back as it was.
+        let (state, _) = read(json!({"workspaces": [{"id": "w", "panes": [{"id": "a"}]}]}));
+        let written = serde_json::to_value(&state).unwrap();
+        assert!(written["workspaces"][0].get("pins").is_none());
     }
 
     #[test]

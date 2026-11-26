@@ -28,6 +28,30 @@ pub fn sidebar_order<'a>(
     loose.chain(filed).collect()
 }
 
+/// The account `ws` inherits from the navigator folder it is filed in, as
+/// the folder names it (`accounts::AccountLevels`): nothing for a workspace
+/// at the top level, in a folder that is gone or that names none, or that
+/// its node runs (its account is chosen on that machine). Read, never
+/// copied: a workspace moved to another folder follows that one, unless it
+/// chose an account of its own.
+pub fn account_of<'a>(folders: &'a [WorkspaceFolder], ws: &Workspace) -> Option<&'a str> {
+    if ws.is_hosted() {
+        return None;
+    }
+    let folder = ws.folder_id.as_deref()?;
+    folders
+        .iter()
+        .find(|entry| entry.id == folder)
+        .and_then(folder_account)
+}
+
+/// The account a folder names for its workspaces, trimmed: none when it
+/// names none, or a blank one (`state.json` is hand-edited).
+pub fn folder_account(folder: &WorkspaceFolder) -> Option<&str> {
+    let id = folder.claude_account.as_deref()?.trim();
+    (!id.is_empty()).then_some(id)
+}
+
 /// Something with an id, for `place_before`.
 pub trait Keyed {
     fn key(&self) -> &str;
@@ -145,6 +169,26 @@ mod tests {
     fn is_the_stored_order_when_there_are_no_folders() {
         let workspaces = [ws("c", None), ws("a", None), ws("b", None)];
         assert_eq!(ids(&sidebar_order(&workspaces, &[])), ["c", "a", "b"]);
+    }
+
+    #[test]
+    fn a_workspace_inherits_its_folders_trimmed_account_unless_its_node_runs_it() {
+        let mut games = folder("games");
+        games.claude_account = Some(" perso ".into());
+        let mut blank = folder("blank");
+        blank.claude_account = Some("  ".into());
+        let folders = [games, blank, folder("plain")];
+        let filed = |folder: Option<&str>| ws("w", folder);
+        assert_eq!(account_of(&folders, &filed(Some("games"))), Some("perso"));
+        assert_eq!(account_of(&folders, &filed(Some("blank"))), None);
+        assert_eq!(account_of(&folders, &filed(Some("plain"))), None);
+        assert_eq!(account_of(&folders, &filed(Some("gone"))), None);
+        assert_eq!(account_of(&folders, &filed(None)), None);
+        let hosted = Workspace {
+            hosted: Some(true),
+            ..filed(Some("games"))
+        };
+        assert_eq!(account_of(&folders, &hosted), None);
     }
 
     #[test]

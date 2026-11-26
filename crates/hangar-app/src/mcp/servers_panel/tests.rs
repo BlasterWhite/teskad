@@ -1,5 +1,5 @@
 //! The footer and the restart, against the pane read-model (P4's `Live`),
-//! which is where a launch records what it started Claude Code with and where
+//! which is where a launch records what it started its agent with and where
 //! a turn shows.
 
 use hangar_core::mcp_scope::{Scope, Transport};
@@ -8,7 +8,7 @@ use super::*;
 use crate::app::Packages;
 use crate::navigator::testing::{ctx, model_of, pane, simulate, workspace};
 use crate::state::live::{AgentActivity, PaneMcp as Launched, PaneMcpMode};
-use crate::state::types::AppState;
+use crate::state::types::{AgentId, AppState};
 
 fn server(name: &str, hangar: bool) -> ServerInfo {
     ServerInfo {
@@ -77,14 +77,23 @@ fn work(m: &mut Model, pane: &str, activity: AgentActivity) {
     m.live.panes_logic.seed_activity(pane, "w", activity);
 }
 
+/// The file's servers alone: what a workspace without an override pane is
+/// compared with.
+fn file_only(servers: &[ServerInfo]) -> Defined<'_> {
+    Defined {
+        file: servers,
+        overrides: None,
+    }
+}
+
 fn plan(m: &Model) -> RestartPlan {
     let ws = m.workspace("w").unwrap();
-    restart_plan(m, ws, &workspace_mcp(Some(ws)), &servers())
+    restart_plan(m, ws, &workspace_mcp(Some(ws)), file_only(&servers()))
 }
 
 /// The panes the restart button asks the shell to restart, if it asks.
 fn restarted(m: &Model) -> Option<Vec<PaneId>> {
-    match restart_request(m, &"w".to_string(), &servers())? {
+    match restart_request(m, &"w".to_string(), file_only(&servers()))? {
         Intent::RestartPanes { ws, panes } => {
             assert_eq!(ws, "w");
             Some(panes)
@@ -181,7 +190,7 @@ fn a_pane_joins_the_restart_when_its_turn_ends() {
 }
 
 #[test]
-fn a_workspace_without_claude_code_has_nothing_to_be_up_to_date() {
+fn a_workspace_without_an_agent_has_nothing_to_be_up_to_date() {
     let m = model_of(AppState {
         workspaces: vec![workspace(
             "w",
@@ -193,8 +202,118 @@ fn a_workspace_without_claude_code_has_nothing_to_be_up_to_date() {
         ..AppState::default()
     });
     let plan = plan(&m);
-    assert_eq!(plan.claude, 0);
+    assert_eq!(plan.agents, 0);
     assert!(!plan.up_to_date());
+}
+
+// ----- an agent that takes its servers as overrides (Codex, `-c`)
+
+/// Workspace `w` chose only `robloxstudio`, and holds the Claude Code pane
+/// `a`, the Codex pane `k` and a shell.
+fn with_codex() -> Model {
+    let mut ws = workspace(
+        "w",
+        "Studio",
+        None,
+        vec![
+            pane("a", "Ava", AgentId::Claude),
+            pane("k", "Kai", AgentId::Codex),
+            pane("s", "Sam", AgentId::Shell),
+        ],
+    );
+    ws.mcp = Some(WorkspaceMcp {
+        mode: McpMode::Custom,
+        enabled: vec!["robloxstudio".into()],
+    });
+    model_of(AppState {
+        workspaces: vec![ws],
+        active_workspace_id: Some("w".into()),
+        ..AppState::default()
+    })
+}
+
+/// Codex's own servers (`codex mcp list`): it has no `robloxstudio`.
+fn codex_servers() -> Vec<ServerInfo> {
+    vec![server("github", false)]
+}
+
+fn plan_with(m: &Model, overrides: Option<&[ServerInfo]>) -> RestartPlan {
+    let ws = m.workspace("w").unwrap();
+    let file = servers();
+    let defined = Defined {
+        file: &file,
+        overrides,
+    };
+    restart_plan(m, ws, &workspace_mcp(Some(ws)), defined)
+}
+
+/// A Codex pane takes Hangar's servers too, as `-c` at its launch: it is
+/// counted, and restarted when it runs with something else.
+#[test]
+fn a_codex_pane_is_counted_and_restarted_as_any_agent() {
+    let mut m = with_codex();
+    let codex = codex_servers();
+    launch(&mut m, "a", matching());
+    launch(&mut m, "k", inherited());
+    let plan = plan_with(&m, Some(&codex));
+    assert_eq!(plan.agents, 2, "the shell takes no servers");
+    assert_eq!(plan.now, ids(&["k"]));
+    assert!(!plan.up_to_date());
+
+    // In a turn, it waits for its end like any other.
+    work(&mut m, "k", AgentActivity::Working);
+    assert_eq!(plan_with(&m, Some(&codex)).held, ids(&["k"]));
+}
+
+/// A Codex launch turns on the chosen servers its own configuration has:
+/// it is compared with Codex's list, not with Claude Code's. Here Codex has
+/// no `robloxstudio`, so a launch with Hangar's server alone is the choice.
+#[test]
+fn a_codex_pane_is_compared_with_codex_s_own_servers() {
+    let mut m = with_codex();
+    let codex = codex_servers();
+    launch(&mut m, "a", matching());
+    let hangar_alone = Launched {
+        mode: PaneMcpMode::Custom {
+            servers: vec!["hangar".into()],
+        },
+        hangar: Some(true),
+    };
+    launch(&mut m, "k", hangar_alone);
+    let plan = plan_with(&m, Some(&codex));
+    assert!(plan.up_to_date(), "{plan:?}");
+
+    // Codex defines it after all: its launch lacks it.
+    let mut both = codex_servers();
+    both.push(server("robloxstudio", false));
+    assert_eq!(plan_with(&m, Some(&both)).now, ids(&["k"]));
+}
+
+/// Until Codex's list is read, a Codex pane's launch cannot be compared:
+/// the footer waits for it, and it is out of date for the plan.
+#[test]
+fn a_codex_pane_waits_for_codex_s_list() {
+    let mut m = with_codex();
+    launch(&mut m, "a", matching());
+    launch(&mut m, "k", matching());
+    assert_eq!(plan_with(&m, None).now, ids(&["k"]));
+
+    let ws = m.workspace("w").unwrap();
+    let mut st = open_panel();
+    let panel = st.servers.as_mut().unwrap();
+    assert!(defined(panel, ws).is_none(), "Codex's list not read yet");
+    panel.overrides = Some(Discovery {
+        servers: codex_servers(),
+        unreadable: Vec::new(),
+    });
+    let read = defined(panel, ws).expect("both lists read");
+    assert_eq!(read.overrides.map(<[ServerInfo]>::len), Some(1));
+
+    // A workspace without a Codex pane does not wait for it.
+    let claude = model();
+    let ws = claude.workspace("w").unwrap();
+    assert!(overrides_kind(ws).is_none());
+    assert!(defined(open_panel().servers.as_ref().unwrap(), ws).is_some());
 }
 
 /// The panel open on workspace `w`, its servers read.
@@ -206,6 +325,7 @@ fn open_panel() -> State {
                 servers: servers(),
                 unreadable: Vec::new(),
             }),
+            overrides: None,
         }),
         ..State::default()
     }

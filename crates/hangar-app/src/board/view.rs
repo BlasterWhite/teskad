@@ -552,20 +552,19 @@ fn add_field<'a>(
     let field = crate::keymap::guard(v.ctx, field);
     let field = hangar_ui::tip::over(t, field, label);
     // Something typed can be taken to the full form: a description, a
-    // priority, the files its worker may change.
-    if !has_draft {
-        return Some(field);
+    // priority, the files its worker may change. The field is the row's first
+    // child either way: were it drawn bare until something is typed, the
+    // first character would make it a new widget to iced, whose own state
+    // (the keyboard with it) starts again.
+    let mut line = row![field].spacing(space::XS).align_y(Alignment::Center);
+    if has_draft {
+        let details = button::icon_button(t, Icon::Pencil)
+            .small()
+            .tip(v.ctx.t(Key::BoardAddDetails))
+            .on_press(Message::Board(Msg::AddDetails(cwd, column)));
+        line = line.push(details);
     }
-    let details = button::icon_button(t, Icon::Pencil)
-        .small()
-        .tip(v.ctx.t(Key::BoardAddDetails))
-        .on_press(Message::Board(Msg::AddDetails(cwd, column)));
-    Some(
-        row![field, details]
-            .spacing(space::XS)
-            .align_y(Alignment::Center)
-            .into(),
-    )
+    Some(line.into())
 }
 
 // ---- Empty, skeleton, toast --------------------------------------------------------------------
