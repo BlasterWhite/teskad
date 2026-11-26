@@ -9,7 +9,7 @@
 #
 #   docker build -f crates/hangar-cloud/Dockerfile -t hangar-cloud .
 #
-# CI builds it, checks it and publishes it as ghcr.io/hangar-ai/hangar-cloud
+# CI builds it, checks it and publishes it as ghcr.io/blasterwhite/hangar-cloud
 # (.github/workflows/cloud-image.yml); compose.yaml, beside this file, runs it.
 #
 # Dockerfile.dockerignore, beside this file, is what BuildKit reads instead of

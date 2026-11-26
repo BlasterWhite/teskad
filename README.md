@@ -10,14 +10,14 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/hangar-ai/hangar/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/hangar-ai/hangar?style=flat-square"></a>
-  <a href="https://github.com/hangar-ai/hangar/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/hangar-ai/hangar/ci.yml?branch=main&style=flat-square&label=CI"></a>
-  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/hangar-ai/hangar?style=flat-square"></a>
+  <a href="https://github.com/BlasterWhite/hangar/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/BlasterWhite/hangar?style=flat-square"></a>
+  <a href="https://github.com/BlasterWhite/hangar/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/BlasterWhite/hangar/ci.yml?branch=main&style=flat-square&label=CI"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/BlasterWhite/hangar?style=flat-square"></a>
   <img alt="Platforms: Windows, macOS, Linux" src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational?style=flat-square">
 </p>
 
 <p align="center">
-  <a href="#install">Download</a> ·
+  <a href="#install">Install</a> ·
   <a href="docs/guide/README.md">Guide</a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="https://hangar.simnjs.fr">Website</a> ·
@@ -57,16 +57,16 @@ More: [features](docs/guide/features.md) · [orchestration](docs/guide/orchestra
 
 ## Install
 
-Grab the file for your system from the
-**[latest release](https://github.com/hangar-ai/hangar/releases/latest)** (under
-**Assets**). After that, Hangar updates itself in one click.
+This fork ships no prebuilt installers yet, and its builds do not update themselves:
+build it from source (see [Build from source](#build-from-source)), then pull and build
+again for a new version.
 
-| System | File |
+| System | How |
 |---|---|
-| Windows (x64) | `Hangar.AI_<version>_x64-setup.exe` — per-user, no admin rights |
-| macOS (Apple Silicon + Intel) | `Hangar.AI_2.2.0_universal.dmg` (2.2.0, the last one built for you); later versions: [build it on your Mac](#build-on-macos) |
-| Linux (x86_64) | `.AppImage` (glibc 2.35+, `chmod +x` it), `.deb` or `.rpm` |
-| NixOS / Nix | `nix run github:hangar-ai/hangar` (builds `main`), or the flake in your config: [NixOS](docs/guide/install.md#nixos-and-nix) |
+| Linux (x86_64) | Build the binaries, then the `.rpm` or `.deb` with [`crates/hangar-app/packaging/linux/build.sh`](crates/hangar-app/packaging/linux/build.sh) ([packaging guide](docs/native/PACKAGING.md)), or run `./target/dist/hangar-ai` straight from the build |
+| Windows (x64) | [Build it from source](#build-from-source) |
+| macOS (Apple Silicon + Intel) | [Build it on your Mac](#build-on-macos) |
+| NixOS / Nix | `nix run github:BlasterWhite/hangar` (builds `main`), or the flake in your config: [NixOS](docs/guide/install.md#nixos-and-nix) |
 
 You also need [Claude Code](https://code.claude.com/docs/en/overview) installed and signed
 in. Then create a workspace (`Ctrl`/`Cmd`+`Shift`+`N`): it starts with one Claude Code
@@ -79,7 +79,7 @@ SmartScreen, Gatekeeper, WebKitGTK, upgrading from 1.x, first steps:
 ### Build from source
 
 ```bash
-git clone https://github.com/hangar-ai/hangar && cd hangar
+git clone https://github.com/BlasterWhite/hangar && cd hangar
 scripts/native-dev.sh             # builds and runs Hangar on data of its own
 cargo test --workspace
 ```
@@ -89,14 +89,14 @@ Requirements (Rust, cmake, clang, per-OS packages) and the repository layout:
 
 ### Build on macOS
 
-Releases after 2.2.0 ship Windows and Linux only. On a Mac (Apple Silicon or Intel, macOS 10.15+), build Hangar yourself:
+On a Mac (Apple Silicon or Intel, macOS 10.15+), build Hangar yourself:
 
 ```bash
 xcode-select --install                 # clang and the SDK
 brew install cmake node pnpm           # cmake for dictation; node + pnpm for Hangar Mobile
 curl https://sh.rustup.rs -sSf | sh    # Rust
 
-git clone https://github.com/hangar-ai/hangar && cd hangar
+git clone https://github.com/BlasterWhite/hangar && cd hangar
 pnpm install && pnpm mobile:build      # optional: the phone app Hangar serves
 cargo build --profile dist --locked -p hangar-app
 cargo build --profile dist --locked -p hangar-webview --features engine

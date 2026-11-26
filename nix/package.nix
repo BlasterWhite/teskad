@@ -103,7 +103,7 @@ rustPlatform.buildRustPackage {
 
   meta = {
     description = "Run a team of Claude Code agents in one native window, and steer them from your phone";
-    homepage = "https://github.com/hangar-ai/hangar";
+    homepage = "https://github.com/BlasterWhite/hangar";
     license = lib.licenses.mit;
     mainProgram = "hangar-ai";
     platforms = lib.platforms.linux;

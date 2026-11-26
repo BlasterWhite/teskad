@@ -2,7 +2,7 @@
 #
 # On the host, in a folder of its own:
 #
-#   base=https://raw.githubusercontent.com/hangar-ai/hangar/main/crates/hangar-cloud
+#   base=https://raw.githubusercontent.com/BlasterWhite/hangar/main/crates/hangar-cloud
 #   curl -fsSLO "$base/compose.yaml"
 #   curl -fsSL "$base/hangar-cloud.env.example" -o hangar-cloud.env
 #   chmod 600 hangar-cloud.env      # then fill in the OAuth clients
@@ -22,7 +22,7 @@ name: hangar-cloud
 
 services:
   hangar-cloud:
-    image: ghcr.io/hangar-ai/hangar-cloud:${HANGAR_CLOUD_TAG:-latest}
+    image: ghcr.io/blasterwhite/hangar-cloud:${HANGAR_CLOUD_TAG:-latest}
     build:
       context: ../..
       dockerfile: crates/hangar-cloud/Dockerfile

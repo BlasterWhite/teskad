@@ -6,7 +6,7 @@ What changed in each Hangar.AI release, newest first. The format loosely follows
 change behaviour as well as add to it. The 0.x history is grouped by minor version.
 
 Every release, with its installers, is on the
-[releases page](https://github.com/hangar-ai/hangar/releases).
+[releases page](https://github.com/BlasterWhite/hangar/releases).
 
 ## [Unreleased]
 

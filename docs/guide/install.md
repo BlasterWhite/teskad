@@ -3,7 +3,7 @@
 [← Hangar](../../README.md) · [Guide](README.md)
 
 Download the file for your system from the
-**[latest release](https://github.com/hangar-ai/hangar/releases/latest)**, under
+**[latest release](https://github.com/BlasterWhite/hangar/releases/latest)**, under
 **Assets**. You only download once: after that, the app offers each new version and
 installs it in one click. A Hangar 1.x install offers 2.0 the same way.
 
@@ -40,17 +40,17 @@ use the flake at the root of the repository instead. It builds Hangar, its webvi
 (HTML kit tabs and PDFs, with WebKitGTK) and Hangar Mobile from source:
 
 ```bash
-nix run github:hangar-ai/hangar           # try it without installing
+nix run github:BlasterWhite/hangar           # try it without installing
 ```
 
 That builds `main`, the development version. The releases after 2.3.0 carry the flake too:
-pin one with its tag, `github:hangar-ai/hangar/v<version>`, here and in the input below.
+pin one with its tag, `github:BlasterWhite/hangar/v<version>`, here and in the input below.
 
 To install it, add the flake to your system's `flake.nix` and its package to your packages:
 
 ```nix
 # inputs
-hangar.url = "github:hangar-ai/hangar";
+hangar.url = "github:BlasterWhite/hangar";
 hangar.inputs.nixpkgs.follows = "nixpkgs";
 
 # environment.systemPackages (or home.packages with Home Manager)

@@ -312,7 +312,7 @@ impl Http {
 
 /// Who calls, as Discord asks a bot to say.
 const USER_AGENT: &str = concat!(
-    "DiscordBot (https://github.com/hangar-ai/hangar, ",
+    "DiscordBot (https://github.com/BlasterWhite/hangar, ",
     env!("CARGO_PKG_VERSION"),
     ")"
 );

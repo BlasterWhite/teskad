@@ -55,7 +55,7 @@ ${StrLoc}
 !define PRODUCTNAME "Hangar.AI"
 !define BUNDLEID "com.simnjs.iabench"
 !define MAINBINARYNAME "hangar-ai"
-!define HOMEPAGE "https://github.com/hangar-ai/hangar"
+!define HOMEPAGE "https://github.com/BlasterWhite/hangar"
 !define COPYRIGHT ""
 ; Per user, no administrator rights: the app lands in $LOCALAPPDATA\Hangar.AI,
 ; where the Tauri build's installer put it.

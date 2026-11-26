@@ -2,7 +2,7 @@
 # Writes latest.json, the feed every install polls, from the signatures beside
 # the artifacts they sign.
 #
-#   TAG=v1.13.0 REPO=hangar-ai/hangar [NOTES=...] packaging/latest-json.sh <dir> [latest.json]
+#   TAG=v1.13.0 REPO=BlasterWhite/hangar [NOTES=...] packaging/latest-json.sh <dir> [latest.json]
 #
 # <dir> holds each updater artifact with its .sig (packaging/sign.sh). The shape
 # is the one hangar-update parses (crates/hangar-update/src/manifest.rs) and

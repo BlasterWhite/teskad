@@ -333,7 +333,7 @@ makensis overflows a stack buffer on very long include paths.
 ```bash
 cargo packager signer generate --ci --path /tmp/test-key --password ""
 TAURI_SIGNING_PRIVATE_KEY="$(cat /tmp/test-key)" crates/hangar-app/packaging/sign.sh target/packager/Hangar.AI*
-TAG=v1.13.0 REPO=hangar-ai/hangar crates/hangar-app/packaging/latest-json.sh target/packager latest.json
+TAG=v1.13.0 REPO=BlasterWhite/hangar crates/hangar-app/packaging/latest-json.sh target/packager latest.json
 cargo run -p hangar-update --example verify_feed -- latest.json target/packager --version v1.13.0 --pubkey /tmp/test-key.pub
 ```
 

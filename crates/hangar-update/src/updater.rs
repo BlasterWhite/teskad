@@ -870,7 +870,7 @@ mod tests {
         let config = Config::hangar("1.12.1").unwrap();
         assert_eq!(
             config.endpoint,
-            "https://github.com/hangar-ai/hangar/releases/latest/download/latest.json"
+            "https://github.com/BlasterWhite/hangar/releases/latest/download/latest.json"
         );
         assert_eq!(config.current_version, Version::new(1, 12, 1));
         assert!(Config::hangar("not a version").is_err());

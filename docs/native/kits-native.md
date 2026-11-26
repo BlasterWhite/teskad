@@ -109,7 +109,7 @@ crate-type = ["cdylib", "rlib"]   # the module, and the library its tests use
 [dependencies]
 # The SDK of the Hangar 2.0.0 release. Before that tag is out, its branch:
 # { …, branch = "feat/native-rust" }.
-hangar-kit-sdk = { git = "https://github.com/hangar-ai/hangar", tag = "v2.0.0" }
+hangar-kit-sdk = { git = "https://github.com/BlasterWhite/hangar", tag = "v2.0.0" }
 
 [profile.release]
 opt-level = "s"   # smaller modules load faster; none of this is required

@@ -105,7 +105,7 @@ winresource = "0.1"
 productName = "Hangar.AI"
 identifier = "com.simnjs.iabench"
 publisher = "simnjs"
-homepage = "https://github.com/hangar-ai/hangar"
+homepage = "https://github.com/BlasterWhite/hangar"
 category = "DeveloperTool"
 longDescription = """
 Hangar runs Claude Code and shells side by side, each in a real terminal pane, around a shared task board and memory that every Claude Code reads and writes over Hangar's MCP server."""
@@ -198,7 +198,7 @@ windowSize = { width = 660, height = 400 }
 name = "Hangar.AI"
 license = "MIT"
 summary = "Terminal multiplexer for CLI coding agents, with a shared task board"
-url = "https://github.com/hangar-ai/hangar"
+url = "https://github.com/BlasterWhite/hangar"
 # The default is to run ldd on the build machine and require every library it
 # finds, with the versions of the symbols used: a few hundred requirements that
 # only the machine that built the package satisfies (a Fedora has other sonames

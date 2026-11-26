@@ -80,7 +80,7 @@ pub use updater::{Config, ReleaseInfo, State, Updater};
 /// `/releases/latest/download/` to the latest release that is not a draft or a
 /// pre-release. It is `plugins.updater.endpoints` of the old `tauri.conf.json`.
 pub const ENDPOINT: &str =
-    "https://github.com/hangar-ai/hangar/releases/latest/download/latest.json";
+    "https://github.com/BlasterWhite/hangar/releases/latest/download/latest.json";
 
 /// The public half of the key every release is signed with, base64-encoded as
 /// `plugins.updater.pubkey` of the old `tauri.conf.json` held it. Changing it

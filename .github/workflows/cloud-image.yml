@@ -3,7 +3,7 @@ name: Hangar account server image
 # The image of the optional Hangar account's server (crates/hangar-cloud,
 # docs/native/cloud.md): built and checked as a host will run it whenever
 # the server or what it is built from changes, and published to
-# ghcr.io/hangar-ai/hangar-cloud from main (`latest` and the commit) and from
+# ghcr.io/blasterwhite/hangar-cloud from main (`latest` and the commit) and from
 # a release tag (its version). crates/hangar-cloud/compose.yaml runs it.
 # A pull request builds and checks it, and publishes nothing.
 

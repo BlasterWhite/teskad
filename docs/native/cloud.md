@@ -465,7 +465,7 @@ owner only, never in the shell's history or on a command line.
 
 ```sh
 sudo install -d -m 700 /opt/hangar-cloud && cd /opt/hangar-cloud
-base=https://raw.githubusercontent.com/hangar-ai/hangar/main/crates/hangar-cloud
+base=https://raw.githubusercontent.com/BlasterWhite/hangar/main/crates/hangar-cloud
 sudo curl -fsSLO "$base/compose.yaml"
 sudo curl -fsSL "$base/hangar-cloud.env.example" -o hangar-cloud.env
 sudo chmod 600 hangar-cloud.env
@@ -495,9 +495,9 @@ tags (`.github/workflows/cloud-image.yml`):
 
 | Tag | What |
 |---|---|
-| `ghcr.io/hangar-ai/hangar-cloud:latest` | the last commit of `main` that changed the server |
-| `ghcr.io/hangar-ai/hangar-cloud:sha-<commit>` | that commit, to pin or to go back to |
-| `ghcr.io/hangar-ai/hangar-cloud:<version>`, `:<major>.<minor>` | a release (`v2.4.0` gives `2.4.0` and `2.4`) |
+| `ghcr.io/blasterwhite/hangar-cloud:latest` | the last commit of `main` that changed the server |
+| `ghcr.io/blasterwhite/hangar-cloud:sha-<commit>` | that commit, to pin or to go back to |
+| `ghcr.io/blasterwhite/hangar-cloud:<version>`, `:<major>.<minor>` | a release (`v2.4.0` gives `2.4.0` and `2.4`) |
 
 `compose.yaml` runs `latest`; `HANGAR_CLOUD_TAG=sha-1a2b3c4 docker compose up -d`
 (or the same line in a `.env` beside it) pins another.
@@ -514,7 +514,7 @@ yet on `main`, build it from a clone of the repository instead, with BuildKit
 the Compose file:
 
 ```sh
-git clone https://github.com/hangar-ai/hangar && cd hangar/crates/hangar-cloud
+git clone https://github.com/BlasterWhite/hangar && cd hangar/crates/hangar-cloud
 cp hangar-cloud.env.example hangar-cloud.env && chmod 600 hangar-cloud.env   # then fill it in
 docker compose up -d --build
 ```
@@ -568,7 +568,7 @@ docker run -d --name hangar-cloud --restart unless-stopped \
   -p 127.0.0.1:8080:8080 -v hangar-cloud-data:/data \
   --env-file hangar-cloud.env \
   --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
-  ghcr.io/hangar-ai/hangar-cloud:latest
+  ghcr.io/blasterwhite/hangar-cloud:latest
 ```
 
 ### 5. Cloudflare

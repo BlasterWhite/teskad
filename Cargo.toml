@@ -14,7 +14,7 @@ members = ["crates/*", "examples/kits/*/tab", "crates/hangar-kit-host/tests/prob
 version = "2.4.1"
 authors = ["simnJS"]
 license = "MIT"
-repository = "https://github.com/hangar-ai/hangar"
+repository = "https://github.com/BlasterWhite/hangar"
 
 [workspace.dependencies]
 hangar-core = { path = "crates/hangar-core" }
