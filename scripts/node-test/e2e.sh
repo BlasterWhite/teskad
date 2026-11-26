@@ -140,7 +140,7 @@ build_app() { cargo build --manifest-path "$root/Cargo.toml" -p hangar-app --loc
 
 target="$(target_dir)"
 node_bin="$target/release/hangar-node"
-app_bin="$target/debug/hangar-ai"
+app_bin="$target/debug/teskad"
 if [ "$build" = 1 ]; then
   # Apart: built together, hangar-app's features would unify into hangar-node.
   step "build hangar-node (release, on its own)" build_node || exit 1

@@ -9,8 +9,8 @@ installs it in one click. A Teskad 1.x install offers 2.0 the same way.
 
 | System | File | Notes |
 |---|---|---|
-| Windows (x64) | `Hangar.AI_<version>_x64-setup.exe` | Installs for your user only, without administrator rights. HTML kit tabs and PDFs use WebView2, which ships with Windows 11; on Windows 10 the installer adds it if it is missing. |
-| macOS (Apple Silicon and Intel) | `Hangar.AI_<version>_universal.dmg` | One universal build for both, macOS 10.15 or later. |
+| Windows (x64) | `Teskad_<version>_x64-setup.exe` | Installs for your user only, without administrator rights. HTML kit tabs and PDFs use WebView2, which ships with Windows 11; on Windows 10 the installer adds it if it is missing. |
+| macOS (Apple Silicon and Intel) | `Teskad_<version>_universal.dmg` | One universal build for both, macOS 10.15 or later. |
 | Linux (x86_64) | `.AppImage`, `.deb` or `.rpm` | The AppImage runs without installing (`chmod +x` it first) on distributions with glibc 2.35 or later (2022 on). HTML kit tabs and PDFs need WebKitGTK 4.1: apt and dnf install it with the `.deb` and `.rpm`; with the AppImage, install `libwebkit2gtk-4.1-0` (Debian, Ubuntu) or `webkit2gtk4.1` (Fedora) if your system lacks it. |
 
 > [!NOTE]
@@ -27,12 +27,16 @@ Teskad runs coding agents in its panes: [Claude Code](https://code.claude.com/do
 [Codex](https://learn.chatgpt.com/docs/codex/cli) (beta), or both; either one is enough. If
 neither is installed, Teskad offers to install them the first time it opens (see below).
 
-**Coming from 1.x.** Accept the update, or install 2.0 over 1.x: it uses the same folders
-and the same `state.json`, so your workspaces, boards, memory, settings, shortcuts, kits and
-Claude accounts are there. The kit tabs you had left open and each account's cached usage
-lived in the old web view, and are not carried over. The [changelog](../../CHANGELOG.md) lists
-what 2.0 does not do yet: mainly, there is no screen reader support, and Windows and macOS
-have been tested by CI but not yet used by a person.
+**Coming from HangarAI.** Teskad installs beside the official HangarAI and shares no folder
+with it: its data is in `~/.teskad` and in the folder of its own identifier
+(`io.github.blasterwhite.teskad`). The first time it starts it **copies** your workspaces, boards,
+memory, settings, kits and Claude and Codex accounts from HangarAI (which is left as it was),
+and points your projects' `.mcp.json` at Teskad. Sign in again if a copied account asks for it.
+The kit tabs you had left open and each account's cached usage lived in the old web view, and
+are not carried over. To go back, start HangarAI: see [FORK.md](../../FORK.md#going-back-to-the-official-app)
+for what is where and how to remove Teskad. The [changelog](../../CHANGELOG.md) lists what is
+not done yet: mainly, there is no screen reader support, and Windows and macOS have been
+tested by CI but not yet used by a person.
 
 ## NixOS and Nix
 
@@ -60,7 +64,7 @@ inputs.hangar.packages.${pkgs.stdenv.hostPlatform.system}.default
 
 Teskad then appears in your launcher. It does not update itself on Nix: `nix flake update
 hangar` and rebuild for a new version. The MCP configs and the login item it writes name the
-`hangar-ai` on your `PATH` (`/run/current-system/sw/bin`, your profile's `bin`), not the
+`teskad` on your `PATH` (`/run/current-system/sw/bin`, your profile's `bin`), not the
 store path, so they keep working across upgrades and garbage collections. Claude Code
 itself comes from nixpkgs (`claude-code`) or its own installer; Codex's official installer
 drops a binary that starts on NixOS as it is.

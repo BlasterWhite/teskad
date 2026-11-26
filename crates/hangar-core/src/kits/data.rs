@@ -1,4 +1,4 @@
-//! A kit's own data: `~/.hangar/kit-data/<kit id>/`, the same on every Claude
+//! A kit's own data: `~/.teskad/kit-data/<kit id>/`, the same on every Claude
 //! account and worktree, never inside a project. A tab reads and writes it
 //! through the window (`data.read`, `data.write`, src/lib/kitApi.ts), which
 //! names the kit from its own record of the tab; a hook finds it through
@@ -49,10 +49,10 @@ fn root_from(endpoint_file: Option<OsString>, home: Option<PathBuf>) -> Option<P
     if let Some(file) = endpoint_file.filter(|value| !value.is_empty()) {
         return Some(PathBuf::from(file).parent()?.join(FOLDER));
     }
-    Some(home?.join(".hangar").join(FOLDER))
+    Some(home?.join(crate::paths::HOME_DIR_NAME).join(FOLDER))
 }
 
-/// `~/.hangar/kit-data`, or beside the endpoint file a development build run
+/// `~/.teskad/kit-data`, or beside the endpoint file a development build run
 /// next to an installed Hangar was given, like the kits themselves.
 pub fn root() -> Option<PathBuf> {
     root_from(std::env::var_os("HANGAR_ENDPOINT_FILE"), dirs::home_dir())
@@ -365,11 +365,11 @@ mod tests {
         let home = PathBuf::from("/home/me");
         assert_eq!(
             root_from(None, Some(home.clone())),
-            Some(home.join(".hangar").join("kit-data"))
+            Some(home.join(".teskad").join("kit-data"))
         );
         assert_eq!(
             root_from(Some(OsString::new()), Some(home.clone())),
-            Some(home.join(".hangar").join("kit-data")),
+            Some(home.join(".teskad").join("kit-data")),
             "an empty variable counts as none"
         );
         assert_eq!(

@@ -60,9 +60,9 @@ pub const OPEN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10)
 /// The name the desktop knows the app's windows by, and their icon.
 ///
 /// On Linux the application id is what a compositor matches against the
-/// `.desktop` entry (`hangar-ai.desktop`, `StartupWMClass=hangar-ai`, see
+/// `.desktop` entry (`teskad.desktop`, `StartupWMClass=teskad`, see
 /// docs/native/PACKAGING.md): without it the dock shows a generic icon and
-/// never groups the windows under Hangar. The icon is the one the installers
+/// never groups the windows under Teskad. The icon is the one the installers
 /// carry, for the systems that take it from the window rather than from the
 /// entry (X11, Windows' title bar): on Linux the launcher's own rounded tile.
 fn base() -> Settings {
@@ -77,7 +77,7 @@ fn base() -> Settings {
     };
     #[cfg(target_os = "linux")]
     {
-        settings.platform_specific.application_id = "hangar-ai".into();
+        settings.platform_specific.application_id = "teskad".into();
         // For the rounded corners of the title bar Hangar draws
         // (title_bar.rs): the frame paints everything else.
         settings.transparent = true;

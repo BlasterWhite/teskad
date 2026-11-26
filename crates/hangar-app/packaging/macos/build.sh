@@ -2,8 +2,8 @@
 # Builds the macOS packages from the two dist builds cargo already made (the
 # dist profile, which the workspace Cargo.toml explains):
 #
-#   Hangar.AI_<version>_universal.dmg       what people download
-#   Hangar.AI_universal.app.tar.gz          what the updater downloads
+#   Teskad_<version>_universal.dmg       what people download
+#   Teskad_universal.app.tar.gz          what the updater downloads
 #
 #   packaging/macos/build.sh <out-dir>
 #
@@ -33,7 +33,7 @@ target_dir="$(cd "$repo" && cargo metadata --no-deps --format-version 1 | jq -r 
 
 universal="$target_dir/universal-apple-darwin/dist"
 mkdir -p "$universal"
-for binary in hangar-ai hangar-webview; do
+for binary in teskad hangar-webview; do
   arm="$target_dir/aarch64-apple-darwin/dist/$binary"
   intel="$target_dir/x86_64-apple-darwin/dist/$binary"
   for built in "$arm" "$intel"; do
@@ -52,8 +52,8 @@ done
 stage_node_binaries "$target_dir"
 
 # cargo-packager looks for the binaries in target/<--target>/<--profile>, and
-# names the disk image after the target: Hangar.AI_<version>_universal.dmg.
-rm -rf "$out/.cargo-packager" "$out/Hangar.AI.app"
+# names the disk image after the target: Teskad_<version>_universal.dmg.
+rm -rf "$out/.cargo-packager" "$out/Teskad.app"
 (
   cd "$repo"
   cargo packager --profile dist --target universal-apple-darwin --formats app,dmg --out-dir "$out"
@@ -64,6 +64,6 @@ rm -rf "$out/.cargo-packager"
 # one top-level folder, which it unpacks into place of the installed one. The
 # AppleDouble files tar would otherwise add for extended attributes would sit
 # inside the sealed bundle and break its signature.
-COPYFILE_DISABLE=1 tar -C "$out" -czf "$out/Hangar.AI_universal.app.tar.gz" Hangar.AI.app
+COPYFILE_DISABLE=1 tar -C "$out" -czf "$out/Teskad_universal.app.tar.gz" Teskad.app
 
 ls -la "$out"

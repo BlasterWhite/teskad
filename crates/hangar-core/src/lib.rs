@@ -50,6 +50,7 @@ pub mod kits;
 pub mod mcp;
 pub mod mcp_scope;
 pub mod memory;
+pub mod migrate;
 pub mod mobile_data;
 pub mod model;
 #[cfg(feature = "desktop")]

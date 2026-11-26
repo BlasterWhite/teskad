@@ -17,4 +17,4 @@ here="$(dirname "$(readlink -f "$0")")"
 APPDIR="${APPDIR:-$here}"
 export APPDIR
 
-exec "$here/usr/bin/hangar-ai" "$@"
+exec "$here/usr/bin/teskad" "$@"

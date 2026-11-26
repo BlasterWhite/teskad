@@ -27,12 +27,11 @@ fn windows_resource() {
 
     let mut resource = winresource::WindowsResource::new();
     resource.set_icon("packaging/icons/icon.ico");
-    // The same words the Tauri build wrote from `tauri.conf.json`, which is
-    // what the NSIS installer and the old uninstall entry already call the app.
-    resource.set("ProductName", "HangarAI");
-    resource.set("FileDescription", "HangarAI");
-    resource.set("CompanyName", "simnjs");
-    resource.set("OriginalFilename", "hangar-ai.exe");
+    // The words the NSIS installer and its uninstall entry call the app.
+    resource.set("ProductName", "Teskad");
+    resource.set("FileDescription", "Teskad");
+    resource.set("CompanyName", "BlasterWhite");
+    resource.set("OriginalFilename", "teskad.exe");
     resource.set("ProductVersion", &version);
     resource.set("FileVersion", &version);
     resource

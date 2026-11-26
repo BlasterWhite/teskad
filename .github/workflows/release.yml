@@ -471,16 +471,16 @@ jobs:
             for target in aarch64-apple-darwin x86_64-apple-darwin; do
               cargo build --profile dist --locked --target "$target" -p hangar-app
               cargo build --profile dist --locked --target "$target" -p hangar-webview --features engine
-              check_mobile "target/$target/dist/hangar-ai"
+              check_mobile "target/$target/dist/teskad"
             done
           else
             cargo build --profile dist --locked -p hangar-app
             cargo build --profile dist --locked -p hangar-webview --features engine
-            check_mobile "target/dist/hangar-ai${{ runner.os == 'Windows' && '.exe' || '' }}"
+            check_mobile "target/dist/teskad${{ runner.os == 'Windows' && '.exe' || '' }}"
           fi
 
       # The runner has the Visual C++ Redistributable, a fresh Windows does not:
-      # hangar-ai.exe and hangar-webview.exe import VCRUNTIME140.dll,
+      # teskad.exe and hangar-webview.exe import VCRUNTIME140.dll,
       # VCRUNTIME140_1.dll and MSVCP140.dll and exit at once without them
       # (STATUS_DLL_NOT_FOUND). Linking the C runtime in (+crt-static) is not
       # an option: whisper.cpp's CMake build stays on the DLL runtime and the
@@ -595,9 +595,9 @@ jobs:
         run: |
           cd target/packager
           case "$RUNNER_OS" in
-            Linux)   files=(Hangar.AI_*_amd64.AppImage Hangar.AI_*_amd64.deb Hangar.AI-*.rpm) ;;
-            macOS)   files=(Hangar.AI_*_universal.dmg Hangar.AI_universal.app.tar.gz) ;;
-            Windows) files=(Hangar.AI_*_x64-setup.exe) ;;
+            Linux)   files=(Teskad_*_amd64.AppImage Teskad_*_amd64.deb Teskad-*.rpm) ;;
+            macOS)   files=(Teskad_*_universal.dmg Teskad_universal.app.tar.gz) ;;
+            Windows) files=(Teskad_*_x64-setup.exe) ;;
           esac
           "$GITHUB_WORKSPACE/crates/hangar-app/packaging/upload-assets.sh" "$RELEASE_ID" "${files[@]}"
 
@@ -659,7 +659,7 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: crates/hangar-app/packaging/sign.sh artifacts/Hangar.AI*
+        run: crates/hangar-app/packaging/sign.sh artifacts/Teskad*
 
       - name: Write latest.json
         run: |

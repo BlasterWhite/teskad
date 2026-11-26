@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Builds the Windows installer: Hangar.AI_<version>_x64-setup.exe.
+# Builds the Windows installer: Teskad_<version>_x64-setup.exe.
 #
 #   packaging/windows/build.sh <release-dir> <out-dir>
 #
-# <release-dir> holds the two executables cargo built (hangar-ai.exe and
+# <release-dir> holds the two executables cargo built (teskad.exe and
 # hangar-webview.exe, normally target/dist: the dist profile) and, in its sibling `node` folder
 # (target/node), the Linux hangar-node-x86_64 and hangar-node-aarch64 the
 # installer carries for the app to upload to nodes; the installer lands in
@@ -40,7 +40,7 @@ makensis="${MAKENSIS:-makensis}"
 plugin_url="https://github.com/tauri-apps/nsis-tauri-utils/releases/download/nsis_tauri_utils-v0.5.3/nsis_tauri_utils.dll"
 plugin_sha1="75197fee3c6a814fe035788d1c34ead39349b860"
 
-for exe in hangar-ai.exe hangar-webview.exe; do
+for exe in teskad.exe hangar-webview.exe; do
   if [ ! -f "$release_dir/$exe" ]; then
     echo "$release_dir/$exe is missing: build it first (see docs/native/PACKAGING.md)" >&2
     exit 1
@@ -94,7 +94,7 @@ fi
 
 cp "$here/installer.nsi" "$here/theme.nsh" "$here/utils.nsh" "$here/backdrop.bmp" "$here/backdrop@2x.bmp" "$work/"
 cp "$icons/icon.ico" "$work/icon.ico"
-cp "$release_dir/hangar-ai.exe" "$release_dir/hangar-webview.exe" "$work/"
+cp "$release_dir/teskad.exe" "$release_dir/hangar-webview.exe" "$work/"
 # The Visual C++ runtime the executables import, beside them: a fresh Windows
 # has no Redistributable (the release workflow stages these from Visual Studio).
 crt_dlls="vcruntime140.dll vcruntime140_1.dll msvcp140.dll"
@@ -111,11 +111,11 @@ for language in English French; do
   { printf '\357\273\277'; cat "$here/languages/$language.nsh"; } > "$work/$language.nsh"
 done
 
-size=$(( $(wc -c < "$release_dir/hangar-ai.exe") + $(wc -c < "$release_dir/hangar-webview.exe") + $(wc -c < "$node_dir/hangar-node-x86_64") + $(wc -c < "$node_dir/hangar-node-aarch64") ))
+size=$(( $(wc -c < "$release_dir/teskad.exe") + $(wc -c < "$release_dir/hangar-webview.exe") + $(wc -c < "$node_dir/hangar-node-x86_64") + $(wc -c < "$node_dir/hangar-node-aarch64") ))
 for crt in $crt_dlls; do size=$(( size + $(wc -c < "$release_dir/$crt") )); done
 estimated="$(printf '0x%06x' $(( size / 1000 )))"
 
-installer="Hangar.AI_${version}_x64-setup.exe"
+installer="Teskad_${version}_x64-setup.exe"
 (
   cd "$work"
   "$makensis" -V3 \

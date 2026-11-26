@@ -63,7 +63,31 @@ fn main() -> iced::Result {
         eprintln!("{refusal}");
         std::process::exit(2);
     }
+    // Before anything reads or writes a folder: the official app's data is
+    // copied into Teskad's own the first time (hangar_core::migrate).
+    report_migration(&hangar_core::migrate::run_at_startup());
     app::run()
+}
+
+/// What the first-launch import did, on stderr: it never stops the start, a
+/// failed copy leaves Teskad empty and is tried again at the next launch.
+fn report_migration(report: &hangar_core::migrate::Report) {
+    use hangar_core::migrate::Outcome;
+    for (to, outcome) in &report.pairs {
+        match outcome {
+            Outcome::Imported { files } => {
+                eprintln!(
+                    "Imported {files} files of the official app into {}",
+                    to.display()
+                );
+            }
+            Outcome::Failed(why) => eprintln!("Could not import the official app's data: {why}"),
+            Outcome::Skipped(_) => {}
+        }
+    }
+    for project in &report.rewritten_projects {
+        eprintln!("Pointed {}/.mcp.json at this app", project.display());
+    }
 }
 
 /// A development build refuses to start on the installed {APP_NAME}'s data.

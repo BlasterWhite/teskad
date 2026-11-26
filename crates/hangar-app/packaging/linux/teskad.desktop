@@ -1,10 +1,10 @@
 [Desktop Entry]
 Type=Application
-Name=HangarAI
+Name=Teskad
 Comment=Terminal multiplexer for CLI coding agents, with a shared task board
-Exec=hangar-ai
-Icon=hangar-ai
+Exec=teskad
+Icon=teskad
 Terminal=false
 Categories=Development;
 Keywords=terminal;agent;AI;Claude;Claude Code;
-StartupWMClass=hangar-ai
+StartupWMClass=teskad

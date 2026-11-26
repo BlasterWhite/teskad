@@ -12,6 +12,6 @@
 <plist version="1.0">
   <dict>
     <key>NSMicrophoneUsageDescription</key>
-    <string>HangarAI uses the microphone to type what you dictate into the focused terminal pane.</string>
+    <string>Teskad uses the microphone to type what you dictate into the focused terminal pane.</string>
   </dict>
 </plist>

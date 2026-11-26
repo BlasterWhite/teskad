@@ -11,7 +11,11 @@
 use keyring::{Entry, Error};
 use serde_json::Value;
 
-const SERVICE: &str = "hangar-ai";
+/// Teskad's own keychain service, the bundle identifier: the official app's
+/// entry (service `hangar-ai`) is another program's, and is neither read nor
+/// written. The key is not carried over by the first-launch import (migrate.rs):
+/// enter it again in Settings.
+const SERVICE: &str = crate::paths::IDENTIFIER;
 const ACCOUNT: &str = "groq-api-key";
 
 /// Where the key lived, in plain text, before it moved here.

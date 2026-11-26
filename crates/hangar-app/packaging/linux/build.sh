@@ -2,9 +2,9 @@
 # Builds the Linux packages from the binaries cargo already built with the
 # dist profile (the workspace Cargo.toml says why), in target/dist:
 #
-#   Hangar.AI_<version>_amd64.AppImage
-#   Hangar.AI_<version>_amd64.deb
-#   Hangar.AI-<version>-1.x86_64.rpm
+#   Teskad_<version>_amd64.AppImage
+#   Teskad_<version>_amd64.deb
+#   Teskad-<version>-1.x86_64.rpm
 #
 #   packaging/linux/build.sh <out-dir>
 #
@@ -25,7 +25,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/../common.sh"
 out="$(absolute_dir "$1")"
 target_dir="$(cd "$repo" && cargo metadata --no-deps --format-version 1 | jq -r .target_directory)"
 
-for binary in hangar-ai hangar-webview; do
+for binary in teskad hangar-webview; do
   if [ ! -x "$target_dir/dist/$binary" ]; then
     echo "$target_dir/dist/$binary is missing: build it first (see docs/native/PACKAGING.md)" >&2
     exit 1
@@ -33,7 +33,7 @@ for binary in hangar-ai hangar-webview; do
 done
 
 # hangar-node for x86_64 and arm64, checked where the packager's `resources`
-# and the .rpm's assets take them from: target/node (into usr/lib/hangar-ai).
+# and the .rpm's assets take them from: target/node (into usr/lib/teskad).
 stage_node_binaries "$target_dir"
 
 # The packager's own AppRun, which it downloads, exports PYTHONHOME, PYTHONPATH
@@ -51,17 +51,17 @@ rm -rf "$out/.cargo-packager"
   XDG_CACHE_HOME="$cache" cargo packager --profile dist --formats deb,appimage --out-dir "$out"
 )
 
-# cargo-packager's names (hangar-ai_1.2.3_x86_64.AppImage, hangar-ai_1.2.3_amd64.deb)
-# to the ones the Tauri build published.
-mv "$out/hangar-ai_${version}_x86_64.AppImage" "$out/Hangar.AI_${version}_amd64.AppImage"
-mv "$out/hangar-ai_${version}_amd64.deb" "$out/Hangar.AI_${version}_amd64.deb"
+# cargo-packager's names (teskad_1.2.3_x86_64.AppImage, teskad_1.2.3_amd64.deb)
+# to the release names.
+mv "$out/teskad_${version}_x86_64.AppImage" "$out/Teskad_${version}_amd64.AppImage"
+mv "$out/teskad_${version}_amd64.deb" "$out/Teskad_${version}_amd64.deb"
 
 # dpkg reads 2.2.0-rc.1 as version 2.2.0, Debian revision rc.1, which sorts
 # after 2.2.0 itself: apt would take the release for a downgrade from its
 # release candidate. A pre-release goes into the package the Debian way,
 # 2.2.0~rc.1 (`~` sorts first), as the .rpm does; the file keeps its name.
 if [ "$version" != "${version//-/\~}" ]; then
-  deb="$out/Hangar.AI_${version}_amd64.deb"
+  deb="$out/Teskad_${version}_amd64.deb"
   unpacked="$(mktemp -d "$target_dir/deb-version.XXXXXX")"
   chmod 755 "$unpacked" # mktemp's 0700 would become the package's ./
   dpkg-deb -R "$deb" "$unpacked"
@@ -73,7 +73,7 @@ rm -rf "$out/.cargo-packager"
 
 # cargo-generate-rpm writes the package itself, without rpmbuild. It names it
 # <name>-<version>-<release>.<arch>.rpm from the manifest, which is already the
-# Tauri build's Hangar.AI-<version>-1.x86_64.rpm.
+# Teskad-<version>-1.x86_64.rpm.
 #
 # RPM allows no `-` in a version: a pre-release (2.2.0-rc.1) is written the RPM
 # way, 2.2.0~rc.1 (`~` sorts before the release, as semver's `-` does), and the
@@ -86,7 +86,7 @@ rpm_version="${version//-/\~}"
   else
     cargo generate-rpm -p crates/hangar-app --profile dist -o "$out/" \
       -s "version = \"$rpm_version\""
-    mv "$out/Hangar.AI-${rpm_version}-1.x86_64.rpm" "$out/Hangar.AI-${version}-1.x86_64.rpm"
+    mv "$out/Teskad-${rpm_version}-1.x86_64.rpm" "$out/Teskad-${version}-1.x86_64.rpm"
   fi
 )
 

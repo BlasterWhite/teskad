@@ -1,4 +1,4 @@
-; Hangar.AI's installer. Vendored from the Tauri bundler (tauri-bundler 2.9.x,
+; Teskad's installer. Vendored from the Tauri bundler (tauri-bundler 2.9.x,
 ; crates/tauri-bundler/src/bundle/windows/nsis/installer.nsi), then changed to
 ; drive the chrome in theme.nsh instead of the stock MUI wizard. Every edit that
 ; changes what the installer does is marked "Custom:".
@@ -49,16 +49,16 @@ ${StrLoc}
 !define WEBVIEW2APPGUID "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
 
 ; Custom: the values below were `{{placeholders}}` filled from tauri.conf.json.
-; Identity first: these are what an install by the Tauri build recorded in the
-; registry and on disk, and what lets this installer find it and replace it.
-!define MANUFACTURER "simnjs"
-!define PRODUCTNAME "Hangar.AI"
-!define BUNDLEID "com.simnjs.iabench"
-!define MAINBINARYNAME "hangar-ai"
+; Identity first: Teskad's own, which an install records in the registry and on
+; disk and a later one finds it by. Not the official app's (see below).
+!define MANUFACTURER "BlasterWhite"
+!define PRODUCTNAME "Teskad"
+!define BUNDLEID "io.github.blasterwhite.teskad"
+!define MAINBINARYNAME "teskad"
 !define HOMEPAGE "https://github.com/BlasterWhite/hangar"
 !define COPYRIGHT ""
-; Per user, no administrator rights: the app lands in $LOCALAPPDATA\Hangar.AI,
-; where the Tauri build's installer put it.
+; Per user, no administrator rights: the app lands in $LOCALAPPDATA\Teskad,
+; beside the official app's own folder, which it never touches.
 !define INSTALLMODE "currentUser"
 !define ARCH "x64"
 !define ALLOWDOWNGRADES "true"
@@ -67,7 +67,7 @@ ${StrLoc}
 ; executables are all it installs: no sidebar or header image, no license page,
 ; no resources, no file associations.
 !define INSTALLERICON "icon.ico"
-!define MAINBINARYSRCPATH "hangar-ai.exe"
+!define MAINBINARYSRCPATH "teskad.exe"
 !define HELPERBINARYNAME "hangar-webview.exe"
 !define LICENSE ""
 !define SIDEBARIMAGE ""
@@ -105,21 +105,13 @@ ${StrLoc}
 !define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCTNAME}"
 !define MANUKEY "Software\${MANUFACTURER}"
 !define MANUPRODUCTKEY "${MANUKEY}\${PRODUCTNAME}"
-; Custom: the two keys above are derived from ${PRODUCTNAME}, not from the
-; bundle identifier. Every rename therefore leaves the previous install recorded
-; under a name this build no longer writes: it would find no previous install,
-; land in a second directory, and leave the old binary, its Start menu shortcut
-; and its Add/Remove entry behind — two apps, one of them never updated again.
-;
-; Two names have shipped so far. Each one stays listed until no install under it
-; is left in the wild, and the newest is tried first so a machine carrying both
-; migrates from the one it actually runs.
-!define LEGACYPRODUCTNAME1 "Hangar.IA" ; 0.2.0, which shipped the name misspelt
-!define LEGACYUNINSTKEY1 "Software\Microsoft\Windows\CurrentVersion\Uninstall\${LEGACYPRODUCTNAME1}"
-!define LEGACYMANUPRODUCTKEY1 "${MANUKEY}\${LEGACYPRODUCTNAME1}"
-!define LEGACYPRODUCTNAME2 "IaBench" ; up to 0.1.1, before the product was renamed
-!define LEGACYUNINSTKEY2 "Software\Microsoft\Windows\CurrentVersion\Uninstall\${LEGACYPRODUCTNAME2}"
-!define LEGACYMANUPRODUCTKEY2 "${MANUKEY}\${LEGACYPRODUCTNAME2}"
+; Custom: Teskad shares no registry key, install folder or uninstall entry with
+; the official HangarAI (publisher "simnjs", product "Hangar.AI", and the
+; earlier "Hangar.IA" and "IaBench" before it): it installs beside it. This
+; installer therefore never looks for an install under those names, which the
+; bundler's rename handling used to uninstall before putting the new one in.
+; The `$LegacyMode` branches below stay so the file keeps the shape of the
+; vendored one; nothing sets the variable, so they never run.
 
 Var PassiveMode
 Var UpdateMode
@@ -135,29 +127,6 @@ Var LegacyInstDir
 Var LegacyUninstKey
 Var LegacyManuProductKey
 Var OldMainBinaryName
-
-; Custom: looks for an install under one previous product name. Both its
-; uninstaller and its directory are required: reinst_uninstall has to hand the
-; uninstaller its own directory through `_?=`, and without it the migration
-; would fail halfway. Missing either, this leaves everything as it found it so
-; the next name can be tried, and a plain first install stays a first install.
-!macro TryLegacyInstall UninstKey ManuKey
-  ${If} $LegacyMode = 0
-    ReadRegStr $R0 SHCTX "${UninstKey}" ""
-    ReadRegStr $R1 SHCTX "${UninstKey}" "UninstallString"
-    ReadRegStr $LegacyInstDir SHCTX "${ManuKey}" ""
-    ${If} "$R0$R1" != ""
-    ${AndIf} $LegacyInstDir != ""
-      StrCpy $LegacyMode 1
-      StrCpy $LegacyUninstKey "${UninstKey}"
-      StrCpy $LegacyManuProductKey "${ManuKey}"
-    ${Else}
-      StrCpy $R0 ""
-      StrCpy $R1 ""
-      StrCpy $LegacyInstDir ""
-    ${EndIf}
-  ${EndIf}
-!macroend
 
 Name "${PRODUCTNAME}"
 BrandingText "${COPYRIGHT}"
@@ -319,11 +288,7 @@ Function PageReinstall
     IntOp $0 $0 + 1
     ReadRegStr $R0 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$1" "DisplayName"
     ReadRegStr $R1 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$1" "Publisher"
-    StrCmp "$R0$R1" "${PRODUCTNAME}${MANUFACTURER}" wix_match 0
-    ; Custom: an MSI installed before a rename registered itself under the
-    ; product name of its day, so match those too.
-    StrCmp "$R0$R1" "${LEGACYPRODUCTNAME1}${MANUFACTURER}" wix_match 0
-    StrCmp "$R0$R1" "${LEGACYPRODUCTNAME2}${MANUFACTURER}" wix_match wix_loop
+    StrCmp "$R0$R1" "${PRODUCTNAME}${MANUFACTURER}" wix_match wix_loop
   wix_match:
     ReadRegStr $R0 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$1" "UninstallString"
     ${StrCase} $R1 $R0 "L"
@@ -337,13 +302,6 @@ Function PageReinstall
   ; Check if there is an existing installation, if not, abort the reinstall page
   ReadRegStr $R0 SHCTX "${UNINSTKEY}" ""
   ReadRegStr $R1 SHCTX "${UNINSTKEY}" "UninstallString"
-
-  ; Custom: nothing under the current product name — look for an install left by
-  ; a release that shipped under an earlier one, newest first.
-  ${If} "$R0$R1" == ""
-    !insertmacro TryLegacyInstall "${LEGACYUNINSTKEY1}" "${LEGACYMANUPRODUCTKEY1}"
-    !insertmacro TryLegacyInstall "${LEGACYUNINSTKEY2}" "${LEGACYMANUPRODUCTKEY2}"
-  ${EndIf}
 
   ${IfThen} "$R0$R1" == "" ${|} Abort ${|}
 

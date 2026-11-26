@@ -11,7 +11,7 @@
 //! machine.
 //!
 //! Kits come from a local folder, linked in place, or from a GitHub link,
-//! cloned shallow into `~/.hangar/kits/<id>` (store.rs, source.rs); the library
+//! cloned shallow into `~/.teskad/kits/<id>` (store.rs, source.rs); the library
 //! lists public ones, each pinned to a tag (gallery.rs). Which workspace has
 //! which kit is the workspace's business (state.json); this side only ever hears
 //! kit ids, and resolves them to folders.
@@ -102,13 +102,13 @@ async fn off_thread<T: Send + 'static>(
 /// What a manifest's `hangar` requirement is checked against.
 pub const HANGAR_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// `~/.hangar/kits/`, or beside the endpoint file a development build run
+/// `~/.teskad/kits/`, or beside the endpoint file a development build run
 /// next to an installed Hangar was given, as for the bridge's mod (bridge.rs).
 fn kits_root() -> Option<PathBuf> {
     if let Some(file) = std::env::var_os("HANGAR_ENDPOINT_FILE").filter(|v| !v.is_empty()) {
         return Some(PathBuf::from(file).parent()?.join("kits"));
     }
-    Some(dirs::home_dir()?.join(".hangar").join("kits"))
+    Some(crate::paths::home_folder()?.join("kits"))
 }
 
 /// The marketplace Hangar keeps for Codex, the kits' Codex plugins inside

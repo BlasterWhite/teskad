@@ -278,7 +278,7 @@ pub fn normalize_arch(uname: &str) -> Option<&'static str> {
 pub struct BinarySource {
     /// `HANGAR_NODE_BINARY`, for development: used whatever the machine.
     pub override_path: Option<PathBuf>,
-    /// The folder of the running `hangar-ai`, which holds
+    /// The folder of the running `teskad`, which holds
     /// `hangar-node-<arch>` in a release.
     pub exe_dir: Option<PathBuf>,
 }
@@ -328,15 +328,15 @@ impl BinarySource {
     }
 }
 
-/// Where a release keeps `file`, from the folder of `hangar-ai`: beside it
+/// Where a release keeps `file`, from the folder of `teskad`: beside it
 /// (Windows, development), in Contents/Resources (macOS: codesign refuses ELF
-/// files in Contents/MacOS), in usr/lib/hangar-ai (the .deb, the .rpm, the
+/// files in Contents/MacOS), in usr/lib/teskad (the .deb, the .rpm, the
 /// AppImage, whose executable is in usr/bin).
 fn candidates(exe_dir: &Path, file: &str) -> [PathBuf; 3] {
     [
         exe_dir.join(file),
         exe_dir.join("../Resources").join(file),
-        exe_dir.join("../lib/hangar-ai").join(file),
+        exe_dir.join("../lib/teskad").join(file),
     ]
 }
 

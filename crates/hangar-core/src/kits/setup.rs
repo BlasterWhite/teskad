@@ -1,4 +1,4 @@
-//! Which setup steps already ran on this machine: `~/.hangar/kits/setup.json`.
+//! Which setup steps already ran on this machine: `~/.teskad/kits/setup.json`.
 //!
 //! A step is recorded with the SHA-256 of the command it ran for this OS, so
 //! it is not asked again while the command stays the same, and is asked again

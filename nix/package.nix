@@ -1,4 +1,4 @@
-# Hangar, its webview helper (hangar-webview, for HTML kit tabs and PDFs) and
+# Teskad, its webview helper (hangar-webview, for HTML kit tabs and PDFs) and
 # the embedded Hangar Mobile, as the release workflow builds them for Linux.
 {
   lib,
@@ -18,7 +18,7 @@ let
   manifest = (lib.importTOML ../Cargo.toml).workspace.package;
 in
 rustPlatform.buildRustPackage {
-  pname = "hangar";
+  pname = "teskad";
   inherit (manifest) version;
 
   src = lib.fileset.toSource {
@@ -80,14 +80,14 @@ rustPlatform.buildRustPackage {
   doCheck = false;
 
   postInstall = ''
-    install -Dm644 crates/hangar-app/packaging/linux/hangar-ai.desktop \
-      $out/share/applications/hangar-ai.desktop
+    install -Dm644 crates/hangar-app/packaging/linux/teskad.desktop \
+      $out/share/applications/teskad.desktop
     for size in 16 24 32 48 64 128 256 512; do
       install -Dm644 crates/hangar-app/packaging/icons/linux/''${size}x''${size}.png \
-        $out/share/icons/hicolor/''${size}x''${size}/apps/hangar-ai.png
+        $out/share/icons/hicolor/''${size}x''${size}/apps/teskad.png
     done
-    install -Dm644 crates/hangar-app/packaging/icons/linux/hangar-ai.svg \
-      $out/share/icons/hicolor/scalable/apps/hangar-ai.svg
+    install -Dm644 crates/hangar-app/packaging/icons/linux/teskad.svg \
+      $out/share/icons/hicolor/scalable/apps/teskad.svg
   '';
 
   # Only the helper is a GTK program; the app is not wrapped (flake.nix says why).
@@ -96,7 +96,7 @@ rustPlatform.buildRustPackage {
   # After fixupPhase's own patchelf --shrink-rpath, which would take out these
   # entries: nothing in the binary names them, winit and wgpu dlopen them.
   postFixup = ''
-    patchelf --add-rpath ${lib.makeLibraryPath runtimeLibs} $out/bin/hangar-ai
+    patchelf --add-rpath ${lib.makeLibraryPath runtimeLibs} $out/bin/teskad
     wrapGApp $out/bin/hangar-webview
   '';
 
@@ -104,7 +104,7 @@ rustPlatform.buildRustPackage {
     description = "Run a team of Claude Code agents in one native window, and steer them from your phone";
     homepage = "https://github.com/BlasterWhite/hangar";
     license = lib.licenses.mit;
-    mainProgram = "hangar-ai";
+    mainProgram = "teskad";
     platforms = lib.platforms.linux;
   };
 }

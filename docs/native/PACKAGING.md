@@ -12,17 +12,17 @@ developer's machine with the same commands.
 ## 1. What a release produces
 
 One draft release, filled by three build jobs and published by a fourth step
-once its feed has been checked. The names are the Tauri build's, because the
-download page and `latest.json` link to them.
+once its feed has been checked. The names are Teskad's own (`Teskad`, not
+the official app's `Hangar.AI`): the download page and `latest.json` link to them.
 
 | Asset | Made by | Updater keys it answers for | Replaced in place by |
 | --- | --- | --- | --- |
-| `Hangar.AI_<v>_amd64.AppImage` | cargo-packager | `linux-x86_64`, `linux-x86_64-appimage` | a rename over `$APPIMAGE` |
-| `Hangar.AI_<v>_amd64.deb` | cargo-packager | `linux-x86_64-deb` | `pkexec dpkg -i` |
-| `Hangar.AI-<v>-1.x86_64.rpm` | cargo-generate-rpm | `linux-x86_64-rpm` | `pkexec rpm -U` |
-| `Hangar.AI_<v>_x64-setup.exe` | `makensis` | `windows-x86_64`, `windows-x86_64-nsis` | run with `/P /R /UPDATE /ARGS …` |
-| `Hangar.AI_universal.app.tar.gz` | tar, from the cargo-packager `.app` | `darwin-{aarch64,x86_64}`, and the same with `-app` | the bundle swapped for the new one |
-| `Hangar.AI_<v>_universal.dmg` | cargo-packager | none: a download only | |
+| `Teskad_<v>_amd64.AppImage` | cargo-packager | `linux-x86_64`, `linux-x86_64-appimage` | a rename over `$APPIMAGE` |
+| `Teskad_<v>_amd64.deb` | cargo-packager | `linux-x86_64-deb` | `pkexec dpkg -i` |
+| `Teskad-<v>-1.x86_64.rpm` | cargo-generate-rpm | `linux-x86_64-rpm` | `pkexec rpm -U` |
+| `Teskad_<v>_x64-setup.exe` | `makensis` | `windows-x86_64`, `windows-x86_64-nsis` | run with `/P /R /UPDATE /ARGS …` |
+| `Teskad_universal.app.tar.gz` | tar, from the cargo-packager `.app` | `darwin-{aarch64,x86_64}`, and the same with `-app` | the bundle swapped for the new one |
+| `Teskad_<v>_universal.dmg` | cargo-packager | none: a download only | |
 | `hangar-node-<v>-linux-x86_64`, `hangar-node-<v>-linux-aarch64` | `cargo build -p hangar-node`, stripped | none: a download only (see "hangar-node" below) | |
 | `<each of the above but the .dmg>.sig` | `cargo packager signer sign` | | |
 | `latest.json` | `packaging/latest-json.sh` | | |
@@ -35,14 +35,14 @@ packager **resources**, not binaries (`resources` in
 `crates/hangar-app/Cargo.toml`). The desktop uploads the one that matches a
 node's `uname -m` over SSH (`crates/hangar-app/src/nodes/model.rs`,
 `BinarySource`: `HANGAR_NODE_BINARY`, else `hangar-node-<arch>` looked for in
-three places from the running `hangar-ai`'s folder: beside it, in
-`../Resources` and in `../lib/hangar-ai`), and a Mac or a Windows desktop
+three places from the running `teskad`'s folder: beside it, in
+`../Resources` and in `../lib/teskad`), and a Mac or a Windows desktop
 drives Linux nodes too, so all three platforms carry both:
 
 | Package | Where |
 | --- | --- |
-| `.deb`, `.rpm` | `/usr/lib/hangar-ai/hangar-node-{x86_64,aarch64}` |
-| AppImage | `usr/lib/hangar-ai/` in the image (the executable is in `usr/bin/`) |
+| `.deb`, `.rpm` | `/usr/lib/teskad/hangar-node-{x86_64,aarch64}` |
+| AppImage | `usr/lib/teskad/` in the image (the executable is in `usr/bin/`) |
 | macOS `.app` | `Contents/Resources/` |
 | Windows installer | the install folder, beside the executable, removed by the uninstaller |
 
@@ -100,7 +100,7 @@ minisign signature of the file's BLAKE2b hash, base64-encoded). Both the plain
 key and the per-installer one are written, as before: an install of the old app
 asks for the plain one, the native app for the specific one first.
 
-The `.app.tar.gz` holds one top-level `Hangar.AI.app`, which `hangar-update`
+The `.app.tar.gz` holds one top-level `Teskad.app`, which `hangar-update`
 unpacks by dropping that first path component (as the plugin did).
 
 ## 2. The tools, and why
@@ -110,7 +110,7 @@ unpacks by dropping that first path component (as the plugin did).
 | AppImage, `.deb`, macOS `.app` and `.dmg`, signing | **cargo-packager** 0.11.8, pinned |
 | `.rpm` | **cargo-generate-rpm** 0.21.1, pinned |
 | Windows installer | **`makensis`** on the vendored Tauri NSIS script, no bundler |
-| Icon and version of `hangar-ai.exe` | `winresource`, from `crates/hangar-app/build.rs` |
+| Icon and version of `teskad.exe` | `winresource`, from `crates/hangar-app/build.rs` |
 
 **cargo-packager** is the Tauri bundler, extracted from Tauri and kept by
 CrabNebula: the same `.deb` and `.app` code, the same create-dmg, the same
@@ -270,14 +270,14 @@ Common to all: `pnpm install && pnpm mobile:build` first (Hangar Mobile's
 crates/hangar-app/packaging/check-mobile.sh                # dist-mobile/ is whole
 cargo build --profile dist --locked -p hangar-app
 cargo build --profile dist --locked -p hangar-webview --features engine
-crates/hangar-app/packaging/check-mobile.sh target/dist/hangar-ai      # and it is in the binary
+crates/hangar-app/packaging/check-mobile.sh target/dist/teskad      # and it is in the binary
 ```
 
-The app and the helper are built separately so that `hangar-ai` is never built
+The app and the helper are built separately so that `teskad` is never built
 with the helper's `engine` feature: the main executable links no browser engine
 (`ldd` shows libc, libm, libgcc_s, libstdc++ and libasound only). The helper
 (`hangar-webview`) is the only thing that links WebKitGTK, WebView2 or
-WKWebView. Every bundle puts it next to `hangar-ai`, which is where
+WKWebView. Every bundle puts it next to `teskad`, which is where
 `hangar_webview::find_helper` looks.
 
 **Linux** (`.AppImage`, `.deb`, `.rpm`). Needs `jq`, the build dependencies
@@ -293,7 +293,7 @@ The packager downloads its AppImage tools (linuxdeploy and its plugin, then
 appimagetool and the type-2 runtime) into `target/packager-cache`. Nothing is
 installed on the system; run the AppImage, or unpack it with `--appimage-extract`.
 To try the app from a package without installing it, `dpkg-deb -x` the `.deb`
-into a folder and run `usr/bin/hangar-ai` with `HANGAR_DATA_ROOT` and
+into a folder and run `usr/bin/teskad` with `HANGAR_DATA_ROOT` and
 `HANGAR_ENDPOINT_FILE` set to a throwaway folder (as `scripts/native-dev.sh`
 does), never to the installed Hangar's.
 
@@ -333,7 +333,7 @@ makensis overflows a stack buffer on very long include paths.
 
 ```bash
 cargo packager signer generate --ci --path /tmp/test-key --password ""
-TAURI_SIGNING_PRIVATE_KEY="$(cat /tmp/test-key)" crates/hangar-app/packaging/sign.sh target/packager/Hangar.AI*
+TAURI_SIGNING_PRIVATE_KEY="$(cat /tmp/test-key)" crates/hangar-app/packaging/sign.sh target/packager/Teskad*
 TAG=v1.13.0 REPO=BlasterWhite/hangar crates/hangar-app/packaging/latest-json.sh target/packager latest.json
 cargo run -p hangar-update --example verify_feed -- latest.json target/packager --version v1.13.0 --pubkey /tmp/test-key.pub
 ```
@@ -404,18 +404,19 @@ Secrets, all as before: `TAURI_SIGNING_PRIVATE_KEY` and `_PASSWORD`,
 `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`. The names are kept so nothing
 has to change in the repository settings.
 
-## 5. Compatibility with installs of the old app
+## 5. Identity, and the official app
 
 | What an install knows | Kept how |
 | --- | --- |
 | The feed and the key | Same URL (`ENDPOINT`), same `latest.json` shape, signed by the same private key; `hangar-update` and the plugin verify the same `.sig` text. Checked with a key made by cargo-packager's `signer generate` (the same format as `tauri signer generate`) through `hangar-update`'s `verify_file`; the shipped `PUBKEY` is read by it too. The real key could not be tried here. |
-| Asset names | The Tauri build's, in every row of section 1; the download page links to them. |
-| Identifier, product name, executable | `com.simnjs.iabench`, `Hangar.AI`, `hangar-ai` (so `hangar-ai --mcp`, found by agents' MCP configs, stays at `/usr/bin/hangar-ai`, `…/Hangar.AI.app/Contents/MacOS/hangar-ai`, `%LOCALAPPDATA%\Hangar.AI\hangar-ai.exe`). |
-| `.deb` | Package `hangar-ai`, so `dpkg -i` upgrades the old one. It depends on `libwebkit2gtk-4.1-0` and GTK as the old one did, and now on `libasound2`, `libstdc++6`, `libc6`. The desktop file is `hangar-ai.desktop` (the old one was `Hangar.AI.desktop`; dpkg removes it), with `StartupWMClass=hangar-ai`. Icons go in the `hicolor` folders, from 16 to 512 px plus `scalable/apps/hangar-ai.svg`: a rounded tile with room around it, as GNOME and KDE draw app icons (`packaging/icons/linux/`, rendered from its SVG by `render.sh`). |
-| `.rpm` | Package `Hangar.AI`, as the Tauri build named it, so `rpm -U` upgrades. Requires are written by soname (`libasound.so.2`, `libstdc++.so.6`, `libgtk-3.so.0`, `libwebkit2gtk-4.1.so.0`) rather than the ldd scan cargo-generate-rpm does by default, which would list the build machine's own ICU and GStreamer sonames. |
+| Asset names | `Teskad…`, in every row of section 1; the download page links to them. The official app's `Hangar.AI…` names are not used. |
+| Identifier, product name, executable | `io.github.blasterwhite.teskad`, `Teskad`, `teskad`, publisher `BlasterWhite`: nothing shared with the official app (`com.simnjs.iabench`, `Hangar.AI`, `hangar-ai`, `simnjs`), which Teskad installs beside. `teskad --mcp` is what agents' MCP configs name: `/usr/bin/teskad`, `…/Teskad.app/Contents/MacOS/teskad`, `%LOCALAPPDATA%\Teskad\teskad.exe`. The helpers `hangar-webview` and `hangar-node` keep their names, they are internal. |
+| `.deb` | Package `teskad`: `dpkg -i` never replaces the official `hangar-ai`. It depends on `libwebkit2gtk-4.1-0` and GTK, `libasound2`, `libstdc++6`, `libc6`. The desktop file is `teskad.desktop`, with `StartupWMClass=teskad`. Icons go in the `hicolor` folders, from 16 to 512 px plus `scalable/apps/teskad.svg`: a rounded tile with room around it, as GNOME and KDE draw app icons (`packaging/icons/linux/`, rendered from its SVG by `render.sh`). |
+| `.rpm` | Package `Teskad`, so `rpm -U` never touches the official `Hangar.AI`. Requires are written by soname (`libasound.so.2`, `libstdc++.so.6`, `libgtk-3.so.0`, `libwebkit2gtk-4.1.so.0`) rather than the ldd scan cargo-generate-rpm does by default, which would list the build machine's own ICU and GStreamer sonames. |
 | AppImage | A single file the updater renames over `$APPIMAGE`, as before. Its own `AppRun` (`packaging/linux/AppRun`) replaces the packager's, which exported `PYTHONHOME` and `PYTHONPATH` into the image and so broke every Python started in a pane. The image bundles no libraries; it is 20 MB, not 91. |
-| Windows | Per-user (`currentUser`), `%LOCALAPPDATA%\Hangar.AI`, the same uninstall and `Software\simnjs\Hangar.AI` registry keys, so it finds the old install and replaces it in place. `/P /R /UPDATE /ARGS …` are read by the script as before. The migration of installs under the earlier names stays. The look is `theme.nsh` and the backdrops, copied. WebView2 is still fetched when missing (the helper needs it for HTML kit tabs and PDFs), not for the app. |
-| macOS | `Hangar.AI.app`, `com.simnjs.iabench`, minimum macOS 10.15, the microphone usage string merged into `Info.plist` from `packaging/macos/Info.plist`, universal. |
+| Windows | Per-user (`currentUser`), `%LOCALAPPDATA%\Teskad`, the uninstall entry `Teskad` and the registry key `Software\BlasterWhite\Teskad`: none of the official app's (`Hangar.AI`, `Software\simnjs\Hangar.AI`). The installer no longer looks for installs under the names `Hangar.AI`, `Hangar.IA` or `IaBench`, so it never uninstalls the official app; `/P /R /UPDATE /ARGS …` are read by the script as before. The look is `theme.nsh` and the backdrops, copied. WebView2 is still fetched when missing (the helper needs it for HTML kit tabs and PDFs), not for the app. |
+| macOS | `Teskad.app`, `io.github.blasterwhite.teskad`, minimum macOS 10.15, the microphone usage string merged into `Info.plist` from `packaging/macos/Info.plist`, universal. |
+| Data | Teskad's folders are its own (`~/.teskad`, the data folder of its identifier) and the first launch copies the official app's into them (`hangar_core::migrate`; [FORK.md](../../FORK.md)). |
 
 What changes for people:
 
@@ -424,14 +425,14 @@ What changes for people:
   system. The release notes say so.
 - No `.msi` (it was never shipped; the WiX banner and dialog images were not
   carried over).
-- `hangar-ai.exe` takes its icon and version information from `build.rs`
+- `teskad.exe` takes its icon and version information from `build.rs`
   (`winresource`) instead of `tauri-build`.
 
 ## 6. Verified, and not
 
 Done on Linux with the real release build (1.12.1, `x86_64`):
 
-- The `.deb`: `dpkg-deb -I` and `-c` (package `hangar-ai`, the dependencies above,
+- The `.deb`: `dpkg-deb -I` and `-c` (package `hangar-ai` then, the dependencies above,
   `usr/bin/hangar-ai` and `hangar-webview` side by side, the three icon sizes
   the old one had, the desktop file). The extracted `usr/bin/hangar-ai` ran on a
   throwaway data folder, and `hangar-webview` answered `ready` next to it.
@@ -483,10 +484,10 @@ Not packaging, but a package cannot do them (the brief keeps app sources out of
 this work):
 
 - **The window's application id.** The desktop files say
-  `StartupWMClass=hangar-ai`; on Wayland the match is by the window's `app_id`.
+  `StartupWMClass=teskad`; on Wayland the match is by the window's `app_id`.
   `crates/hangar-app` sets none today (no `application_id` in the iced window
   settings), so a launcher's icon would not attach to the window. Set
-  `window::Settings::platform_specific.application_id` to `"hangar-ai"` for the
+  `window::Settings::platform_specific.application_id` to `"teskad"` for the
   main window on Linux.
 - **The window icon** for X11 and Windows title bars, from
   `packaging/icons/linux/128x128.png` on Linux and `packaging/icons/128x128.png`

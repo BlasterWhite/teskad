@@ -23,14 +23,36 @@
 
 use std::path::{Path, PathBuf};
 
-/// The bundle identifier of the Tauri app (`identifier` in
-/// src-tauri/tauri.conf.json). Never to be changed: it names every folder
-/// below, and the Windows notifications' AUMID (notify.rs).
-pub const IDENTIFIER: &str = "com.simnjs.iabench";
+/// The bundle identifier of this app (`identifier` in crates/hangar-app's
+/// Cargo.toml, under `package.metadata.packager`). It names every folder
+/// below, and the Windows notifications' AUMID (notify.rs). It is the fork's
+/// own: it shares nothing with the official app's (`OFFICIAL_IDENTIFIER`), and
+/// is changed only together with a migration (migrate.rs).
+pub const IDENTIFIER: &str = "io.github.blasterwhite.teskad";
 
-/// What the person sees the app called: Tauri's `productName`, which is also
-/// the name its login item is filed under (autostart.rs).
-pub const PRODUCT_NAME: &str = "Hangar.AI";
+/// What the person sees the app called: the packager's `productName`, which is
+/// also the name its login item is filed under (autostart.rs).
+pub const PRODUCT_NAME: &str = "Teskad";
+
+/// The folder, under the person's home, where Teskad keeps what agents and
+/// other programs reach by a fixed path: the endpoint file, the Claude Code
+/// mod, the accounts, the kits and their data.
+pub const HOME_DIR_NAME: &str = ".teskad";
+
+/// The bundle identifier of the official HangarAI app. Teskad never writes
+/// there: it only reads it, once, to copy its data over (migrate.rs).
+pub const OFFICIAL_IDENTIFIER: &str = "com.simnjs.iabench";
+
+/// The official app's home folder (`HOME_DIR_NAME`'s counterpart): read once by
+/// the migration, never written.
+pub const OFFICIAL_HOME_DIR_NAME: &str = ".hangar";
+
+/// `~/.teskad`, the one place the code below the home directory is named
+/// from: the endpoint file, the mods, the accounts, the kits, the kit data
+/// and the folders a clone may not land in all join onto it.
+pub fn home_folder() -> Option<PathBuf> {
+    dirs::home_dir().map(|home| home.join(HOME_DIR_NAME))
+}
 
 /// A folder the system would not name — no home directory, most likely.
 /// Worded as Tauri's `Error::UnknownPath`, which the messages that carry it
@@ -59,11 +81,17 @@ pub struct Paths {
 impl Paths {
     /// The folders Tauri used for this identifier on this system.
     pub fn system() -> Self {
-        let app = |base: Option<PathBuf>| base.map(|dir| dir.join(IDENTIFIER));
+        Self::system_for(IDENTIFIER)
+    }
+
+    /// The folders `identifier` would have on this system: the official
+    /// app's, for the migration to read (migrate.rs).
+    pub fn system_for(identifier: &str) -> Self {
+        let app = |base: Option<PathBuf>| base.map(|dir| dir.join(identifier));
         #[cfg(target_os = "macos")]
-        let log = dirs::home_dir().map(|home| home.join("Library/Logs").join(IDENTIFIER));
+        let log = dirs::home_dir().map(|home| home.join("Library/Logs").join(identifier));
         #[cfg(not(target_os = "macos"))]
-        let log = dirs::data_local_dir().map(|dir| dir.join(IDENTIFIER).join("logs"));
+        let log = dirs::data_local_dir().map(|dir| dir.join(identifier).join("logs"));
         Self {
             data: app(dirs::data_dir()),
             config: app(dirs::config_dir()),
@@ -157,7 +185,10 @@ mod tests {
     fn every_folder_is_named_after_the_tauri_identifier() {
         let paths = Paths::system();
         let expect = |base: Option<PathBuf>, got: Result<PathBuf, UnknownPath>| {
-            assert_eq!(got.ok(), base.map(|dir| dir.join("com.simnjs.iabench")));
+            assert_eq!(
+                got.ok(),
+                base.map(|dir| dir.join("io.github.blasterwhite.teskad"))
+            );
         };
         expect(dirs::data_dir(), paths.app_data_dir());
         expect(dirs::config_dir(), paths.app_config_dir());
@@ -170,7 +201,8 @@ mod tests {
     fn the_logs_sit_in_the_local_data_folder_outside_macos() {
         assert_eq!(
             Paths::system().app_log_dir().ok(),
-            dirs::data_local_dir().map(|dir| dir.join("com.simnjs.iabench").join("logs"))
+            dirs::data_local_dir()
+                .map(|dir| dir.join("io.github.blasterwhite.teskad").join("logs"))
         );
     }
 
@@ -179,7 +211,22 @@ mod tests {
     fn the_logs_sit_in_library_logs_on_macos() {
         assert_eq!(
             Paths::system().app_log_dir().ok(),
-            dirs::home_dir().map(|home| home.join("Library/Logs/com.simnjs.iabench"))
+            dirs::home_dir().map(|home| home.join("Library/Logs/io.github.blasterwhite.teskad"))
+        );
+    }
+
+    #[test]
+    fn nothing_here_is_the_official_apps() {
+        assert_ne!(IDENTIFIER, OFFICIAL_IDENTIFIER);
+        assert_ne!(HOME_DIR_NAME, OFFICIAL_HOME_DIR_NAME);
+        assert_ne!(PRODUCT_NAME, "Hangar.AI");
+        let ours = Paths::system();
+        let theirs = Paths::system_for(OFFICIAL_IDENTIFIER);
+        assert_ne!(ours.app_data_dir().ok(), theirs.app_data_dir().ok());
+        assert_ne!(ours.app_log_dir().ok(), theirs.app_log_dir().ok());
+        assert_eq!(
+            home_folder().and_then(|dir| dir.file_name().map(|n| n.to_owned())),
+            Some(std::ffi::OsString::from(".teskad"))
         );
     }
 
