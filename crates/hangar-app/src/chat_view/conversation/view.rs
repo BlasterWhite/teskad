@@ -475,7 +475,16 @@ fn item_view<'a>(
             text: words,
             from: Sender::Hangar,
             ..
-        } => teskad(ctx, item.at, hangar_message(ctx, ws, chat, item, words)),
+        } => {
+            let label = matches!(hangar::note(words), hangar::Note::News(_))
+                .then(|| ctx.t(Key::ChatConvTeskadEvent).into_owned());
+            teskad(
+                ctx,
+                item.at,
+                label,
+                hangar_message(ctx, ws, chat, item, words),
+            )
+        }
         Body::Assistant { .. } => {
             let Some((_, content)) = chat.prose.get(&item.id) else {
                 return Space::new().into();
@@ -674,7 +683,12 @@ fn mine<'a>(
 
 /// A message of Teskad's, never taken for the person's: an inset of its own,
 /// under its mark and the Fork, with when it was written.
-fn teskad<'a>(ctx: Ctx<'a>, at: i64, content: Element<'a, Message>) -> Element<'a, Message> {
+fn teskad<'a>(
+    ctx: Ctx<'a>,
+    at: i64,
+    label: Option<String>,
+    content: Element<'a, Message>,
+) -> Element<'a, Message> {
     let t = ctx.theme;
     let mut head = row![
         icon(Icon::Orchestrator, tokens::size::ICON).color(t.palette.accent_text),
@@ -682,10 +696,17 @@ fn teskad<'a>(ctx: Ctx<'a>, at: i64, content: Element<'a, Message>) -> Element<'
             .size(tokens::scale::type_scale::LABEL.size)
             .font(fonts::mono())
             .color(t.palette.accent_text),
-        Space::new().width(Length::Fill),
     ]
     .spacing(tokens::space::MD)
     .align_y(Alignment::Center);
+    if let Some(label) = label {
+        head = head.push(
+            text(label)
+                .size(tokens::scale::type_scale::LABEL.size)
+                .style(style::text::muted(t)),
+        );
+    }
+    head = head.push(Space::new().width(Length::Fill));
     if at > 0 {
         head = head.push(
             text(crate::inspector::format::clock_time(at))

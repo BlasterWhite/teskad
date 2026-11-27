@@ -14,11 +14,6 @@
 //!
 //! Elsewhere `palette.*` stays: the palette is conform (`themes.md`, contrast
 //! check on `bg` and `surface` only).
-//!
-//! CHANGELOG line, for ticket 13 to add: "The Board's empty and loading
-//! states use the shared format, and text on raised surfaces (a card under
-//! the pointer, a chip, the HQ button, the person's bubble) reads at 4.5:1
-//! in every theme."
 
 use hangar_i18n::{Key, args};
 use hangar_theme::tokens::scale::{radius, type_scale};

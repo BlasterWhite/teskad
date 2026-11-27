@@ -1607,6 +1607,7 @@
   "chatConv.heard.idle": "{worker} s’est arrêté sans livrer",
   "chatConv.heard.message": "{from} : « {text} »",
   "chatConv.heard.briefing": "{app} a fait le point avec {name}",
+  "chatConv.teskad.event": "Événement — non écrit par la personne",
   "chatConv.tool.sendPaneText": "À {name} : « {text} »",
   "chatConv.images_one": "{n} image",
   "chatConv.images_other": "{n} images",
