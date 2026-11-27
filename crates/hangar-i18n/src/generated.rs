@@ -596,8 +596,14 @@ pub enum Key {
     ChatConvStopFailed,
     /// `chatConv.stopHint`
     ChatConvStopHint,
+    /// `chatConv.teskad.agent`
+    ChatConvTeskadAgent,
+    /// `chatConv.teskad.briefing`
+    ChatConvTeskadBriefing,
     /// `chatConv.teskad.event`
     ChatConvTeskadEvent,
+    /// `chatConv.teskad.other`
+    ChatConvTeskadOther,
     /// `chatConv.tool.blockTask`
     ChatConvToolBlockTask,
     /// `chatConv.tool.claimTask`
@@ -4999,7 +5005,10 @@ impl Key {
         Key::ChatConvStop,
         Key::ChatConvStopFailed,
         Key::ChatConvStopHint,
+        Key::ChatConvTeskadAgent,
+        Key::ChatConvTeskadBriefing,
         Key::ChatConvTeskadEvent,
+        Key::ChatConvTeskadOther,
         Key::ChatConvToolBlockTask,
         Key::ChatConvToolClaimTask,
         Key::ChatConvToolCommentTask,
@@ -7346,7 +7355,10 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "chatConv.stop", en: Text::plain("Stop"), fr: Text::plain("Arrêter") },
     Message { id: "chatConv.stopFailed", en: Text::plain("Could not stop: {error}"), fr: Text::plain("Impossible d’arrêter\u{202f}: {error}") },
     Message { id: "chatConv.stopHint", en: Text::plain("Stop the turn, as Escape does in the terminal"), fr: Text::plain("Arrête le tour, comme Échap dans le terminal") },
+    Message { id: "chatConv.teskad.agent", en: Text::plain("From agent {from} — not typed by the person"), fr: Text::plain("De l’agent {from} — non écrit par la personne") },
+    Message { id: "chatConv.teskad.briefing", en: Text::plain("Briefing — not typed by the person"), fr: Text::plain("Point de situation — non écrit par la personne") },
     Message { id: "chatConv.teskad.event", en: Text::plain("Event — not typed by the person"), fr: Text::plain("Événement — non écrit par la personne") },
+    Message { id: "chatConv.teskad.other", en: Text::plain("Not typed by the person"), fr: Text::plain("Non écrit par la personne") },
     Message { id: "chatConv.tool.blockTask", en: Text::plain("Put “{task}” on hold"), fr: Text::plain("«\u{202f}{task}\u{202f}» mise en attente") },
     Message { id: "chatConv.tool.claimTask", en: Text::plain("Claimed “{task}”"), fr: Text::plain("«\u{202f}{task}\u{202f}» prise en charge") },
     Message { id: "chatConv.tool.commentTask", en: Text::plain("Commented on “{task}”"), fr: Text::plain("Commentaire sur «\u{202f}{task}\u{202f}»") },

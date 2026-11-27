@@ -476,12 +476,19 @@ fn item_view<'a>(
             from: Sender::Hangar,
             ..
         } => {
-            let label = matches!(hangar::note(words), hangar::Note::News(_))
-                .then(|| ctx.t(Key::ChatConvTeskadEvent).into_owned());
+            let label = match hangar::note(words) {
+                hangar::Note::News(_) => ctx.t(Key::ChatConvTeskadEvent).into_owned(),
+                hangar::Note::Agent { from, .. } => ctx
+                    .i18n
+                    .t_with(Key::ChatConvTeskadAgent, &args!("from" => from.as_str()))
+                    .into_owned(),
+                hangar::Note::Briefing(_) => ctx.t(Key::ChatConvTeskadBriefing).into_owned(),
+                hangar::Note::Other(_) => ctx.t(Key::ChatConvTeskadOther).into_owned(),
+            };
             teskad(
                 ctx,
                 item.at,
-                label,
+                Some(label),
                 hangar_message(ctx, ws, chat, item, words),
             )
         }
