@@ -31,9 +31,9 @@ history when it reconnects.
    behind a default `desktop` feature. `headless::start` runs what a node
    needs: the PTY manager, the board and memory stores, the HTTP API on
    loopback with its tokens, the bridge and deliveries.
-2. **`hangar-node`** (new crate, binary `hangar-node`). `serve` starts the
+2. **`teskad-node`** (new crate, binary `teskad-node`). `serve` starts the
    headless core plus the *node API* on 127.0.0.1 and writes
-   `~/.local/state/hangar-node/node.json` (port, token, version, pid); `--mcp`
+   `~/.local/state/teskad-node/node.json` (port, token, version, pid); `--mcp`
    is the MCP stdio proxy agents on the node run, as `hangar-ai --mcp` does on
    the desktop; `version` prints the version and target. Linux only.
 3. **Node API** (HTTP + WebSocket, Bearer token, loopback only, reached through
@@ -58,9 +58,9 @@ history when it reconnects.
    `{id, label, ssh target, kind}` in the settings (the kind, a server,
    a laptop…, picks the icon it goes by). Connecting runs, with
    `ssh -o BatchMode=yes`: `uname -m` → picks the binary for the target;
-   installs or updates `hangar-node` under `~/.local/share/hangar-node/bin`
+   installs or updates `teskad-node` under `~/.local/share/teskad-node/bin`
    when the version differs (the binary comes from beside `hangar-ai`, or
-   `HANGAR_NODE_BINARY` for development); starts `hangar-node serve` detached
+   `HANGAR_NODE_BINARY` for development); starts `teskad-node serve` detached
    (a `systemd-run --user` unit when available, else `setsid nohup`); reads
    `node.json`; opens `ssh -N -L 127.0.0.1:<local>:127.0.0.1:<port>` and keeps
    it up. A node that is switched on (`enabled`, on unless set to `false`) is
@@ -94,7 +94,7 @@ history when it reconnects.
    memory views read and write through the node API for such a workspace and
    refresh on the node's forwarded events.
 6. **Test rig.** A Docker image (Debian, openssh-server, git, a test user with
-   a key made for the tests) and an end-to-end test: build `hangar-node`,
+   a key made for the tests) and an end-to-end test: build `teskad-node`,
    start the container, connect over SSH, start the node, open the tunnel,
    spawn a shell, type `echo`, read it back, kill it, reconnect and replay
    the history.
@@ -112,7 +112,7 @@ after a change to nodes. See `scripts/node-test/README.md`.
 
 A node also runs workspaces itself, with no desktop: hangar-engine's host
 in the daemon, their state on the node, their agents' requests answered
-there (headless.md, step 3). They are made from the server (`hangar-node
+there (headless.md, step 3). They are made from the server (`teskad-node
 workspace add <folder>`), the node API (`/node/own`) or Discord
 (discord-connector.md).
 

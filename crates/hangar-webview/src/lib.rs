@@ -3,7 +3,7 @@
 //!
 //! The main process of Hangar draws everything itself and runs no browser
 //! engine. What needs one (a kit's tab written in HTML, a web preview, a PDF)
-//! is shown by `hangar-webview`, a process of its own whose windows are
+//! is shown by `teskad-webview`, a process of its own whose windows are
 //! separate from the app's. This crate is both ends of the line between them.
 //! The helper itself (`src/main.rs`, behind the `engine` feature, which pulls
 //! in wry, tao and on Linux GTK and WebKitGTK) is not part of the library, so
@@ -12,7 +12,7 @@
 //! ```no_run
 //! use hangar_webview::{Client, Content, Event, OpenWindow};
 //!
-//! let helper = hangar_webview::find_helper().expect("hangar-webview is installed");
+//! let helper = hangar_webview::find_helper().expect("teskad-webview is installed");
 //! let (client, events) = Client::spawn(helper)?;
 //! client.open(OpenWindow::new("docs", Content::url("https://docs.rs")).title("docs.rs"))?;
 //! while let Some(event) = events.recv() {

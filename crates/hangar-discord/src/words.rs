@@ -230,8 +230,8 @@ impl Words {
     }
     pub fn not_paired(&self) -> &'static str {
         self.pick(
-            "Hangar n'est pas appairé : envoyez `pair <code>` avec le code que donne `hangar-node discord status` sur le serveur.",
-            "Hangar is not paired: send `pair <code>` with the code `hangar-node discord status` gives on the server.",
+            "Hangar n'est pas appairé : envoyez `pair <code>` avec le code que donne `teskad-node discord status` sur le serveur.",
+            "Hangar is not paired: send `pair <code>` with the code `teskad-node discord status` gives on the server.",
         )
     }
     pub fn wrong_code(&self) -> &'static str {

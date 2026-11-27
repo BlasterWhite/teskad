@@ -22,7 +22,7 @@
 //!   `code_lines.rs`, `highlight.rs`), Markdown on iced's `markdown`
 //!   (`markdown.rs`).
 //! - **The helper** (`webview.rs`, `windowed.rs`): a PDF, an HTML page, a
-//!   video or a sound opens in a window of `hangar-webview`, which loads the
+//!   video or a sound opens in a window of `teskad-webview`, which loads the
 //!   file through hangar-core's `model::serve`.
 //! - **File watching** (`Msg::Tick`): the file of each view pane on screen is
 //!   looked at every 1.5 s and read again when it was rewritten.

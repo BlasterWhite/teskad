@@ -61,7 +61,7 @@ they are refused.
    where the engine runs, on the node for its workspaces with the PC off:
    **done** (`crates/hangar-discord`).
 5. **A node that starts on its own**: its settings (the bot's token among
-   them) on the server, `hangar-node serve` with no desktop, workspaces
+   them) on the server, `teskad-node serve` with no desktop, workspaces
    created from Discord: **done**.
 
 ## Rules for the moves
@@ -186,8 +186,8 @@ and what reaches its nodes.
 
 ## Step 3: the node runs its own workspaces
 
-`hangar-node serve` hosts the engine (`hangar-node/src/own.rs`): an
-`EngineHost` whose state is `~/.local/state/hangar-node/state.json` and
+`teskad-node serve` hosts the engine (`teskad-node/src/own.rs`): an
+`EngineHost` whose state is `~/.local/state/teskad-node/state.json` and
 whose terminals are the node's own panes (`NodeTerminals` over `Panes`),
 each with a screen. Their history and streams are the node's, so a desktop
 streams them as any pane of the node.
@@ -263,9 +263,9 @@ streams them as any pane of the node.
   that started or ended one would run an agent twice, or kill one the node
   answers for. A resize of such a pane also resizes the screen the engine
   reads it from.
-- **On the server.** `hangar-node workspaces`, `hangar-node workspace add
-  <folder> [--name <name>] [--no-orchestrator]`, `hangar-node workspace
-  remove <id>` and `hangar-node send <pane> <text…>` ask the running daemon.
+- **On the server.** `teskad-node workspaces`, `teskad-node workspace add
+  <folder> [--name <name>] [--no-orchestrator]`, `teskad-node workspace
+  remove <id>` and `teskad-node send <pane> <text…>` ask the running daemon.
 - **On the desktop.** The workspaces a node runs itself are mirrored in
   the desktop's state and listed in the navigator like any workspace of
   that machine (nodes.md, "Workspaces of the node's own"): read from `GET
@@ -278,7 +278,7 @@ streams them as any pane of the node.
   desktop drove there (« Move to {machine} » in the navigator), are handed
   over with the adopt above (nodes.md, same section).
 
-Tested on the binary itself (`hangar-node/tests/node.rs`): a workspace
+Tested on the binary itself (`teskad-node/tests/node.rs`): a workspace
 made through the API, its orchestrator's shell started and a Claude Code
 typed in it (a script standing in for it) whose request through Hangar's
 MCP server the node answers with no desktop, the state kept across a
@@ -298,18 +298,18 @@ host, run by the node's daemon for the workspaces it runs itself.
 On a Linux server, with nothing else than the binary:
 
 ```sh
-hangar-node service install          # or: hangar-node serve --detach
+teskad-node service install          # or: teskad-node serve --detach
 claude                               # once: sign Claude Code in on the server
-hangar-node discord setup --guild <server id>   # the token on standard input
+teskad-node discord setup --guild <server id>   # the token on standard input
 #   prints the invite link, and the code to send: `pair <code>`
-hangar-node workspace add ~/projects/shop       # or /workspace on Discord
+teskad-node workspace add ~/projects/shop       # or /workspace on Discord
 ```
 
-- **The settings on the server.** `~/.local/state/hangar-node/discord.json`
+- **The settings on the server.** `~/.local/state/teskad-node/discord.json`
   (0600): the token, read from `HANGAR_DISCORD_TOKEN` or standard input,
   never an argument; the server; who is paired and the pairing code.
-  Another server or another token unpairs. `hangar-node discord status`
-  says what is set and whether the bot runs; `hangar-node discord off`
+  Another server or another token unpairs. `teskad-node discord status`
+  says what is set and whether the bot runs; `teskad-node discord off`
   forgets the token. The invite link names the bot's id, read from its
   token, with the scopes and permissions the connector needs.
 - **The daemon runs the bot** beside its own workspaces as soon as the
@@ -317,8 +317,8 @@ hangar-node workspace add ~/projects/shop       # or /workspace on Discord
   /node/discord/reload`, which `setup` and `off` call); a bot that stops
   (Discord out of reach, a token refused) is tried again, waiting longer
   each time, up to five minutes.
-- **A service.** `hangar-node service install` writes a systemd user unit
-  running `hangar-node serve --supervised`, started again however it ends
+- **A service.** `teskad-node service install` writes a systemd user unit
+  running `teskad-node serve --supervised`, started again however it ends
   (`Restart=always`: the desktop stops the node with a plain `kill` before
   it upgrades it, a clean end), and enables it; `loginctl enable-linger`
   keeps it after the person logs out. `--supervised` is for the unit: where
@@ -382,7 +382,7 @@ machine, same day:
 
 ### The node, from outside
 
-`python3 scripts/node-bench/bench.py target/release/hangar-node` starts the
+`python3 scripts/node-bench/bench.py target/release/teskad-node` starts the
 release binary in a home of its own and asks it over its API as a desktop
 would (standard library only; `start`, `memory`, `mcp`, `flood` pick one):
 

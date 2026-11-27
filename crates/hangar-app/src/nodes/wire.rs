@@ -29,7 +29,7 @@ pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 const MAX_MESSAGE: usize = 16 * 1024 * 1024;
 
 /// Room made in a socket's buffer before each read: a flood comes in frames
-/// of up to 64 KiB (hangar-node's `panes::BATCH_BYTES`).
+/// of up to 64 KiB (teskad-node's `panes::BATCH_BYTES`).
 const READ_ROOM: usize = 128 * 1024;
 
 /// A connection to the node: a key's echo, a few bytes, is sent at once

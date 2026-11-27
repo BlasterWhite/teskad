@@ -448,7 +448,7 @@ struct ShellBody {
 }
 
 /// The workspace's MCP servers for the pane's Claude Code, written by the
-/// node (hangar-core's mcp_scope.rs) so the file names `hangar-node --mcp`
+/// node (hangar-core's mcp_scope.rs) so the file names `teskad-node --mcp`
 /// for Hangar's own server: the node's executable, not the desktop's.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]

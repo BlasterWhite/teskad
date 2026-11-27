@@ -13,8 +13,8 @@ else
 fi
 KNOWN_HOSTS="$STATE_DIR/known_hosts"
 STATE_PORT="$STATE_DIR/port"
-CONTAINER="${HANGAR_NODE_TEST_CONTAINER:-hangar-node-test}"
-HOST_ALIAS="hangar-node-test"
+CONTAINER="${HANGAR_NODE_TEST_CONTAINER:-teskad-node-test}"
+HOST_ALIAS="teskad-node-test"
 
 # Options for a plain `ssh`/`scp` invocation (port is added by the caller).
 rig_ssh_opts() {

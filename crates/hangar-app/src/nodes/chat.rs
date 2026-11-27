@@ -1,5 +1,5 @@
 //! The conversations of a remote workspace's agents, read on its node
-//! (hangar-node's transcripts.rs): what hangar-core's `agent_context_usage`,
+//! (teskad-node's transcripts.rs): what hangar-core's `agent_context_usage`,
 //! `list_session_ids_for`, `list_sessions_for` and the chat pages read from
 //! this machine's disk for a local pane, for the agent `kind` named —
 //! Claude Code's transcripts, Codex's rollouts. Reached as

@@ -40,14 +40,14 @@ pub fn serve(supervised: bool) -> Result<(), String> {
     state::ensure_dir(&dir)?;
     if !supervised {
         if let Some(node) = state::running(&dir) {
-            eprintln!("hangar-node is already running (pid {})", node.pid);
+            eprintln!("teskad-node is already running (pid {})", node.pid);
             return Ok(());
         }
     }
     let lock = match state::try_lock(&dir)? {
         Some(lock) => lock,
         None if supervised => {
-            eprintln!("hangar-node already runs outside this service: taking over when it stops");
+            eprintln!("teskad-node already runs outside this service: taking over when it stops");
             loop {
                 std::thread::sleep(SUPERVISED_POLL);
                 if let Some(lock) = state::try_lock(&dir)? {
@@ -58,7 +58,7 @@ pub fn serve(supervised: bool) -> Result<(), String> {
         None => {
             // Another `serve` holds the lock and is starting: it is the node.
             let node = wait_for_running(&dir, || None)?;
-            eprintln!("hangar-node is already running (pid {})", node.pid);
+            eprintln!("teskad-node is already running (pid {})", node.pid);
             return Ok(());
         }
     };
@@ -131,7 +131,7 @@ async fn run(
         },
     )?;
     eprintln!(
-        "hangar-node {} listening on 127.0.0.1:{port} (pid {})",
+        "teskad-node {} listening on 127.0.0.1:{port} (pid {})",
         crate::VERSION,
         std::process::id()
     );
@@ -145,7 +145,7 @@ async fn run(
         .with_graceful_shutdown(stopped())
         .await
         .map_err(|err| format!("the node API stopped: {err}"))?;
-    eprintln!("hangar-node stopping");
+    eprintln!("teskad-node stopping");
     own.shutdown().await;
     node.panes.kill_all();
     Ok(())

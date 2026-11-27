@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """A headless node measured from outside, on the binary itself.
 
-    python3 scripts/node-bench/bench.py target/release/hangar-node [scenario…]
+    python3 scripts/node-bench/bench.py target/release/teskad-node [scenario…]
 
-Each scenario starts `hangar-node serve` in a home of its own (nothing of the
+Each scenario starts `teskad-node serve` in a home of its own (nothing of the
 account's is read or written), with the workspaces it needs already in its
 state, and asks it over its API as a desktop would. Standard library only.
 
@@ -55,8 +55,8 @@ def wait(what, found, timeout=120.0, every=0.01):
 class Node:
     def __init__(self, binary, state=None):
         self.binary = os.path.abspath(binary)
-        self.home = tempfile.mkdtemp(prefix="hangar-node-bench-")
-        self.dir = os.path.join(self.home, ".local", "state", "hangar-node")
+        self.home = tempfile.mkdtemp(prefix="teskad-node-bench-")
+        self.dir = os.path.join(self.home, ".local", "state", "teskad-node")
         os.makedirs(self.dir)
         if state is not None:
             with open(os.path.join(self.dir, "state.json"), "w") as out:
@@ -154,7 +154,7 @@ def with_folders(node_home, state):
 
 def start_node(binary, build):
     """A node whose state `build(home)` makes; folders made before it starts."""
-    home = tempfile.mkdtemp(prefix="hangar-node-bench-work-")
+    home = tempfile.mkdtemp(prefix="teskad-node-bench-work-")
     state = build(home)
     with_folders(home, state)
     node = Node(binary, state)

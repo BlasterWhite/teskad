@@ -133,9 +133,9 @@ icons = [
 #
 binaries = [
   { path = "teskad", main = true },
-  { path = "hangar-webview" },
+  { path = "teskad-webview" },
 ]
-# The two `hangar-node-<arch>` files are the headless node daemon built for
+# The two `teskad-node-<arch>` files are the headless node daemon built for
 # Linux x86_64 and arm64, which the desktop uploads to a node over SSH. They are
 # resources, not binaries: on macOS everything in Contents/MacOS is signed as
 # nested code, and codesign refuses these ELF files there ("code object is not
@@ -144,10 +144,10 @@ binaries = [
 # both, and beside the executable (Windows, development). They are not built by
 # this package: the release workflow builds them with `-p hangar-node` and
 # downloads them into target/node, which packaging/common.sh's
-# stage_node_binaries checks (docs/native/PACKAGING.md, "hangar-node").
+# stage_node_binaries checks (docs/native/PACKAGING.md, "teskad-node").
 resources = [
-  { src = "../../target/node/hangar-node-x86_64", target = "hangar-node-x86_64" },
-  { src = "../../target/node/hangar-node-aarch64", target = "hangar-node-aarch64" },
+  { src = "../../target/node/teskad-node-x86_64", target = "teskad-node-x86_64" },
+  { src = "../../target/node/teskad-node-aarch64", target = "teskad-node-aarch64" },
 ]
 
 [package.metadata.packager.deb]
@@ -211,9 +211,9 @@ auto-req = "no"
 require-sh = false
 assets = [
   { source = "target/dist/teskad", dest = "/usr/bin/teskad", mode = "755" },
-  { source = "target/dist/hangar-webview", dest = "/usr/bin/hangar-webview", mode = "755" },
-  { source = "target/node/hangar-node-x86_64", dest = "/usr/lib/teskad/hangar-node-x86_64", mode = "755" },
-  { source = "target/node/hangar-node-aarch64", dest = "/usr/lib/teskad/hangar-node-aarch64", mode = "755" },
+  { source = "target/dist/teskad-webview", dest = "/usr/bin/teskad-webview", mode = "755" },
+  { source = "target/node/teskad-node-x86_64", dest = "/usr/lib/teskad/teskad-node-x86_64", mode = "755" },
+  { source = "target/node/teskad-node-aarch64", dest = "/usr/lib/teskad/teskad-node-aarch64", mode = "755" },
   { source = "crates/hangar-app/packaging/linux/teskad.desktop", dest = "/usr/share/applications/teskad.desktop", mode = "644" },
   { source = "crates/hangar-app/packaging/icons/linux/16x16.png", dest = "/usr/share/icons/hicolor/16x16/apps/teskad.png", mode = "644" },
   { source = "crates/hangar-app/packaging/icons/linux/24x24.png", dest = "/usr/share/icons/hicolor/24x24/apps/teskad.png", mode = "644" },

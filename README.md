@@ -152,7 +152,7 @@ pull and build again for a new version.
 
 Off by default, under **Settings › Experiments**:
 **chat view** (talk to the orchestrator instead of watching panes, shown above) ·
-**nodes** (a headless `hangar-node` on a Linux machine over SSH, [design](docs/native/nodes.md)) ·
+**nodes** (a headless `teskad-node` on a Linux machine over SSH, [design](docs/native/nodes.md)) ·
 **pane scopes** (Linux: each pane in its own systemd scope, so a runaway build is stopped, not Teskad).
 
 ## Performance

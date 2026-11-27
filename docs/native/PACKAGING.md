@@ -23,25 +23,25 @@ the official app's `Hangar.AI`): the download page and `latest.json` link to the
 | `Teskad_<v>_x64-setup.exe` | `makensis` | `windows-x86_64`, `windows-x86_64-nsis` | run with `/P /R /UPDATE /ARGS …` |
 | `Teskad_universal.app.tar.gz` | tar, from the cargo-packager `.app` | `darwin-{aarch64,x86_64}`, and the same with `-app` | the bundle swapped for the new one |
 | `Teskad_<v>_universal.dmg` | cargo-packager | none: a download only | |
-| `hangar-node-<v>-linux-x86_64`, `hangar-node-<v>-linux-aarch64` | `cargo build -p hangar-node`, stripped | none: a download only (see "hangar-node" below) | |
+| `teskad-node-<v>-linux-x86_64`, `teskad-node-<v>-linux-aarch64` | `cargo build -p hangar-node`, stripped | none: a download only (see "teskad-node" below) | |
 | `<each of the above but the .dmg>.sig` | `cargo packager signer sign` | | |
 | `latest.json` | `packaging/latest-json.sh` | | |
 
-### hangar-node
+### teskad-node
 
 Every desktop package also carries the headless node daemon for Linux x86_64 and
-arm64, as two files: `hangar-node-x86_64` and `hangar-node-aarch64`. They are
+arm64, as two files: `teskad-node-x86_64` and `teskad-node-aarch64`. They are
 packager **resources**, not binaries (`resources` in
 `crates/hangar-app/Cargo.toml`). The desktop uploads the one that matches a
 node's `uname -m` over SSH (`crates/hangar-app/src/nodes/model.rs`,
-`BinarySource`: `HANGAR_NODE_BINARY`, else `hangar-node-<arch>` looked for in
+`BinarySource`: `HANGAR_NODE_BINARY`, else `teskad-node-<arch>` looked for in
 three places from the running `teskad`'s folder: beside it, in
 `../Resources` and in `../lib/teskad`), and a Mac or a Windows desktop
 drives Linux nodes too, so all three platforms carry both:
 
 | Package | Where |
 | --- | --- |
-| `.deb`, `.rpm` | `/usr/lib/teskad/hangar-node-{x86_64,aarch64}` |
+| `.deb`, `.rpm` | `/usr/lib/teskad/teskad-node-{x86_64,aarch64}` |
 | AppImage | `usr/lib/teskad/` in the image (the executable is in `usr/bin/`) |
 | macOS `.app` | `Contents/Resources/` |
 | Windows installer | the install folder, beside the executable, removed by the uninstaller |
@@ -50,8 +50,8 @@ They are not programs the desktop's own system runs. On macOS they are not in
 `Contents/MacOS`: everything there is signed as nested code, and codesign
 refuses these ELF files ("code object is not signed at all"), whereas
 `Contents/Resources` takes them as data. The same two files are on
-the release as `hangar-node-<v>-linux-x86_64` and `-linux-aarch64`, for a node
-set up by hand (`chmod +x`, then `hangar-node serve`); not in `latest.json`, not
+the release as `teskad-node-<v>-linux-x86_64` and `-linux-aarch64`, for a node
+set up by hand (`chmod +x`, then `teskad-node serve`); not in `latest.json`, not
 signed.
 
 The release workflow's `node` job builds them, beside the build jobs, which
@@ -68,7 +68,7 @@ list them there); the Windows script hands them to `installer.nsi`. The job:
 - builds arm64 by **cross-compiling** on that same x86_64 runner
   (`gcc-aarch64-linux-gnu`, `CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER`)
   and not on `ubuntu-22.04-arm`: arm runners are not offered to every
-  repository, a job waiting for one would hold the release, and hangar-node has
+  repository, a job waiting for one would hold the release, and teskad-node has
   no native dependency beyond C that a cross compiler cannot do. No linker is
   set in `.cargo/config.toml`, because one named there would break a build on a
   real arm64 machine, where the compiler is called `gcc`;
@@ -83,15 +83,15 @@ section 3):
 rustup target add aarch64-unknown-linux-gnu           # and apt install gcc-aarch64-linux-gnu
 mkdir -p target/node
 cargo build --profile dist --locked -p hangar-node
-strip -o target/node/hangar-node-x86_64 target/dist/hangar-node
+strip -o target/node/teskad-node-x86_64 target/dist/teskad-node
 CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
   cargo build --profile dist --locked -p hangar-node --target aarch64-unknown-linux-gnu
-aarch64-linux-gnu-strip -o target/node/hangar-node-aarch64 target/aarch64-unknown-linux-gnu/dist/hangar-node
+aarch64-linux-gnu-strip -o target/node/teskad-node-aarch64 target/aarch64-unknown-linux-gnu/dist/teskad-node
 ```
 
 (Run on the host's own glibc, the result wants that glibc: it is the workflow's
 22.04 that makes it 2.35.) `qemu-user-binfmt` and Docker run the arm64 one:
-`docker run --rm --platform linux/arm64 -v target/node:/n:ro debian:trixie-slim /n/hangar-node-aarch64 version`.
+`docker run --rm --platform linux/arm64 -v target/node:/n:ro debian:trixie-slim /n/teskad-node-aarch64 version`.
 
 `latest.json` is `{ version, notes, pub_date, platforms: { key: { signature, url } } }`,
 the shape `hangar-update` parses (`crates/hangar-update/src/manifest.rs`) and
@@ -165,7 +165,7 @@ variant in alternating order, and `cargo bench -p hangar-term --bench feed`
 (`--sample claude`; `--pty --ls`, five runs per round, three rounds). The
 values are medians; the one-minute load was between 0.4 and 6.4 during these runs.
 
-| Variant | Cold build | hangar-ai (stripped) | hangar-node (stripped) | open4 all prompts | open4 PSS | busy8 PSS | busy8 CPU | feed claude | feed ls | pty-ls reader |
+| Variant | Cold build | hangar-ai (stripped) | teskad-node (stripped) | open4 all prompts | open4 PSS | busy8 PSS | busy8 CPU | feed claude | feed ls | pty-ls reader |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | release as it was (no LTO, 16 units) | 80 s | 118.9 MB (85.3) | 17.0 MB (11.9) | 0.393 s | 181.4 MB | 207.1 MB | 6.0 % | 236.9 MB/s | 141.3 MB/s | 77.5 MB/CPU-s |
 | `lto = "thin"` | 110 s | 118.2 MB (86.6) | 17.0 MB (12.1) | 0.383 s | 183.6 MB | 209.5 MB | 5.8 % | 234.7 | 138.1 | 75.2 |
@@ -179,7 +179,7 @@ What the table says:
   over ±30 ms from run to run in every variant, and busy8's CPU over a point or
   two; none of the variants is outside that.
 - **Size** is where LTO pays: fat LTO with one unit makes `hangar-ai` a third
-  smaller and hangar-node 41% smaller (8.3 MB stripped instead of 11.9 MB: the
+  smaller and teskad-node 41% smaller (8.3 MB stripped instead of 11.9 MB: the
   file the desktop uploads to each node over SSH). Thin LTO with sixteen units
   saves nothing.
 - **Parsing a pane's output** (hangar-term) is about 4% faster with fat LTO
@@ -209,7 +209,7 @@ stack backtrace:                             stack backtrace:
 ```
 
 With `"symbols"` the backtrace is empty, and a bug report loses the one thing
-that says where the panic came from. (hangar-node is still stripped by the
+that says where the panic came from. (teskad-node is still stripped by the
 release workflow: nobody reads a node's backtrace from its file.) `panic` stays
 `"unwind"`: the app catches panics with `catch_unwind` around the image and
 AVIF decoders, the 3D loader, kit tabs, dictation and the git consent
@@ -229,9 +229,9 @@ and rust-embed is small: Inter (0.9 MB), the kit SDK (0.2 MB), Hangar Mobile's
 compressed) and the shaders; no blob is worth compressing.
 
 What was cut, each step measured on a dist build of `hangar-ai` and
-`hangar-node` (not stripped; the release strips hangar-node):
+`teskad-node` (not stripped; the release strips teskad-node):
 
-| Change | hangar-ai | hangar-node | Cost at run time |
+| Change | hangar-ai | teskad-node | Cost at run time |
 | --- | --- | --- | --- |
 | before | 78.8 MB | 10.05 MB | |
 | iced's `image-without-codecs` instead of `image`: the image crate's every codec was on (EXR, TIFF, DDS, HDR, QOI, PNM, ICO, farbfeld and rav1e, an AVIF *encoder*), the app reads PNG, JPEG, GIF, WebP, BMP and decodes AVIF itself; wasmtime without its default features (`wat` and its `wast` parser, the component model, GC, async, the pooling allocator, profiling, coredumps, debugger hooks, addr2line) | −6.5 MB | — | none; a `.tiff` or `.ico` in a kit tab or a Markdown page no longer shows, which the kit API never promised (`image.size` names the five formats) |
@@ -258,7 +258,7 @@ Looked at and left:
   machine without Vulkan, and stays.
 - **syntect**: `default-fancy` (pure Rust regex) is what iced's highlighter
   asks for; two-face's syntax set is the one the preview needs.
-- **hangar-node**: 5.8 MiB of code, std, hangar-core, axum, tokio, rustls,
+- **teskad-node**: 5.8 MiB of code, std, hangar-core, axum, tokio, rustls,
   regex; nothing unused.
 
 ## 3. Building each bundle by hand
@@ -276,7 +276,7 @@ crates/hangar-app/packaging/check-mobile.sh target/dist/teskad      # and it is 
 The app and the helper are built separately so that `teskad` is never built
 with the helper's `engine` feature: the main executable links no browser engine
 (`ldd` shows libc, libm, libgcc_s, libstdc++ and libasound only). The helper
-(`hangar-webview`) is the only thing that links WebKitGTK, WebView2 or
+(`teskad-webview`) is the only thing that links WebKitGTK, WebView2 or
 WKWebView. Every bundle puts it next to `teskad`, which is where
 `hangar_webview::find_helper` looks.
 
@@ -350,14 +350,14 @@ AppImage runs on the glibc of the machine that built it or newer, so the
 release notes' "glibc 2.35 or later" is that runner's.
 
 1. **draft** creates the release once, as a draft, and passes its id on.
-2. **node** (x86_64 and arm64, at once; see "hangar-node" in section 1) builds
+2. **node** (x86_64 and arm64, at once; see "teskad-node" in section 1) builds
    the node daemon the packages carry, and puts it on the draft.
 3. **build** (three at once, beside `node`): Defender exclusion on Windows; build dependencies
    on Linux; `pnpm mobile:build` and `check-mobile.sh`; the Apple secrets and
    whisper.cpp's portable-AVX2 pins as before; `MACOSX_DEPLOYMENT_TARGET=10.15`
    (the oldest macOS the executables run on); the two cargo builds;
    `check-mobile.sh` again on the executable; a wait for `node`'s two files, then
-   the `hangar-node` files downloaded; the packaging script of the
+   the `teskad-node` files downloaded; the packaging script of the
    platform; upload to the draft by id (`upload-assets.sh`, which replaces an
    asset of the same name, so a re-run is harmless).
 4. **publish** downloads the updater artifacts from the draft, **signs** them
@@ -439,7 +439,7 @@ The current key's id is `70C57C3F4975A19B`.
 | --- | --- |
 | The feed and the key | The fork's own feed (`ENDPOINT`, on `BlasterWhite/hangar`) and key (`PUBKEY`, id `70C57C3F4975A19B`), never the official app's: `hangar-update` refuses anything another key signed (a test checks it). Checked with a key made by `cargo packager signer generate` through `hangar-update`'s `verify_file`. The real key is only in the CI secrets; the publish job's `verify_feed` is what tries it. |
 | Asset names | `Teskad…`, in every row of section 1; the download page links to them. The official app's `Hangar.AI…` names are not used. |
-| Identifier, product name, executable | `io.github.blasterwhite.teskad`, `Teskad`, `teskad`, publisher `BlasterWhite`: nothing shared with the official app (`com.simnjs.iabench`, `Hangar.AI`, `hangar-ai`, `simnjs`), which Teskad installs beside. `teskad --mcp` is what agents' MCP configs name: `/usr/bin/teskad`, `…/Teskad.app/Contents/MacOS/teskad`, `%LOCALAPPDATA%\Teskad\teskad.exe`. The helpers `hangar-webview` and `hangar-node` keep their names, they are internal. |
+| Identifier, product name, executable | `io.github.blasterwhite.teskad`, `Teskad`, `teskad`, publisher `BlasterWhite`: nothing shared with the official app (`com.simnjs.iabench`, `Hangar.AI`, `hangar-ai`, `simnjs`), which Teskad installs beside. `teskad --mcp` is what agents' MCP configs name: `/usr/bin/teskad`, `…/Teskad.app/Contents/MacOS/teskad`, `%LOCALAPPDATA%\Teskad\teskad.exe`. The helpers `teskad-webview` and `teskad-node` keep their names, they are internal. |
 | `.deb` | Package `teskad`: `dpkg -i` never replaces the official `hangar-ai`. It depends on `libwebkit2gtk-4.1-0` and GTK, `libasound2`, `libstdc++6`, `libc6`. The desktop file is `teskad.desktop`, with `StartupWMClass=teskad`. Icons go in the `hicolor` folders, from 16 to 512 px plus `scalable/apps/teskad.svg`: a rounded tile with room around it, as GNOME and KDE draw app icons (`packaging/icons/linux/`, rendered from its SVG by `render.sh`). |
 | `.rpm` | Package `Teskad`, so `rpm -U` never touches the official `Hangar.AI`. Requires are written by soname (`libasound.so.2`, `libstdc++.so.6`, `libgtk-3.so.0`, `libwebkit2gtk-4.1.so.0`) rather than the ldd scan cargo-generate-rpm does by default, which would list the build machine's own ICU and GStreamer sonames. |
 | AppImage | A single file the updater renames over `$APPIMAGE`, as before. Its own `AppRun` (`packaging/linux/AppRun`) replaces the packager's, which exported `PYTHONHOME` and `PYTHONPATH` into the image and so broke every Python started in a pane. The image bundles no libraries; it is 20 MB, not 91. |
@@ -462,9 +462,9 @@ What changes for people:
 Done on Linux with the real release build (1.12.1, `x86_64`):
 
 - The `.deb`: `dpkg-deb -I` and `-c` (package `hangar-ai` then, the dependencies above,
-  `usr/bin/hangar-ai` and `hangar-webview` side by side, the three icon sizes
+  `usr/bin/hangar-ai` and `teskad-webview` side by side, the three icon sizes
   the old one had, the desktop file). The extracted `usr/bin/hangar-ai` ran on a
-  throwaway data folder, and `hangar-webview` answered `ready` next to it.
+  throwaway data folder, and `teskad-webview` answered `ready` next to it.
 - The AppImage: extracted with `--appimage-extract` (no bundled libraries, our
   `AppRun`, the desktop file and icon), run as the file itself and from the
   extracted tree on a throwaway folder; the process had loaded the host's
@@ -521,7 +521,7 @@ this work):
 - **The window icon** for X11 and Windows title bars, from
   `packaging/icons/linux/128x128.png` on Linux and `packaging/icons/128x128.png`
   elsewhere; the executable's own icon is handled by `build.rs`.
-- **`hangar-webview` has no Windows icon or version resource**: a `build.rs` there
+- **`teskad-webview` has no Windows icon or version resource**: a `build.rs` there
   would make the helper's taskbar entry match.
 
 Wave 5 removed `src-tauri/`: the installer, its bitmaps, the icons and

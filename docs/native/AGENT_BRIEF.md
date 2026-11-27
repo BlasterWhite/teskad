@@ -42,7 +42,7 @@ you start; it is the same for every package.
 | `hangar-i18n` | Every string the person sees: `t`, `t_with`, `tn` with a `Key`. No literal UI text. A missing key: add it to `crates/hangar-i18n/dict/en.json` and `fr.json` (same place in both) and regenerate with `node crates/hangar-i18n/tools/generate.mjs`, in its own commit. |
 | `hangar-term` | The terminal widget. |
 | `hangar-kit-host`, `hangar-kit-ui` | Native kit tabs (WebAssembly). |
-| `hangar-webview` | The browser-engine helper process (HTML kit tabs, PDF, web pages). |
+| `teskad-webview` | The browser-engine helper process (HTML kit tabs, PDF, web pages). |
 | `hangar-model3d` | The 3D viewer widget. |
 | `hangar-update` | The self-updater. |
 

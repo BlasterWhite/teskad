@@ -1,4 +1,4 @@
-//! `hangar-node service install`: the daemon as a systemd user service, for
+//! `teskad-node service install`: the daemon as a systemd user service, for
 //! a node that runs on its own (docs/native/headless.md, step 5): started
 //! with the account, started again if it stops, kept after the person logs
 //! out once lingering is on.
@@ -33,7 +33,7 @@ fn unit_file() -> Result<PathBuf, String> {
         .join(".config")
         .join("systemd")
         .join("user")
-        .join("hangar-node.service"))
+        .join("teskad-node.service"))
 }
 
 pub fn install() -> Result<(), String> {
@@ -57,20 +57,20 @@ pub fn install() -> Result<(), String> {
     let already = crate::state::dir()
         .ok()
         .and_then(|dir| crate::state::running(&dir));
-    if systemctl(&["daemon-reload"]) && systemctl(&["enable", "--now", "hangar-node.service"]) {
+    if systemctl(&["daemon-reload"]) && systemctl(&["enable", "--now", "teskad-node.service"]) {
         match already {
             Some(node) => println!(
-                "hangar-node is a service now. The node that already runs (pid {}) stays as it is, its agents with it: the service takes over when it stops, and at each login.",
+                "teskad-node is a service now. The node that already runs (pid {}) stays as it is, its agents with it: the service takes over when it stops, and at each login.",
                 node.pid
             ),
             None => println!(
-                "hangar-node runs as a service now (systemctl --user status hangar-node)."
+                "teskad-node runs as a service now (systemctl --user status teskad-node)."
             ),
         }
         println!("To keep it running once you log out: loginctl enable-linger $USER");
     } else {
-        println!("systemd did not take it here: start it with `hangar-node serve --detach`,");
-        println!("or `systemctl --user enable --now hangar-node.service` where systemd runs.");
+        println!("systemd did not take it here: start it with `teskad-node serve --detach`,");
+        println!("or `systemctl --user enable --now teskad-node.service` where systemd runs.");
     }
     Ok(())
 }
@@ -82,10 +82,10 @@ mod tests {
     #[test]
     fn the_unit_runs_serve_in_the_foreground_and_restarts_it() {
         let unit = unit(Path::new(
-            "/home/me/.local/share/hangar-node/bin/hangar-node",
+            "/home/me/.local/share/teskad-node/bin/teskad-node",
         ));
         assert!(unit.contains(
-            "ExecStart=\"/home/me/.local/share/hangar-node/bin/hangar-node\" serve --supervised\n"
+            "ExecStart=\"/home/me/.local/share/teskad-node/bin/teskad-node\" serve --supervised\n"
         ));
         // However it ends: the desktop's `kill` before an upgrade is a
         // clean end, which `on-failure` would not start again.

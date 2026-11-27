@@ -57,4 +57,4 @@ cargo build --profile "$profile" --locked -p hangar-app
 cargo build --profile "$profile" --locked -p hangar-webview --features engine
 
 echo
-echo "Built: $root/target/$profile/teskad.exe and hangar-webview.exe"
+echo "Built: $root/target/$profile/teskad.exe and teskad-webview.exe"

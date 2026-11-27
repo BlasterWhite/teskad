@@ -1,6 +1,6 @@
 //! A local workspace's workers on a node: the command lines git reaches the
 //! node with, the names and paths, and the way there and back against a
-//! fake node that answers with core's own git helpers, as hangar-node does,
+//! fake node that answers with core's own git helpers, as teskad-node does,
 //! over real repositories.
 
 // The way there and back runs on unix only (see below): its helpers rest
@@ -289,7 +289,7 @@ fn value(value: impl serde::Serialize) -> String {
     json!({ "value": value }).to_string()
 }
 
-/// What hangar-node answers for the routes these use, with core's helpers.
+/// What teskad-node answers for the routes these use, with core's helpers.
 async fn node_answer(home: &Path, line: &str, body: &Value) -> (u16, String) {
     let text = |key: &str| body[key].as_str().unwrap_or_default().to_string();
     match line.split(' ').take(2).collect::<Vec<_>>().as_slice() {

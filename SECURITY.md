@@ -36,7 +36,7 @@ These are in scope:
 
 - the desktop app, including its local HTTP API (`127.0.0.1`, protected by a per-launch
   token) and the `hangar-ai --mcp` server;
-- the isolation of kits' tabs: HTML pages in the `hangar-webview` helper and native tabs in
+- the isolation of kits' tabs: HTML pages in the `teskad-webview` helper and native tabs in
   their WebAssembly sandbox, both held to the permissions the person accepted;
 - the `hangar-bridge` Claude Code mod in `crates/hangar-core/claude-mod/`;
 - the installers, the updater and the release workflow in this repository.

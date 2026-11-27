@@ -32,13 +32,13 @@ fi
 mkdir -p "$KEYS_DIR" "$STATE_DIR"
 chmod 700 "$KEYS_DIR" "$STATE_DIR"
 if [ ! -f "$KEY" ]; then
-  ssh-keygen -q -t ed25519 -N '' -C hangar-node-test -f "$KEY"
+  ssh-keygen -q -t ed25519 -N '' -C teskad-node-test -f "$KEY"
 fi
 
 docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
 
-tag="hangar-node-test:${platform:+arm64}"
-tag="${tag%:}"; [ "$tag" = "hangar-node-test" ] && tag="hangar-node-test:amd64"
+tag="teskad-node-test:${platform:+arm64}"
+tag="${tag%:}"; [ "$tag" = "teskad-node-test" ] && tag="teskad-node-test:amd64"
 build=(docker build -q -t "$tag" --build-arg "WITH_CLAUDE=$with_claude")
 [ -n "$platform" ] && build+=(--platform "$platform")
 "${build[@]}" "$RIG_DIR" >/dev/null

@@ -1,14 +1,14 @@
 //! The Discord connector in the node (docs/native/headless.md, step 5):
-//! its settings on the server (`~/.local/state/hangar-node/discord.json`,
+//! its settings on the server (`~/.local/state/teskad-node/discord.json`,
 //! the token among them), run by the daemon beside the workspaces it runs
 //! itself, started again when the settings change.
 //!
-//! - `hangar-node discord setup --guild <id>`: the bot's token read from
+//! - `teskad-node discord setup --guild <id>`: the bot's token read from
 //!   `HANGAR_DISCORD_TOKEN` or the first line of standard input (never an
 //!   argument: it would stay in the shell's history), the server's id; a
 //!   pairing code made, the invite link printed;
-//! - `hangar-node discord status`: configured, paired, the code to pair;
-//! - `hangar-node discord off`: the token forgotten, the bot stopped.
+//! - `teskad-node discord status`: configured, paired, the code to pair;
+//! - `teskad-node discord off`: the token forgotten, the bot stopped.
 //!
 //! The node API: `GET /node/discord` (the same status, and the channels the
 //! node's bot made), `POST /node/discord/reload` (the settings read again,
@@ -289,7 +289,7 @@ pub async fn share(State(node): State<Shared>, Json(body): Json<SharedBody>) -> 
     if settings.ready() && !settings.shared {
         return crate::api::error(
             StatusCode::CONFLICT,
-            "this node has a Discord bot of its own (hangar-node discord off lets the desktop's in)",
+            "this node has a Discord bot of its own (teskad-node discord off lets the desktop's in)",
         );
     }
     // The bot of the first desktop that lent one stays until that desktop
@@ -299,7 +299,7 @@ pub async fn share(State(node): State<Shared>, Json(body): Json<SharedBody>) -> 
     if settings.ready() && mark(&settings.token) != mark(&body.token) {
         return crate::api::error(
             StatusCode::CONFLICT,
-            "this node serves another Hangar's Discord bot (hangar-node discord off frees it)",
+            "this node serves another Hangar's Discord bot (teskad-node discord off frees it)",
         );
     }
     node.discord
@@ -360,7 +360,7 @@ pub async fn unshare(State(node): State<Shared>, Query(query): Query<UnshareQuer
     Json(json!({ "changed": true })).into_response()
 }
 
-/// `hangar-node discord setup --guild <id>`.
+/// `teskad-node discord setup --guild <id>`.
 pub fn setup(args: &[&str]) -> Result<(), String> {
     let mut guild = None;
     let mut rest = args.iter();
@@ -476,7 +476,7 @@ fn read_secret_line() -> Result<String, String> {
     Ok(line.trim().to_string())
 }
 
-/// `hangar-node discord status`.
+/// `teskad-node discord status`.
 pub fn print_status() -> Result<(), String> {
     let dir = crate::state::dir()?;
     let running = crate::cli::call("GET", "/node/discord", None)
@@ -485,7 +485,7 @@ pub fn print_status() -> Result<(), String> {
         .unwrap_or(false);
     let status = status(&dir, running);
     if status["configured"] != true {
-        println!("Discord: not set up (hangar-node discord setup --guild <id>)");
+        println!("Discord: not set up (teskad-node discord setup --guild <id>)");
         return Ok(());
     }
     println!(
@@ -494,7 +494,7 @@ pub fn print_status() -> Result<(), String> {
         if running {
             "running"
         } else {
-            "not running (is hangar-node serve up?)"
+            "not running (is teskad-node serve up?)"
         }
     );
     match status["pairing"].as_str() {
@@ -506,7 +506,7 @@ pub fn print_status() -> Result<(), String> {
     Ok(())
 }
 
-/// `hangar-node discord off`.
+/// `teskad-node discord off`.
 pub fn off() -> Result<(), String> {
     let dir = crate::state::dir()?;
     let mut settings = Settings::load(&dir)?;

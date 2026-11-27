@@ -1,6 +1,6 @@
 //! Nodes (experiment `nodes`, docs/native/nodes.md §4): Linux machines the
 //! desktop reaches over SSH, where it installs, starts and keeps a tunnel to
-//! `hangar-node`.
+//! `teskad-node`.
 //!
 //! The machines are `settings.nodes` (how to reach each). Their state is
 //! this package's: one connection per node runs on tokio (`connect.rs`) and

@@ -68,7 +68,7 @@ ${StrLoc}
 ; no resources, no file associations.
 !define INSTALLERICON "icon.ico"
 !define MAINBINARYSRCPATH "teskad.exe"
-!define HELPERBINARYNAME "hangar-webview.exe"
+!define HELPERBINARYNAME "teskad-webview.exe"
 !define LICENSE ""
 !define SIDEBARIMAGE ""
 !define HEADERIMAGE ""
@@ -861,11 +861,11 @@ Section Install
   ; register.
   File /a "/oname=${HELPERBINARYNAME}" "${HELPERBINARYNAME}"
 
-  ; Custom: hangar-node for Linux x86_64 and arm64, which the app uploads to a
+  ; Custom: teskad-node for Linux x86_64 and arm64, which the app uploads to a
   ; node over SSH (hangar_app::nodes::model::BinarySource looks for these two
   ; names next to its own executable). They are not programs this system runs.
-  File /a "/oname=hangar-node-x86_64" "hangar-node-x86_64"
-  File /a "/oname=hangar-node-aarch64" "hangar-node-aarch64"
+  File /a "/oname=teskad-node-x86_64" "teskad-node-x86_64"
+  File /a "/oname=teskad-node-aarch64" "teskad-node-aarch64"
 
   ; Custom: the Visual C++ runtime both executables import, beside them, which
   ; Windows looks for first: a fresh Windows has no Redistributable, and
@@ -989,8 +989,8 @@ Section Uninstall
 
   ; Custom: the webview helper (see the install section).
   Delete "$INSTDIR\${HELPERBINARYNAME}"
-  Delete "$INSTDIR\hangar-node-x86_64"
-  Delete "$INSTDIR\hangar-node-aarch64"
+  Delete "$INSTDIR\teskad-node-x86_64"
+  Delete "$INSTDIR\teskad-node-aarch64"
   Delete "$INSTDIR\vcruntime140.dll"
   Delete "$INSTDIR\vcruntime140_1.dll"
   Delete "$INSTDIR\msvcp140.dll"

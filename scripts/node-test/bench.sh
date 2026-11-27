@@ -2,7 +2,7 @@
 # Benchmark of a remote pane on the Docker rig, against an isolated Hangar
 # started as e2e.sh starts it: keystroke -> echo latency (the node's API, the
 # desktop's mirrored terminal, a local pane, a local PTY), output throughput
-# (`seq 1 N`), hangar-node's memory, threads and idle CPU, and the time from
+# (`seq 1 N`), teskad-node's memory, threads and idle CPU, and the time from
 # the app's start to a live remote pane (cold, warm, reconnect; per step).
 #   bench.sh [--no-build] [--keep] [--runs N] [--samples N] [--lines N]
 #            [--node-bin PATH] [--app-bin PATH] [--connect-only] [--latency "0 20"]
@@ -53,13 +53,13 @@ done
 port_base="${HANGAR_PORT_BASE:-}"
 port_count="${HANGAR_PORT_COUNT:-20}"
 rig_port="${HANGAR_NODE_TEST_PORT:-}"
-container="${HANGAR_NODE_TEST_CONTAINER:-hangar-node-bench-$$}"
+container="${HANGAR_NODE_TEST_CONTAINER:-teskad-node-bench-$$}"
 out_file="${HANGAR_BENCH_OUT:-}"
 for name in $(compgen -e); do
   case "$name" in HANGAR_*) unset "$name" ;; esac
 done
 
-work="$(mktemp -d "${TMPDIR:-/tmp}/hangar-node-bench.XXXXXX")"
+work="$(mktemp -d "${TMPDIR:-/tmp}/teskad-node-bench.XXXXXX")"
 work="$(cd "$work" && pwd -P)"
 export HANGAR_DATA_ROOT="$work/home"
 export HANGAR_ENDPOINT_FILE="$work/home/hangar/endpoint.json"
@@ -118,15 +118,15 @@ record() { tee -a "$results"; }
 # --- Binaries ----------------------------------------------------------------
 target="$(cargo metadata --manifest-path "$root/Cargo.toml" --format-version 1 --no-deps 2>/dev/null \
   | python3 -I -c 'import json,sys;print(json.load(sys.stdin)["target_directory"])')"
-[ -n "$node_bin" ] || node_bin="$target/release/hangar-node"
+[ -n "$node_bin" ] || node_bin="$target/release/teskad-node"
 [ -n "$app_bin" ] || app_bin="$target/bench-app/teskad"
 if [ "$build" = 1 ]; then
-  # Apart: built together, hangar-app's features would unify into hangar-node.
+  # Apart: built together, hangar-app's features would unify into teskad-node.
   # The app: optimized (a debug build's terminal would be what is measured),
   # with debug assertions, as the measurements written down were taken,
   # in a profile of its own (target/bench-app) so the release build stays.
-  say "build hangar-node (release) and hangar-app (release + debug assertions)"
-  cargo build --manifest-path "$root/Cargo.toml" -p hangar-node --release --locked || die "hangar-node did not build"
+  say "build teskad-node (release) and hangar-app (release + debug assertions)"
+  cargo build --manifest-path "$root/Cargo.toml" -p hangar-node --release --locked || die "teskad-node did not build"
   cargo build --manifest-path "$root/Cargo.toml" -p hangar-app --locked \
     --config 'profile.bench-app.inherits="release"' --config 'profile.bench-app.debug-assertions=true' \
     --profile bench-app || die "hangar-app did not build"
@@ -185,7 +185,7 @@ retry 60 helper desktop-prepare "${ctl_args[@]}" w-local Local > /dev/null 2>&1 
 
 # The node's API through a tunnel of the bench's own, opened as the app opens
 # its own (commands.rs `tunnel`).
-node_field() { "$here/ssh.sh" 'cat ~/.local/state/hangar-node/node.json' | python3 -I -c "import json,sys;print(json.load(sys.stdin)['$1'])"; }
+node_field() { "$here/ssh.sh" 'cat ~/.local/state/teskad-node/node.json' | python3 -I -c "import json,sys;print(json.load(sys.stdin)['$1'])"; }
 node_port="$(node_field port)" && node_token="$(node_field token)" && node_pid="$(node_field pid)" || die "no node.json on the node"
 tunnel_port="$(free_port)" || die "no free port for the tunnel"
 ssh -F "$SSH_CONFIG" -o BatchMode=yes -o ConnectTimeout=10 -o ExitOnForwardFailure=yes \
@@ -281,7 +281,7 @@ fi
 # --- Connect -------------------------------------------------------------------
 # The app quit and started again, until its remote pane shows text (its
 # prompt; the replayed screen on a reconnect). Local: the local workspace
-# shown instead, until its pane shows its prompt (the floor). Cold: no hangar-node on the node (binary, state and daemon gone).
+# shown instead, until its pane shows its prompt (the floor). Cold: no teskad-node on the node (binary, state and daemon gone).
 # Warm: the binary there and its daemon running, the pane not (killed
 # through the node's API): the app makes it. Reconnect: everything as the
 # app left it. Each with each `--latency` added on the container's link
@@ -295,10 +295,10 @@ set_latency() { # <ms>
   docker exec "$container" tc qdisc add dev eth0 root netem delay "${1}ms" \
     || { echo "bench: tc netem refused in the container (no NET_ADMIN?): $1 ms not measured" >&2; return 1; }
 }
-forget_node() { # no hangar-node at all on the node
-  docker exec "$container" pkill -u hangar -f 'hangar-node serve' 2>/dev/null
-  for _ in $(seq 1 40); do docker exec "$container" pgrep -u hangar -f 'hangar-node serve' >/dev/null || break; sleep 0.1; done
-  docker exec -u hangar "$container" rm -rf /home/hangar/.local/share/hangar-node /home/hangar/.local/state/hangar-node
+forget_node() { # no teskad-node at all on the node
+  docker exec "$container" pkill -u hangar -f 'teskad-node serve' 2>/dev/null
+  for _ in $(seq 1 40); do docker exec "$container" pgrep -u hangar -f 'teskad-node serve' >/dev/null || break; sleep 0.1; done
+  docker exec -u hangar "$container" rm -rf /home/hangar/.local/share/teskad-node /home/hangar/.local/state/teskad-node
 }
 shown_workspace() { # <id>: the workspace the app opens on
   python3 -I - "$HANGAR_DATA_ROOT/data/state.json" "$1" <<'PY'

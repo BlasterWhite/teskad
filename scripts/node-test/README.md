@@ -1,12 +1,12 @@
 # Nodes test rig
 
-A Docker container with sshd, reachable on `127.0.0.1`, to test hangar-node end
+A Docker container with sshd, reachable on `127.0.0.1`, to test teskad-node end
 to end without touching `~/.ssh` or a real server. Everything it needs lives here:
 a dedicated key pair and known_hosts in `.keys/` (gitignored).
 
 | Script | What it does |
 | --- | --- |
-| `up.sh [--arm64] [--with-claude]` | generates the key once, builds the image, runs container `hangar-node-test`, waits for ssh, prints the target and options |
+| `up.sh [--arm64] [--with-claude]` | generates the key once, builds the image, runs container `teskad-node-test`, waits for ssh, prints the target and options |
 | `down.sh` | removes the container (keeps the keys) |
 | `ssh.sh <cmd>` | runs a command on the node with the right options |
 | `check.sh [--arm64]` | smoke test: up, `uname -m`, `whoami`, scp round trip, password/root refused, down |
@@ -19,7 +19,7 @@ a dedicated key pair and known_hosts in `.keys/` (gitignored).
   `tc qdisc add dev eth0 root netem delay 20ms` (as root, `docker exec`) can
   add latency to its link (`bench.sh` does).
 - Port: `HANGAR_NODE_TEST_PORT`, else the first free one from 2222. Container
-  name: `HANGAR_NODE_TEST_CONTAINER` (default `hangar-node-test`).
+  name: `HANGAR_NODE_TEST_CONTAINER` (default `teskad-node-test`).
 - `--with-claude` adds Node.js and `@anthropic-ai/claude-code` (off by default;
   no Claude login happens in tests).
 - `--arm64` runs a `linux/arm64` container through qemu-user-binfmt. If this
@@ -34,7 +34,7 @@ a dedicated key pair and known_hosts in `.keys/` (gitignored).
 `up.sh` writes `scripts/node-test/ssh_config` (gitignored, absolute paths, current port):
 
 ```
-ssh -F scripts/node-test/ssh_config hangar-node-test
+ssh -F scripts/node-test/ssh_config teskad-node-test
 ```
 
 or the plain form `up.sh` prints:
@@ -64,7 +64,7 @@ What it does, printing `PASS`/`FAIL` per step:
 1. `cargo build -p hangar-node --release` on its own (built together with
    hangar-app, the features would unify), then a debug `hangar-app`.
 2. Starts its own container (`HANGAR_NODE_TEST_CONTAINER`, default
-   `hangar-node-e2e-<pid>`) on its own port (`HANGAR_NODE_TEST_PORT`, else the
+   `teskad-node-e2e-<pid>`) on its own port (`HANGAR_NODE_TEST_PORT`, else the
    first free one of `HANGAR_PORT_BASE`.. when set, else from 22200). Seeds the
    node with a git repo (`/home/hangar/demo`) and a handcrafted Claude Code
    transcript, and an isolated state with node `n1` and two workspaces: `E2E
@@ -82,7 +82,7 @@ What it does, printing `PASS`/`FAIL` per step:
    - transcripts: `/node/chat`, `/node/context` and `/node/sessions` read the
      handcrafted transcript;
    - board + orchestration in the remote workspace: a task made through the
-     node's API; `worker_spawn` called as `Rorch` (its MCP proxy, `hangar-node
+     node's API; `worker_spawn` called as `Rorch` (its MCP proxy, `teskad-node
      --mcp`, run on the node with that pane's environment) — the desktop
      claims the node's task (doing, worker `Rwork` on the node's board), the
      worktree exists on the node, the desktop lists the worker pane, its shell
@@ -130,7 +130,7 @@ MCP calls as a pane there).
 ```
 bash scripts/node-test/bench.sh                    # builds, 3 runs of each measure, medians
 bash scripts/node-test/bench.sh --no-build --runs 5
-bash scripts/node-test/bench.sh --node-bin old/hangar-node --app-bin old/teskad   # a baseline
+bash scripts/node-test/bench.sh --node-bin old/teskad-node --app-bin old/teskad   # a baseline
 HANGAR_BENCH_OUT=after.json bash scripts/node-test/bench.sh   # the medians as JSON too
 bash scripts/node-test/bench.sh --connect-only --latency "0 20"   # only the connect measures
 ```
@@ -138,7 +138,7 @@ bash scripts/node-test/bench.sh --connect-only --latency "0 20"   # only the con
 Same needs and the same isolation as `e2e.sh` (every `HANGAR_*` dropped, its
 own `mktemp -d` data root and endpoint file, its own container and port, the
 app's process group and the container removed on exit). It builds
-`hangar-node` in release, and `hangar-app` in release with debug assertions
+`teskad-node` in release, and `hangar-app` in release with debug assertions
 (`target/bench-app/`, a profile of its own): optimized, so what is measured
 is not a debug build's terminal, and with the assertions the measurements
 written down were taken with. The isolated app has a remote workspace
@@ -155,10 +155,10 @@ each number over the runs):
 | `node-echo-ws` | a key sent as an `{"input"}` frame on the pane's stream (what the desktop does), until its echo comes back on it |
 | `node-echo-post` | the same key through `POST /node/panes/{id}/input` |
 | `desktop-echo-local-pane` / `-remote-pane` | `pane_send` of one key (no Enter), `pane_read` polled until the desktop's terminal shows it |
-| `node-flood` | `seq 1 N` on the node's stream alone: seconds to the line after it, data and wire bytes, frames, bytes per frame, resets (output skipped by a stream that fell behind), hangar-node's CPU |
-| `desktop-flood-local-pane` / `-remote-pane` | `seq 1 N` with `pane_send`, `pane_read` polled until the line after it shows; CPU of the app, of hangar-node and of the app's ssh tunnel over it |
-| `node-rest-1-pane` / `-8-panes` | 10 s of nothing: hangar-node's RSS, threads and CPU (the desktop attached, its one pane, then 7 more spawned through the API), and the app's |
-| `connect-cold-<L>ms` | the app started on its remote workspace, hangar-node never seen on the node (binary, state and daemon removed): `prompt_ms` until the remote pane shows text |
+| `node-flood` | `seq 1 N` on the node's stream alone: seconds to the line after it, data and wire bytes, frames, bytes per frame, resets (output skipped by a stream that fell behind), teskad-node's CPU |
+| `desktop-flood-local-pane` / `-remote-pane` | `seq 1 N` with `pane_send`, `pane_read` polled until the line after it shows; CPU of the app, of teskad-node and of the app's ssh tunnel over it |
+| `node-rest-1-pane` / `-8-panes` | 10 s of nothing: teskad-node's RSS, threads and CPU (the desktop attached, its one pane, then 7 more spawned through the API), and the app's |
+| `connect-cold-<L>ms` | the app started on its remote workspace, teskad-node never seen on the node (binary, state and daemon removed): `prompt_ms` until the remote pane shows text |
 | `connect-warm-<L>ms` | the same with the binary there and its daemon running, the pane not (the app makes it) |
 | `connect-reconnect-<L>ms` | the app quit and started again, everything left as it was (the pane's screen replayed) |
 | `connect-local-<L>ms` | the app started on its local workspace instead: the floor |

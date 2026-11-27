@@ -1,5 +1,5 @@
 //! A parent for the helper, in the way Hangar's app will be one: it starts
-//! `hangar-webview`, opens a window whose page it serves itself through a
+//! `teskad-webview`, opens a window whose page it serves itself through a
 //! custom scheme, answers what the page says over ipc, and prints every event.
 //!
 //! The example does not build the helper. Build it first, then run this:
@@ -252,7 +252,7 @@ fn kit_answer(client: &Client, message: &Value) -> Option<Value> {
 fn main() -> Result<(), Box<dyn Error>> {
     let args = parse_args()?;
     let helper = args.helper.or_else(find_helper).ok_or(
-        "hangar-webview was not found next to this program: build it with `cargo build -p hangar-webview --features engine`, or pass --helper",
+        "teskad-webview was not found next to this program: build it with `cargo build -p hangar-webview --features engine`, or pass --helper",
     )?;
     println!("helper: {}", helper.display());
     let (client, events) = Client::spawn(&helper)?;

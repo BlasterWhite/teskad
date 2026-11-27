@@ -14,7 +14,7 @@ use serde_json::{json, Value};
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::Message;
 
-const BIN: &str = env!("CARGO_BIN_EXE_hangar-node");
+const BIN: &str = env!("CARGO_BIN_EXE_teskad-node");
 const WAIT: Duration = Duration::from_secs(20);
 
 /// The binary with `home` as the account's home, and nothing of the
@@ -49,7 +49,7 @@ fn command(home: &Path) -> Command {
 }
 
 fn state_dir(home: &Path) -> PathBuf {
-    home.join(".local/state/hangar-node")
+    home.join(".local/state/teskad-node")
 }
 
 fn read_node(home: &Path) -> Value {
@@ -680,7 +680,7 @@ fn fs_lists_the_home_and_keeps_relative_paths_in_it() {
     assert_eq!(node.get("/node/fs?path=/").0, 200);
 }
 
-/// `hangar-node --mcp`, as an agent in one of the node's panes starts it:
+/// `teskad-node --mcp`, as an agent in one of the node's panes starts it:
 /// it finds the node's own endpoint and answers from its board.
 #[test]
 fn the_mcp_proxy_reaches_the_node() {
@@ -1220,7 +1220,7 @@ async fn next_control(events: &mut Socket) -> Value {
     }
 }
 
-/// `hangar-node --mcp` as an agent of the node runs it, its calls answered
+/// `teskad-node --mcp` as an agent of the node runs it, its calls answered
 /// one line each.
 struct Mcp {
     child: std::process::Child,
@@ -1818,7 +1818,7 @@ fn a_workspace_of_the_node_s_own_runs_with_no_desktop() {
     assert_eq!(listed["workspaces"], json!([]));
 }
 
-/// The same from a shell on the server: `hangar-node workspace …`.
+/// The same from a shell on the server: `teskad-node workspace …`.
 #[test]
 fn the_node_s_own_workspaces_from_the_command_line() {
     let node = Node::start();

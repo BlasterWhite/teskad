@@ -10,7 +10,7 @@ How it was checked:
 - **Dead-code pass.** `main.rs:12` still allows dead code crate-wide. `cargo rustc -p hangar-app --profile=check -- --force-warn dead_code` now lists 122 items (it was 144). They are mostly constants and pure ports that tests use, see §5.2.
 - **Marker pass.** `grep -rn "TODO(P" crates/` finds nothing (there were 27).
 - **One real run.** The app ran through `scripts/native-dev.sh` on a temporary `HANGAR_DEV_HOME`, with a copy of `state/fixtures/typical.json` changed to shell panes only (it has `site` detached). The main window drew three live shells, the navigator with `site` marked as detached, the toolbar, the board dock and the broadcast bar (with its `Ctrl+Shift+B` hint), in French. `workspace_list` over the control endpoint reported `site` as `open` and `pane_list` showed its pane running, with its shell process alive. This is gap 3 of the first audit, closed. After the run `state.json` was byte for byte unchanged and no pane process was left.
-- **Two reviewers for §2.7 and §2.8.** The preview, viewer, kit tab and 3D surfaces were not in the first audit's rows. Two readers graded them from the code and ran the tests of those packages (`preview::` 245 pass, `kit_tabs::` 176, `model3d_view::` 59, `hangar-model3d` 145, `hangar-kit-host` 25, `hangar-core` `kits::` 203, all green). I re-checked four of their findings in the code: a GPU failure is only logged (`hangar-model3d/src/viewer.rs:750, 793`); `KHR_mesh_quantization` is refused (`hangar-model3d/src/load/gltf.rs:33`); the helper window is never opened unfocused (`hangar-webview/src/engine.rs` has no `with_focused`); an absolute Markdown image path is read as written (`preview/model.rs:610`).
+- **Two reviewers for §2.7 and §2.8.** The preview, viewer, kit tab and 3D surfaces were not in the first audit's rows. Two readers graded them from the code and ran the tests of those packages (`preview::` 245 pass, `kit_tabs::` 176, `model3d_view::` 59, `hangar-model3d` 145, `hangar-kit-host` 25, `hangar-core` `kits::` 203, all green). I re-checked four of their findings in the code: a GPU failure is only logged (`hangar-model3d/src/viewer.rs:750, 793`); `KHR_mesh_quantization` is refused (`hangar-model3d/src/load/gltf.rs:33`); the helper window is never opened unfocused (`teskad-webview/src/engine.rs` has no `with_focused`); an absolute Markdown image path is read as written (`preview/model.rs:610`).
 
 Evidence is a file and line, or a test name. A row that says *code only* has no test of its own. All paths are under `crates/hangar-app/src/` unless a crate is named.
 
@@ -76,7 +76,7 @@ Most of the 6 missing and about half of the 18 partial rows among the first 690 
 | The MCP panel leaves a mid-turn Claude pane alone, names it, and restarts it once its turn ends | warned, then restarted it anyway | `mcp/servers_panel.rs`, key `mcpScope.held` | Rows are `done`; behaviour differs on purpose |
 | Programs in a pane can neither write nor read the clipboard (OSC 52) | ignored OSC 52 too | `panes/look.rs:55-63` (`Osc52::Disabled`; hangar-term's own default is `CopyOnly`), test `look.rs:130` | Equal to the old app. An agent that relies on OSC 52 to copy over SSH or tmux gets nothing; copy stays an explicit action |
 | A pane opened to log in to an account starts with no kits | code passed every kit on, against its own comment | `panes/controller.rs`, test `:1043` | `done`, as the comment intended |
-| HTML kit tabs and PDFs open in their own window (the helper is a separate process) | inline iframe | `hangar-webview`; in practice HTML pages, video and audio too | §2.7 and §2.8 rows are `partial`; the helper's window behaviour is gap 4 below |
+| HTML kit tabs and PDFs open in their own window (the helper is a separate process) | inline iframe | `teskad-webview`; in practice HTML pages, video and audio too | §2.7 and §2.8 rows are `partial`; the helper's window behaviour is gap 4 below |
 | Native kits are WebAssembly only | none | `hangar-kit-host` | A new capability, not graded against the old app |
 | The MCP install and the login item refuse whenever `HANGAR_DATA_ROOT` is set; an isolated run leaves Claude Code's trust list alone | wrote the real files | `hangar-core/src/install.rs:170`, `autostart.rs:67`, `Paths::isolated()` | Closes the dev-machine risks of §6. Release builds never set it |
 | Links open only for `http` and `https`, on Ctrl or Cmd plus click (integration pass, in the log only) | xterm's web-links addon opened any matching URL on a plain click | `panes/mod.rs:471`, `hangar-term/src/links.rs:188`, `pointer.rs:140-148` | The consent hole is closed; the modifier is a difference to decide (row "Web links", §7 WP-H) |
@@ -93,7 +93,7 @@ Most of the 6 missing and about half of the 18 partial rows among the first 690 
 5. **The 2D viewers lose features.** AVIF does not open; animated GIF and WebP show their first frame; code, Markdown and the diff cannot be selected (Copy takes everything); web images in Markdown are links; a Markdown file can show any local image path.
 6. **No keyboard focus on buttons and no accessibility tree** (iced 0.14). The toolbar's views group, the stats segments, F6 inside regions, the first action of Needs-you, the account rename and the preview tabs have no keyboard walk. Screen-reader roles and labels exist nowhere; the old app had aria.
 7. **Terminal differences.** `letterSpacing` does nothing, an unfocused pane is not dimmed, links need Ctrl/Cmd+click where the old app took a plain click, the kitty keyboard protocol is on by default (programs that negotiate it get other key bytes than under xterm.js), dividers cannot be resized by key, and the trust prompt is looked for in 60 lines of history, not the viewport.
-8. **Kit tab leftovers.** Native tabs' text inputs, selects and tables are iced's own; compiled modules are not cached on disk; the HTML host has never been tested with the real `kit.js` under its CSP (`hangar-webview/tests/engine.rs` is ignored); `preview.show` lacks the 256 MB cap; `panes.send` hides a failed enqueue; `panes.changed` can be a second late.
+8. **Kit tab leftovers.** Native tabs' text inputs, selects and tables are iced's own; compiled modules are not cached on disk; the HTML host has never been tested with the real `kit.js` under its CSP (`teskad-webview/tests/engine.rs` is ignored); `preview.show` lacks the 256 MB cap; `panes.send` hides a failed enqueue; `panes.changed` can be a second late.
 
 ---
 
@@ -285,8 +285,8 @@ Done (26): tab click and close; tab icons (`preview/tabs.rs:143-200`); the grip'
 | Animated images | partial | `preview/image.rs` header; STATUS P15 | GIF and animated WebP show their first frame |
 | AVIF | missing | `hangar-core/src/preview.rs` lists `.avif`; no decoder in `Cargo.lock` | The tab opens to the "Image failed" card |
 | Video and audio player | partial | `preview/windowed.rs`, `webview.rs:379` | Opens in a separate window (§0.3); the panel shows a card with Focus, Reopen, Show in folder |
-| Pause when hidden | missing | no code in `preview/` or `hangar-webview/src` | Playback goes on after a tab switch, a hidden panel or another workspace |
-| Helper window: lifecycle and focus | **regressed** | `preview/mod.rs:725-750` (opens once when in front and shown), `preview/webview.rs reconcile` (closes only when the entry is gone), `hangar-webview/src/engine.rs:199, 299` (focus is only ever set, never withheld) | An agent that shows a PDF, page or video opens a window that may take the keyboard from a terminal, and it is not tied to the panel, the tab or the workspace being on screen. Not observed live |
+| Pause when hidden | missing | no code in `preview/` or `teskad-webview/src` | Playback goes on after a tab switch, a hidden panel or another workspace |
+| Helper window: lifecycle and focus | **regressed** | `preview/mod.rs:725-750` (opens once when in front and shown), `preview/webview.rs reconcile` (closes only when the entry is gone), `teskad-webview/src/engine.rs:199, 299` (focus is only ever set, never withheld) | An agent that shows a PDF, page or video opens a window that may take the keyboard from a terminal, and it is not tied to the panel, the tab or the workspace being on screen. Not observed live |
 | PDF inline or message | partial | `preview/webview.rs:407, 620`; tests `a_pdf_the_engine_draws_stays_open`, `a_pdf_the_engine_cannot_draw_is_closed_and_said_so` | The window opens first and closes after the engine says it has no viewer (a flash on WebKitGTK); no real engine run |
 | HTML page | partial | `preview/webview.rs:379`, core CSP | Its own window, not an iframe; a link click opens the browser |
 | HTML reload, source toggle, "isolated" chip | partial | `preview/windowed.rs:97` | Reload only while the window is open; in source mode it does not re-read the source |
@@ -297,13 +297,13 @@ Not in the inventory, also missing: keyboard scrolling of code and Markdown (ice
 
 ### 2.8 Kit tabs and the 3D viewer (§2.4/1.4, 1.7, 1.8) — new rows
 
-Graded by reading. 75 rows: 48 done, 17 partial, 7 missing, 3 regressed. Tests pass: `kit_tabs::` 176, `model3d_view::` 59, `hangar-model3d` 134 + 11 capture, `hangar-kit-host` 25, `hangar-webview` kit 7, `hangar-core` `kits::` 203 and `kit_scheme` 17. The helper's end-to-end test (`hangar-webview/tests/engine.rs`) is ignored.
+Graded by reading. 75 rows: 48 done, 17 partial, 7 missing, 3 regressed. Tests pass: `kit_tabs::` 176, `model3d_view::` 59, `hangar-model3d` 134 + 11 capture, `hangar-kit-host` 25, `teskad-webview` kit 7, `hangar-core` `kits::` 203 and `kit_scheme` 17. The helper's end-to-end test (`teskad-webview/tests/engine.rs`) is ignored.
 
 Done (48): native WebAssembly tab (`hangar-kit-host/src/tab.rs`, tests `a_real_module_starts_calls_and_draws`, `the_hello_native_example_runs`); the CSP and scheme (`hangar-core/src/kit_scheme.rs`, test `the_policy_isolates_the_page_and_allows_its_own_files_only`); id and method validation; the 16-pending `rate_limited`; the 18 methods except `preview.show` (`kit_tabs/api.rs:185-419`; each has permission, limit and error-code tests, e.g. `refuses_a_port_not_granted_even_with_another_loopback_granted`); events `tab.params` and `theme`; permissions re-read per call; stale GitHub-kit command grants; the five tab states as logic; reload; the isolated chip's words; Rust-side limits; 3D recenter with its 420 ms glide; the four toggles and the 600k normals limit; capture save and the capture at 2× up to 4096; banners; the loading card; the info strip; mouse and keyboard controls; renderer; camera and framing; grid and axes; wireframe; the LRU of 3 models; camera kept on reload and re-framed on resize; render on demand; glb/gltf, OBJ+MTL, STL, PLY; clay and material standardisation; texture wait and readable errors; snapshots (angles, size, theme background, the user's camera untouched; `a_snapshot_of_a_model_in_memory_is_taken_from_every_angle_off_screen`); one load per model, a newer revision aborting the old; the cross-window protocols (replaced by direct calls through `PreviewAccess`, `services/preview.rs:67`) and the grant of model roots for a kit's `preview.show` (`preview/access.rs:253`).
 
 | Feature | Status | Evidence | What the old app does that native does not |
 |---|---|---|---|
-| HTML tab hosting | partial | `kit_tabs/bridge.rs:93, 123`, `kit_tabs/mod.rs:558-590`, `hangar-webview/src/kit_bridge.js`; the end-to-end test is ignored and uses a stand-in SDK | A separate 1000×720 window opened only while the tab is in front of a shown panel. The real `kit.js` under the sandbox CSP and the relay have never run together under a test |
+| HTML tab hosting | partial | `kit_tabs/bridge.rs:93, 123`, `kit_tabs/mod.rs:558-590`, `teskad-webview/src/kit_bridge.js`; the end-to-end test is ignored and uses a stand-in SDK | A separate 1000×720 window opened only while the tab is in front of a shown panel. The real `kit.js` under the sandbox CSP and the relay have never run together under a test |
 | Fallback "Shown as a page" | partial | `kit_tabs/mod.rs:484-557`, `view.rs:140-153`; test `modules_that_break_the_abi_do_not_load` | The fallback branch itself is untested |
 | Host check: source and origin | partial | `kit_tabs/api.rs:518-524`, `kit_relay.rs is_kit_document` | There is no iframe: trust is the helper window id and the page URL prefix |
 | `preview.show` | partial | `kit_tabs/deps.rs:319` → `preview/access.rs:266`; test `opens_the_file_rust_resolved_under_the_kits_name` (fakes) | No 256 MB cap and no "too large for the preview" message; the real `show_file` is untested |
@@ -311,7 +311,7 @@ Done (48): native WebAssembly tab (`hangar-kit-host/src/tab.rs`, tests `a_real_m
 | States drawn as StageMessages | partial | `kit_tabs/view.rs:166-199`, no render test | – |
 | Lazy creation of restored tabs | partial | `kit_tabs/tabs.rs:196`; test `keeps_a_restored_tab_unloaded_while_it_is_hidden_and_loads_it_once_shown` | An HTML page also waits until it is in front of a shown panel, even when an agent opened it (the TS loaded those at once to follow a CI run) |
 | "Left" detection | partial | `kit_tabs/bridge.rs:135-146`, `view.rs:269`, no test | A navigation outside the kit is blocked rather than shown as "left" |
-| Focus guard (`frameTookKeyboard`) | **regressed** | no `with_focused(false)` anywhere; `hangar-webview/src/engine.rs:299` | A window for an agent-opened tab can take the keyboard from a terminal when the panel is on screen |
+| Focus guard (`frameTookKeyboard`) | **regressed** | no `with_focused(false)` anywhere; `teskad-webview/src/engine.rs:299` | A window for an agent-opened tab can take the keyboard from a terminal when the panel is on screen |
 | Capture: copy image | partial | `model3d_view/capture.rs`, `services/clipboard.rs` (arboard); no test | Not live-checked |
 | Canvas focusable (`role=application`) | partial | `hangar-model3d/src/viewer.rs:592` | Focus on click only; no F6, no role |
 | Reload overlay (slim bar and chip) | partial | `model3d_view/stage.rs:121`, no assertion | – |
@@ -450,7 +450,7 @@ Every seed is behind `cfg!(debug_assertions)`, so no release build reads one. Le
 | Quit killed only the shell; no signal handling | low → closed | `hangar-core/src/pty.rs:773`, `app.rs:621`; SIGTERM leaves no pane process (STATUS) |
 | The engine's mutex held across a board read; `pty_kill` on async threads | low → closed | `orchestration/live.rs:40` (`spawn_blocking`); STATUS WP7 |
 | `stop_worker` can miss a worker respawned in that instant, then force-remove its worktree | very low → open | `orchestration/worker.rs:1327, 1371` |
-| A helper window can take the keyboard from a terminal | new, medium (not observed) | `hangar-webview/src/engine.rs`; gap 4 |
+| A helper window can take the keyboard from a terminal | new, medium (not observed) | `teskad-webview/src/engine.rs`; gap 4 |
 | A test crash (SIGSEGV) about 1 run in 6 when several `iced_test` simulators draw at once | new, low | Mobile page fixed by taking turns; WP8 saw it twice at 32 threads. If it returns, serialize the simulators crate-wide |
 
 ### Commands without consent
@@ -484,8 +484,8 @@ Verify: every defect found is a new row in §2.
 ### WP-B — Windows, macOS and CI (`.github/workflows/**`, `scripts/*.ps1`, `scripts/preview.nsi`, `crates/hangar-app/packaging/**`, `docs/native/PACKAGING.md`, `crates/hangar-webview/build.rs`)
 
 1. Get CI green: the 7 failing tests of the first run (macOS keymap guard tests, Windows path and webview-serving tests, the Ubuntu `hangar-model3d` capture). Another agent is on it: read `git log` before starting.
-2. Add a Linux packaging smoke job: install the `.deb` in a container, run `hangar-ai --version`, check `hangar-webview` sits beside it.
-3. ~~Point `scripts/preview*.ps1|nsi` at the native layout~~ (wave 5 deleted the Tauri-only preview and pointed `scripts/installer-art.ps1` at `packaging/`); give `hangar-webview` its Windows icon resource.
+2. Add a Linux packaging smoke job: install the `.deb` in a container, run `hangar-ai --version`, check `teskad-webview` sits beside it.
+3. ~~Point `scripts/preview*.ps1|nsi` at the native layout~~ (wave 5 deleted the Tauri-only preview and pointed `scripts/installer-art.ps1` at `packaging/`); give `teskad-webview` its Windows icon resource.
 4. On real machines: install, start, detach a workspace, open a PDF and an HTML kit tab (WebView2, WKWebView), update from an old install, sign with the real key.
 
 Verify: a CI run with every job green; the checklist of PACKAGING.md ticked on Windows and macOS.

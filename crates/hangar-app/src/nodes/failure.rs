@@ -125,13 +125,13 @@ mod tests {
                     Step::Install,
                     "scp: /home/me/.hangar: No space left on device",
                 ),
-                "hangar-node could not be installed (No space left on device)",
-                "hangar-node n’a pas pu être installé (No space left on device)",
+                "teskad-node could not be installed (No space left on device)",
+                "teskad-node n’a pas pu être installé (No space left on device)",
             ),
             (
                 ssh(Step::Start, ""),
-                "hangar-node did not start",
-                "hangar-node n’a pas démarré",
+                "teskad-node did not start",
+                "teskad-node n’a pas démarré",
             ),
             (
                 ssh(Step::Config, "cat: node.json: Permission denied"),
@@ -145,17 +145,17 @@ mod tests {
             ),
             (
                 ssh(Step::Handshake, "Permission denied (publickey)."),
-                "hangar-node did not say who it is (Permission denied (publickey))",
-                "hangar-node ne s’est pas identifié (Permission denied (publickey))",
+                "teskad-node did not say who it is (Permission denied (publickey))",
+                "teskad-node ne s’est pas identifié (Permission denied (publickey))",
             ),
             (
                 Failure::NoBinary {
                     arch: "riscv64".into(),
-                    file: "hangar-node-riscv64".into(),
+                    file: "teskad-node-riscv64".into(),
                     dir: "/opt/hangar".into(),
                 },
-                "no hangar-node build for riscv64",
-                "aucun hangar-node pour riscv64",
+                "no teskad-node build for riscv64",
+                "aucun teskad-node pour riscv64",
             ),
             (
                 Failure::UnsupportedArch("Darwin arm64".into()),
@@ -174,8 +174,8 @@ mod tests {
             ),
             (
                 Failure::Api("HTTP 502".into()),
-                "hangar-node did not answer through the tunnel (HTTP 502)",
-                "hangar-node n’a pas répondu par le tunnel (HTTP 502)",
+                "teskad-node did not answer through the tunnel (HTTP 502)",
+                "teskad-node n’a pas répondu par le tunnel (HTTP 502)",
             ),
             (
                 Failure::Local("ssh was not found on PATH".into()),
@@ -232,13 +232,13 @@ mod tests {
         assert_eq!(detail(en, &ssh(Step::Probe, &long)), Some(long));
         let missing = Failure::NoBinary {
             arch: "riscv64".into(),
-            file: "hangar-node-riscv64".into(),
+            file: "teskad-node-riscv64".into(),
             dir: "/opt/hangar".into(),
         };
         assert_eq!(
             detail(en, &missing).as_deref(),
             Some(
-                "Set HANGAR_NODE_BINARY or put hangar-node-riscv64 beside hangar-ai (/opt/hangar)."
+                "Set HANGAR_NODE_BINARY or put teskad-node-riscv64 beside hangar-ai (/opt/hangar)."
             )
         );
     }

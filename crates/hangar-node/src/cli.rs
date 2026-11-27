@@ -1,10 +1,10 @@
 //! The node's own workspaces from a shell on the server (own.rs): asked of
 //! the running daemon over its API, with the token in `node.json`.
 //!
-//! - `hangar-node workspaces`: each with its panes and what they are doing;
-//! - `hangar-node workspace add <folder> [--name <name>] [--no-orchestrator]`;
-//! - `hangar-node workspace remove <id>`;
-//! - `hangar-node send <pane> <text…>`: queued for the pane's session.
+//! - `teskad-node workspaces`: each with its panes and what they are doing;
+//! - `teskad-node workspace add <folder> [--name <name>] [--no-orchestrator]`;
+//! - `teskad-node workspace remove <id>`;
+//! - `teskad-node send <pane> <text…>`: queued for the pane's session.
 #![cfg(target_os = "linux")]
 
 use std::io::{Read, Write};
@@ -18,7 +18,7 @@ use crate::state;
 pub(crate) fn call(method: &str, path: &str, body: Option<Value>) -> Result<(u16, Value), String> {
     let dir = state::dir()?;
     let node = state::running(&dir)
-        .ok_or("hangar-node is not running here: start it with `hangar-node serve --detach`")?;
+        .ok_or("teskad-node is not running here: start it with `teskad-node serve --detach`")?;
     let mut socket = std::net::TcpStream::connect(("127.0.0.1", node.port))
         .map_err(|err| format!("the node does not answer: {err}"))?;
     socket
@@ -90,7 +90,7 @@ pub fn workspaces() -> Result<(), String> {
         .cloned()
         .unwrap_or_default();
     if workspaces.is_empty() {
-        println!("No workspace of the node's own yet: hangar-node workspace add <folder>");
+        println!("No workspace of the node's own yet: teskad-node workspace add <folder>");
         return Ok(());
     }
     for ws in workspaces {

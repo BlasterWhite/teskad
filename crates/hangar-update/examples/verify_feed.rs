@@ -294,7 +294,7 @@ fn check_app_archive(path: &Path) -> Result<(), String> {
     for needed in [
         "Contents/Info.plist",
         "Contents/MacOS/teskad",
-        "Contents/MacOS/hangar-webview",
+        "Contents/MacOS/teskad-webview",
     ] {
         if !files.contains(&Path::new(&bundle).join(needed)) {
             return Err(format!("{bundle} has no {needed}"));

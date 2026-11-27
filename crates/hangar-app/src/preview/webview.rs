@@ -1,5 +1,5 @@
 //! What only a browser engine can show (a PDF, an HTML page, a video, a
-//! sound) goes to `hangar-webview`, the helper process, in a window of its
+//! sound) goes to `teskad-webview`, the helper process, in a window of its
 //! own: the main process links no browser engine (docs/native/PLAN.md, 4.5).
 //!
 //! The helper opens `hangar-model://localhost/<path>` and every request the
@@ -76,7 +76,7 @@ pub enum StartError {
 impl std::fmt::Display for StartError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            StartError::Missing => f.write_str("hangar-webview was not found next to the app"),
+            StartError::Missing => f.write_str("teskad-webview was not found next to the app"),
             StartError::Failed(why) => f.write_str(why),
         }
     }
@@ -133,7 +133,7 @@ pub fn spawn_options() -> Result<SpawnOptions, StartError> {
                 .arg("--manifest-path")
                 .arg(manifest)
                 .arg("-p")
-                .arg("hangar-webview")
+                .arg("teskad-webview")
                 .arg("--features")
                 .arg("engine")
                 .arg("--"));

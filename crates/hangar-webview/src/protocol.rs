@@ -3,7 +3,7 @@
 //!
 //! Lines rather than a length prefix or a binary format, since the helper is
 //! debugged by hand more often than it is profiled (`echo '{"type":"quit"}' |
-//! hangar-webview`), and a JSON string never holds a raw newline, so a line is
+//! teskad-webview`), and a JSON string never holds a raw newline, so a line is
 //! always one message. Bodies of requests and responses are the exception to
 //! "readable": they are bytes, and travel as base64.
 //!

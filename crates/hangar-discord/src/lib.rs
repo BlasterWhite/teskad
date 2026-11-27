@@ -7,7 +7,7 @@
 //!
 //! It serves whichever Hangar runs it (`Hangar`): the desktop app, where it
 //! reaches the same workspaces as the phone, local and on nodes; or a node
-//! with no desktop (`hangar-node serve`), its own workspaces.
+//! with no desktop (`teskad-node serve`), its own workspaces.
 //!
 //! - `rest`, `gateway`: the thin client of Discord's own it speaks with;
 //! - `cards`: the messages, as Components V2; `ids`: what a click acts on;

@@ -10,19 +10,19 @@ use serde::Deserialize;
 use super::commands::{PROBE_END, PROBE_SEP, PROBE_STARTED};
 
 /// The version this desktop installs on its nodes: the workspace's, which
-/// `hangar-node` shares (both are built from the same release).
+/// `teskad-node` shares (both are built from the same release).
 pub const NODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the binary lives on a node, under the remote home.
-pub const REMOTE_BIN_DIR: &str = ".local/share/hangar-node/bin";
+pub const REMOTE_BIN_DIR: &str = ".local/share/teskad-node/bin";
 /// The binary itself, under the remote home.
-pub const REMOTE_BIN: &str = ".local/share/hangar-node/bin/hangar-node";
+pub const REMOTE_BIN: &str = ".local/share/teskad-node/bin/teskad-node";
 /// Where an upload lands before it replaces the binary: a running daemon
 /// keeps its file busy, and a rename is what replaces it under a process
 /// that still runs.
-pub const REMOTE_BIN_UPLOAD: &str = ".local/share/hangar-node/bin/hangar-node.new";
-/// What `hangar-node serve` writes once it listens, under the remote home.
-pub const REMOTE_NODE_JSON: &str = ".local/state/hangar-node/node.json";
+pub const REMOTE_BIN_UPLOAD: &str = ".local/share/teskad-node/bin/teskad-node.new";
+/// What `teskad-node serve` writes once it listens, under the remote home.
+pub const REMOTE_NODE_JSON: &str = ".local/state/teskad-node/node.json";
 
 /// The development override of the binary to upload.
 pub const BINARY_ENV: &str = "HANGAR_NODE_BINARY";
@@ -30,11 +30,11 @@ pub const BINARY_ENV: &str = "HANGAR_NODE_BINARY";
 /// A step of a connection, in the order they run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Step {
-    /// `uname -m` and `hangar-node version`.
+    /// `uname -m` and `teskad-node version`.
     Probe,
     /// The binary uploaded, when missing or of another version.
     Install,
-    /// `hangar-node serve --detach`.
+    /// `teskad-node serve --detach`.
     Start,
     /// `node.json` read.
     Config,
@@ -56,7 +56,7 @@ pub enum Failure {
         file: String,
         dir: String,
     },
-    /// The machine is not one hangar-node is built for.
+    /// The machine is not one teskad-node is built for.
     UnsupportedArch(String),
     /// `node.json` is missing or does not read.
     NodeJson(String),
@@ -153,7 +153,7 @@ pub struct NodeClient {
     pub token: String,
 }
 
-/// `~/.local/state/hangar-node/node.json`.
+/// `~/.local/state/teskad-node/node.json`.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct NodeJson {
     pub version: String,
@@ -180,7 +180,7 @@ pub fn parse_node_json(text: &str) -> Result<NodeJson, String> {
 pub struct Probe {
     /// `uname -m` as the machine said it.
     pub arch: String,
-    /// The first word of `hangar-node version`; `None` when it is not there.
+    /// The first word of `teskad-node version`; `None` when it is not there.
     pub installed: Option<String>,
     /// The daemon answers: the installed version was the one asked for.
     pub started: bool,
@@ -263,7 +263,7 @@ pub fn decide(installed: Option<&str>, wanted: &str) -> Decision {
     }
 }
 
-/// The name hangar-node's builds go by for `uname -m`'s answer, or `None`
+/// The name teskad-node's builds go by for `uname -m`'s answer, or `None`
 /// for a machine it is not built for.
 pub fn normalize_arch(uname: &str) -> Option<&'static str> {
     match uname.trim() {
@@ -279,7 +279,7 @@ pub struct BinarySource {
     /// `HANGAR_NODE_BINARY`, for development: used whatever the machine.
     pub override_path: Option<PathBuf>,
     /// The folder of the running `teskad`, which holds
-    /// `hangar-node-<arch>` in a release.
+    /// `teskad-node-<arch>` in a release.
     pub exe_dir: Option<PathBuf>,
 }
 
@@ -301,7 +301,7 @@ impl BinarySource {
         let Some(arch) = normalize_arch(uname) else {
             return Err(Failure::UnsupportedArch(uname.to_string()));
         };
-        let file = format!("hangar-node-{arch}");
+        let file = format!("teskad-node-{arch}");
         let dir = self.exe_dir.as_deref();
         if let Some(path) = &self.override_path {
             if path.is_file() {

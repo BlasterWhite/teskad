@@ -7,7 +7,7 @@ runs for it. This page is the contract, for kit authors and for Hangar.
 What does not change: everything else a kit is ([kits.md](../kits.md)) — its manifest, its plugin,
 its setup commands, its data folder, its declared commands, the permissions the person accepts.
 A native tab calls the same methods an HTML tab calls, under the same permissions and limits, and
-hears the same events. An **HTML tab keeps working**, in the separate `hangar-webview` helper
+hears the same events. An **HTML tab keeps working**, in the separate `teskad-webview` helper
 process, for a kit that depends on the web.
 
 | Part                                         | Where                                                        |

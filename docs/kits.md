@@ -546,7 +546,7 @@ only kits' tabs.
 person made it. Nothing sets a minimum width for a page but the page.
 
 **Where an HTML page shows, since Teskad 2.0.** Teskad's window runs no browser engine, so
-the page of an HTML tab is shown by `hangar-webview`, a helper program beside Teskad, in a
+the page of an HTML tab is shown by `teskad-webview`, a helper program beside Teskad, in a
 window of its own that follows its pane: hidden when the pane or its workspace leaves the
 screen, back when they return. The pane holds the tab's bar and a card with the button that
 brings the window forward; closing the pane closes the window. A native tab is drawn in its

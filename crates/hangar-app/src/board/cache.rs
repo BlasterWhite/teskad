@@ -205,7 +205,7 @@ fn recheck_day(task: &Task) -> Option<&str> {
 
 /// What the key of a remote workspace's board starts with: the node, then
 /// the folder on it (docs/native/nodes.md §5).
-const REMOTE_BOARD: &str = "hangar-node://";
+const REMOTE_BOARD: &str = "teskad-node://";
 
 /// What the cache holds a workspace's board under: its folder, or for a
 /// workspace on a node (`Workspace.node`) the node and the folder there,

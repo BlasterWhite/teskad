@@ -128,7 +128,7 @@ Some things to know:
   `paths::home_folder()`, not `.join(".hangar")`. What keeps its `hangar` name on purpose is
   what projects and agents already hold: the `.hangar/` folder in a project, the `hangar` MCP
   server and its tools, the `HANGAR_*` variables, the `hangar-*` crates and the helper
-  binaries (`hangar-webview`, `hangar-node`). Give anything new a `hangar` name there, and a
+  binaries (`teskad-webview`, `teskad-node`). Give anything new a `hangar` name there, and a
   `teskad` name for what the person sees or installs.
 - **Local first.** Teskad runs on the user's machine and works without an account. This
   project runs no hosted service, collects no telemetry, and has nothing that depends on

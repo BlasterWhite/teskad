@@ -8,7 +8,7 @@ repository.workspace = true
 edition = "2024"
 
 # docs/native/discord-connector.md. It runs where the engine runs: in a node
-# with no desktop (hangar-node), its workspaces' channels on the person's
+# with no desktop (teskad-node), its workspaces' channels on the person's
 # server. A thin client of Discord's own: the REST calls the cards need and
 # the gateway's events, with Components V2 written as JSON.
 [dependencies]

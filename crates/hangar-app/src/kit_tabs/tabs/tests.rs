@@ -1,5 +1,5 @@
 //! `src/lib/kitTabs.test.ts`, case for case. `kitFileUrl`'s two cases are the
-//! kit relay's (hangar-webview), where the URL is built; `frameTookKeyboard`'s
+//! kit relay's (teskad-webview), where the URL is built; `frameTookKeyboard`'s
 //! went with the frame (a page is a window of its own here).
 
 use hangar_core::kits::KitInfo;

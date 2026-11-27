@@ -116,7 +116,7 @@ jobs:
 
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
-  # hangar-node, the headless daemon a Hangar node runs (docs/native/nodes.md),
+  # teskad-node, the headless daemon a Hangar node runs (docs/native/nodes.md),
   # for Linux x86_64 and arm64. The desktop uploads it to a node over SSH, and
   # looks for it beside its own executable, so every desktop package carries
   # both - a Mac or a Windows desktop drives Linux nodes too - which is why the
@@ -129,7 +129,7 @@ jobs:
   # arm64 glibc) rather than built on an arm64 runner: the arm runners are not
   # available to every repository or plan, a job waiting for one would hold the
   # whole release, and the same x86_64 runner and toolchain for both is one
-  # thing less that differs between them. hangar-node's dependencies are
+  # thing less that differs between them. teskad-node's dependencies are
   # headless (no ALSA, WebKit or whisper), so a C cross-compiler is all it needs.
   #
   # On a push to main it builds and stops there, to leave the cache a release
@@ -178,7 +178,7 @@ jobs:
       # says why), as the app's: the file the desktop uploads to every node is
       # a third smaller for it. A warm run whose exact key is already saved has
       # nothing to add to it, and stops here.
-      - name: Build hangar-node
+      - name: Build teskad-node
         if: env.RELEASING == 'true' || steps.cache.outputs.cache-hit != 'true'
         run: cargo build --profile dist --locked --target "${{ matrix.target }}" -p hangar-node
 
@@ -192,31 +192,31 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out
-          src="target/${{ matrix.target }}/dist/hangar-node"
+          src="target/${{ matrix.target }}/dist/teskad-node"
           prefix=""
           [ "${{ matrix.arch }}" = "aarch64" ] && prefix="aarch64-linux-gnu-"
           strip="${prefix}strip"
-          "$strip" -o "out/hangar-node-${{ matrix.arch }}" "$src"
-          file "out/hangar-node-${{ matrix.arch }}"
+          "$strip" -o "out/teskad-node-${{ matrix.arch }}" "$src"
+          file "out/teskad-node-${{ matrix.arch }}"
           machine="${{ matrix.arch == 'x86_64' && 'x86-64' || 'ARM aarch64' }}"
-          file "out/hangar-node-${{ matrix.arch }}" | grep -q "$machine"
-          newest=$("${prefix}objdump" -T "out/hangar-node-${{ matrix.arch }}" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)
+          file "out/teskad-node-${{ matrix.arch }}" | grep -q "$machine"
+          newest=$("${prefix}objdump" -T "out/teskad-node-${{ matrix.arch }}" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)
           echo "newest glibc symbol: $newest"
           [ "$(printf '%s\nGLIBC_2.35\n' "$newest" | sort -V | tail -1)" = "GLIBC_2.35" ]
           if [ "${{ matrix.arch }}" = "x86_64" ]; then
-            "out/hangar-node-x86_64" version
+            "out/teskad-node-x86_64" version
           fi
 
       # What the build jobs pack into the installers.
       - uses: actions/upload-artifact@v4
         if: env.RELEASING == 'true'
         with:
-          name: hangar-node-${{ matrix.arch }}
-          path: out/hangar-node-${{ matrix.arch }}
+          name: teskad-node-${{ matrix.arch }}
+          path: out/teskad-node-${{ matrix.arch }}
           if-no-files-found: error
 
       # And on the release as a download of its own, for a node that is set up
-      # by hand: hangar-node-<version>-linux-<arch>.
+      # by hand: teskad-node-<version>-linux-<arch>.
       - name: Upload to the draft release
         if: env.RELEASING == 'true'
         run: |
@@ -224,10 +224,10 @@ jobs:
           pkgid="$(cargo pkgid -p hangar-node)"
           version="${pkgid##*[#@]}"
           [ -n "$version" ] && [ "$version" != "$pkgid" ]
-          cp "out/hangar-node-${{ matrix.arch }}" "out/hangar-node-${version}-linux-${{ matrix.arch }}"
-          crates/hangar-app/packaging/upload-assets.sh "$RELEASE_ID" "out/hangar-node-${version}-linux-${{ matrix.arch }}"
+          cp "out/teskad-node-${{ matrix.arch }}" "out/teskad-node-${version}-linux-${{ matrix.arch }}"
+          crates/hangar-app/packaging/upload-assets.sh "$RELEASE_ID" "out/teskad-node-${version}-linux-${{ matrix.arch }}"
 
-  # Not after `node`: what it needs from it, the two hangar-node files, comes
+  # Not after `node`: what it needs from it, the two teskad-node files, comes
   # in at packaging time, and a step before that waits for them. Compiling the
   # app does not wait for the node daemon to compile first.
   #
@@ -479,7 +479,7 @@ jobs:
           fi
 
       # The runner has the Visual C++ Redistributable, a fresh Windows does not:
-      # teskad.exe and hangar-webview.exe import VCRUNTIME140.dll,
+      # teskad.exe and teskad-webview.exe import VCRUNTIME140.dll,
       # VCRUNTIME140_1.dll and MSVCP140.dll and exit at once without them
       # (STATUS_DLL_NOT_FOUND). Linking the C runtime in (+crt-static) is not
       # an option: whisper.cpp's CMake build stays on the DLL runtime and the
@@ -507,38 +507,38 @@ jobs:
       # far more), but nothing makes sure of it, so this waits for them: up to
       # 15 minutes, then a failure that says so rather than a packaging script
       # refusing for want of them. A node job that failed ends the wait at once.
-      - name: Wait for the hangar-node files
+      - name: Wait for the teskad-node files
         if: env.RELEASING == 'true'
         run: |
           set -euo pipefail
           run="repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           for _ in $(seq 1 45); do
             found=$(gh api "$run/artifacts?per_page=100" \
-              --jq '[.artifacts[].name | select(. == "hangar-node-x86_64" or . == "hangar-node-aarch64")] | unique | length')
+              --jq '[.artifacts[].name | select(. == "teskad-node-x86_64" or . == "teskad-node-aarch64")] | unique | length')
             if [ "$found" = 2 ]; then
-              echo "hangar-node-x86_64 and hangar-node-aarch64 are on the run"
+              echo "teskad-node-x86_64 and teskad-node-aarch64 are on the run"
               exit 0
             fi
             failed=$(gh api "$run/jobs?filter=latest&per_page=100" \
               --jq '[.jobs[] | select((.name | startswith("node (")) and .status == "completed" and .conclusion != "success")] | length')
             if [ "$failed" != 0 ]; then
-              echo "::error::a node job of this run did not succeed, so its hangar-node file will never come"
+              echo "::error::a node job of this run did not succeed, so its teskad-node file will never come"
               exit 1
             fi
-            echo "$found of the 2 hangar-node files so far; checking again in 20 s"
+            echo "$found of the 2 teskad-node files so far; checking again in 20 s"
             sleep 20
           done
-          echo "::error::the hangar-node files are still not on this run after 15 minutes: see its node jobs"
+          echo "::error::the teskad-node files are still not on this run after 15 minutes: see its node jobs"
           exit 1
 
-      # hangar-node for Linux x86_64 and arm64, from the `node` job, where the
+      # teskad-node for Linux x86_64 and arm64, from the `node` job, where the
       # packaging scripts take them from (they refuse to package without).
       # After the build, not before: rust-cache restores target/ and would
       # remove a target/node downloaded ahead of it.
       - uses: actions/download-artifact@v4
         if: env.RELEASING == 'true'
         with:
-          pattern: hangar-node-*
+          pattern: teskad-node-*
           path: target/node
           merge-multiple: true
 

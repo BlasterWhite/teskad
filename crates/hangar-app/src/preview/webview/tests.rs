@@ -1095,7 +1095,7 @@ fn routes_hand_other_windows_events_to_whoever_asked() {
 
 /// The whole way a file takes to the helper's window and back, with the real
 /// helper: `cargo build -p hangar-webview --features engine`, then
-/// `HANGAR_WEBVIEW=target/debug/hangar-webview cargo test -p hangar-app
+/// `HANGAR_WEBVIEW=target/debug/teskad-webview cargo test -p hangar-app
 /// an_html_page_runs -- --ignored --nocapture` on a machine with a display.
 #[tokio::test]
 #[ignore = "needs the helper built with --features engine, and a display"]
@@ -1256,7 +1256,7 @@ async fn a_video_is_played_from_ranges_in_the_real_helper() {
 /// plays is paused when its entry leaves the screen, and the window comes back.
 ///
 /// `cargo build -p hangar-webview --features engine`, then
-/// `HANGAR_WEBVIEW=target/debug/hangar-webview HANGAR_TEST_PDF=<a pdf>
+/// `HANGAR_WEBVIEW=target/debug/teskad-webview HANGAR_TEST_PDF=<a pdf>
 /// HANGAR_TEST_AUDIO=<a wav> HANGAR_TEST_VIDEO=<an mp4> cargo test -p
 /// hangar-app windows_follow_ -- --ignored --nocapture` on a machine with a
 /// display (`HANGAR_TEST_TRACE=1` prints the helper's events).

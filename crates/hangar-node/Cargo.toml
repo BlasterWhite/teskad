@@ -10,7 +10,7 @@ edition = "2021"
 # docs/native/nodes.md, sections 2 and 3. Linux only: built for any other
 # system, the binary says so and exits (main.rs).
 [[bin]]
-name = "hangar-node"
+name = "teskad-node"
 path = "src/main.rs"
 
 [target.'cfg(target_os = "linux")'.dependencies]

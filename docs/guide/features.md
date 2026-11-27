@@ -112,7 +112,7 @@ has no online service of its own.
   them with `Ctrl`+`1`…`9`. Kit tabs come back where you left them after a restart.
 
 What needs a browser engine, a PDF, a web page, a video or an HTML kit tab, opens in
-`hangar-webview`, a small helper program beside Teskad, in a window of its own; its pane
+`teskad-webview`, a small helper program beside Teskad, in a window of its own; its pane
 holds a card that brings the window forward, and closing the pane closes the window.
 
 ## Experiments
@@ -126,7 +126,7 @@ until you enable them, and each can be turned off again without losing anything.
   kits, previews and the 3D view open beside the chat as they do in the grid. The agent's
   questions and permission prompts become cards you answer in the chat, and the images a
   Codex agent makes show in its messages.
-- **Nodes.** Run a headless Teskad, `hangar-node`, on a Linux machine you reach over SSH
+- **Nodes.** Run a headless Teskad, `teskad-node`, on a Linux machine you reach over SSH
   (x86_64 or arm64: a server, a VPS, a GPU box, a Raspberry Pi). Add it in Settings › Nodes
   with its SSH target: Teskad installs it with your SSH keys, starts it and keeps a tunnel
   to it, with nothing to open on the server. A workspace can then live on the node: its
@@ -158,7 +158,7 @@ agent ([details](../kits.md#claude-code-and-codex)).
 
 - **HTML tabs** are the tabs of 1.x, with the same `window.hangar` API, the same
   permissions, and [Teskad UI](../kit-ui.md), the stylesheet that makes them look like
-  Teskad. In 2.0 they open in the `hangar-webview` helper, in a window of their own.
+  Teskad. In 2.0 they open in the `teskad-webview` helper, in a window of their own.
 - **Native tabs** (new in 2.0) are Rust compiled to WebAssembly with the kit SDK,
   `hangar-kit-sdk`. A tab describes its page as widgets, and Teskad draws them with its own,
   in your theme and language. The module runs in a sandbox with time and memory limits, and

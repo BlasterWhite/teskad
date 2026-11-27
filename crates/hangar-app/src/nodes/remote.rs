@@ -107,7 +107,7 @@ impl Backoff {
 }
 
 /// The MCP scope a Claude Code pane of a remote workspace gets: written by
-/// the node, so that it names the node's own `hangar-node --mcp`.
+/// the node, so that it names the node's own `teskad-node --mcp`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RemoteMcp {
     pub workspace_id: String,
@@ -327,7 +327,7 @@ pub enum StreamEvent {
 }
 
 /// The subprotocol a stream offers for its output in binary frames
-/// (hangar-node's api.rs): an 8-byte big-endian `seq`, then the data. A node
+/// (teskad-node's api.rs): an 8-byte big-endian `seq`, then the data. A node
 /// that does not know it sends JSON frames, read all the same.
 pub const BINARY_PROTOCOL: &str = "hangar-binary";
 

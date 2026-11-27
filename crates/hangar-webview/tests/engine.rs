@@ -17,7 +17,7 @@ use hangar_webview::{
 };
 use serde_json::json;
 
-const HELPER: &str = env!("CARGO_BIN_EXE_hangar-webview");
+const HELPER: &str = env!("CARGO_BIN_EXE_teskad-webview");
 const SCHEME: &str = "hangar-test";
 const PATIENCE: Duration = Duration::from_secs(20);
 

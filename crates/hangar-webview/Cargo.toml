@@ -16,7 +16,7 @@ name = "hangar_webview"
 path = "src/lib.rs"
 
 [[bin]]
-name = "hangar-webview"
+name = "teskad-webview"
 path = "src/main.rs"
 required-features = ["engine"]
 

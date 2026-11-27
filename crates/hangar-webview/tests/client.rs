@@ -517,7 +517,7 @@ done
 
     #[test]
     fn a_program_that_is_not_there_is_an_error_not_a_hang() {
-        let missing = PathBuf::from("/nonexistent/hangar-webview");
+        let missing = PathBuf::from("/nonexistent/teskad-webview");
         let error = Client::spawn(&missing).err().expect("it does not start");
         assert_eq!(error.kind(), std::io::ErrorKind::NotFound);
     }

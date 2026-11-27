@@ -183,7 +183,7 @@ pub const PROBE_STARTED: &str = "@@hangar-started";
 
 /// Everything one connection asks before its tunnel, in one remote command:
 /// the binary's folder made (for an install), the machine's architecture,
-/// the installed version (nothing when hangar-node is not there, which is
+/// the installed version (nothing when teskad-node is not there, which is
 /// not a failure), the daemon started when the installed version is
 /// `version` (`--if-version`: an older binary refuses the flag, another
 /// version exits 3, and neither starts anything), and `node.json`: the

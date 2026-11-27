@@ -1,6 +1,12 @@
-//! `~/.local/state/hangar-node/`: what the desktop reads over SSH to reach the
+//! `~/.local/state/teskad-node/`: what the desktop reads over SSH to reach the
 //! node (`node.json`), the daemon's log, the agents' endpoint file, and the
 //! lock that keeps the node to one daemon per account.
+//!
+//! Beside the official app's node. Its `hangar-node` keeps to `~/.local/state/hangar-node/`,
+//! `~/.local/share/hangar-node/` and `hangar-node.service`; this one keeps to the `teskad-node`
+//! names of all three, listens on a port the system picks (`bind(…:0)`, daemon.rs) and has its own
+//! lock and `node.json`, so the two run side by side on one server without sharing a port, a
+//! file, a lock or a unit, and neither touches the other's files or process.
 #![cfg(target_os = "linux")]
 
 use std::fs::{self, File, OpenOptions};
@@ -21,11 +27,11 @@ pub struct NodeFile {
     pub pid: u32,
 }
 
-/// The node's folder, from the home directory: `~/.local/state/hangar-node`,
+/// The node's folder, from the home directory: `~/.local/state/teskad-node`,
 /// where the desktop looks for it whatever `XDG_STATE_HOME` says.
 pub fn dir() -> Result<PathBuf, String> {
     let home = dirs::home_dir().ok_or("no home directory")?;
-    Ok(home.join(".local").join("state").join("hangar-node"))
+    Ok(home.join(".local").join("state").join("teskad-node"))
 }
 
 pub fn node_file(dir: &Path) -> PathBuf {
@@ -187,7 +193,7 @@ mod tests {
     #[test]
     fn node_file_is_the_owners_alone_and_reads_back() {
         let root = tempfile::tempdir().unwrap();
-        let dir = root.path().join("state").join("hangar-node");
+        let dir = root.path().join("state").join("teskad-node");
         ensure_dir(&dir).unwrap();
         write(&dir, &sample()).unwrap();
         let mode = |path: &Path| fs::metadata(path).unwrap().permissions().mode() & 0o777;

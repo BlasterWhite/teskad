@@ -81,7 +81,7 @@ again** then looks for `claude`. **Use Anthropic's installer anyway** is still t
 system with nix-ld.
 
 Nodes (the experiment that runs workspaces on another Linux machine) are not available from
-the flake yet: the package does not carry the `hangar-node` binaries a node is set up with.
+the flake yet: the package does not carry the `teskad-node` binaries a node is set up with.
 
 ## Getting started
 

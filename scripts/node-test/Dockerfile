@@ -1,4 +1,4 @@
-# Test node for hangar-node: a bare Debian with sshd (key auth only) and the
+# Test node for teskad-node: a bare Debian with sshd (key auth only) and the
 # tools a remote node needs. Pinned by dated tag AND digest.
 FROM debian:trixie-20251020-slim@sha256:66b37a5078a77098bfc80175fb5eb881a3196809242fd295b25502854e12cbec
 

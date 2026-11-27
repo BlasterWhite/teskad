@@ -8,8 +8,8 @@
 #                                                  one MCP tool call as that pane
 set -euo pipefail
 
-node_json="$HOME/.local/state/hangar-node/node.json"
-node_bin="$HOME/.local/share/hangar-node/bin/hangar-node"
+node_json="$HOME/.local/state/teskad-node/node.json"
+node_bin="$HOME/.local/share/teskad-node/bin/teskad-node"
 
 field() { grep -o "\"$1\": *[^,}]*" "$node_json" | head -1 | sed 's/^[^:]*: *//; s/^"//; s/"$//'; }
 
@@ -42,7 +42,7 @@ pane_mcp() {
   cd "$(readlink "/proc/$pid/cwd")"
   coproc MCP { exec env "${env[@]}" "$node_bin" --mcp 2>/dev/null; }
   printf '%s\n' \
-    '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"hangar-node-e2e","version":"1"}}}' \
+    '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"teskad-node-e2e","version":"1"}}}' \
     '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
     "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool\",\"arguments\":$arguments}}" \
     >&"${MCP[1]}"

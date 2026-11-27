@@ -1,6 +1,6 @@
 # Hangar, native: the whole desktop app in Rust, drawn with iced, with no
 # webview in the main process. A kit page or a document that only a browser
-# engine can show opens in the separate `hangar-webview` helper.
+# engine can show opens in the separate `teskad-webview` helper.
 #
 # docs/native/PLAN.md is the map of this workspace and of the port.
 [workspace]
@@ -58,7 +58,7 @@ open = "5.4"
 # The version iced's `image` feature already builds; hangar-app writes its
 # development screenshots with it.
 png = "0.18"
-# The browser engine of hangar-webview alone: wry drives the platform's webview
+# The browser engine of teskad-webview alone: wry drives the platform's webview
 # (WebKitGTK, WebView2, WKWebView) and tao gives it its windows.
 wry = "0.57"
 tao = "0.37"
@@ -154,7 +154,7 @@ opt-level = 2
 # which builds a cold hangar-app in a fifth of the time, for working on the
 # app; dist is for what people download. Measured on hangar-app (32 cores,
 # docs/native/PACKAGING.md, "The dist profile"): the executable is a third
-# smaller (119 MB to 79 MB, hangar-node 17 MB to 10 MB, which the desktop
+# smaller (119 MB to 79 MB, teskad-node 17 MB to 10 MB, which the desktop
 # uploads to every node), parsing a pane's output is about 4% faster and the
 # app holds 5 MB less; the time to the first prompts does not move. The cost
 # is the build: 7 minutes cold instead of 1½, and 5 minutes instead of 30

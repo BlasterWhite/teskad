@@ -1,6 +1,6 @@
 //! What the orchestration engine and the deliveries do on a node, for a
 //! workspace that lives there (docs/native/nodes.md, "Orchestration on a
-//! node"): hangar-node's engine.rs routes, called as hangar-core's helpers
+//! node"): teskad-node's engine.rs routes, called as hangar-core's helpers
 //! are called for a local workspace, their answers read back into core's
 //! own types.
 //!

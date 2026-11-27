@@ -1029,7 +1029,7 @@ pub struct AccountStyle {
     pub icon: Option<String>,
 }
 
-/// A machine reached over SSH that runs `hangar-node` (docs/native/nodes.md
+/// A machine reached over SSH that runs `teskad-node` (docs/native/nodes.md
 /// §4). Only how to reach it is stored: its state is the `nodes` package's
 /// and lives as long as the app.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]

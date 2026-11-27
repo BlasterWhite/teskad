@@ -108,7 +108,7 @@ pub fn find_helper() -> Option<PathBuf> {
     if let Some(path) = std::env::var_os("HANGAR_WEBVIEW") {
         return Some(PathBuf::from(path));
     }
-    let name = format!("hangar-webview{}", std::env::consts::EXE_SUFFIX);
+    let name = format!("teskad-webview{}", std::env::consts::EXE_SUFFIX);
     let exe = std::env::current_exe().ok()?;
     exe.ancestors()
         .skip(1)
@@ -333,12 +333,12 @@ impl Client {
 
         let reading = (queue.clone(), closed.clone(), child.clone());
         thread::Builder::new()
-            .name("hangar-webview-reader".into())
+            .name("teskad-webview-reader".into())
             .spawn(move || read_events(reader, reading.0, reading.1, reading.2))
             .expect("a thread starts");
         let closing = closed.clone();
         thread::Builder::new()
-            .name("hangar-webview-writer".into())
+            .name("teskad-webview-writer".into())
             .spawn(move || write_lines(writer, outgoing, closing))
             .expect("a thread starts");
 
@@ -492,7 +492,7 @@ impl Drop for Client {
         // The wait is not ours to spend: whoever dropped the client may be a UI
         // thread.
         let spawned = thread::Builder::new()
-            .name("hangar-webview-reaper".into())
+            .name("teskad-webview-reaper".into())
             .spawn({
                 let mut child = child;
                 move || leave(&mut child)

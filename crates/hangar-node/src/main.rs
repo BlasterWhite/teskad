@@ -1,21 +1,21 @@
-//! `hangar-node`: the headless Hangar a node runs (docs/native/nodes.md,
+//! `teskad-node`: the headless Hangar a node runs (docs/native/nodes.md,
 //! sections 2 and 3).
 //!
-//! - `hangar-node version` prints `<version> <target triple>`;
-//! - `hangar-node serve` runs the node in the foreground (for systemd), and
+//! - `teskad-node version` prints `<version> <target triple>`;
+//! - `teskad-node serve` runs the node in the foreground (for systemd), and
 //!   `serve --detach` starts it in a session of its own, its output in
-//!   `~/.local/state/hangar-node/node.log`, and returns once it answers;
+//!   `~/.local/state/teskad-node/node.log`, and returns once it answers;
 //!   `serve --detach --if-version <v>` does so only when this binary is
 //!   version `<v>`, and exits 3 otherwise: the desktop's one SSH call that
 //!   probes the node also starts it when nothing is to be installed;
-//! - `hangar-node --mcp` is the MCP stdio proxy the agents of the node's
+//! - `teskad-node --mcp` is the MCP stdio proxy the agents of the node's
 //!   panes start, as `hangar-ai --mcp` is on the desktop;
-//! - `hangar-node workspaces`, `workspace add <folder>`, `workspace remove
+//! - `teskad-node workspaces`, `workspace add <folder>`, `workspace remove
 //!   <id>` and `send <pane> <text>` show and change the workspaces the node
 //!   runs itself (own.rs, cli.rs), through the running daemon;
-//! - `hangar-node discord setup --guild <id>`, `discord status` and
+//! - `teskad-node discord setup --guild <id>`, `discord status` and
 //!   `discord off` set up the Discord connector the daemon runs beside them
-//!   (discord.rs); `hangar-node service install` makes the daemon a systemd
+//!   (discord.rs); `teskad-node service install` makes the daemon a systemd
 //!   user service, for a node that runs with no desktop (service.rs).
 //!
 //! Linux only: built for another system, the binary says so and exits.
@@ -37,7 +37,7 @@ mod transcripts;
 
 #[cfg(not(target_os = "linux"))]
 fn main() {
-    eprintln!("hangar-node runs on Linux only");
+    eprintln!("teskad-node runs on Linux only");
     std::process::exit(1);
 }
 
@@ -55,11 +55,11 @@ pub const TARGET: &str = env!("HANGAR_NODE_TARGET");
 
 #[cfg(target_os = "linux")]
 const USAGE: &str =
-    "usage: hangar-node version | serve [--detach [--if-version <v>] | --supervised] | --mcp
-       hangar-node workspaces | workspace add <folder> [--name <name>] [--no-orchestrator]
-       hangar-node workspace remove <id> | send <pane> <text…>
-       hangar-node discord setup --guild <id> | discord status | discord off
-       hangar-node service install";
+    "usage: teskad-node version | serve [--detach [--if-version <v>] | --supervised] | --mcp
+       teskad-node workspaces | workspace add <folder> [--name <name>] [--no-orchestrator]
+       teskad-node workspace remove <id> | send <pane> <text…>
+       teskad-node discord setup --guild <id> | discord status | discord off
+       teskad-node service install";
 
 /// What `serve --detach --if-version` exits with when this is another
 /// version: nothing was started.
@@ -85,7 +85,7 @@ fn run(args: &[String]) -> i32 {
             if *wanted == VERSION {
                 report(daemon::detach())
             } else {
-                eprintln!("hangar-node: this is {VERSION}, not {wanted}: not started");
+                eprintln!("teskad-node: this is {VERSION}, not {wanted}: not started");
                 OTHER_VERSION
             }
         }
@@ -113,14 +113,14 @@ fn report(outcome: Result<(), String>) -> i32 {
     match outcome {
         Ok(()) => 0,
         Err(err) => {
-            eprintln!("hangar-node: {err}");
+            eprintln!("teskad-node: {err}");
             1
         }
     }
 }
 
 /// The node publishes its agents' API to a file of its own
-/// (`~/.local/state/hangar-node/endpoint.json`), never the desktop's
+/// (`~/.local/state/teskad-node/endpoint.json`), never the desktop's
 /// `~/.hangar/endpoint.json`, so a desktop Hangar on the same account keeps
 /// its agents. The proxy finds it through `HANGAR_ENDPOINT_FILE`, unless the
 /// caller already names one.

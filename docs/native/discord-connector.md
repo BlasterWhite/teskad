@@ -15,7 +15,7 @@ node with no desktop, for the workspaces the node runs itself. Built in
 mockups of every card.
 
 Experiment: `discord-connector` (Settings › Experimental), then Settings ›
-Discord; on a node, `hangar-node discord setup` (headless.md, step 5).
+Discord; on a node, `teskad-node discord setup` (headless.md, step 5).
 
 ![The orchestrator's channel](../images/discord/1-conversation.png)
 
@@ -36,8 +36,8 @@ Every answer goes through the hangar-bridge mod as the chat view's do.
   and the invite link; the settings are in the app's data folder
   (`discord/discord.json`, 0600). The bot answers while Hangar runs on the
   PC, window closed or not.
-- **A node with no desktop** (`hangar-node serve`, headless.md step 3): the
-  workspaces the node runs itself, with the PC off; set up with `hangar-node
+- **A node with no desktop** (`teskad-node serve`, headless.md step 3): the
+  workspaces the node runs itself, with the PC off; set up with `teskad-node
   discord setup`.
 
 **One bot for the desktop and its nodes.** Every instance of a bot hears
@@ -65,7 +65,7 @@ those channels to it (`GET /node/discord` lists them) and leads.
   /node/discord/shared?bot=<the bot>`), which it remembers across restarts
   (`discord/lent.json`). Two Hangars on one node would otherwise hand and
   take each other's bot at every look, the node's bot started again each
-  time. A node set up with a bot of its own (`hangar-node discord setup`)
+  time. A node set up with a bot of its own (`teskad-node discord setup`)
   keeps it and refuses the desktop's; set up over a lent bot, it becomes
   the node's own.
 - **Another server, another bot.** The layout (`discord-layout.json`)
@@ -281,7 +281,7 @@ means something.
 ## Setup and security
 
 - The person creates the Discord application and its bot, and the server: bots
-  cannot create guilds since July 2025. `hangar-node discord setup --guild
+  cannot create guilds since July 2025. `teskad-node discord setup --guild
   <id>` takes the token (from `HANGAR_DISCORD_TOKEN` or standard input) and
   gives the invite link with the
   scopes `bot applications.commands` and the permissions it needs (Manage
@@ -293,7 +293,7 @@ means something.
   line keeps its « Ouvrir le fil » button.
 - The bot token stays on the server, in `discord.json` (0600) beside the
   node's state.
-- Pairing: `setup` prints a code (`hangar-node discord status` again), the
+- Pairing: `setup` prints a code (`teskad-node discord status` again), the
   person sends `pair <code>` in a channel the bot sees; only that Discord
   account is heard afterwards. The code is six digits: it is heard on the
   server Hangar was set up for alone (not in a direct message, not on

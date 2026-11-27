@@ -4,8 +4,8 @@
 #   packaging/windows/build.sh <release-dir> <out-dir>
 #
 # <release-dir> holds the two executables cargo built (teskad.exe and
-# hangar-webview.exe, normally target/dist: the dist profile) and, in its sibling `node` folder
-# (target/node), the Linux hangar-node-x86_64 and hangar-node-aarch64 the
+# teskad-webview.exe, normally target/dist: the dist profile) and, in its sibling `node` folder
+# (target/node), the Linux teskad-node-x86_64 and teskad-node-aarch64 the
 # installer carries for the app to upload to nodes; the installer lands in
 # <out-dir>.
 # It needs `makensis` (NSIS 3.x; set MAKENSIS to run another one), curl and
@@ -39,20 +39,20 @@ makensis="${MAKENSIS:-makensis}"
 plugin_url="https://github.com/tauri-apps/nsis-tauri-utils/releases/download/nsis_tauri_utils-v0.5.3/nsis_tauri_utils.dll"
 plugin_sha1="75197fee3c6a814fe035788d1c34ead39349b860"
 
-for exe in teskad.exe hangar-webview.exe; do
+for exe in teskad.exe teskad-webview.exe; do
   if [ ! -f "$release_dir/$exe" ]; then
     echo "$release_dir/$exe is missing: build it first (see docs/native/PACKAGING.md)" >&2
     exit 1
   fi
 done
 
-# hangar-node for Linux, which the installed app uploads to nodes. Windows
+# teskad-node for Linux, which the installed app uploads to nodes. Windows
 # cannot run them; they travel in the installer and are not renamed, because
 # that is the name the app looks for.
 node_dir="$release_dir/../node"
 for arch in x86_64 aarch64; do
-  if [ ! -f "$node_dir/hangar-node-$arch" ]; then
-    echo "$node_dir/hangar-node-$arch is missing: download the release workflow's hangar-node artifacts there (docs/native/PACKAGING.md)" >&2
+  if [ ! -f "$node_dir/teskad-node-$arch" ]; then
+    echo "$node_dir/teskad-node-$arch is missing: download the release workflow's teskad-node artifacts there (docs/native/PACKAGING.md)" >&2
     exit 1
   fi
 done
@@ -93,7 +93,7 @@ fi
 
 cp "$here/installer.nsi" "$here/theme.nsh" "$here/utils.nsh" "$here/backdrop.bmp" "$here/backdrop@2x.bmp" "$work/"
 cp "$icons/icon.ico" "$work/icon.ico"
-cp "$release_dir/teskad.exe" "$release_dir/hangar-webview.exe" "$work/"
+cp "$release_dir/teskad.exe" "$release_dir/teskad-webview.exe" "$work/"
 # The Visual C++ runtime the executables import, beside them: a fresh Windows
 # has no Redistributable (the release workflow stages these from Visual Studio).
 crt_dlls="vcruntime140.dll vcruntime140_1.dll msvcp140.dll"
@@ -104,13 +104,13 @@ for crt in $crt_dlls; do
   fi
   cp "$release_dir/$crt" "$work/"
 done
-cp "$node_dir/hangar-node-x86_64" "$node_dir/hangar-node-aarch64" "$work/"
+cp "$node_dir/teskad-node-x86_64" "$node_dir/teskad-node-aarch64" "$work/"
 # NSIS reads these as UTF-8 only with the byte order mark in front.
 for language in English French; do
   { printf '\357\273\277'; cat "$here/languages/$language.nsh"; } > "$work/$language.nsh"
 done
 
-size=$(( $(wc -c < "$release_dir/teskad.exe") + $(wc -c < "$release_dir/hangar-webview.exe") + $(wc -c < "$node_dir/hangar-node-x86_64") + $(wc -c < "$node_dir/hangar-node-aarch64") ))
+size=$(( $(wc -c < "$release_dir/teskad.exe") + $(wc -c < "$release_dir/teskad-webview.exe") + $(wc -c < "$node_dir/teskad-node-x86_64") + $(wc -c < "$node_dir/teskad-node-aarch64") ))
 for crt in $crt_dlls; do size=$(( size + $(wc -c < "$release_dir/$crt") )); done
 estimated="$(printf '0x%06x' $(( size / 1000 )))"
 

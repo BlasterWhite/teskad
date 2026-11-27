@@ -31,7 +31,7 @@ const CRATES: [&str; 5] = [
     "hangar-core",
     "hangar-engine",
     "hangar-app",
-    "hangar-node",
+    "teskad-node",
     "hangar-discord",
 ];
 

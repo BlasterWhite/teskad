@@ -96,7 +96,7 @@ pub const CHAT_VIEW: &str = "chat-view";
 /// starts: panes started before it changed keep where they are.
 pub const PANE_SCOPES: &str = "pane-scopes";
 
-/// Machines reached over SSH that run `hangar-node` (`nodes`, and the
+/// Machines reached over SSH that run `teskad-node` (`nodes`, and the
 /// Settings › Nodes page). Every desktop has an `ssh` to reach them with.
 pub const NODES: &str = "nodes";
 pub const DISCORD_CONNECTOR: &str = "discord-connector";

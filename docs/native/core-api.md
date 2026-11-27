@@ -1894,7 +1894,7 @@ Newest first, after `since` (ms), at most `limit`.
 ## The two schemes
 
 The Tauri app registered two URI schemes on its webview; both are pure
-functions now, for whichever webview registers them (the `hangar-webview`
+functions now, for whichever webview registers them (the `teskad-webview`
 helper) and for the native preview, which can ask them directly:
 
 ```rust

@@ -1,13 +1,13 @@
 //! The workspaces this node runs itself (docs/native/headless.md, step 3):
 //! hangar-engine's host with no window, its state in
-//! `~/.local/state/hangar-node/state.json`, its panes among the node's own
+//! `~/.local/state/teskad-node/state.json`, its panes among the node's own
 //! (panes.rs), so that a desktop streams them as it streams any pane of the
 //! node.
 //!
 //! The node is their authority: their agents' control requests are answered
 //! here (control.rs hands them over before anything goes to a desktop), and
 //! they run with no desktop connected. The node API shows them and changes
-//! them (`/node/own`, below), for a desktop, for `hangar-node workspace …`,
+//! them (`/node/own`, below), for a desktop, for `teskad-node workspace …`,
 //! and for the Discord connector.
 //!
 //! Their agents are launched as the engine launches any (core's launch

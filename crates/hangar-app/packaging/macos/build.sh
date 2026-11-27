@@ -15,7 +15,7 @@
 #     -p hangar-app -p hangar-webview --features hangar-webview/engine
 #   (and the same with --target x86_64-apple-darwin)
 #
-# the two Linux hangar-node files in <target dir>/node, and cargo-packager and jq. Signing and notarisation happen inside
+# the two Linux teskad-node files in <target dir>/node, and cargo-packager and jq. Signing and notarisation happen inside
 # cargo-packager when the environment asks for them: APPLE_CERTIFICATE and
 # APPLE_CERTIFICATE_PASSWORD, APPLE_ID, APPLE_PASSWORD and APPLE_TEAM_ID, and a
 # `signingIdentity` in the packager's configuration (the release workflow writes
@@ -33,7 +33,7 @@ target_dir="$(cd "$repo" && cargo metadata --no-deps --format-version 1 | jq -r 
 
 universal="$target_dir/universal-apple-darwin/dist"
 mkdir -p "$universal"
-for binary in teskad hangar-webview; do
+for binary in teskad teskad-webview; do
   arm="$target_dir/aarch64-apple-darwin/dist/$binary"
   intel="$target_dir/x86_64-apple-darwin/dist/$binary"
   for built in "$arm" "$intel"; do
@@ -46,7 +46,7 @@ for binary in teskad hangar-webview; do
   lipo -info "$universal/$binary"
 done
 
-# hangar-node for Linux x86_64 and arm64, which this Mac uploads to a node:
+# teskad-node for Linux x86_64 and arm64, which this Mac uploads to a node:
 # checked in target/node, from where the packager's `resources` put them in
 # Contents/Resources (not Contents/MacOS: codesign refuses ELF files there).
 stage_node_binaries "$target_dir"

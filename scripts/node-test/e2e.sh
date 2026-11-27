@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# End-to-end test of the whole node flow on the Docker rig: builds hangar-node
+# End-to-end test of the whole node flow on the Docker rig: builds teskad-node
 # and a debug hangar-app, starts a container of its own, seeds an isolated
 # Hangar with a node and two workspaces (one on the node, one local), and
 # drives it through the control API and the agents' MCP proxies.
 #   e2e.sh [--no-build] [--keep]
 #     --no-build  use the binaries already in the target folder
 #     --keep      keep the run's temporary folder (logs, state) for a look
-# Container: HANGAR_NODE_TEST_CONTAINER (default hangar-node-e2e-<pid>).
+# Container: HANGAR_NODE_TEST_CONTAINER (default teskad-node-e2e-<pid>).
 # Port: HANGAR_NODE_TEST_PORT, else the first free one of HANGAR_PORT_BASE ..
 # +HANGAR_PORT_COUNT-1 when set, else the first free one from 22200.
 # Prints PASS/FAIL per step, cleans up after itself, exits 1 on any failure.
@@ -33,13 +33,13 @@ done
 port_base="${HANGAR_PORT_BASE:-}"
 port_count="${HANGAR_PORT_COUNT:-20}"
 rig_port="${HANGAR_NODE_TEST_PORT:-}"
-container="${HANGAR_NODE_TEST_CONTAINER:-hangar-node-e2e-$$}"
+container="${HANGAR_NODE_TEST_CONTAINER:-teskad-node-e2e-$$}"
 outer_bridge="${HANGAR_BRIDGE_URL:-}"
 for name in $(compgen -e); do
   case "$name" in HANGAR_*) unset "$name" ;; esac
 done
 
-work="$(mktemp -d "${TMPDIR:-/tmp}/hangar-node-e2e.XXXXXX")"
+work="$(mktemp -d "${TMPDIR:-/tmp}/teskad-node-e2e.XXXXXX")"
 work="$(cd "$work" && pwd -P)"
 export HANGAR_DATA_ROOT="$work/home"
 export HANGAR_ENDPOINT_FILE="$work/home/hangar/endpoint.json"
@@ -139,11 +139,11 @@ build_node() { cargo build --manifest-path "$root/Cargo.toml" -p hangar-node --r
 build_app() { cargo build --manifest-path "$root/Cargo.toml" -p hangar-app --locked; }
 
 target="$(target_dir)"
-node_bin="$target/release/hangar-node"
+node_bin="$target/release/teskad-node"
 app_bin="$target/debug/teskad"
 if [ "$build" = 1 ]; then
-  # Apart: built together, hangar-app's features would unify into hangar-node.
-  step "build hangar-node (release, on its own)" build_node || exit 1
+  # Apart: built together, hangar-app's features would unify into teskad-node.
+  step "build teskad-node (release, on its own)" build_node || exit 1
   step "build hangar-app (debug)" build_app || exit 1
 fi
 for bin in "$node_bin" "$app_bin"; do

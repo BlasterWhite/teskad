@@ -1,4 +1,4 @@
-//! The target triple the binary was built for, which `hangar-node version`
+//! The target triple the binary was built for, which `teskad-node version`
 //! prints: the desktop picks the binary to install on a node from it.
 
 fn main() {

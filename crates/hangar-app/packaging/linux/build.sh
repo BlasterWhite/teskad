@@ -12,7 +12,7 @@
 # feed's URLs are made from them. Needs cargo-packager (the AppImage and the
 # .deb), cargo-generate-rpm (the .rpm), jq, and `cargo build --profile dist --locked
 # -p hangar-app -p hangar-webview --features hangar-webview/engine` done first,
-# and hangar-node-x86_64 and hangar-node-aarch64 in <target dir>/node.
+# and teskad-node-x86_64 and teskad-node-aarch64 in <target dir>/node.
 # docs/native/PACKAGING.md explains each choice.
 set -euo pipefail
 
@@ -25,14 +25,14 @@ source "$(dirname "${BASH_SOURCE[0]}")/../common.sh"
 out="$(absolute_dir "$1")"
 target_dir="$(cd "$repo" && cargo metadata --no-deps --format-version 1 | jq -r .target_directory)"
 
-for binary in teskad hangar-webview; do
+for binary in teskad teskad-webview; do
   if [ ! -x "$target_dir/dist/$binary" ]; then
     echo "$target_dir/dist/$binary is missing: build it first (see docs/native/PACKAGING.md)" >&2
     exit 1
   fi
 done
 
-# hangar-node for x86_64 and arm64, checked where the packager's `resources`
+# teskad-node for x86_64 and arm64, checked where the packager's `resources`
 # and the .rpm's assets take them from: target/node (into usr/lib/teskad).
 stage_node_binaries "$target_dir"
 

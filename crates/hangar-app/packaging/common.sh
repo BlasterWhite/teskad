@@ -16,7 +16,7 @@ fi
 
 # The headless node daemon, built for Linux x86_64 and arm64 by the release
 # workflow's `node` job and downloaded into `$target_dir/node` as
-# `hangar-node-x86_64` and `hangar-node-aarch64`. Every desktop package carries
+# `teskad-node-x86_64` and `teskad-node-aarch64`. Every desktop package carries
 # both, because a Mac or a Windows desktop drives Linux nodes too: Linux and
 # macOS take them from there as resources (usr/lib/teskad, Contents/Resources),
 # Windows beside the executable; hangar_app::nodes::model::BinarySource looks in
@@ -28,9 +28,9 @@ stage_node_binaries() {
   local target_dir="$1" arch dest header machine
   shift
   for arch in x86_64 aarch64; do
-    local src="$target_dir/node/hangar-node-$arch"
+    local src="$target_dir/node/teskad-node-$arch"
     if [ ! -f "$src" ]; then
-      echo "$src is missing: download the release workflow's hangar-node artifacts there (docs/native/PACKAGING.md, \"hangar-node\")" >&2
+      echo "$src is missing: download the release workflow's teskad-node artifacts there (docs/native/PACKAGING.md, \"teskad-node\")" >&2
       return 1
     fi
     # ELF magic, then e_machine (byte 18): 0x3e is x86-64, 0xb7 is AArch64.
@@ -44,7 +44,7 @@ stage_node_binaries() {
     esac
     for dest in "$@"; do
       mkdir -p "$dest"
-      install -m 755 "$src" "$dest/hangar-node-$arch"
+      install -m 755 "$src" "$dest/teskad-node-$arch"
     done
   done
 }

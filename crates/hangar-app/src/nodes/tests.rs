@@ -68,10 +68,10 @@ fn the_probe_asks_everything_in_one_command() {
         line(&commands::probe(&node(None), &Mux::Off, "1.2.3")),
         "ssh | -o | BatchMode=yes | -o | ConnectTimeout=10 | \
          -o | ServerAliveInterval=15 | -o | ServerAliveCountMax=3 | me@box | \
-         mkdir -p ~/.local/share/hangar-node/bin; uname -m; echo @@hangar; \
-         ~/.local/share/hangar-node/bin/hangar-node version 2>/dev/null; echo @@hangar; \
-         ~/.local/share/hangar-node/bin/hangar-node serve --detach --if-version 1.2.3 2>&1 \
-         && echo @@hangar-started; echo @@hangar; cat ~/.local/state/hangar-node/node.json 2>/dev/null"
+         mkdir -p ~/.local/share/teskad-node/bin; uname -m; echo @@hangar; \
+         ~/.local/share/teskad-node/bin/teskad-node version 2>/dev/null; echo @@hangar; \
+         ~/.local/share/teskad-node/bin/teskad-node serve --detach --if-version 1.2.3 2>&1 \
+         && echo @@hangar-started; echo @@hangar; cat ~/.local/state/teskad-node/node.json 2>/dev/null"
     );
 }
 
@@ -84,12 +84,12 @@ fn a_config_file_is_passed_as_dash_f_before_the_target() {
         "ssh | -o | BatchMode=yes | -o | ConnectTimeout=10 | -F | /tmp/rig/ssh_config | \
          -o | ServerAliveInterval=15 | -o | ServerAliveCountMax=3 | me@box | true"
     );
-    let upload = commands::upload(&n, &Mux::Off, Path::new("/opt/hangar/hangar-node-x86_64"));
+    let upload = commands::upload(&n, &Mux::Off, Path::new("/opt/hangar/teskad-node-x86_64"));
     assert_eq!(
         line(&upload),
         "scp | -o | BatchMode=yes | -o | ConnectTimeout=10 | -F | /tmp/rig/ssh_config | \
          -o | ServerAliveInterval=15 | -o | ServerAliveCountMax=3 | -q | \
-         /opt/hangar/hangar-node-x86_64 | me@box:.local/share/hangar-node/bin/hangar-node.new"
+         /opt/hangar/teskad-node-x86_64 | me@box:.local/share/teskad-node/bin/teskad-node.new"
     );
     assert_eq!(
         line(&commands::config_query(&n)),
@@ -111,9 +111,9 @@ fn the_install_stops_an_older_daemon_then_puts_the_upload_in_place_and_starts() 
             .args
             .last()
             .unwrap(),
-        "kill 4242 2>/dev/null; chmod +x ~/.local/share/hangar-node/bin/hangar-node.new && \
-         mv -f ~/.local/share/hangar-node/bin/hangar-node.new ~/.local/share/hangar-node/bin/hangar-node && \
-         ~/.local/share/hangar-node/bin/hangar-node serve --detach && cat ~/.local/state/hangar-node/node.json"
+        "kill 4242 2>/dev/null; chmod +x ~/.local/share/teskad-node/bin/teskad-node.new && \
+         mv -f ~/.local/share/teskad-node/bin/teskad-node.new ~/.local/share/teskad-node/bin/teskad-node && \
+         ~/.local/share/teskad-node/bin/teskad-node serve --detach && cat ~/.local/state/teskad-node/node.json"
     );
     assert!(
         commands::install_and_start(&n, &Mux::Off, None)
@@ -267,13 +267,13 @@ fn the_probe_reads_each_answer() {
     // Nothing installed: the start failed, and says so; no node.json.
     assert_eq!(
         parse_probe(
-            "aarch64\n@@hangar\n@@hangar\nsh: 1: hangar-node: not found\n@@hangar\n@@hangar-end\nlater\n"
+            "aarch64\n@@hangar\n@@hangar\nsh: 1: teskad-node: not found\n@@hangar\n@@hangar-end\nlater\n"
         ),
         Ok(Probe {
             arch: "aarch64".into(),
             installed: None,
             started: false,
-            said: "sh: 1: hangar-node: not found".into(),
+            said: "sh: 1: teskad-node: not found".into(),
             node_json: String::new(),
         })
     );
@@ -348,7 +348,7 @@ fn the_architectures_go_by_their_build_names() {
 #[test]
 fn the_binary_comes_from_the_override_then_beside_the_executable() {
     let dir = tempfile::tempdir().unwrap();
-    let beside = dir.path().join("hangar-node-x86_64");
+    let beside = dir.path().join("teskad-node-x86_64");
     std::fs::write(&beside, b"bin").unwrap();
     let source = BinarySource {
         override_path: None,
@@ -357,7 +357,7 @@ fn the_binary_comes_from_the_override_then_beside_the_executable() {
     assert_eq!(source.binary_for("x86_64"), Ok(beside.clone()));
     assert!(matches!(
         source.binary_for("aarch64"),
-        Err(Failure::NoBinary { ref file, .. }) if file == "hangar-node-aarch64"
+        Err(Failure::NoBinary { ref file, .. }) if file == "teskad-node-aarch64"
     ));
     assert_eq!(
         source.binary_for("mips"),
@@ -372,7 +372,7 @@ fn the_binary_comes_from_the_override_then_beside_the_executable() {
     };
     assert_eq!(with_override.binary_for("aarch64"), Ok(dev));
     let missing = BinarySource {
-        override_path: Some(PathBuf::from("/nowhere/hangar-node")),
+        override_path: Some(PathBuf::from("/nowhere/teskad-node")),
         ..source
     };
     assert!(matches!(
@@ -388,7 +388,7 @@ fn the_binary_is_found_in_a_package_s_resources() {
     let contents = dir.path().join("Contents");
     std::fs::create_dir_all(contents.join("MacOS")).unwrap();
     std::fs::create_dir_all(contents.join("Resources")).unwrap();
-    let in_resources = contents.join("Resources/hangar-node-aarch64");
+    let in_resources = contents.join("Resources/teskad-node-aarch64");
     std::fs::write(&in_resources, b"bin").unwrap();
     let mac = BinarySource {
         override_path: None,
@@ -403,7 +403,7 @@ fn the_binary_is_found_in_a_package_s_resources() {
     let usr = dir.path().join("usr");
     std::fs::create_dir_all(usr.join("bin")).unwrap();
     std::fs::create_dir_all(usr.join("lib/teskad")).unwrap();
-    let in_lib = usr.join("lib/teskad/hangar-node-x86_64");
+    let in_lib = usr.join("lib/teskad/teskad-node-x86_64");
     std::fs::write(&in_lib, b"bin").unwrap();
     let linux = BinarySource {
         override_path: None,
@@ -826,7 +826,7 @@ fn probed(arch: &str, installed: Option<&str>, started: bool, json: &str) -> Cmd
     let start = if started {
         "@@hangar-started\n"
     } else {
-        "hangar-node: this is another version: not started\n"
+        "teskad-node: this is another version: not started\n"
     };
     ok(&format!(
         "{arch}\n@@hangar\n{version}@@hangar\n{start}@@hangar\n{json}\n"
@@ -952,7 +952,7 @@ async fn a_step_that_never_answers_fails_the_attempt_when_its_time_is_up() {
 
     // The upload hangs: it is given its own, longer, time, and no more.
     let dir = tempfile::tempdir().unwrap();
-    std::fs::write(dir.path().join("hangar-node-x86_64"), "x").unwrap();
+    std::fs::write(dir.path().join("teskad-node-x86_64"), "x").unwrap();
     let mut slow = setup(Some(dir.path()));
     slow.timing.step_limit = Duration::from_millis(10);
     slow.timing.upload_limit = Duration::from_millis(200);
@@ -1017,7 +1017,7 @@ async fn shared_a_master_that_ends_before_the_probe_is_a_probe_failure() {
 #[tokio::test]
 async fn a_node_without_hangar_node_gets_the_binary_for_its_architecture() {
     let dir = tempfile::tempdir().unwrap();
-    std::fs::write(dir.path().join("hangar-node-aarch64"), b"bin").unwrap();
+    std::fs::write(dir.path().join("teskad-node-aarch64"), b"bin").unwrap();
     let fake = Fake::answering(vec![
         probed("aarch64", None, false, ""),
         ok(""),
@@ -1033,7 +1033,7 @@ async fn a_node_without_hangar_node_gets_the_binary_for_its_architecture() {
     assert_eq!(ran[1].program, "scp");
     assert_eq!(
         ran[1].args[ran[1].args.len() - 2],
-        dir.path().join("hangar-node-aarch64").display().to_string()
+        dir.path().join("teskad-node-aarch64").display().to_string()
     );
     assert_eq!(
         ran[2],
@@ -1046,7 +1046,7 @@ async fn a_node_without_hangar_node_gets_the_binary_for_its_architecture() {
 #[tokio::test]
 async fn an_update_stops_the_older_daemon_before_starting_the_new_one() {
     let dir = tempfile::tempdir().unwrap();
-    std::fs::write(dir.path().join("hangar-node-x86_64"), b"bin").unwrap();
+    std::fs::write(dir.path().join("teskad-node-x86_64"), b"bin").unwrap();
     let old = r#"{"version":"9.0.0","port":40000,"token":"old","pid":4242}"#;
     let fake = Fake::answering(vec![
         probed("x86_64", Some("9.0.0"), false, old),
@@ -1071,7 +1071,7 @@ async fn an_update_stops_the_older_daemon_before_starting_the_new_one() {
 #[tokio::test]
 async fn this_version_that_does_not_start_is_a_start_failure() {
     let fake = Fake::answering(vec![ok(
-        "x86_64\n@@hangar\n9.9.9 t\n@@hangar\nhangar-node: no daemon answered within 30s\n@@hangar\n",
+        "x86_64\n@@hangar\n9.9.9 t\n@@hangar\nteskad-node: no daemon answered within 30s\n@@hangar\n",
     )]);
     let slot: TunnelSlot<FakeTunnel> = Arc::default();
     let (_, report) = reporter();
@@ -1080,7 +1080,7 @@ async fn this_version_that_does_not_start_is_a_start_failure() {
         result,
         Err(Failure::Ssh {
             step: Step::Start,
-            detail: "hangar-node: no daemon answered within 30s".into()
+            detail: "teskad-node: no daemon answered within 30s".into()
         })
     );
 }
@@ -1095,7 +1095,7 @@ async fn no_binary_for_the_machine_is_a_clear_failure_before_anything_is_sent() 
         connect::connect_once(&fake, &setup(Some(dir.path())), &Mux::Off, &slot, &report).await;
     assert!(matches!(
         result,
-        Err(Failure::NoBinary { ref arch, ref file, .. }) if arch == "x86_64" && file == "hangar-node-x86_64"
+        Err(Failure::NoBinary { ref arch, ref file, .. }) if arch == "x86_64" && file == "teskad-node-x86_64"
     ));
     assert_eq!(locked(&fake.ran).len(), 1);
 }
@@ -1321,7 +1321,7 @@ async fn a_link_is_read_up_to_its_end_mark_and_held_open() {
 }
 
 /// Against the Docker rig (`scripts/node-test/up.sh`), with a fake
-/// `hangar-node` uploaded as the binary: a shell script that writes a
+/// `teskad-node` uploaded as the binary: a shell script that writes a
 /// node.json and serves `/node/info` with Python. Run with
 /// `cargo test -p hangar-app nodes::tests::rig -- --ignored` once the rig is
 /// up.
@@ -1336,12 +1336,12 @@ async fn rig_connects_to_the_test_container_with_a_fake_hangar_node() {
         config.display()
     );
     let dir = tempfile::tempdir().unwrap();
-    let fake_node = dir.path().join("hangar-node");
+    let fake_node = dir.path().join("teskad-node");
     std::fs::write(&fake_node, FAKE_HANGAR_NODE).unwrap();
     let node = NodeConfig {
         id: "rig".into(),
         label: "rig".into(),
-        ssh_target: "hangar-node-test".into(),
+        ssh_target: "teskad-node-test".into(),
         ssh_config: Some(config.display().to_string()),
         ..NodeConfig::default()
     };
@@ -1372,7 +1372,7 @@ async fn rig_connects_to_the_test_container_with_a_fake_hangar_node() {
     }
 }
 
-/// The fake `hangar-node` of the rig test: `version` prints a version that
+/// The fake `teskad-node` of the rig test: `version` prints a version that
 /// is never the desktop's, `serve --detach` starts a Python server on a free
 /// port that answers `/node/info` to the right token, and writes node.json.
 const FAKE_HANGAR_NODE: &str = r#"#!/bin/sh
@@ -1380,7 +1380,7 @@ set -e
 case "$1" in
 version) echo "fake x86_64-unknown-linux-gnu" ;;
 serve)
-  state="$HOME/.local/state/hangar-node"
+  state="$HOME/.local/state/teskad-node"
   mkdir -p "$state"
   token=$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')
   port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])')

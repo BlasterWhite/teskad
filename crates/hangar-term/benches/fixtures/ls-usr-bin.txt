@@ -783,7 +783,7 @@ lrwxrwxrwx    1 root root           22 May 26 15:07 [01;36mgtk-update-icon-cach
 -rwxr-xr-x    1 root root        28826 Sep  8 20:17 [01;32mh2ph[0m
 -rwxr-xr-x    1 root root        60934 Sep  8 20:17 [01;32mh2xs[0m
 -rwxr-xr-x    1 root root    113798592 Nov  6 02:26 [01;32mhangar-ai[0m
--rwxr-xr-x    1 root root      2323840 Nov  6 02:26 [01;32mhangar-webview[0m
+-rwxr-xr-x    1 root root      2323840 Nov  6 02:26 [01;32mteskad-webview[0m
 -rwxr-xr-x    1 root root        47664 Aug 19 16:23 [01;32mhardlink[0m
 lrwxrwxrwx    1 root root           34 Mar 30  2026 [01;36mhashsum[0m -> [01;32m../lib/cargo/bin/coreutils/hashsum[0m
 -rwxr-xr-x    1 root root        31200 Dec  4  2025 [01;32mhbpldecode[0m

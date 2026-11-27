@@ -1,4 +1,4 @@
-# Teskad, its webview helper (hangar-webview, for HTML kit tabs and PDFs) and
+# Teskad, its webview helper (teskad-webview, for HTML kit tabs and PDFs) and
 # the embedded Hangar Mobile, as the release workflow builds them for Linux.
 {
   lib,
@@ -97,7 +97,7 @@ rustPlatform.buildRustPackage {
   # entries: nothing in the binary names them, winit and wgpu dlopen them.
   postFixup = ''
     patchelf --add-rpath ${lib.makeLibraryPath runtimeLibs} $out/bin/teskad
-    wrapGApp $out/bin/hangar-webview
+    wrapGApp $out/bin/teskad-webview
   '';
 
   meta = {

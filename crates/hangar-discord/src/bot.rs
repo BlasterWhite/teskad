@@ -511,7 +511,7 @@ pub async fn run(host: Arc<dyn Hangar>, options: Options) -> Result<(), String> 
     let mut settings = Settings::load(&options.dir)?;
     if !settings.ready() {
         return Err(
-            "the Discord connector has no token or no server: run `hangar-node discord setup`"
+            "the Discord connector has no token or no server: run `teskad-node discord setup`"
                 .into(),
         );
     }

@@ -12,7 +12,7 @@
 //! server changed starts it again.
 //!
 //! **One bot for the nodes too.** The workspaces a node runs itself (a
-//! Hangar with no window, hangar-node's own.rs) get their channels from the
+//! Hangar with no window, teskad-node's own.rs) get their channels from the
 //! same bot: once the person's account is paired, the desktop hands its
 //! settings to every node it is connected to (`PUT /node/discord/shared`),
 //! and each node's bot makes and answers its own channels, in categories

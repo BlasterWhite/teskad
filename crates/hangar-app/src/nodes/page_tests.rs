@@ -82,7 +82,7 @@ fn each_machine_is_a_row_that_says_how_its_link_is_doing() {
         // This computer heads the list.
         "This computer",
         "GPU box",
-        "me@gpu · Connected · hangar-node 2.3.0 on gpu-01",
+        "me@gpu · Connected · teskad-node 2.3.0 on gpu-01",
         "Claude Code",
         "No git",
         "Runs 2 workspaces itself, listed in the navigator",
@@ -169,7 +169,7 @@ fn the_page_speaks_french_in_a_light_theme() {
     let mut ui = h.show(drawn_at(&st, &h, at));
     for text in [
         "Cet ordinateur",
-        "me@gpu · Connecté · hangar-node 2.3.0 sur gpu-01",
+        "me@gpu · Connecté · teskad-node 2.3.0 sur gpu-01",
         "me@nas · Désactivé",
         "Ajouter une machine",
     ] {
