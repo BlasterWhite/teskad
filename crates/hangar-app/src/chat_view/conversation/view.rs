@@ -120,25 +120,16 @@ fn centred<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message>
 }
 
 /// Before a first read: the shape of the conversation to come, still, and
-/// the words that say it loads.
+/// the arc and the words that say it loads.
 fn loading<'a>(t: &'a Theme, words: String) -> Element<'a, Message> {
-    let bar = |width: f32, height: f32| {
-        container(Space::new().width(width).height(height)).style(move |_| container::Style {
-            background: Some(Background::Color(t.palette.surface_raised)),
-            border: Border {
-                radius: tokens::scale::radius::MD.into(),
-                ..Border::default()
-            },
-            ..container::Style::default()
-        })
-    };
+    let bar = |width: f32, height: f32| empty::skeleton(t, Length::Fixed(width), height);
     let skeleton = column![
         row![Space::new().width(Length::Fill), bar(280.0, 40.0)],
         column![bar(520.0, 14.0), bar(470.0, 14.0), bar(320.0, 14.0)].spacing(tokens::space::MD),
         bar(440.0, BLOCK_HEAD_HEIGHT),
         row![
             hangar_ui::glyph::state(t, GlyphState::Working, STATE_GLYPH),
-            hangar_ui::text::hint(t, words),
+            hangar_ui::text::muted(t, words),
         ]
         .spacing(tokens::space::MD)
         .align_y(Alignment::Center),

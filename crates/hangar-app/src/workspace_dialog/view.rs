@@ -1236,11 +1236,11 @@ fn preview<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
                     let hovered =
                         matches!(status, button::Status::Hovered | button::Status::Pressed);
                     button::Style {
-                        background: Some(t.colors.bg.into()),
-                        text_color: t.colors.fg,
+                        background: Some(t.palette.bg.into()),
+                        text_color: t.palette.text,
                         border: Border {
                             color: if hovered {
-                                t.colors.accent
+                                t.palette.accent
                             } else {
                                 iced::Color::TRANSPARENT
                             },
@@ -1278,9 +1278,9 @@ fn preview<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
         .height(Length::Fixed(PREVIEW_HEIGHT))
         .padding(1)
         .style(move |_: &iced::Theme| iced::widget::container::Style {
-            background: Some(t.colors.sep.into()),
+            background: Some(t.palette.surface_sunken.into()),
             border: Border {
-                color: t.colors.line_strong,
+                color: t.palette.border_strong,
                 width: tokens::BORDER_WIDTH,
                 radius: tokens::radius::LG.into(),
             },

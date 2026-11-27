@@ -46,7 +46,7 @@ pub fn bar<'a>(t: &'a Theme, girth: f32, elapsed: Duration) -> Element<'a, Messa
         .width(Length::FillPortion(SEGMENT))
         .height(Length::Fill)
         .style(move |_: &iced::Theme| container::Style {
-            background: Some(Background::Color(t.colors.accent)),
+            background: Some(Background::Color(t.palette.accent)),
             border: Border {
                 radius: tokens::radius::FULL.into(),
                 ..Border::default()
@@ -57,7 +57,7 @@ pub fn bar<'a>(t: &'a Theme, girth: f32, elapsed: Duration) -> Element<'a, Messa
         .width(Length::Fill)
         .height(girth)
         .style(move |_: &iced::Theme| container::Style {
-            background: Some(Background::Color(t.colors.border)),
+            background: Some(Background::Color(t.palette.border)),
             border: Border {
                 radius: tokens::radius::FULL.into(),
                 ..Border::default()

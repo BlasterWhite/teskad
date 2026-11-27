@@ -26,8 +26,8 @@ const GRID: f32 = 32.0;
 pub fn logo<'a, M: 'a>(t: &Theme, side: f32) -> Element<'a, M> {
     Element::new(Logo {
         side,
-        active: t.colors.accent,
-        others: t.colors.fg,
+        active: t.palette.accent,
+        others: t.palette.text,
     })
 }
 
@@ -102,8 +102,8 @@ mod tests {
         let t = &hangar_theme::themes()[0];
         let mark = Logo {
             side: 15.0,
-            active: t.colors.accent,
-            others: t.colors.fg,
+            active: t.palette.accent,
+            others: t.palette.text,
         };
         assert_ne!(mark.active, mark.others);
     }

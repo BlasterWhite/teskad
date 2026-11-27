@@ -391,15 +391,15 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
     let t = ctx.theme;
     let tr = Translator::new(ctx.model.locale());
     let (glyph, glyph_color) = match st.stage {
-        Phase::Failed => (Icon::Alert, t.colors.danger),
-        Phase::Ready => (Icon::Check, t.colors.success),
-        _ => (Icon::Download, t.colors.accent_hi),
+        Phase::Failed => (Icon::Alert, t.palette.status.failed),
+        Phase::Ready => (Icon::Check, t.palette.status.completed),
+        _ => (Icon::Download, t.palette.accent_text),
     };
     let message = |label: String, error: bool| -> Element<'a, Message> {
         let words = text(label).size(font_size::UI_LG).color(if error {
-            t.colors.danger
+            t.palette.status.failed
         } else {
-            t.colors.fg
+            t.palette.text
         });
         match (&st.error, error) {
             (Some(why), true) => tooltip(

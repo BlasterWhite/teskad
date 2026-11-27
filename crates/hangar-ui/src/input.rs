@@ -307,7 +307,7 @@ impl<'a, M: Clone + 'a> From<SearchField<'a, M>> for Element<'a, M> {
 
         // The magnifier and the clear button sit on the field, in a layer of
         // their own that lets everything but the button through.
-        let magnifier = container(icon(Icon::Search, size::ICON).color(t.colors.fg_muted))
+        let magnifier = container(icon(Icon::Search, size::ICON).color(t.palette.text_muted))
             .padding(Padding::from([0.0, space::LG]))
             .height(Length::Fill)
             .align_y(Alignment::Center);
@@ -1008,7 +1008,7 @@ where
         .map(|option| {
             let chosen = &option.value == selected;
             let off = option.unavailable.is_some();
-            let subtle = t.colors.fg_subtle;
+            let subtle = t.palette.text_muted;
             let mut face = row![].spacing(space::SM).align_y(Alignment::Center);
             if let Some(lead) = option.lead {
                 let lead = icon(lead, size::ICON);

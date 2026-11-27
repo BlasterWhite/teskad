@@ -777,7 +777,7 @@ fn background_of(kind: Kind, theme: &hangar_theme::Theme) -> [u8; 3] {
         Kind::Html => [255, 255, 255],
         Kind::Video | Kind::Audio => [0, 0, 0],
         _ => {
-            let c = theme.colors.bg;
+            let c = theme.palette.bg;
             [
                 (c.r * 255.0).round() as u8,
                 (c.g * 255.0).round() as u8,

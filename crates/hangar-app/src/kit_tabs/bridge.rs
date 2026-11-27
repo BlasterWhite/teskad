@@ -245,6 +245,6 @@ pub fn answer(request: &SchemeRequest) -> SchemeResponse {
 /// The colour shown before a page paints: the theme's own, so that a dark
 /// workspace's kit does not flash white.
 pub fn background_of(theme: &hangar_theme::Theme) -> [u8; 3] {
-    let [red, green, blue, _] = theme.colors.chrome.into_rgba8();
+    let [red, green, blue, _] = theme.palette.surface.into_rgba8();
     [red, green, blue]
 }

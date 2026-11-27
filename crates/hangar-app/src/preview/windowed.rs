@@ -132,10 +132,10 @@ pub fn bar<'a, M: Clone + 'a>(
             aside.push(
                 container(
                     row![
-                        icon(Icon::Lock, 12.0).color(t.colors.accent_hi),
+                        icon(Icon::Lock, 12.0).color(t.palette.accent_text),
                         text(ctx.t(Key::PreviewIsolated).into_owned())
                             .size(tokens::font_size::CAPTION)
-                            .color(t.colors.accent_hi),
+                            .color(t.palette.accent_text),
                     ]
                     .spacing(5)
                     .align_y(Alignment::Center),
@@ -338,8 +338,8 @@ fn shown_apart<'a, M: Clone + 'a>(
 
 fn mark_view<'a, M: 'a>(t: &'a hangar_theme::Theme, kind: Kind) -> Element<'a, M> {
     match mark_of(kind) {
-        Mark::Glyph(which) => glyph(which, 40.0, t.colors.fg_subtle),
-        Mark::Icon(which) => icon(which, 40.0).color(t.colors.fg_subtle).into(),
+        Mark::Glyph(which) => glyph(which, 40.0, t.palette.text_muted),
+        Mark::Icon(which) => icon(which, 40.0).color(t.palette.text_muted).into(),
     }
 }
 

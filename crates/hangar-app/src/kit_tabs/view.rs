@@ -87,10 +87,10 @@ fn isolated<'a>(
     .into_owned();
     let chip = container(
         row![
-            icon(Icon::Lock, 12.0).color(t.colors.accent_hi),
+            icon(Icon::Lock, 12.0).color(t.palette.accent_text),
             text(ctx.t(Key::KitsTabIsolated).into_owned())
                 .size(tokens::font_size::CAPTION)
-                .color(t.colors.accent_hi),
+                .color(t.palette.accent_text),
         ]
         .spacing(5)
         .align_y(Alignment::Center),
@@ -360,7 +360,7 @@ fn shown_apart<'a>(
 ) -> Element<'a, Message> {
     let t = ctx.theme;
     let mut body = column![
-        icon(Icon::Window, 40.0).color(t.colors.fg_subtle),
+        icon(Icon::Window, 40.0).color(t.palette.text_muted),
         text(entry.title.as_str())
             .size(tokens::font_size::BODY)
             .font(hangar_theme::fonts::ui_semibold())

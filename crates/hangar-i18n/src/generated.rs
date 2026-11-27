@@ -2186,8 +2186,12 @@ pub enum Key {
     MemoryCreatedToday,
     /// `memory.delete`
     MemoryDelete,
+    /// `memory.deleteBody`
+    MemoryDeleteBody,
     /// `memory.deleteConfirm`
     MemoryDeleteConfirm,
+    /// `memory.deleteTitle`
+    MemoryDeleteTitle,
     /// `memory.edit`
     MemoryEdit,
     /// `memory.editTitle`
@@ -2220,6 +2224,8 @@ pub enum Key {
     MemoryNew,
     /// `memory.noResults`
     MemoryNoResults,
+    /// `memory.noResultsBody`
+    MemoryNoResultsBody,
     /// `memory.replaceAsk`
     MemoryReplaceAsk,
     /// `memory.replaceConfirm`
@@ -5778,7 +5784,9 @@ impl Key {
         Key::MemoryCreatedAt,
         Key::MemoryCreatedToday,
         Key::MemoryDelete,
+        Key::MemoryDeleteBody,
         Key::MemoryDeleteConfirm,
+        Key::MemoryDeleteTitle,
         Key::MemoryEdit,
         Key::MemoryEditTitle,
         Key::MemoryEmpty,
@@ -5795,6 +5803,7 @@ impl Key {
         Key::MemoryNearCap,
         Key::MemoryNew,
         Key::MemoryNoResults,
+        Key::MemoryNoResultsBody,
         Key::MemoryReplaceAsk,
         Key::MemoryReplaceConfirm,
         Key::MemoryResults,
@@ -8117,7 +8126,9 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "memory.createdAt", en: Text::plain("Created {date}"), fr: Text::plain("Créée le {date}") },
     Message { id: "memory.createdToday", en: Text::plain("Created today"), fr: Text::plain("Créée aujourd'hui") },
     Message { id: "memory.delete", en: Text::plain("Delete"), fr: Text::plain("Supprimer") },
+    Message { id: "memory.deleteBody", en: Text::plain("Every workspace loses this entry. This cannot be undone."), fr: Text::plain("Tous les workspaces perdent cette entrée. Cette action est irréversible.") },
     Message { id: "memory.deleteConfirm", en: Text::plain("Confirm"), fr: Text::plain("Confirmer") },
+    Message { id: "memory.deleteTitle", en: Text::plain("Delete “{title}”?"), fr: Text::plain("Supprimer «\u{202f}{title}\u{202f}»\u{202f}?") },
     Message { id: "memory.edit", en: Text::plain("Edit"), fr: Text::plain("Modifier") },
     Message { id: "memory.editTitle", en: Text::plain("Edit entry"), fr: Text::plain("Modifier l'entrée") },
     Message { id: "memory.empty", en: Text::plain("Memory is empty"), fr: Text::plain("Mémoire vide") },
@@ -8134,6 +8145,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "memory.nearCap", en: Text::plain("The memory holds {n} of {max} entries. At the limit, agents can no longer write: delete what is obsolete."), fr: Text::plain("La mémoire contient {n} entrées sur {max}. À la limite, les agents ne pourront plus écrire\u{202f}: supprime ce qui est obsolète.") },
     Message { id: "memory.new", en: Text::plain("New entry"), fr: Text::plain("Nouvelle entrée") },
     Message { id: "memory.noResults", en: Text::plain("Nothing matches “{q}”."), fr: Text::plain("Rien ne correspond à «\u{202f}{q}\u{202f}».") },
+    Message { id: "memory.noResultsBody", en: Text::plain("Try another word, or clear the search."), fr: Text::plain("Essaie un autre mot, ou efface la recherche.") },
     Message { id: "memory.replaceAsk", en: Text::plain("An entry titled \"{title}\" already exists. Replacing it overwrites its content and tags."), fr: Text::plain("Une entrée intitulée «\u{202f}{title}\u{202f}» existe déjà. La remplacer écrase son contenu et ses étiquettes.") },
     Message { id: "memory.replaceConfirm", en: Text::plain("Replace it"), fr: Text::plain("La remplacer") },
     Message { id: "memory.results", en: Text::plural("{n} result", "{n} results"), fr: Text::plural("{n} résultat", "{n} résultats") },

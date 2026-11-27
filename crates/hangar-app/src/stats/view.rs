@@ -82,13 +82,15 @@ fn page<'a>(
             }
         }
         None => match &live.error {
-            Some(error) => hangar_ui::empty::empty(ui.t, Icon::Alert, ui.s(Key::StatsErrorTitle))
+            Some(error) => hangar_ui::empty::failed(ui.t, ui.s(Key::StatsErrorTitle))
                 .description(error.clone())
                 .action(
-                    ui_button::secondary(ui.t, ui.s(Key::StatsRetry)).on_press(msg(Msg::Refresh)),
+                    ui_button::secondary(ui.t, ui.s(Key::StatsRetry))
+                        .icon(Icon::Restart)
+                        .on_press(msg(Msg::Refresh)),
                 )
                 .into(),
-            None => hangar_ui::empty::empty(ui.t, Icon::Chart, ui.s(Key::StatsLoadingTitle))
+            None => hangar_ui::empty::loading(ui.t, ui.s(Key::StatsLoadingTitle))
                 .description(ui.s(Key::StatsLoadingBody))
                 .into(),
         },
@@ -677,10 +679,15 @@ fn content<'a>(
         page = page.push(
             container(
                 row![
-                    icon(Icon::Alert, 14.0).color(t.palette.status.failed),
+                    hangar_ui::glyph::state(t, hangar_ui::glyph::GlyphState::Failed, 14.0).still(),
                     text(format!("{} — {error}", ui.s(Key::StatsErrorTitle)))
                         .size(font_size::UI)
-                        .color(t.palette.status.failed),
+                        .color(t.palette.status.failed)
+                        .width(Length::Fill),
+                    ui_button::secondary(t, ui.s(Key::StatsRetry))
+                        .icon(Icon::Restart)
+                        .small()
+                        .on_press(msg(Msg::Refresh)),
                 ]
                 .spacing(space::MD)
                 .align_y(alignment::Vertical::Center),

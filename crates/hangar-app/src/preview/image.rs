@@ -318,9 +318,9 @@ pub fn view<'a>(
             .size(tokens::font_size::MICRO)
             .font(hangar_theme::fonts::mono())
             .color(if frame.zoom == 1.0 {
-                t.colors.accent_hi
+                t.palette.accent_text
             } else {
-                t.colors.fg_muted
+                t.palette.text_muted
             }),
         ctx.t(Key::PreviewActualSize),
         Some(frame.zoom == 1.0),

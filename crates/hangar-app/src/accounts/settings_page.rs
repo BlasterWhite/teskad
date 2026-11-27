@@ -576,7 +576,7 @@ fn unsupported_note<'a>(ctx: Ctx<'a>) -> Option<Element<'a, Message>> {
     Some(
         container(
             row![
-                icon(Icon::Alert, tokens::size::ICON).color(t.colors.danger),
+                icon(Icon::Alert, tokens::size::ICON).color(t.palette.status.failed),
                 note
             ]
             .spacing(tokens::space::LG),
@@ -586,7 +586,7 @@ fn unsupported_note<'a>(ctx: Ctx<'a>) -> Option<Element<'a, Message>> {
         .style(move |_: &iced::Theme| iced::widget::container::Style {
             background: Some(t.colors.danger_soft.into()),
             border: iced::Border {
-                color: t.colors.danger,
+                color: t.palette.status.failed,
                 width: tokens::BORDER_WIDTH,
                 radius: tokens::radius::MD.into(),
             },
@@ -767,7 +767,7 @@ fn badge_editor<'a>(
             Mark { tone, ..current },
             account.label.clone(),
             tokens::font_size::MICRO,
-            Some(t.colors.fg_secondary),
+            Some(t.palette.text_secondary),
         );
         let choice = iced::widget::button(preview)
             .padding(Padding::from([tokens::space::XXS, tokens::space::XS]))

@@ -409,7 +409,7 @@ impl<'a, M: Clone + 'a> From<IconBtn<'a, M>> for Element<'a, M> {
             }
             let mut look = style::button::icon(t)(theme, status);
             if destructive && matches!(status, button::Status::Hovered | button::Status::Pressed) {
-                look.text_color = t.colors.danger;
+                look.text_color = t.palette.status.failed;
                 look.background = Some(iced::Background::Color(t.colors.danger_soft));
             }
             look
