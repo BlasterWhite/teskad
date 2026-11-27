@@ -95,13 +95,14 @@ fn click_at(drawn: &mut Simulator<'_, KitMessage>, x: f32, y: f32) {
 }
 
 /// The lines of the menu open under its small button, as hangar-ui lays
-/// them out: 4 px under the button, 5 px of padding, 26 px a line, 9 px a
-/// separator. A menu is an overlay, which a search by text does not reach.
+/// them out: 4 px under the button, 6 px of padding, 30 px a line, 13 px a
+/// separator. Each point is a line's middle. A menu is an overlay, which a
+/// search by text does not reach.
 const LINE_X: f32 = 40.0;
 const BUTTON: f32 = hangar_theme::tokens::size::CONTROL_HEIGHT_SM;
-const REFRESH_Y: f32 = BUTTON + 9.0 + 13.0;
-const COPY_Y: f32 = BUTTON + 44.0 + 13.0;
-const DISABLED_Y: f32 = BUTTON + 70.0 + 13.0;
+const REFRESH_Y: f32 = BUTTON + 10.0 + 15.0;
+const COPY_Y: f32 = BUTTON + 53.0 + 15.0;
+const DISABLED_Y: f32 = BUTTON + 83.0 + 15.0;
 
 fn open() -> (ui::Element, WidgetState) {
     let given = ui::Element::Menu(menu());
