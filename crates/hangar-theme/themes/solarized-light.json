@@ -1,0 +1,34 @@
+{
+  "$schema": "./theme.schema.json",
+  "id": "solarized-light",
+  "name": "Solarized Light",
+  "appearance": "light",
+  "terminal": {
+    "background": "#FDF6E3",
+    "foreground": "#657B83",
+    "cursor": "#586E75",
+    "cursorText": "#FDF6E3",
+    "selection": "#EEE8D5",
+    "ansi": {
+      "black": "#073642",
+      "red": "#DC322F",
+      "green": "#859900",
+      "yellow": "#B58900",
+      "blue": "#268BD2",
+      "magenta": "#D33682",
+      "cyan": "#2AA198",
+      "white": "#93A1A1",
+      "brightBlack": "#002B36",
+      "brightRed": "#CB4B16",
+      "brightGreen": "#586E75",
+      "brightYellow": "#657B83",
+      "brightBlue": "#839496",
+      "brightMagenta": "#6C71C4",
+      "brightCyan": "#93A1A1",
+      "brightWhite": "#EEE8D5"
+    }
+  },
+  "ui": {
+    "accent": "#268BD2"
+  }
+}

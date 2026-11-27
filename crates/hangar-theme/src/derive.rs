@@ -1,158 +1,277 @@
-//! The window's colours, derived from a terminal palette and an accent: a
-//! port of `deriveChromeTokens` and its helpers in `src/themes.ts`.
+//! The window's colours, from a theme file.
 //!
-//! The bundled themes do not go through this at run time; their tables in
-//! `data.rs` were generated from the TypeScript. It is here so that a test can
-//! hold the generator and this port to each other, and so that a theme the
-//! app does not bundle (a person's own palette, later) restyles the whole
-//! window the way a bundled one does, with the same contrast promises.
+//! Two steps, both here:
+//!
+//! 1. [`derive_palette`]: the interface's semantic colours ([`Palette`]) from
+//!    the theme's terminal colours, by the rules of
+//!    `docs/teskad-brand/docs/themes.md`. A key the theme's `ui` sets is used
+//!    as it is (Teskad Dark and Teskad Light set them all, so nothing is
+//!    computed for them); every other key is derived, then held to the
+//!    contrast the same document requires.
+//! 2. [`derive_colors`]: [`Colors`], the finer tokens views are drawn with
+//!    (a pane header, a hairline, a chart's data colours), computed from the
+//!    palette. It is an alias of the palette, not a second source of colour.
 
 use iced::Color;
 
 use crate::contrast::{
-    HueAndSaturation, Rgb, contrast_ratio, ensure_contrast, hue_and_saturation, hue_distance, mix,
-    perceived_lightness, with_hue,
+    Rgb, contrast_ratio, ensure_contrast, mix, perceived_lightness, worst_contrast,
 };
+use crate::palette::{Palette, Status};
+use crate::spec::UiOverrides;
 use crate::theme::{Appearance, Colors, TerminalColors};
 
-/// Text on the chrome reads at this ratio at least: WCAG's AA for body text.
+/// Text on the window reads at this ratio at least: WCAG's AA for body text.
 pub const TEXT_CONTRAST: f64 = 4.5;
-/// A state's dot, a bar, a frame: WCAG's 3:1 for what is not text.
+/// A state's icon, a bar, a frame: WCAG's 3:1 for what is not text.
 pub const FILL_CONTRAST: f64 = 3.0;
+/// A border is at least this visible on the window.
+pub const BORDER_CONTRAST: f64 = 1.3;
 
-/// Two hues closer than this pass for one colour at a glance.
-const DISTINCT_HUE: f64 = 30.0;
-/// "Your turn" stays somewhere from cyan to blue, whatever it steers clear of.
-const YOURS_HUES: (u32, u32) = (165, 240);
-
-/// The colour "your turn" starts from: the theme's cyan, or its blue, as long
-/// as it reads as neither the accent (which marks links, focus and the
-/// selection) nor working's green. A theme with no such colour has its cyan
-/// turned to the nearest hue clear of both.
-fn yours_base(accent: Rgb, terminal: &[Rgb; 16], working: Rgb) -> Rgb {
-    let accent_hue = hue_and_saturation(accent).hue;
-    let working_hue = hue_and_saturation(working).hue;
-    let apart = |hue: f64| hue_distance(hue, accent_hue).min(hue_distance(hue, working_hue));
-    // The slots of xterm's cyan, bright cyan, blue and bright blue.
-    let candidates: Vec<Rgb> = [terminal[6], terminal[14], terminal[4], terminal[12]]
-        .into_iter()
-        .filter(|&color| {
-            // Some palettes fill these slots with a grey, or with what is
-            // really a pink: only a cyan or a blue worth the name is a
-            // candidate.
-            let HueAndSaturation { hue, saturation } = hue_and_saturation(color);
-            saturation >= 0.25 && hue >= YOURS_HUES.0 as f64 && hue <= YOURS_HUES.1 as f64
-        })
-        .collect();
-    if let Some(&ready) = candidates
-        .iter()
-        .find(|&&color| apart(hue_and_saturation(color).hue) >= DISTINCT_HUE)
-    {
-        return ready;
-    }
-
-    let base = candidates.first().copied().unwrap_or(Rgb(0x3f, 0xb8, 0xcf));
-    let base_hue = hue_and_saturation(base).hue;
-    let mut best = base_hue;
-    let mut best_score = f64::NEG_INFINITY;
-    for hue in YOURS_HUES.0..=YOURS_HUES.1 {
-        let hue = hue as f64;
-        // Clear of both, as near the theme's own hue as that allows; failing
-        // that, as far from the nearer of the two as the range goes.
-        let score = if apart(hue) >= DISTINCT_HUE {
-            1000.0 - hue_distance(hue, base_hue)
-        } else {
-            apart(hue)
-        };
-        if score > best_score {
-            best_score = score;
-            best = hue;
-        }
-    }
-    with_hue(base, best)
-}
-
-/// A colour with an alpha, from the opaque colour the web app wrote it as.
+/// A colour with an alpha, from an opaque colour.
 fn with_alpha(color: Rgb, alpha: f32) -> Color {
     Color::from_rgba8(color.0, color.1, color.2, alpha)
 }
 
-/// Every colour token of the window for this terminal palette and accent.
-pub fn derive_colors(appearance: Appearance, accent: Color, terminal: &TerminalColors) -> Colors {
-    let accent = Rgb::from(accent);
-    let slots = terminal.ansi.map(Rgb::from);
-    let [red, green, yellow] = [slots[1], slots[2], slots[3]];
-    let bg = Rgb::from(terminal.background);
+/// `color` brought to `min`:1 on all of `against`: toward `toward` first, so
+/// a grey keeps the theme's tint, and toward white or black when even
+/// `toward` is not enough.
+fn reach(color: Rgb, against: &[Rgb], min: f64, toward: Rgb) -> Rgb {
+    let nearer = ensure_contrast(color, against, min, Some(toward));
+    if worst_contrast(nearer, against) >= min {
+        nearer
+    } else {
+        ensure_contrast(nearer, against, min, None)
+    }
+}
+
+/// The interface's colours for this terminal palette: each key of `ui` as the
+/// theme set it, the others derived from `terminal` (`themes.md`, "Dérivation")
+/// and then held to the contrast the document requires ("Contrôle de
+/// contraste").
+pub fn derive_palette(
+    appearance: Appearance,
+    terminal: &TerminalColors,
+    ui: &UiOverrides,
+) -> Palette {
     let is_dark = appearance.is_dark();
+    let b = Rgb::from(terminal.background);
+    let f = Rgb::from(terminal.foreground);
+    let [green, red, magenta] = [2usize, 1, 5].map(|slot| Rgb::from(terminal.ansi[slot]));
+    let rgb = |color: Option<Color>| color.map(Rgb::from);
+    let c = |color: Rgb| Color::from(color);
+    let pole = if is_dark { Rgb::WHITE } else { Rgb::BLACK };
+
+    let bg = rgb(ui.bg).unwrap_or(b);
+    let surface = rgb(ui.surface).unwrap_or_else(|| mix(b, f, 0.04));
+    let readable_on = [bg, surface];
+
+    let surface_sunken = rgb(ui.surface_sunken).unwrap_or_else(|| {
+        if is_dark {
+            mix(b, Rgb::BLACK, 0.20)
+        } else {
+            mix(b, f, 0.02)
+        }
+    });
+    let surface_raised = rgb(ui.surface_raised).unwrap_or_else(|| mix(b, f, 0.07));
+    let border =
+        rgb(ui.border).unwrap_or_else(|| reach(mix(b, f, 0.12), &[bg], BORDER_CONTRAST, f));
+    let border_strong =
+        rgb(ui.border_strong).unwrap_or_else(|| reach(mix(b, f, 0.18), &[bg], BORDER_CONTRAST, f));
+
+    // Text: the foreground, unless it is too faint for the window (Solarized):
+    // then it leans out to white or black until it reads. The two quieter
+    // levels are mixes toward it, brought nearer to it until they read too.
+    let text = rgb(ui.text).unwrap_or_else(|| reach(f, &readable_on, TEXT_CONTRAST, f));
+    let text_secondary = rgb(ui.text_secondary)
+        .unwrap_or_else(|| reach(mix(b, text, 0.75), &readable_on, TEXT_CONTRAST, text));
+    let text_muted = rgb(ui.text_muted)
+        .unwrap_or_else(|| reach(mix(b, text, 0.60), &readable_on, TEXT_CONTRAST, text));
+
+    let accent = rgb(ui.accent).unwrap_or(magenta);
+    // White or the terminal background, whichever contrasts more with the
+    // accent; black when an accent in between leaves neither at 4.5:1.
+    let on_accent = rgb(ui.on_accent).unwrap_or_else(|| {
+        let best = if contrast_ratio(Rgb::WHITE, accent) >= contrast_ratio(b, accent) {
+            Rgb::WHITE
+        } else {
+            b
+        };
+        if contrast_ratio(best, accent) >= TEXT_CONTRAST {
+            best
+        } else if contrast_ratio(Rgb::BLACK, accent) >= contrast_ratio(Rgb::WHITE, accent) {
+            Rgb::BLACK
+        } else {
+            Rgb::WHITE
+        }
+    });
+    // The accent a step toward the foreground (hovered) or the background
+    // (pressed): a step that would leave the label under 4.5:1 is shortened.
+    let accent_step = |toward: Rgb| {
+        let mut amount = 0.12;
+        while amount > 0.0 && contrast_ratio(on_accent, mix(accent, toward, amount)) < TEXT_CONTRAST
+        {
+            amount -= 0.01;
+        }
+        mix(accent, toward, amount.max(0.0))
+    };
+    let accent_hover = rgb(ui.accent_hover).unwrap_or_else(|| accent_step(f));
+    let accent_pressed = rgb(ui.accent_pressed).unwrap_or_else(|| accent_step(b));
+    let accent_text = rgb(ui.accent_text)
+        .unwrap_or_else(|| ensure_contrast(accent, &readable_on, TEXT_CONTRAST, Some(pole)));
+    let focus_ring = rgb(ui.focus_ring).unwrap_or(accent_text);
+    let selection_bg = rgb(ui.selection_bg).unwrap_or_else(|| mix(b, accent, 0.14));
+    let selection_border = rgb(ui.selection_border).unwrap_or(accent);
+
+    // The states: each one the pack's own colour when the derived one does not
+    // reach 3:1 on the surface it is drawn on.
+    let pack = crate::bundled::pack_status(appearance);
+    let status_of = |set: Option<Color>, derived: Rgb, pack: Color| -> Color {
+        match set {
+            Some(set) => set,
+            None if contrast_ratio(derived, surface) >= FILL_CONTRAST => c(derived),
+            // The pack's colour is made for the pack's surfaces: on a theme's
+            // own it is brought to 3:1 too.
+            None => c(reach(
+                rgb(Some(pack)).unwrap_or(derived),
+                &[surface],
+                FILL_CONTRAST,
+                f,
+            )),
+        }
+    };
+    let status = Status {
+        running: status_of(ui.running, accent_text, pack.running),
+        completed: status_of(ui.completed, green, pack.completed),
+        failed: status_of(ui.failed, red, pack.failed),
+        active: status_of(ui.active, mix(accent, f, 0.40), pack.active),
+        inactive: status_of(ui.inactive, mix(b, f, 0.45), pack.inactive),
+    };
+
+    // The pack gives no rule for these two: a veil of the theme's own
+    // foreground over what is under the pointer, and a shade of its
+    // background (of its foreground on a light theme) over the window behind
+    // a modal.
+    let hover_overlay = ui
+        .hover_overlay
+        .unwrap_or_else(|| with_alpha(f, if is_dark { 0.06 } else { 0.05 }));
+    let scrim = ui.scrim.unwrap_or_else(|| {
+        if is_dark {
+            with_alpha(mix(b, Rgb::BLACK, 0.5), 0.72)
+        } else {
+            with_alpha(mix(f, Rgb::BLACK, 0.3), 0.40)
+        }
+    });
+
+    Palette {
+        bg: c(bg),
+        surface: c(surface),
+        surface_raised: c(surface_raised),
+        surface_sunken: c(surface_sunken),
+        border: c(border),
+        border_strong: c(border_strong),
+        text: c(text),
+        text_secondary: c(text_secondary),
+        text_muted: c(text_muted),
+        accent: c(accent),
+        accent_hover: c(accent_hover),
+        accent_pressed: c(accent_pressed),
+        on_accent: c(on_accent),
+        accent_text: c(accent_text),
+        focus_ring: c(focus_ring),
+        selection_bg: c(selection_bg),
+        selection_border: c(selection_border),
+        hover_overlay,
+        scrim,
+        status,
+    }
+}
+
+/// What a palette fails of the contrast `themes.md` requires, one line per
+/// failure; empty when it passes. Text on the window and the surface at
+/// 4.5:1, the text on the accent at 4.5:1, the states on the surface at 3:1,
+/// the border on the window at 1.3:1.
+pub fn contrast_failures(palette: &Palette) -> Vec<String> {
+    let rgb = Rgb::from;
+    let (bg, surface) = (rgb(palette.bg), rgb(palette.surface));
+    let mut failures = Vec::new();
+    let mut check = |name: &str, color: Color, on: &str, background: Rgb, min: f64| {
+        let ratio = contrast_ratio(rgb(color), background);
+        // Colours are 8 bits: half a hundredth of slack for the rounding.
+        if ratio < min - 0.005 {
+            failures.push(format!("{name} on {on}: {ratio:.2}:1, needs {min}:1"));
+        }
+    };
+    for (name, color) in [
+        ("text", palette.text),
+        ("textSecondary", palette.text_secondary),
+        ("textMuted", palette.text_muted),
+        ("accentText", palette.accent_text),
+    ] {
+        check(name, color, "bg", bg, TEXT_CONTRAST);
+        check(name, color, "surface", surface, TEXT_CONTRAST);
+    }
+    check(
+        "onAccent",
+        palette.on_accent,
+        "accent",
+        rgb(palette.accent),
+        TEXT_CONTRAST,
+    );
+    let s = palette.status;
+    for (name, color) in [
+        ("status.running", s.running),
+        ("status.completed", s.completed),
+        ("status.failed", s.failed),
+        ("status.active", s.active),
+        ("status.inactive", s.inactive),
+    ] {
+        check(name, color, "surface", surface, FILL_CONTRAST);
+    }
+    check("border", palette.border, "bg", bg, BORDER_CONTRAST);
+    failures
+}
+
+/// Every colour token of the window for this palette: [`Colors`], the finer
+/// names views are drawn with, all computed from the palette (and, for the one
+/// state the palette has no colour for, from the terminal's yellow).
+pub fn derive_colors(
+    appearance: Appearance,
+    palette: &Palette,
+    terminal: &TerminalColors,
+) -> Colors {
+    let is_dark = appearance.is_dark();
+    let rgb = Rgb::from;
+    let c = |color: Rgb| Color::from(color);
+    let p = palette;
+    let [bg, surface, raised, sunken] =
+        [p.bg, p.surface, p.surface_raised, p.surface_sunken].map(rgb);
+    let accent = rgb(p.accent);
+    let fg = rgb(p.text);
     let lift = if is_dark { Rgb::WHITE } else { Rgb::BLACK };
+    let hover = crate::contrast::over(p.hover_overlay, surface);
+    let selection = rgb(p.selection_bg);
 
-    // A step from the terminal background toward the foreground side.
-    let lifted = |amount: f64| mix(bg, lift, amount);
-
-    let chrome = lifted(0.04);
-    let chrome_bar = lifted(0.06);
-    let raised = lifted(0.07);
-    let pane_head = lifted(0.025);
-    let bg_sunken = mix(bg, if is_dark { Rgb::BLACK } else { Rgb::WHITE }, 0.35);
-
-    // Every surface the chrome writes on: the navigator, inspector and status
-    // bar, the toolbar, raised groups and cards, pane headers. A colour is held
-    // to the least favourable of them: on a dark theme the lightest, on a light
-    // one the darkest.
-    let surfaces = [chrome, chrome_bar, raised, pane_head];
-    // A step further out: the selected row, and a hairline's tint laid over a
-    // raised group or the toolbar (a chip, the activity capsule). Whatever can
-    // be written there (body text, labels, state words, links, status colours)
-    // clears those as well. The two quietest greys answer to the plain surfaces
-    // only, so they stay a step below the labels; a rule that puts them on a
-    // fill takes --fg-secondary instead.
-    let selection = mix(bg, lift, 0.13);
-    let line_alpha = if is_dark { 0.07 } else { 0.08 };
-    let tinted = mix(raised, lift, line_alpha);
-    let anywhere = [chrome, chrome_bar, raised, pane_head, selection, tinted];
-    let text =
-        |color: Rgb, toward: Option<Rgb>| ensure_contrast(color, &anywhere, TEXT_CONTRAST, toward);
+    // Every surface text is written on. A colour is held to the least
+    // favourable of them.
+    // A chip is filled with the border's colour, and the hovered row counts too.
+    let tinted = rgb(p.border);
+    // So does a filter that is on: the accent's tint over the surface.
+    let lit = mix(surface, accent, 0.14);
+    let anywhere = [bg, surface, raised, sunken, selection, hover, tinted, lit];
+    let plain = [bg, surface, raised];
+    let text = |color: Rgb| reach(color, &anywhere, TEXT_CONTRAST, fg);
+    // Labels and the quietest greys answer to the plain surfaces only, as the
+    // palette's own check does; a rule that puts them on a fill takes the
+    // secondary text.
+    let quiet = |color: Color| c(reach(rgb(color), &plain, TEXT_CONTRAST, fg));
     let fill = |color: Rgb| ensure_contrast(color, &anywhere, FILL_CONTRAST, None);
 
-    // The theme's foreground, unless it is too faint for the chrome
-    // (Solarized): body text there leans out to white or black until it reads.
-    let fg = text(Rgb::from(terminal.foreground), None);
-    // Text a step back from the foreground: `amount` of the way to the
-    // background, or nearer the foreground until it reads on `on`. Leaning on
-    // the foreground rather than on white keeps the theme's tint in its greys.
-    let quieter =
-        |amount: f64, on: &[Rgb]| ensure_contrast(mix(fg, bg, amount), on, TEXT_CONTRAST, Some(fg));
-
-    // A light theme's "yellow" is often a dark brown that reads as body text,
-    // so light themes start from an amber that still looks like one.
-    let amber = if is_dark {
-        yellow
-    } else {
-        Rgb(0xb4, 0x53, 0x09)
-    };
-    let yours = yours_base(accent, &slots, green);
-    let danger = text(red, None);
-    // Text on the accent (a primary button, a selected row): the accent
-    // darkened almost to black on a dark theme, white on a light one, unless
-    // the accent is too light or too dark for that to read; then the other one.
-    let dark_on_accent = ensure_contrast(
-        mix(accent, Rgb::BLACK, 0.82),
-        &[accent],
-        TEXT_CONTRAST,
-        Some(Rgb::BLACK),
-    );
-    let (preferred, other) = if is_dark {
-        (dark_on_accent, Rgb::WHITE)
-    } else {
-        (Rgb::WHITE, dark_on_accent)
-    };
-    let on_accent = if contrast_ratio(preferred, accent) >= TEXT_CONTRAST
-        || contrast_ratio(preferred, accent) >= contrast_ratio(other, accent)
-    {
-        preferred
-    } else {
-        other
-    };
+    let waiting = rgb(terminal.ansi[3]);
+    let status = p.status;
+    // A card is lifted off the window on a dark theme, and is the window's own
+    // colour on a light one, where the window is the grey.
+    let card = if is_dark { raised } else { bg };
 
     // The statistics' data colours, all of one hue (the accent's) in steps
     // away from the card they are drawn on: brighter on a dark theme, deeper
@@ -161,7 +280,6 @@ pub fn derive_colors(appearance: Appearance, accent: Color, terminal: &TerminalC
     // palette of its own. The strongest step is the accent held to 3:1 on the
     // card; the faintest still reads at 2:1, the floor for a mark a label or
     // a table also carries.
-    let card = if is_dark { raised } else { bg };
     let toward = |top: Rgb, amount: f64| mix(card, top, amount);
     // Where the ramp starts: 40 % of the way to the top, or further when a
     // pale accent needs it to reach 2:1.
@@ -218,91 +336,64 @@ pub fn derive_colors(appearance: Appearance, accent: Color, terminal: &TerminalC
     // and its cells carry their values in a tooltip and a table.
     let heat = ramp(0.24, 5);
 
-    let alpha_of_lift = |alpha: f32| with_alpha(lift, alpha);
-    let c = |color: Rgb| Color::from(color);
-
     Colors {
-        chrome: c(chrome),
-        chrome_bar: c(chrome_bar),
-        pane_head: c(pane_head),
-        pane_head_focus: c(lifted(0.045)),
-        raised: c(raised),
+        chrome: p.surface,
+        chrome_bar: p.surface_raised,
+        pane_head: p.surface,
+        pane_head_focus: p.surface_raised,
+        raised: p.surface_raised,
         card: c(card),
-        sep: c(mix(bg, Rgb::BLACK, if is_dark { 0.5 } else { 0.14 })),
-        line: alpha_of_lift(line_alpha as f32),
-        line_strong: alpha_of_lift(if is_dark { 0.12 } else { 0.14 }),
-        accent_hi: c(text(
-            if is_dark {
-                mix(accent, Rgb::WHITE, 0.22)
-            } else {
-                accent
-            },
-            None,
-        )),
-        // An agent's state, always in these four, and always with its shape in
-        // the UI. Each comes twice: the word, at 4.5:1 like any text, and the
-        // fill of its glyph, a bar or a frame, held only to 3:1 so it keeps
-        // the theme's own vivid colour.
-        state_working: c(text(green, None)),
-        state_working_fill: c(fill(green)),
-        state_waiting: c(text(amber, None)),
-        state_waiting_fill: c(fill(amber)),
-        state_yours: c(text(yours, None)),
-        state_yours_fill: c(fill(yours)),
-        state_idle: c(quieter(0.55, &anywhere)),
-        state_idle_fill: c(fill(mix(fg, bg, 0.55))),
-        bg: c(bg),
-        bg_sunken: c(bg_sunken),
-        surface: c(mix(bg, lift, 0.04)),
-        surface_hover: c(mix(bg, lift, 0.08)),
-        surface_active: c(selection),
-        border: c(mix(bg, lift, 0.11)),
-        border_strong: c(mix(bg, lift, 0.2)),
-        fg: c(fg),
-        // Secondary text in three steps (labels, then metadata, then the
-        // quietest hints, paths and counts), each at 4.5:1 on every surface it
-        // is drawn on, which on a low-contrast theme draws them closer
-        // together.
-        fg_secondary: c(quieter(0.24, &anywhere)),
-        fg_muted: c(quieter(0.33, &surfaces)),
-        fg_subtle: c(quieter(0.5, &surfaces)),
-        accent: c(accent),
+        sep: p.surface_sunken,
+        line: p.border,
+        line_strong: p.border_strong,
+        accent_hi: c(text(rgb(p.accent_text))),
+        // An agent's state, always with its shape in the UI. Each comes twice:
+        // the word, at 4.5:1 like any text, and the fill of its glyph, a bar
+        // or a frame, at 3:1.
+        state_working: c(text(rgb(status.running))),
+        state_working_fill: c(fill(rgb(status.running))),
+        state_waiting: c(text(waiting)),
+        state_waiting_fill: c(fill(waiting)),
+        state_yours: c(text(rgb(status.active))),
+        state_yours_fill: c(fill(rgb(status.active))),
+        state_idle: c(text(rgb(p.text_muted))),
+        state_idle_fill: c(fill(rgb(status.inactive))),
+        bg: p.bg,
+        bg_sunken: p.surface_sunken,
+        surface: p.surface,
+        surface_hover: c(hover),
+        surface_active: p.selection_bg,
+        border: p.border,
+        border_strong: p.border_strong,
+        fg: c(text(fg)),
+        fg_secondary: c(text(rgb(p.text_secondary))),
+        fg_muted: quiet(p.text_muted),
+        fg_subtle: quiet(p.text_muted),
+        accent: p.accent,
         accent_soft: with_alpha(accent, 0.14),
-        accent_ring: with_alpha(accent, 0.45),
-        accent_fg: c(on_accent),
-        danger: c(danger),
-        danger_soft: with_alpha(danger, 0.14),
-        success: c(text(green, None)),
-        // Same amber as the waiting state, for the same reason.
-        warning: c(text(amber, None)),
+        accent_ring: with_alpha(rgb(p.focus_ring), 0.45),
+        accent_fg: p.on_accent,
+        danger: c(text(rgb(status.failed))),
+        danger_soft: with_alpha(rgb(status.failed), 0.14),
+        success: c(text(rgb(status.completed))),
+        warning: c(text(waiting)),
         shadow: if is_dark {
             Color::from_rgba8(0, 0, 0, 0.45)
         } else {
             Color::from_rgba8(0, 0, 0, 0.12)
         },
-        // What floats over the window gets a dark outer edge under its light
-        // hairline on a dark theme, so a panel never melts into what is
-        // behind it; on a light theme the shadow does that almost alone.
+        // What floats over the window gets a dark outer edge under its hairline
+        // on a dark theme, so a panel never melts into what is behind it; on a
+        // light theme the shadow does that almost alone.
         float_ring: if is_dark {
             Color::from_rgba8(0, 0, 0, 0.55)
         } else {
             Color::from_rgba8(0, 0, 0, 0.05)
         },
         // A segmented control: a recessed track, and the chosen segment
-        // raised out of it, lighter on a dark theme and white on a light one.
-        // On a dark theme of little contrast it rises only as far as its
-        // label still reads.
-        seg_track: c(if is_dark { bg } else { mix(bg, lift, 0.13) }),
-        seg_thumb: c(if is_dark {
-            ensure_contrast(
-                mix(chrome_bar, fg, 0.17),
-                &[fg],
-                TEXT_CONTRAST,
-                Some(chrome_bar),
-            )
-        } else {
-            bg_sunken
-        }),
+        // raised out of it.
+        seg_track: p.surface_sunken,
+        seg_thumb: if is_dark { p.surface_raised } else { p.surface },
         viz_1: c(series[0]),
         viz_2: c(series[1]),
         viz_3: c(series[2]),

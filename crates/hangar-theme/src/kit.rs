@@ -93,11 +93,13 @@ mod tests {
                 .find(|(token, _)| token == name)
                 .map(|(_, value)| value.as_str())
         };
-        // --chrome, --fg and --accent of Graphite.
-        assert_eq!(get("--kit-bg"), Some("#1b1c1f"));
+        // --chrome (the surface, a step from the terminal background by the
+        // pack's rule), --fg and --accent of Graphite, and its hairline, which
+        // is now the palette's opaque border.
+        assert_eq!(get("--kit-bg"), Some("#191a1d"));
         assert_eq!(get("--kit-text"), Some("#c8c9ce"));
         assert_eq!(get("--kit-accent"), Some("#3e8bff"));
-        assert_eq!(get("--kit-line"), Some("rgba(255, 255, 255, 0.07)"));
+        assert_eq!(get("--kit-line"), Some("#2a2b2e"));
     }
 
     /// The colour blocks of `kit.css` are written from these themes by

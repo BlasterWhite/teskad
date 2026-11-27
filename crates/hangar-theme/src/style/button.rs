@@ -58,18 +58,18 @@ fn by_status(status: Status, rest: Look, hover: Look, press: Look) -> Style {
 /// (`.btn--primary`). It brightens under the pointer and dims when pressed.
 pub fn primary(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
     move |_, status| {
-        let c = &t.colors;
+        let p = &t.palette;
         let look = |background: Color| Look {
             background: Some(background),
-            text: c.accent_fg,
+            text: p.on_accent,
             border: rounded(radius::MD),
             shadow: drop_shadow(Color::from_rgba(0.0, 0.0, 0.0, 0.3), 1.0, 2.0),
         };
         by_status(
             status,
-            look(c.accent),
-            look(brightness(c.accent, 1.08)),
-            look(brightness(c.accent, 0.94)),
+            look(p.accent),
+            look(p.accent_hover),
+            look(p.accent_pressed),
         )
     }
 }

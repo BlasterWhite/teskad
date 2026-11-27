@@ -1,0 +1,34 @@
+{
+  "$schema": "./theme.schema.json",
+  "id": "panda",
+  "name": "Panda",
+  "appearance": "dark",
+  "terminal": {
+    "background": "#292A2B",
+    "foreground": "#E6E6E6",
+    "cursor": "#FF2C6D",
+    "cursorText": "#292A2B",
+    "selection": "#414243",
+    "ansi": {
+      "black": "#292A2B",
+      "red": "#FF2C6D",
+      "green": "#19F9D8",
+      "yellow": "#FFB86C",
+      "blue": "#45A9F9",
+      "magenta": "#FF75B5",
+      "cyan": "#6FC1FF",
+      "white": "#E6E6E6",
+      "brightBlack": "#676B79",
+      "brightRed": "#FF2C6D",
+      "brightGreen": "#19F9D8",
+      "brightYellow": "#FFCC95",
+      "brightBlue": "#6FC1FF",
+      "brightMagenta": "#FF9AC1",
+      "brightCyan": "#B084EB",
+      "brightWhite": "#FFFFFF"
+    }
+  },
+  "ui": {
+    "accent": "#19F9D8"
+  }
+}

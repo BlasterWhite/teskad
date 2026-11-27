@@ -1,12 +1,13 @@
-//! The themes of Hangar: the 33 palettes the web app had (`src/themes.ts`, tag
+//! The themes of Teskad: the 33 palettes the web app had (`src/themes.ts`, tag
 //! v1.12.1), the colours of the whole window derived from them, the design
 //! tokens of the stylesheets, and how all of it maps onto iced.
 //!
 //! See docs/native/PLAN.md, "hangar-theme".
 //!
 //! - [`themes`], [`by_id`], [`DEFAULT_ID`]: the bundled [`Theme`]s. A theme
-//!   restyles the whole window, not only the terminals: [`Theme::colors`] has
-//!   every token of the chrome (surfaces, hairlines, text levels, the accent,
+//!   restyles the whole window, not only the terminals: [`Theme::palette`] is
+//!   the one set of semantic colours of the interface ([`Palette`]),
+//!   [`Theme::colors`] the finer tokens computed from it (surfaces, hairlines,
 //!   the agent states, the statistics) and [`Theme::terminal`] the colours a
 //!   terminal is drawn with. Any theme can let the desktop show through the
 //!   window, at the opacity the person sets ([`Theme::with_window_opacity`]):
@@ -21,52 +22,58 @@
 //!   with which views name a role instead of a colour.
 //! - [`fonts`]: Inter, Space Grotesk and JetBrains Mono, as bytes for iced to load and `Font`s to ask for.
 //! - [`kit_tokens`]: what kits are told of the theme.
-//! - [`contrast`] and [`derive_colors`]: the colour arithmetic and the rules
-//!   that turn a palette into a window, ported from `src/lib/contrast.ts` and
-//!   `deriveChromeTokens`.
+//! - [`contrast`], [`derive_palette`] and [`derive_colors`]: the colour
+//!   arithmetic and the rules that turn a terminal palette into a window
+//!   (`docs/teskad-brand/docs/themes.md`), and the contrast check
+//!   ([`contrast_failures`]).
+//! - [`fixed`]: the few colours no theme chooses.
 //!
 //! # Adding a theme
 //!
-//! The themes are the table in `data.rs`: it was first written from the web
-//! app's TypeScript, and is the source now.
+//! A theme is a JSON file in `themes/`, in the format of the brand pack's
+//! `theme.schema.json` (`docs/teskad-brand/themes`).
 //!
-//! 1. Add a `Theme` to `THEMES`, with the dark themes before the light ones,
-//!    and raise the array's length and the count in `cover_every_theme`. Its
-//!    `id` is what settings store: lowercase letters, digits and `-`, never
-//!    changed once released.
-//! 2. Write its `terminal` palette and the `accent` of its `colors`. For the
-//!    rest of `colors`, copy any theme's for now. Its `window_opacity` is
-//!    `SOLID`, as every theme's.
-//! 3. Run `cargo test -p hangar-theme`. The derivation test fails on the new
-//!    theme and prints the whole `colors: Colors { ... }` entry that
-//!    [`derive_colors`] gives for its palette and accent: paste it over the
-//!    copied one. The contrast tests then say whether the palette reads.
+//! 1. Write `themes/<id>.json`: `id` (lowercase letters, digits and `-`, never
+//!    changed once released), `name`, `appearance`, the `terminal` colours and,
+//!    only when the theme's main colour is not its ANSI magenta, `"ui":
+//!    {"accent": "#..."}`. Every other interface colour is derived.
+//! 2. List it in `FILES` of `bundled.rs`, the dark themes before the light
+//!    ones, and raise the array's length and the count in `are_35_and_every_one_is_read_strictly`.
+//! 3. Run `cargo test -p hangar-theme`: the contrast tests say whether the
+//!    palette reads, and what the derivation corrected is already in it.
 //! 4. If one of the two themes `crates/hangar-core/kit-sdk/tokens.json` names
 //!    changed, run `node scripts/gen-hangar-ui.mjs` for the kits' stylesheet;
 //!    the `kit` tests fail until it is.
 
+mod bundled;
 pub mod contrast;
-mod data;
 mod derive;
+pub mod fixed;
 pub mod fonts;
 mod iced_theme;
 mod kit;
+mod palette;
+mod spec;
 pub mod style;
 mod theme;
 pub mod tokens;
 
+pub use bundled::theme_files;
 pub use contrast::{
     HueAndSaturation, Rgb, contrast_ratio, ensure_contrast, farthest_pole, hue_and_saturation,
     hue_distance, mix, over, perceived_lightness, relative_luminance, with_hue, worst_contrast,
 };
-pub use derive::{FILL_CONTRAST, TEXT_CONTRAST, derive_colors};
+pub use derive::{
+    BORDER_CONTRAST, FILL_CONTRAST, TEXT_CONTRAST, contrast_failures, derive_colors, derive_palette,
+};
 pub use iced_theme::to_iced;
 pub use kit::{css, kit_default_themes, kit_tokens};
+pub use palette::{Palette, Status};
+pub use spec::{ThemeSpec, UiOverrides};
 pub use theme::{
     AgentState, Appearance, Colors, DEFAULT_ID, MIN_WINDOW_OPACITY, SearchColors, StateColors,
     TerminalColors, Theme, by_id, by_id_or_default, default_theme, themes,
 };
-pub(crate) use theme::{rgb, rgba};
 
 #[cfg(test)]
 mod tests;

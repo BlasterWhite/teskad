@@ -47,38 +47,41 @@ pub struct Palette {
 }
 
 impl Default for Palette {
-    /// Hangar's graphite theme, which is also what a terminal looks like
-    /// before the app has said anything about the theme.
+    /// Teskad Dark's terminal colours (`crates/hangar-theme/themes/
+    /// teskad-dark.json`), which is also what a terminal looks like before the
+    /// app has said anything about the theme. This crate does not depend on
+    /// the theme crate, so the values are written here, once, and a test of
+    /// the app holds them to the theme's file (`panes::look`).
     fn default() -> Self {
         let hex = |rgb: u32| Color::from_rgb8((rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8);
         Self {
-            foreground: hex(0xc8c9ce),
-            background: hex(0x121316),
+            foreground: hex(0xdcd5e6),
+            background: hex(0x0b0a0e),
             background_opacity: 1.0,
-            cursor: hex(0xd8d9dd),
-            cursor_text: hex(0x121316),
-            selection_background: hex(0x2a3954),
+            cursor: hex(0xc9b6ff),
+            cursor_text: hex(0x0b0a0e),
+            selection_background: hex(0x3a2a55),
             ansi: [
-                hex(0x1b1c1f),
-                hex(0xff7b72),
-                hex(0x5fd27f),
-                hex(0xe7c06b),
-                hex(0x79b0ff),
-                hex(0xc79bff),
-                hex(0x6fd3df),
-                hex(0xc8c9ce),
-                hex(0x6b6c73),
-                hex(0xff9a92),
-                hex(0x7fe29b),
-                hex(0xf2d38b),
-                hex(0x9cc4ff),
-                hex(0xd8b6ff),
-                hex(0x93e3ec),
-                hex(0xecedf0),
+                hex(0x1a1422),
+                hex(0xff6a55),
+                hex(0x4fd8a4),
+                hex(0xffc15e),
+                hex(0x7aa2ff),
+                hex(0xe040b0),
+                hex(0x5ed4e6),
+                hex(0xc8bfd4),
+                hex(0x5e536f),
+                hex(0xff8a78),
+                hex(0x7be6be),
+                hex(0xffd38a),
+                hex(0x9dbbff),
+                hex(0xff6fb0),
+                hex(0x8be3ef),
+                hex(0xf2eef7),
             ],
             indexed: None,
-            search_match: hex(0xe7c06b),
-            search_active: hex(0x3e8bff),
+            search_match: hex(0xffc15e),
+            search_active: hex(0x8a4dff),
         }
     }
 }

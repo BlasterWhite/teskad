@@ -1,0 +1,34 @@
+{
+  "$schema": "./theme.schema.json",
+  "id": "shades-of-purple",
+  "name": "Shades of Purple",
+  "appearance": "dark",
+  "terminal": {
+    "background": "#2D2B55",
+    "foreground": "#FFFFFF",
+    "cursor": "#FAD000",
+    "cursorText": "#2D2B55",
+    "selection": "#4D21FC",
+    "ansi": {
+      "black": "#1E1E3F",
+      "red": "#FF628C",
+      "green": "#3AD900",
+      "yellow": "#FAD000",
+      "blue": "#40C4FF",
+      "magenta": "#FB94FF",
+      "cyan": "#80FCFF",
+      "white": "#FFFFFF",
+      "brightBlack": "#A599E9",
+      "brightRed": "#FF628C",
+      "brightGreen": "#3AD900",
+      "brightYellow": "#FAD000",
+      "brightBlue": "#9EFFFF",
+      "brightMagenta": "#FB94FF",
+      "brightCyan": "#80FCFF",
+      "brightWhite": "#FFFFFF"
+    }
+  },
+  "ui": {
+    "accent": "#FAD000"
+  }
+}

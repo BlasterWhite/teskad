@@ -1,0 +1,34 @@
+{
+  "$schema": "./theme.schema.json",
+  "id": "monokai-pro",
+  "name": "Monokai Pro",
+  "appearance": "dark",
+  "terminal": {
+    "background": "#2D2A2E",
+    "foreground": "#FCFCFA",
+    "cursor": "#FCFCFA",
+    "cursorText": "#2D2A2E",
+    "selection": "#5B595C",
+    "ansi": {
+      "black": "#403E41",
+      "red": "#FF6188",
+      "green": "#A9DC76",
+      "yellow": "#FFD866",
+      "blue": "#FC9867",
+      "magenta": "#AB9DF2",
+      "cyan": "#78DCE8",
+      "white": "#FCFCFA",
+      "brightBlack": "#727072",
+      "brightRed": "#FF6188",
+      "brightGreen": "#A9DC76",
+      "brightYellow": "#FFD866",
+      "brightBlue": "#FC9867",
+      "brightMagenta": "#AB9DF2",
+      "brightCyan": "#78DCE8",
+      "brightWhite": "#FCFCFA"
+    }
+  },
+  "ui": {
+    "accent": "#FFD866"
+  }
+}

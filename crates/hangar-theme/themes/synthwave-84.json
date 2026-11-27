@@ -1,0 +1,32 @@
+{
+  "$schema": "./theme.schema.json",
+  "id": "synthwave-84",
+  "name": "SynthWave '84",
+  "appearance": "dark",
+  "terminal": {
+    "background": "#262335",
+    "foreground": "#F8F8F2",
+    "cursor": "#FF7EDB",
+    "cursorText": "#262335",
+    "selection": "#463465",
+    "ansi": {
+      "black": "#2A2139",
+      "red": "#FE4450",
+      "green": "#72F1B8",
+      "yellow": "#FEDE5D",
+      "blue": "#03EDF9",
+      "magenta": "#FF7EDB",
+      "cyan": "#36F9F6",
+      "white": "#F8F8F2",
+      "brightBlack": "#495495",
+      "brightRed": "#FE4450",
+      "brightGreen": "#72F1B8",
+      "brightYellow": "#FEDE5D",
+      "brightBlue": "#03EDF9",
+      "brightMagenta": "#FF7EDB",
+      "brightCyan": "#36F9F6",
+      "brightWhite": "#FFFFFF"
+    }
+  },
+  "ui": {}
+}

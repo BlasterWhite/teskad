@@ -1,0 +1,34 @@
+{
+  "$schema": "./theme.schema.json",
+  "id": "horizon",
+  "name": "Horizon",
+  "appearance": "dark",
+  "terminal": {
+    "background": "#1C1E26",
+    "foreground": "#D5D8DA",
+    "cursor": "#E95678",
+    "cursorText": "#1C1E26",
+    "selection": "#2E303E",
+    "ansi": {
+      "black": "#16161C",
+      "red": "#E95678",
+      "green": "#29D398",
+      "yellow": "#FAB795",
+      "blue": "#26BBD9",
+      "magenta": "#EE64AC",
+      "cyan": "#59E3E3",
+      "white": "#FADAD1",
+      "brightBlack": "#3D3F4C",
+      "brightRed": "#EC6A88",
+      "brightGreen": "#3FDAA4",
+      "brightYellow": "#FBC3A7",
+      "brightBlue": "#3FC6DE",
+      "brightMagenta": "#F075B7",
+      "brightCyan": "#6BE6E6",
+      "brightWhite": "#FDF0ED"
+    }
+  },
+  "ui": {
+    "accent": "#E95678"
+  }
+}

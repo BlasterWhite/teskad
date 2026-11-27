@@ -1,0 +1,34 @@
+{
+  "$schema": "./theme.schema.json",
+  "id": "github-dark",
+  "name": "GitHub Dark",
+  "appearance": "dark",
+  "terminal": {
+    "background": "#0D1117",
+    "foreground": "#C9D1D9",
+    "cursor": "#58A6FF",
+    "cursorText": "#0D1117",
+    "selection": "#263B5E",
+    "ansi": {
+      "black": "#484F58",
+      "red": "#FF7B72",
+      "green": "#3FB950",
+      "yellow": "#D29922",
+      "blue": "#58A6FF",
+      "magenta": "#BC8CFF",
+      "cyan": "#39C5CF",
+      "white": "#B1BAC4",
+      "brightBlack": "#6E7681",
+      "brightRed": "#FFA198",
+      "brightGreen": "#56D364",
+      "brightYellow": "#E3B341",
+      "brightBlue": "#79C0FF",
+      "brightMagenta": "#D2A8FF",
+      "brightCyan": "#56D4DD",
+      "brightWhite": "#F0F6FC"
+    }
+  },
+  "ui": {
+    "accent": "#58A6FF"
+  }
+}

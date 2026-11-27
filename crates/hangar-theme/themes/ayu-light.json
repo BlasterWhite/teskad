@@ -1,0 +1,34 @@
+{
+  "$schema": "./theme.schema.json",
+  "id": "ayu-light",
+  "name": "Ayu Light",
+  "appearance": "light",
+  "terminal": {
+    "background": "#FCFCFC",
+    "foreground": "#5C6166",
+    "cursor": "#FFAA33",
+    "cursorText": "#FCFCFC",
+    "selection": "#DFEAF5",
+    "ansi": {
+      "black": "#000000",
+      "red": "#EA6C6D",
+      "green": "#6CBF43",
+      "yellow": "#ECA944",
+      "blue": "#3199E1",
+      "magenta": "#9E75C7",
+      "cyan": "#46BA94",
+      "white": "#C7C7C7",
+      "brightBlack": "#8A9199",
+      "brightRed": "#F07171",
+      "brightGreen": "#86B300",
+      "brightYellow": "#F2AE49",
+      "brightBlue": "#399EE6",
+      "brightMagenta": "#A37ACC",
+      "brightCyan": "#4CBF99",
+      "brightWhite": "#D1D1D1"
+    }
+  },
+  "ui": {
+    "accent": "#F2AE49"
+  }
+}

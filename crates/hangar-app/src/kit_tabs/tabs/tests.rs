@@ -553,7 +553,7 @@ mod the_theme_a_tab_is_told {
 
     #[test]
     fn takes_any_theme_and_what_its_palette_gets_wrong_is_corrected_not_sent_as_it_is() {
-        use hangar_theme::{FILL_CONTRAST, TEXT_CONTRAST, derive_colors};
+        use hangar_theme::{FILL_CONTRAST, TEXT_CONTRAST, UiOverrides};
         let base = hangar_theme::by_id_or_default("graphite");
         let custom = |appearance: Appearance, background: u32, foreground: u32| {
             let rgb = |packed: u32| {
@@ -565,15 +565,11 @@ mod the_theme_a_tab_is_told {
             for slot in [1, 2, 3] {
                 terminal.ansi[slot] = rgb(background);
             }
-            let accent = rgb(0xff00aa);
-            Theme {
-                id: "custom",
-                name: "Not bundled",
-                appearance,
-                terminal,
-                colors: derive_colors(appearance, accent, &terminal),
-                ..*base
-            }
+            let ui = UiOverrides {
+                accent: Some(rgb(0xff00aa)),
+                ..UiOverrides::default()
+            };
+            Theme::derived("custom", "Not bundled", appearance, terminal, &ui)
         };
         for theme in [
             custom(Appearance::Dark, 0x101014, 0x1c1c20),

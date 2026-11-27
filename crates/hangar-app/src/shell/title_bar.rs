@@ -50,6 +50,7 @@ use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use hangar_i18n::{Key, args};
+use hangar_theme::fixed::{ON_WINDOWS_CLOSE, WINDOWS_CLOSE, WINDOWS_CLOSE_PRESSED};
 use hangar_theme::tokens::font_size;
 use hangar_theme::{Theme, fonts, tokens};
 use hangar_ui::{Icon, icon, tip};
@@ -236,12 +237,6 @@ const SIDE: f32 = 24.0;
 const GAP: f32 = tokens::space::MD;
 /// A Windows button's width: the full band tall, none between two.
 const WINDOWS_WIDTH: f32 = 36.0;
-/// Windows' close button under the pointer, and pressed.
-const WINDOWS_CLOSE: Color = Color::from_rgb(196.0 / 255.0, 43.0 / 255.0, 28.0 / 255.0);
-const WINDOWS_CLOSE_PRESSED: Color = Color {
-    a: 0.8,
-    ..WINDOWS_CLOSE
-};
 
 /// The buttons the toolbar holds on `side`: the start ones only where the
 /// navigator is not drawn (it holds them then).
@@ -402,9 +397,11 @@ fn look(
         let c = &t.colors;
         if windows_style() {
             let (background, text_color) = match (control, status) {
-                (Control::Close, button::Status::Hovered) => (Some(WINDOWS_CLOSE), Color::WHITE),
+                (Control::Close, button::Status::Hovered) => {
+                    (Some(WINDOWS_CLOSE), ON_WINDOWS_CLOSE)
+                }
                 (Control::Close, button::Status::Pressed) => {
-                    (Some(WINDOWS_CLOSE_PRESSED), Color::WHITE)
+                    (Some(WINDOWS_CLOSE_PRESSED), ON_WINDOWS_CLOSE)
                 }
                 (_, button::Status::Hovered) => (Some(Color { a: 0.08, ..c.fg }), c.fg),
                 (_, button::Status::Pressed) => (Some(Color { a: 0.05, ..c.fg }), c.fg),

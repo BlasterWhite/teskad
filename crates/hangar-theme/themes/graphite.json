@@ -1,0 +1,34 @@
+{
+  "$schema": "./theme.schema.json",
+  "id": "graphite",
+  "name": "Graphite",
+  "appearance": "dark",
+  "terminal": {
+    "background": "#121316",
+    "foreground": "#C8C9CE",
+    "cursor": "#D8D9DD",
+    "cursorText": "#121316",
+    "selection": "#2A3954",
+    "ansi": {
+      "black": "#1B1C1F",
+      "red": "#FF7B72",
+      "green": "#5FD27F",
+      "yellow": "#E7C06B",
+      "blue": "#79B0FF",
+      "magenta": "#C79BFF",
+      "cyan": "#6FD3DF",
+      "white": "#C8C9CE",
+      "brightBlack": "#6B6C73",
+      "brightRed": "#FF9A92",
+      "brightGreen": "#7FE29B",
+      "brightYellow": "#F2D38B",
+      "brightBlue": "#9CC4FF",
+      "brightMagenta": "#D8B6FF",
+      "brightCyan": "#93E3EC",
+      "brightWhite": "#ECEDF0"
+    }
+  },
+  "ui": {
+    "accent": "#3E8BFF"
+  }
+}

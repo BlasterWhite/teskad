@@ -1,73 +1,341 @@
-//! The themes held to what the web app's `src/themes.test.ts` held them to,
-//! plus the checks that make the port trustworthy: the Rust derivation must
-//! give the tokens the table holds, which the TypeScript first wrote.
+//! The bundled themes: files in the brand pack's format, each held to the
+//! contrast `docs/teskad-brand/docs/themes.md` requires, the two Teskad themes
+//! to the exact values of their files.
 
 use std::collections::HashSet;
 
 use iced::Color;
 
 use crate::{
-    AgentState, Colors, DEFAULT_ID, FILL_CONTRAST, MIN_WINDOW_OPACITY, Rgb, TEXT_CONTRAST, Theme,
-    by_id, by_id_or_default, contrast_ratio, default_theme, derive_colors, hue_and_saturation,
-    hue_distance, mix, over, perceived_lightness, themes,
+    DEFAULT_ID, MIN_WINDOW_OPACITY, Rgb, Theme, ThemeSpec, UiOverrides, by_id, by_id_or_default,
+    contrast_failures, contrast_ratio, default_theme, derive_palette, mix, perceived_lightness,
+    theme_files, themes,
 };
 
-/// The surfaces the chrome writes on; every token is held to all of them.
-fn surfaces(theme: &Theme) -> [Rgb; 4] {
-    let c = &theme.colors;
-    [c.chrome, c.chrome_bar, c.raised, c.pane_head].map(Rgb::from)
+/// A pack file, read from the brand pack itself when the checkout has it.
+fn pack_file(name: &str) -> Option<String> {
+    let path = format!(
+        "{}/../../docs/teskad-brand/themes/{name}",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    std::fs::read_to_string(path).ok()
 }
 
-/// Tokens that colour text: 4.5:1 on every surface.
-fn text_tokens(c: &Colors) -> [(&'static str, Color); 12] {
-    [
-        ("--fg", c.fg),
-        ("--fg-secondary", c.fg_secondary),
-        ("--fg-muted", c.fg_muted),
-        ("--fg-subtle", c.fg_subtle),
-        ("--accent-hi", c.accent_hi),
-        ("--state-working", c.state_working),
-        ("--state-waiting", c.state_waiting),
-        ("--state-yours", c.state_yours),
-        ("--state-idle", c.state_idle),
-        ("--danger", c.danger),
-        ("--success", c.success),
-        ("--warning", c.warning),
-    ]
+fn hex(color: Color) -> String {
+    let [r, g, b, a] = color.into_rgba8();
+    if a == 255 {
+        format!("#{r:02X}{g:02X}{b:02X}")
+    } else {
+        format!(
+            "rgba({r}, {g}, {b}, {})",
+            (f32::from(a) / 255.0 * 100.0).round() / 100.0
+        )
+    }
 }
 
-/// Everything that can also be written on a selected row, a chip or the
-/// toolbar's capsule, all of them a step further out, at `surface_active`.
-/// The two quietest greys are kept off those.
-fn selection_text_tokens(c: &Colors) -> Vec<(&'static str, Color)> {
-    text_tokens(c)
-        .into_iter()
-        .filter(|(name, _)| *name != "--fg-muted" && *name != "--fg-subtle")
-        .collect()
+mod the_theme_files {
+    use super::*;
+
+    #[test]
+    fn are_35_and_every_one_is_read_strictly() {
+        assert_eq!(theme_files().len(), 35);
+        for json in theme_files() {
+            let spec = ThemeSpec::parse(json).unwrap_or_else(|error| panic!("{error}"));
+            let theme = by_id(&spec.id).expect("a file is a bundled theme");
+            assert_eq!(theme.name, spec.name);
+            assert_eq!(theme.appearance, spec.appearance);
+            assert_eq!(theme.terminal, spec.terminal);
+        }
+    }
+
+    #[test]
+    fn refuse_what_the_schema_refuses() {
+        let good = theme_files()[2];
+        assert!(ThemeSpec::parse(good).is_ok());
+        let broken: [(&str, String); 7] = [
+            (
+                "an unknown key",
+                good.replacen("\"ui\"", "\"extra\": 1, \"ui\"", 1),
+            ),
+            ("a bad colour", good.replacen("\"#1A1B26\"", "\"blue\"", 1)),
+            (
+                "a short colour",
+                good.replacen("\"#1A1B26\"", "\"#1A1B2\"", 1),
+            ),
+            (
+                "a bad id",
+                good.replacen("\"tokyo-night\"", "\"Tokyo Night\"", 1),
+            ),
+            ("a bad appearance", good.replacen("\"dark\"", "\"grey\"", 1)),
+            ("a missing terminal", {
+                let mut json: serde_json::Value = serde_json::from_str(good).unwrap();
+                json.as_object_mut().unwrap().remove("terminal");
+                json.to_string()
+            }),
+            ("a missing ansi colour", {
+                let mut json: serde_json::Value = serde_json::from_str(good).unwrap();
+                json["terminal"]["ansi"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("cyan");
+                json.to_string()
+            }),
+        ];
+        for (what, json) in broken {
+            assert!(ThemeSpec::parse(&json).is_err(), "{what} is accepted");
+        }
+        let alpha = good.replacen(
+            "\"ui\": {",
+            "\"ui\": {\"hoverOverlay\": \"rgba(1, 2, 3, 1.5)\",",
+            1,
+        );
+        assert!(
+            ThemeSpec::parse(&alpha).is_err(),
+            "an alpha above 1 is accepted"
+        );
+        let rgba = good.replacen(
+            "\"ui\": {",
+            "\"ui\": {\"scrim\": \"rgba(1, 2, 3, 0.5)\",",
+            1,
+        );
+        assert!(ThemeSpec::parse(&rgba).is_ok());
+    }
+
+    #[test]
+    fn leave_the_interface_to_the_derivation_but_for_an_accent() {
+        for json in theme_files() {
+            let spec = ThemeSpec::parse(json).unwrap();
+            if spec.id.starts_with("teskad-") {
+                continue;
+            }
+            let set = UiOverrides {
+                accent: None,
+                ..spec.ui
+            };
+            assert_eq!(
+                set,
+                UiOverrides::default(),
+                "{} sets more than its accent",
+                spec.id
+            );
+        }
+        // Tokyo Night's own blue, not its magenta.
+        let tokyo = ThemeSpec::parse(theme_files()[2]).unwrap();
+        assert_eq!(tokyo.id, "tokyo-night");
+        assert_eq!(tokyo.ui.accent, Some(Rgb::hex("#7AA2F7").to_color()));
+    }
+
+    #[test]
+    fn teskad_files_are_the_packs_own_when_the_pack_is_there() {
+        for (name, index) in [("teskad-dark.json", 0), ("teskad-light.json", 26)] {
+            if let Some(pack) = pack_file(name) {
+                assert_eq!(
+                    theme_files()[index],
+                    pack,
+                    "{name} drifted from docs/teskad-brand"
+                );
+            }
+        }
+        if let Some(pack) = pack_file("theme.schema.json") {
+            let ours = include_str!("../themes/theme.schema.json");
+            assert_eq!(
+                ours, pack,
+                "theme.schema.json drifted from docs/teskad-brand"
+            );
+        }
+    }
 }
 
-/// A state's glyph, a bar, a frame: 3:1 on every surface.
-fn fill_tokens(c: &Colors) -> [(&'static str, Color); 4] {
-    [
-        ("--state-working-fill", c.state_working_fill),
-        ("--state-waiting-fill", c.state_waiting_fill),
-        ("--state-yours-fill", c.state_yours_fill),
-        ("--state-idle-fill", c.state_idle_fill),
-    ]
+mod the_contrast_of_every_theme {
+    use super::*;
+
+    /// The one finding the check has on a bundled theme: the pack's own
+    /// `border` is 1.27:1 on Teskad Dark's `bg` (#2A2135 on #0E0C12) and 1.22:1
+    /// on Teskad Light's (#E6E0EE on #FAF8FC), under the 1.3:1 `themes.md`
+    /// asks for. Both files are used as they are, so their border is held to
+    /// what it is (a hairline: `borderStrong` is the visible one).
+    const PACK_BORDERS: [&str; 2] = ["teskad-dark", "teskad-light"];
+
+    #[test]
+    fn every_bundled_theme_passes_the_check() {
+        for theme in themes() {
+            let failures = contrast_failures(&theme.palette);
+            if PACK_BORDERS.contains(&theme.id) {
+                assert_eq!(failures.len(), 1, "{failures:?}");
+                assert!(failures[0].starts_with("border on bg"), "{failures:?}");
+            } else {
+                assert!(failures.is_empty(), "{}: {failures:?}", theme.id);
+            }
+        }
+    }
+
+    #[test]
+    fn the_numbers_of_themes_md_hold_one_by_one() {
+        for theme in themes() {
+            let p = &theme.palette;
+            let (bg, surface) = (Rgb::from(p.bg), Rgb::from(p.surface));
+            let id = theme.id;
+            for (name, color) in [
+                ("text", p.text),
+                ("textSecondary", p.text_secondary),
+                ("textMuted", p.text_muted),
+                ("accentText", p.accent_text),
+            ] {
+                for (on, background) in [("bg", bg), ("surface", surface)] {
+                    let ratio = contrast_ratio(Rgb::from(color), background);
+                    assert!(ratio >= 4.495, "{id}: {name} on {on} is {ratio:.2}");
+                }
+            }
+            let on_accent = contrast_ratio(Rgb::from(p.on_accent), Rgb::from(p.accent));
+            assert!(
+                on_accent >= 4.495,
+                "{id}: onAccent on accent is {on_accent:.2}"
+            );
+            for (name, color) in [
+                ("running", p.status.running),
+                ("completed", p.status.completed),
+                ("failed", p.status.failed),
+                ("active", p.status.active),
+                ("inactive", p.status.inactive),
+            ] {
+                let ratio = contrast_ratio(Rgb::from(color), surface);
+                assert!(
+                    ratio >= 2.995,
+                    "{id}: status.{name} on surface is {ratio:.2}"
+                );
+            }
+            let border = contrast_ratio(Rgb::from(p.border), bg);
+            let least = if PACK_BORDERS.contains(&id) {
+                1.2
+            } else {
+                1.295
+            };
+            assert!(border >= least, "{id}: border on bg is {border:.2}");
+        }
+    }
+
+    #[test]
+    fn a_palette_the_derivation_gets_wrong_is_corrected_not_sent_as_it_is() {
+        let base = by_id("graphite").unwrap();
+        let custom = |appearance, background: &str, foreground: &str| {
+            let mut terminal = base.terminal;
+            terminal.background = Rgb::hex(background).to_color();
+            terminal.foreground = Rgb::hex(foreground).to_color();
+            // A red and a green that vanish into the background.
+            for slot in [1, 2] {
+                terminal.ansi[slot] = terminal.background;
+            }
+            Theme::derived(
+                "custom",
+                "Not bundled",
+                appearance,
+                terminal,
+                &UiOverrides::default(),
+            )
+        };
+        for theme in [
+            custom(crate::Appearance::Dark, "#101014", "#1c1c20"),
+            custom(crate::Appearance::Light, "#fafafa", "#eeeeee"),
+        ] {
+            assert_ne!(theme.palette.text, theme.terminal.foreground);
+            assert_ne!(theme.palette.status.failed, theme.terminal.ansi[1]);
+            let failures = contrast_failures(&theme.palette);
+            assert!(failures.is_empty(), "{failures:?}");
+        }
+    }
+
+    #[test]
+    fn what_a_theme_sets_is_kept_as_it_is_and_the_rest_follows_from_the_terminal() {
+        let tokyo = ThemeSpec::parse(theme_files()[2]).unwrap();
+        let mut ui = tokyo.ui;
+        ui.text = Some(Rgb::hex("#123456").to_color());
+        let p = derive_palette(tokyo.appearance, &tokyo.terminal, &ui);
+        assert_eq!(hex(p.text), "#123456");
+        assert_eq!(p.bg, tokyo.terminal.background);
+        assert_eq!(p.accent, tokyo.ui.accent.unwrap());
+        assert_eq!(p.selection_border, p.accent);
+        assert_eq!(p.focus_ring, p.accent_text);
+        assert_eq!(p.status.running, p.accent_text);
+        assert_eq!(p.status.completed, tokyo.terminal.ansi[2]);
+        assert_eq!(p.status.failed, tokyo.terminal.ansi[1]);
+    }
 }
 
-/// The fills a label or state word can sit on beyond the plain surfaces.
-fn fills(theme: &Theme) -> [Rgb; 2] {
-    let c = &theme.colors;
-    [
-        Rgb::from(c.surface_active),
-        // A hairline's tint over a raised group: a chip, the toolbar's capsule.
-        over(c.line, Rgb::from(c.raised)),
-    ]
-}
+mod the_teskad_themes {
+    use super::*;
 
-fn hue(color: Color) -> f64 {
-    hue_and_saturation(Rgb::from(color)).hue
+    /// A token of a pack file, as the pack writes it.
+    fn ui(json: &str, key: &str) -> String {
+        let value: serde_json::Value = serde_json::from_str(json).unwrap();
+        let mut at = &value["ui"];
+        for part in key.split('.') {
+            at = &at[part];
+        }
+        at.as_str().unwrap_or_else(|| panic!("{key}")).to_owned()
+    }
+
+    #[test]
+    fn are_their_files_exactly_with_nothing_computed() {
+        for (id, index) in [("teskad-dark", 0), ("teskad-light", 26)] {
+            let theme = by_id(id).unwrap();
+            let json = theme_files()[index];
+            for (name, color) in theme.palette.iter() {
+                let wanted = crate::spec::parse_color(&ui(json, name)).unwrap();
+                assert_eq!(color, wanted, "{id}: {name}");
+            }
+            let file: serde_json::Value = serde_json::from_str(json).unwrap();
+            let t = &theme.terminal;
+            assert_eq!(hex(t.background), file["terminal"]["background"]);
+            assert_eq!(hex(t.foreground), file["terminal"]["foreground"]);
+            assert_eq!(hex(t.cursor), file["terminal"]["cursor"]);
+            assert_eq!(hex(t.selection), file["terminal"]["selection"]);
+            assert_eq!(hex(t.ansi[5]), file["terminal"]["ansi"]["magenta"]);
+        }
+    }
+
+    #[test]
+    fn dark_has_the_packs_surfaces_and_white_on_its_violet() {
+        let p = &by_id("teskad-dark").unwrap().palette;
+        assert_eq!(hex(p.bg), "#0E0C12");
+        assert_eq!(hex(p.surface), "#17121E");
+        assert_eq!(hex(p.surface_raised), "#1F1828");
+        assert_eq!(hex(p.surface_sunken), "#0B0A0E");
+        assert_eq!(hex(p.accent), "#8A4DFF");
+        assert_eq!(hex(p.on_accent), "#FFFFFF");
+        assert_eq!(hex(p.status.failed), "#FF6A55");
+        assert_eq!(hex(p.status.completed), "#4FD8A4");
+    }
+
+    #[test]
+    fn light_has_the_packs_surfaces_and_states() {
+        let p = &by_id("teskad-light").unwrap().palette;
+        assert_eq!(hex(p.bg), "#FAF8FC");
+        assert_eq!(hex(p.surface), "#FFFFFF");
+        assert_eq!(hex(p.surface_sunken), "#F1EDF6");
+        assert_eq!(hex(p.accent_text), "#5B2FC9");
+        assert_eq!(hex(p.status.running), "#6D3BE0");
+        assert_eq!(hex(p.status.completed), "#0F7A55");
+    }
+
+    #[test]
+    fn are_the_first_of_their_appearance_and_the_default_is_the_dark_one() {
+        assert_eq!(themes()[0].id, "teskad-dark");
+        let first_light = themes().iter().find(|theme| !theme.is_dark()).unwrap();
+        assert_eq!(first_light.id, "teskad-light");
+        assert_eq!(DEFAULT_ID, "teskad-dark");
+        // Nothing was removed: the old default is still there to be chosen.
+        assert!(by_id("graphite").is_some());
+    }
+
+    #[test]
+    fn never_use_the_brand_magenta_for_a_failure() {
+        for id in ["teskad-dark", "teskad-light"] {
+            let theme = by_id(id).unwrap();
+            let magenta = Rgb::hex("#E040B0").to_color();
+            assert_ne!(theme.palette.status.failed, magenta, "{id}");
+            assert_ne!(theme.colors.danger, magenta, "{id}");
+        }
+    }
 }
 
 mod the_bundled_themes {
@@ -152,7 +420,7 @@ mod the_bundled_themes {
             let distinct: HashSet<_> = t.ansi.iter().map(|c| c.into_rgba8()).collect();
             assert!(distinct.len() >= 8, "{}", theme.id);
 
-            assert_eq!(theme.colors.iter().count(), Colors::CSS_NAMES.len());
+            assert_eq!(theme.colors.iter().count(), crate::Colors::CSS_NAMES.len());
             for (name, color) in theme.colors.iter() {
                 for channel in [color.r, color.g, color.b, color.a] {
                     assert!(
@@ -162,15 +430,15 @@ mod the_bundled_themes {
                     );
                 }
             }
-            assert_eq!(theme.colors.accent, theme.accent());
-            assert_eq!(theme.colors.bg, theme.terminal.background, "{}", theme.id);
+            assert_eq!(theme.palette.accent, theme.accent());
+            assert_eq!(theme.colors.accent, theme.palette.accent);
         }
     }
 
     #[test]
     fn name_every_css_token_once_and_find_it_again() {
-        let names: HashSet<_> = Colors::CSS_NAMES.iter().collect();
-        assert_eq!(names.len(), Colors::CSS_NAMES.len());
+        let names: HashSet<_> = crate::Colors::CSS_NAMES.iter().collect();
+        assert_eq!(names.len(), crate::Colors::CSS_NAMES.len());
         let theme = default_theme();
         for (name, color) in theme.colors.iter() {
             assert!(name.starts_with("--"));
@@ -185,46 +453,6 @@ mod the_bundled_themes {
             let lightness = perceived_lightness(Rgb::from(theme.terminal.background));
             assert_eq!(theme.is_dark(), lightness < 0.5, "{}", theme.id);
         }
-    }
-}
-
-mod the_teskad_themes {
-    use super::*;
-
-    fn pack(hex: &str) -> Color {
-        Rgb::hex(hex).to_color()
-    }
-
-    #[test]
-    fn take_the_brand_packs_accent_terminal_background_and_state_colours() {
-        for (id, sunken, failed, completed) in [
-            ("teskad-dark", "#0B0A0E", "#FF6A55", "#4FD8A4"),
-            ("teskad-light", "#F1EDF6", "#C9382A", "#0F7A55"),
-        ] {
-            let theme = by_id(id).unwrap();
-            assert_eq!(theme.colors.accent, pack("#8A4DFF"), "{id}");
-            assert_eq!(theme.terminal.background, pack(sunken), "{id}");
-            // ANSI red is the failure coral and green the completed green; the
-            // brand magenta is the dark theme's ANSI magenta and nothing else's.
-            assert_eq!(theme.terminal.ansi[1], pack(failed), "{id}");
-            assert_eq!(theme.terminal.ansi[2], pack(completed), "{id}");
-            assert_ne!(theme.terminal.ansi[1], pack("#E040B0"), "{id}");
-            assert_ne!(theme.colors.danger, pack("#E040B0"), "{id}");
-        }
-        assert_eq!(
-            by_id("teskad-dark").unwrap().terminal.ansi[5],
-            pack("#E040B0")
-        );
-    }
-
-    #[test]
-    fn are_the_first_of_their_appearance_and_the_default_is_the_dark_one() {
-        assert_eq!(themes()[0].id, "teskad-dark");
-        let first_light = themes().iter().find(|theme| !theme.is_dark()).unwrap();
-        assert_eq!(first_light.id, "teskad-light");
-        assert_eq!(DEFAULT_ID, "teskad-dark");
-        // Nothing was removed: the old default is still there to be chosen.
-        assert!(by_id("graphite").is_some());
     }
 }
 
@@ -307,230 +535,6 @@ mod window_opacity {
             theme.with_window_opacity(0.1).window_opacity,
             MIN_WINDOW_OPACITY
         );
-    }
-}
-
-mod the_derivation_of_the_chrome_tokens {
-    use super::*;
-
-    /// A `colors` entry of `data.rs` as it is written there.
-    fn rust_block(colors: &Colors) -> String {
-        let lines: Vec<String> = colors
-            .iter()
-            .map(|(name, color)| {
-                let field = name.trim_start_matches("--").replace('-', "_");
-                let [r, g, b, _] = color.into_rgba8();
-                if color.a >= 1.0 {
-                    format!("            {field}: rgb(0x{r:02x}{g:02x}{b:02x}),")
-                } else {
-                    format!("            {field}: rgba({r}, {g}, {b}, {}),", color.a)
-                }
-            })
-            .collect();
-        format!(
-            "        colors: Colors {{\n{}\n        }},",
-            lines.join("\n")
-        )
-    }
-
-    #[test]
-    fn gives_on_every_theme_the_tokens_the_typescript_gives() {
-        // The tables were first written by running the web app's
-        // deriveChromeTokens; this is the port of it, which has to agree to
-        // the last channel. A theme added to data.rs is held to it too: on a
-        // mismatch the message is the whole `colors` entry the derivation
-        // gives, ready to paste over the theme's.
-        for theme in themes() {
-            let derived = derive_colors(theme.appearance, theme.colors.accent, &theme.terminal);
-            let agree = theme
-                .colors
-                .iter()
-                .zip(derived.iter())
-                .all(|((_, expected), (_, got))| {
-                    got.into_rgba8() == expected.into_rgba8() && (got.a - expected.a).abs() < 1e-6
-                });
-            assert!(
-                agree,
-                "{}: the colours are not the ones its palette and accent give; they are\n{}",
-                theme.id,
-                rust_block(&derived)
-            );
-        }
-    }
-
-    #[test]
-    fn prints_an_entry_the_way_the_table_writes_it() {
-        // What the test above prints is pasted into data.rs: it has to read
-        // exactly as the entries already there.
-        // A Windows checkout may hold the file with CRLF line ends.
-        let table = include_str!("data.rs").replace("\r\n", "\n");
-        for theme in themes() {
-            assert!(table.contains(&rust_block(&theme.colors)), "{}", theme.id);
-        }
-    }
-}
-
-mod on_every_bundled_theme {
-    use super::*;
-
-    #[test]
-    fn every_text_token_is_written_at_4_5_to_1_on_every_surface() {
-        for theme in themes() {
-            for (name, color) in text_tokens(&theme.colors) {
-                for surface in surfaces(theme) {
-                    let ratio = contrast_ratio(Rgb::from(color), surface);
-                    assert!(
-                        ratio >= TEXT_CONTRAST,
-                        "{}: {name} on {surface:?} is {ratio:.2}",
-                        theme.id
-                    );
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn labels_state_words_and_links_read_at_4_5_to_1_on_the_selection_and_on_chips() {
-        for theme in themes() {
-            for (name, color) in selection_text_tokens(&theme.colors) {
-                for fill in fills(theme) {
-                    let ratio = contrast_ratio(Rgb::from(color), fill);
-                    assert!(
-                        ratio >= TEXT_CONTRAST,
-                        "{}: {name} on {fill:?} is {ratio:.2}",
-                        theme.id
-                    );
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn every_state_fill_is_drawn_at_3_to_1_on_every_surface_and_fill() {
-        for theme in themes() {
-            let on: Vec<Rgb> = surfaces(theme).into_iter().chain(fills(theme)).collect();
-            for (name, color) in fill_tokens(&theme.colors) {
-                for surface in &on {
-                    let ratio = contrast_ratio(Rgb::from(color), *surface);
-                    assert!(
-                        ratio >= FILL_CONTRAST,
-                        "{}: {name} on {surface:?} is {ratio:.2}",
-                        theme.id
-                    );
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn the_chosen_segments_label_reads_at_4_5_to_1() {
-        for theme in themes() {
-            let c = &theme.colors;
-            assert!(
-                contrast_ratio(Rgb::from(c.fg), Rgb::from(c.seg_thumb)) >= TEXT_CONTRAST,
-                "{}",
-                theme.id
-            );
-        }
-    }
-
-    #[test]
-    fn text_on_the_accent_reads_at_4_5_to_1() {
-        for theme in themes() {
-            let c = &theme.colors;
-            assert!(
-                contrast_ratio(Rgb::from(c.accent_fg), Rgb::from(c.accent)) >= TEXT_CONTRAST,
-                "{}",
-                theme.id
-            );
-        }
-    }
-
-    #[test]
-    fn your_turn_has_a_hue_apart_from_the_accent_and_from_working() {
-        for theme in themes() {
-            let c = &theme.colors;
-            // 30 degrees, give or take the rounding to 8-bit channels.
-            let yours = hue(c.state_yours_fill);
-            assert!(hue_distance(yours, hue(c.accent)) >= 29.0, "{}", theme.id);
-            assert!(
-                hue_distance(yours, hue(c.state_working_fill)) >= 29.0,
-                "{}",
-                theme.id
-            );
-        }
-    }
-}
-
-mod on_the_themes_the_app_is_designed_in {
-    use super::*;
-
-    fn hex(color: Color) -> String {
-        Rgb::from(color).to_hex()
-    }
-
-    #[test]
-    fn graphite_keeps_its_own_state_colours_where_they_already_read() {
-        let c = &by_id("graphite").unwrap().colors;
-        assert_eq!(hex(c.state_working), "#5fd27f");
-        assert_eq!(hex(c.state_working_fill), "#5fd27f");
-        assert_eq!(hex(c.state_waiting), "#e7c06b");
-        // Graphite's cyan, not its blue accent.
-        assert!(hue_distance(hue(c.state_yours), hue(Color::from_rgb8(0x6f, 0xd3, 0xdf))) < 2.0);
-    }
-
-    #[test]
-    fn graphite_and_github_light_keep_the_secondary_text_the_stylesheets_mixed() {
-        for id in ["graphite", "github-light"] {
-            let theme = by_id(id).unwrap();
-            let fg = Rgb::from(theme.terminal.foreground);
-            let bg = Rgb::from(theme.terminal.background);
-            assert_eq!(Rgb::from(theme.colors.fg), fg, "{id}");
-            assert_eq!(
-                Rgb::from(theme.colors.fg_secondary),
-                mix(fg, bg, 0.24),
-                "{id}"
-            );
-        }
-    }
-
-    #[test]
-    fn graphites_three_secondary_steps_are_in_order_brightest_first() {
-        let c = &by_id("graphite").unwrap().colors;
-        let on = |color: Color| contrast_ratio(Rgb::from(color), Rgb::from(c.raised));
-        assert!(on(c.fg) > on(c.fg_secondary));
-        assert!(on(c.fg_secondary) > on(c.fg_muted));
-        assert!(on(c.fg_muted) >= on(c.fg_subtle));
-    }
-
-    #[test]
-    fn a_light_themes_state_colours_darken_into_words_and_stay_vivid_as_fills() {
-        let theme = by_id("ayu-light").unwrap();
-        let c = &theme.colors;
-        assert_ne!(c.state_working_fill, c.state_working);
-        let green = theme.terminal.ansi[2];
-        assert!(
-            contrast_ratio(Rgb::from(c.state_working), Rgb::WHITE)
-                > contrast_ratio(Rgb::from(green), Rgb::WHITE)
-        );
-    }
-
-    #[test]
-    fn a_card_sits_on_the_page_the_way_the_appearance_wants_it() {
-        let dark = &by_id("graphite").unwrap().colors;
-        assert_eq!(dark.card, dark.raised);
-        let light = &by_id("github-light").unwrap().colors;
-        assert_eq!(light.card, light.bg);
-    }
-
-    #[test]
-    fn the_agent_states_resolve_to_their_tokens() {
-        let c = &default_theme().colors;
-        assert_eq!(c.state(AgentState::Working).text, c.state_working);
-        assert_eq!(c.state(AgentState::Waiting).fill, c.state_waiting_fill);
-        assert_eq!(c.state(AgentState::Yours).text, c.state_yours);
-        assert_eq!(c.state(AgentState::Idle).fill, c.state_idle_fill);
-        assert_eq!(AgentState::ALL.len(), 4);
     }
 }
 

@@ -1,0 +1,32 @@
+{
+  "$schema": "./theme.schema.json",
+  "id": "material-palenight",
+  "name": "Material Palenight",
+  "appearance": "dark",
+  "terminal": {
+    "background": "#292D3E",
+    "foreground": "#A6ACCD",
+    "cursor": "#FFCC00",
+    "cursorText": "#292D3E",
+    "selection": "#444267",
+    "ansi": {
+      "black": "#292D3E",
+      "red": "#F07178",
+      "green": "#C3E88D",
+      "yellow": "#FFCB6B",
+      "blue": "#82AAFF",
+      "magenta": "#C792EA",
+      "cyan": "#89DDFF",
+      "white": "#D0D0D0",
+      "brightBlack": "#434758",
+      "brightRed": "#FF8B92",
+      "brightGreen": "#DDFFA7",
+      "brightYellow": "#FFE585",
+      "brightBlue": "#9CC4FF",
+      "brightMagenta": "#DDB0F6",
+      "brightCyan": "#A3F7FF",
+      "brightWhite": "#FFFFFF"
+    }
+  },
+  "ui": {}
+}

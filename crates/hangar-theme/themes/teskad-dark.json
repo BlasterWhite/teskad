@@ -1,0 +1,59 @@
+{
+  "$schema": "./theme.schema.json",
+  "id": "teskad-dark",
+  "name": "Teskad Dark",
+  "appearance": "dark",
+  "terminal": {
+    "background": "#0B0A0E",
+    "foreground": "#DCD5E6",
+    "cursor": "#C9B6FF",
+    "cursorText": "#0B0A0E",
+    "selection": "#3A2A55",
+    "ansi": {
+      "black": "#1A1422",
+      "red": "#FF6A55",
+      "green": "#4FD8A4",
+      "yellow": "#FFC15E",
+      "blue": "#7AA2FF",
+      "magenta": "#E040B0",
+      "cyan": "#5ED4E6",
+      "white": "#C8BFD4",
+      "brightBlack": "#5E536F",
+      "brightRed": "#FF8A78",
+      "brightGreen": "#7BE6BE",
+      "brightYellow": "#FFD38A",
+      "brightBlue": "#9DBBFF",
+      "brightMagenta": "#FF6FB0",
+      "brightCyan": "#8BE3EF",
+      "brightWhite": "#F2EEF7"
+    }
+  },
+  "ui": {
+    "bg": "#0E0C12",
+    "surface": "#17121E",
+    "surfaceRaised": "#1F1828",
+    "surfaceSunken": "#0B0A0E",
+    "border": "#2A2135",
+    "borderStrong": "#3A2F47",
+    "text": "#F2EEF7",
+    "textSecondary": "#C8BFD4",
+    "textMuted": "#A79DB5",
+    "accent": "#8A4DFF",
+    "accentHover": "#9B66FF",
+    "accentPressed": "#7A3DF0",
+    "onAccent": "#FFFFFF",
+    "accentText": "#A97BFF",
+    "focusRing": "#C9B6FF",
+    "selectionBg": "#241A33",
+    "selectionBorder": "#8A4DFF",
+    "hoverOverlay": "rgba(201, 182, 255, 0.06)",
+    "scrim": "rgba(8, 6, 12, 0.72)",
+    "status": {
+      "running": "#A97BFF",
+      "completed": "#4FD8A4",
+      "failed": "#FF6A55",
+      "active": "#C9B6FF",
+      "inactive": "#7D7290"
+    }
+  }
+}

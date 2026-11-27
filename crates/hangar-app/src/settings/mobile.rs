@@ -789,10 +789,10 @@ fn pairing_view<'a>(st: &'a State, ctx: Ctx<'a>, pairing: PairingRow) -> Element
     let ground = if expired {
         iced::Color {
             a: 0.25,
-            ..iced::Color::WHITE
+            ..hangar_theme::fixed::QR_GROUND
         }
     } else {
-        iced::Color::WHITE
+        hangar_theme::fixed::QR_GROUND
     };
     let qr: Element<'a, Message> = match &st.pairing {
         Some(shown) => svg(shown.qr.clone())

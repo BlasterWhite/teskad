@@ -1,0 +1,34 @@
+{
+  "$schema": "./theme.schema.json",
+  "id": "andromeda",
+  "name": "Andromeda",
+  "appearance": "dark",
+  "terminal": {
+    "background": "#23262E",
+    "foreground": "#D5CED9",
+    "cursor": "#D5CED9",
+    "cursorText": "#23262E",
+    "selection": "#3D4352",
+    "ansi": {
+      "black": "#000000",
+      "red": "#EE5D43",
+      "green": "#96E072",
+      "yellow": "#FFE66D",
+      "blue": "#00E8C6",
+      "magenta": "#C74DED",
+      "cyan": "#24C0CF",
+      "white": "#D5CED9",
+      "brightBlack": "#666666",
+      "brightRed": "#F92672",
+      "brightGreen": "#96E072",
+      "brightYellow": "#FFE66D",
+      "brightBlue": "#00E8C6",
+      "brightMagenta": "#C74DED",
+      "brightCyan": "#24C0CF",
+      "brightWhite": "#FFFFFF"
+    }
+  },
+  "ui": {
+    "accent": "#00E8C6"
+  }
+}

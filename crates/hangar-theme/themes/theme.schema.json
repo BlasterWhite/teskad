@@ -1,0 +1,281 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "teskad-theme",
+  "title": "Teskad theme",
+  "description": "Un thème ne change que les couleurs. Polices, arrondis, espacements, tailles, icônes, indicateurs d'état et disposition viennent du pack et sont communs à tous les thèmes.",
+  "type": "object",
+  "required": [
+    "id",
+    "name",
+    "appearance",
+    "terminal"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "name": {
+      "type": "string"
+    },
+    "appearance": {
+      "enum": [
+        "dark",
+        "light"
+      ]
+    },
+    "terminal": {
+      "type": "object",
+      "required": [
+        "background",
+        "foreground",
+        "cursor",
+        "selection",
+        "ansi"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+        },
+        "foreground": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+        },
+        "cursor": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+        },
+        "cursorText": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+        },
+        "selection": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+        },
+        "ansi": {
+          "type": "object",
+          "required": [
+            "black",
+            "red",
+            "green",
+            "yellow",
+            "blue",
+            "magenta",
+            "cyan",
+            "white",
+            "brightBlack",
+            "brightRed",
+            "brightGreen",
+            "brightYellow",
+            "brightBlue",
+            "brightMagenta",
+            "brightCyan",
+            "brightWhite"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "black": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+            },
+            "red": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+            },
+            "green": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+            },
+            "yellow": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+            },
+            "blue": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+            },
+            "magenta": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+            },
+            "cyan": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+            },
+            "white": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+            },
+            "brightBlack": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+            },
+            "brightRed": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+            },
+            "brightGreen": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+            },
+            "brightYellow": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+            },
+            "brightBlue": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+            },
+            "brightMagenta": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+            },
+            "brightCyan": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+            },
+            "brightWhite": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+            }
+          }
+        }
+      }
+    },
+    "ui": {
+      "type": "object",
+      "description": "Optionnel. Chaque clé absente est dérivée de « terminal » (voir docs/themes.md).",
+      "additionalProperties": false,
+      "properties": {
+        "bg": {
+          "type": "string",
+          "description": "#RRGGBB, #RRGGBBAA ou rgba(r, g, b, a)",
+          "pattern": "^(#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?|rgba\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*[0-9.]+\\s*\\))$"
+        },
+        "surface": {
+          "type": "string",
+          "description": "#RRGGBB, #RRGGBBAA ou rgba(r, g, b, a)",
+          "pattern": "^(#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?|rgba\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*[0-9.]+\\s*\\))$"
+        },
+        "surfaceRaised": {
+          "type": "string",
+          "description": "#RRGGBB, #RRGGBBAA ou rgba(r, g, b, a)",
+          "pattern": "^(#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?|rgba\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*[0-9.]+\\s*\\))$"
+        },
+        "surfaceSunken": {
+          "type": "string",
+          "description": "#RRGGBB, #RRGGBBAA ou rgba(r, g, b, a)",
+          "pattern": "^(#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?|rgba\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*[0-9.]+\\s*\\))$"
+        },
+        "border": {
+          "type": "string",
+          "description": "#RRGGBB, #RRGGBBAA ou rgba(r, g, b, a)",
+          "pattern": "^(#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?|rgba\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*[0-9.]+\\s*\\))$"
+        },
+        "borderStrong": {
+          "type": "string",
+          "description": "#RRGGBB, #RRGGBBAA ou rgba(r, g, b, a)",
+          "pattern": "^(#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?|rgba\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*[0-9.]+\\s*\\))$"
+        },
+        "text": {
+          "type": "string",
+          "description": "#RRGGBB, #RRGGBBAA ou rgba(r, g, b, a)",
+          "pattern": "^(#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?|rgba\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*[0-9.]+\\s*\\))$"
+        },
+        "textSecondary": {
+          "type": "string",
+          "description": "#RRGGBB, #RRGGBBAA ou rgba(r, g, b, a)",
+          "pattern": "^(#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?|rgba\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*[0-9.]+\\s*\\))$"
+        },
+        "textMuted": {
+          "type": "string",
+          "description": "#RRGGBB, #RRGGBBAA ou rgba(r, g, b, a)",
+          "pattern": "^(#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?|rgba\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*[0-9.]+\\s*\\))$"
+        },
+        "accent": {
+          "type": "string",
+          "description": "#RRGGBB, #RRGGBBAA ou rgba(r, g, b, a)",
+          "pattern": "^(#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?|rgba\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*[0-9.]+\\s*\\))$"
+        },
+        "accentHover": {
+          "type": "string",
+          "description": "#RRGGBB, #RRGGBBAA ou rgba(r, g, b, a)",
+          "pattern": "^(#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?|rgba\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*[0-9.]+\\s*\\))$"
+        },
+        "accentPressed": {
+          "type": "string",
+          "description": "#RRGGBB, #RRGGBBAA ou rgba(r, g, b, a)",
+          "pattern": "^(#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?|rgba\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*[0-9.]+\\s*\\))$"
+        },
+        "onAccent": {
+          "type": "string",
+          "description": "#RRGGBB, #RRGGBBAA ou rgba(r, g, b, a)",
+          "pattern": "^(#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?|rgba\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*[0-9.]+\\s*\\))$"
+        },
+        "accentText": {
+          "type": "string",
+          "description": "#RRGGBB, #RRGGBBAA ou rgba(r, g, b, a)",
+          "pattern": "^(#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?|rgba\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*[0-9.]+\\s*\\))$"
+        },
+        "focusRing": {
+          "type": "string",
+          "description": "#RRGGBB, #RRGGBBAA ou rgba(r, g, b, a)",
+          "pattern": "^(#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?|rgba\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*[0-9.]+\\s*\\))$"
+        },
+        "selectionBg": {
+          "type": "string",
+          "description": "#RRGGBB, #RRGGBBAA ou rgba(r, g, b, a)",
+          "pattern": "^(#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?|rgba\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*[0-9.]+\\s*\\))$"
+        },
+        "selectionBorder": {
+          "type": "string",
+          "description": "#RRGGBB, #RRGGBBAA ou rgba(r, g, b, a)",
+          "pattern": "^(#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?|rgba\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*[0-9.]+\\s*\\))$"
+        },
+        "hoverOverlay": {
+          "type": "string",
+          "description": "#RRGGBB, #RRGGBBAA ou rgba(r, g, b, a)",
+          "pattern": "^(#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?|rgba\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*[0-9.]+\\s*\\))$"
+        },
+        "scrim": {
+          "type": "string",
+          "description": "#RRGGBB, #RRGGBBAA ou rgba(r, g, b, a)",
+          "pattern": "^(#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?|rgba\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*[0-9.]+\\s*\\))$"
+        },
+        "status": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "running": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+            },
+            "completed": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+            },
+            "failed": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+            },
+            "active": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+            },
+            "inactive": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+            }
+          }
+        }
+      }
+    }
+  }
+}

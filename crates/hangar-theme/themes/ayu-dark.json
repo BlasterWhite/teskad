@@ -1,0 +1,34 @@
+{
+  "$schema": "./theme.schema.json",
+  "id": "ayu-dark",
+  "name": "Ayu Dark",
+  "appearance": "dark",
+  "terminal": {
+    "background": "#0B0E14",
+    "foreground": "#BFBDB6",
+    "cursor": "#E6B450",
+    "cursorText": "#0B0E14",
+    "selection": "#22272D",
+    "ansi": {
+      "black": "#131721",
+      "red": "#EA6C73",
+      "green": "#91B362",
+      "yellow": "#F9AF4F",
+      "blue": "#53BDFA",
+      "magenta": "#D2A6FF",
+      "cyan": "#90E1C6",
+      "white": "#C7C7C7",
+      "brightBlack": "#686868",
+      "brightRed": "#F07178",
+      "brightGreen": "#C2D94C",
+      "brightYellow": "#FFB454",
+      "brightBlue": "#59C2FF",
+      "brightMagenta": "#FFEE99",
+      "brightCyan": "#95E6CB",
+      "brightWhite": "#FFFFFF"
+    }
+  },
+  "ui": {
+    "accent": "#E6B450"
+  }
+}

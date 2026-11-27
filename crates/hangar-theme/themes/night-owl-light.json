@@ -1,0 +1,34 @@
+{
+  "$schema": "./theme.schema.json",
+  "id": "night-owl-light",
+  "name": "Night Owl Light",
+  "appearance": "light",
+  "terminal": {
+    "background": "#FBFBFB",
+    "foreground": "#403F53",
+    "cursor": "#90A7B2",
+    "cursorText": "#FBFBFB",
+    "selection": "#E0E0E0",
+    "ansi": {
+      "black": "#403F53",
+      "red": "#DE3D3B",
+      "green": "#08916A",
+      "yellow": "#DAAA01",
+      "blue": "#288ED7",
+      "magenta": "#D6438A",
+      "cyan": "#2AA298",
+      "white": "#989FB1",
+      "brightBlack": "#403F53",
+      "brightRed": "#DE3D3B",
+      "brightGreen": "#08916A",
+      "brightYellow": "#DAAA01",
+      "brightBlue": "#288ED7",
+      "brightMagenta": "#D6438A",
+      "brightCyan": "#2AA298",
+      "brightWhite": "#F0F0F0"
+    }
+  },
+  "ui": {
+    "accent": "#288ED7"
+  }
+}

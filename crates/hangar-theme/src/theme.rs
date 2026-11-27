@@ -6,7 +6,10 @@ use std::sync::{Mutex, OnceLock, PoisonError};
 
 use iced::Color;
 
-use crate::data::THEMES;
+use crate::bundled;
+use crate::derive::{derive_colors, derive_palette};
+use crate::palette::Palette;
+use crate::spec::UiOverrides;
 
 /// The theme the app starts with, and falls back on for an id it does not know.
 pub const DEFAULT_ID: &str = "teskad-dark";
@@ -34,23 +37,13 @@ impl Appearance {
     }
 }
 
-/// A `#rrggbb` colour from its channels packed as `0xrrggbb`.
-pub(crate) const fn rgb(packed: u32) -> Color {
-    Color::from_rgb8((packed >> 16) as u8, (packed >> 8) as u8, packed as u8)
-}
-
-/// A colour of the given 8-bit channels and an alpha from 0 to 1.
-pub(crate) const fn rgba(r: u8, g: u8, b: u8, alpha: f32) -> Color {
-    Color::from_rgba8(r, g, b, alpha)
-}
-
 /// One theme: how the window and its terminals are coloured.
 ///
-/// A theme restyles the whole window, not only the terminals. The web app
-/// derived the window's colours from the terminal palette and the accent when
-/// the theme was applied; here the result is stored, so drawing never
-/// computes a colour. [`crate::derive_colors`] is that derivation, kept to
-/// check the tables against and to make themes the app does not bundle.
+/// A theme is a file (`themes/*.json`, the format of the brand pack's
+/// `theme.schema.json`) that holds the terminal's colours and, for the
+/// interface, only what it sets itself: the rest of the [`Palette`] is derived
+/// from the terminal colours (`docs/teskad-brand/docs/themes.md`) and checked
+/// for contrast when the theme is built. Drawing never computes a colour.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Theme {
     /// Stable and unique, what settings and workspaces store (`"tokyo-night"`).
@@ -60,7 +53,9 @@ pub struct Theme {
     pub appearance: Appearance,
     /// The colours terminals are drawn with.
     pub terminal: TerminalColors,
-    /// The colours of everything else.
+    /// The semantic colours of the interface: the one set a theme defines.
+    pub palette: Palette,
+    /// The finer tokens views are drawn with, computed from the palette.
     pub colors: Colors,
     /// How opaque the window's own background is, from 0 to 1: 1 for a solid
     /// window, less for one the desktop shows through, behind the terminals'
@@ -81,7 +76,29 @@ pub const MIN_WINDOW_OPACITY: f32 = 0.5;
 impl Theme {
     /// The accent, which marks links, focus and the selection.
     pub fn accent(&self) -> Color {
-        self.colors.accent
+        self.palette.accent
+    }
+
+    /// A theme the app does not bundle, from its terminal colours and the
+    /// keys of `ui` it sets (the others derived, as for a bundled one), with
+    /// the same contrast promises.
+    pub fn derived(
+        id: &'static str,
+        name: &'static str,
+        appearance: Appearance,
+        terminal: TerminalColors,
+        ui: &UiOverrides,
+    ) -> Theme {
+        let palette = derive_palette(appearance, &terminal, ui);
+        Theme {
+            id,
+            name,
+            appearance,
+            terminal,
+            palette,
+            colors: derive_colors(appearance, &palette, &terminal),
+            window_opacity: 1.0,
+        }
     }
 
     pub fn is_dark(&self) -> bool {
@@ -154,7 +171,7 @@ impl Theme {
     pub fn search_colors(&self) -> SearchColors {
         let bg = crate::Rgb::from(self.terminal.background);
         let match_color = crate::Rgb::from(self.terminal.ansi[3]);
-        let accent = crate::Rgb::from(self.colors.accent);
+        let accent = crate::Rgb::from(self.palette.accent);
         SearchColors {
             match_background: crate::mix(bg, match_color, 0.3).into(),
             match_border: crate::mix(bg, match_color, 0.65).into(),
@@ -414,12 +431,12 @@ pub struct StateColors {
 /// Every bundled theme, Graphite first, the dark ones then the light ones, in
 /// the order the picker shows them.
 pub fn themes() -> &'static [Theme] {
-    &THEMES
+    bundled::themes()
 }
 
 /// The theme with this id.
 pub fn by_id(id: &str) -> Option<&'static Theme> {
-    THEMES.iter().find(|theme| theme.id == id)
+    bundled::themes().iter().find(|theme| theme.id == id)
 }
 
 /// The theme with this id, or the default one for an id that is not (or no

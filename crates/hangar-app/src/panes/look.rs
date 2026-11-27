@@ -139,6 +139,21 @@ pub fn look(settings: &Settings, ws: &Workspace, agent: AgentId) -> Look {
 mod tests {
     use super::*;
 
+    /// `hangar-term` cannot read the theme crate, so its default palette is
+    /// written out; it is the default theme's terminal, and this is what keeps
+    /// it so.
+    #[test]
+    fn a_terminal_before_the_theme_is_told_has_the_default_themes_colours() {
+        let default = hangar_term::Palette::default();
+        let teskad = palette(hangar_theme::default_theme());
+        assert_eq!(default.foreground, teskad.foreground);
+        assert_eq!(default.background, teskad.background);
+        assert_eq!(default.cursor, teskad.cursor);
+        assert_eq!(default.cursor_text, teskad.cursor_text);
+        assert_eq!(default.selection_background, teskad.selection_background);
+        assert_eq!(default.ansi, teskad.ansi);
+    }
+
     #[test]
     fn only_agent_panes_turn_shift_enter_into_a_newline() {
         let settings = Settings::default();
