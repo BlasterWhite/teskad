@@ -13,12 +13,11 @@
 # the installer's script can be compiled, though not run, on a developer's
 # machine (docs/native/PACKAGING.md, "The Windows installer").
 #
-# Why this is not cargo-packager's NSIS step: the installer is the Tauri
-# bundler's script with Hangar's own pages and the update-in-place behaviour
-# hangar-update relies on (/UPDATE, /ARGS, the migration of installs made under
-# earlier product names). cargo-packager's copy of the script is an older fork
-# of the bundler's, with an older plugin, and has none of that. Running makensis
-# on the script as it was keeps the installer what it was.
+# Why this is not cargo-packager's NSIS step: the installer is our own
+# NSIS script (installer.nsi) with Teskad's pages and the update-in-place
+# behaviour hangar-update relies on (/UPDATE, /ARGS, the migration of installs
+# made under earlier product names). cargo-packager's NSIS template is an older
+# one and has none of that, so makensis runs on the script directly.
 set -euo pipefail
 
 if [ "$#" -ne 2 ]; then

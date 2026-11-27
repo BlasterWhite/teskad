@@ -469,7 +469,7 @@ fn changed_after_check() -> Error {
 
 /// Unpacks a `.app.tar.gz` into `dest`.
 ///
-/// The archive holds one directory, `Hangar.AI.app`, which is dropped: `dest`
+/// The archive holds one directory, `Teskad.app`, which is dropped: `dest`
 /// becomes the bundle. Paths that would land outside `dest` are refused rather
 /// than trusted: `..` and absolute ones, and any that go through a symlink an
 /// earlier entry made (`X -> /Users/me/.ssh`, then `X/authorized_keys`). The
@@ -970,7 +970,7 @@ mod tests {
 
     /// An AppImage standing in `dir`, and a staging file for `install`.
     fn staged_appimage(dir: &Path, old: &[u8], mode: u32) -> (Install, File, Staged) {
-        let path = dir.join("Hangar.AI.AppImage");
+        let path = dir.join("Teskad.AppImage");
         fs::write(&path, old).unwrap();
         set_file_mode(&path, mode).unwrap();
         let install = Install::AppImage { path };
@@ -1002,7 +1002,7 @@ mod tests {
         running.read_to_string(&mut seen).unwrap();
         assert_eq!(seen, "old image");
         // And nothing is left beside it.
-        assert_eq!(names(dir.path()), ["Hangar.AI.AppImage"]);
+        assert_eq!(names(dir.path()), ["Teskad.AppImage"]);
     }
 
     #[test]
@@ -1030,13 +1030,13 @@ mod tests {
         // folder as it was.
         drop(file);
         drop(staged);
-        assert_eq!(names(dir.path()), ["Hangar.AI.AppImage"]);
+        assert_eq!(names(dir.path()), ["Teskad.AppImage"]);
     }
 
     #[test]
     fn a_folder_that_cannot_be_written_is_said_before_the_download() {
         let install = Install::AppImage {
-            path: "/nonexistent-folder/Hangar.AI.AppImage".into(),
+            path: "/nonexistent-folder/Teskad.AppImage".into(),
         };
         match create_staging(&install) {
             Err(Error::Install(why)) => assert!(why.contains("Move the AppImage"), "{why}"),
@@ -1053,7 +1053,7 @@ mod tests {
         };
         let archive = tar_gz(&[
             ("README", b"not this one", 0o644),
-            ("Hangar.AI_1.13.0_amd64.AppImage", b"unpacked image", 0o755),
+            ("Teskad_1.13.0_amd64.AppImage", b"unpacked image", 0o755),
         ]);
         file.write_all(&archive).unwrap();
         drop(file);
@@ -1061,7 +1061,7 @@ mod tests {
         // Past the signature check, which a made-up archive cannot pass.
         replace_appimage(staged.path, path).unwrap();
         assert_eq!(fs::read(path).unwrap(), b"unpacked image");
-        assert_eq!(names(dir.path()), ["Hangar.AI.AppImage"]);
+        assert_eq!(names(dir.path()), ["Teskad.AppImage"]);
     }
 
     #[test]
@@ -1082,7 +1082,7 @@ mod tests {
         assert_eq!(fs::read(path).unwrap(), b"old");
         assert_eq!(
             names(dir.path()),
-            ["Hangar.AI.AppImage"],
+            ["Teskad.AppImage"],
             "no scratch file left behind"
         );
     }
@@ -1091,7 +1091,7 @@ mod tests {
     fn a_download_staged_elsewhere_is_copied_beside_the_target() {
         let app_dir = tempfile::tempdir().unwrap();
         let elsewhere = tempfile::tempdir().unwrap();
-        let path = app_dir.path().join("Hangar.AI.AppImage");
+        let path = app_dir.path().join("Teskad.AppImage");
         fs::write(&path, b"old").unwrap();
         let install = Install::AppImage { path: path.clone() };
 
@@ -1101,7 +1101,7 @@ mod tests {
 
         apply(&install, staged, SIGNED, &[]).unwrap();
         assert_eq!(fs::read(&path).unwrap(), payload());
-        assert_eq!(names(app_dir.path()), ["Hangar.AI.AppImage"]);
+        assert_eq!(names(app_dir.path()), ["Teskad.AppImage"]);
         assert!(
             names(elsewhere.path()).is_empty(),
             "the download is removed once used"
@@ -1111,16 +1111,12 @@ mod tests {
     #[test]
     fn a_mac_archive_unpacks_without_its_top_folder() {
         let work = tempfile::tempdir().unwrap();
-        let archive_path = work.path().join("Hangar.AI.app.tar.gz");
+        let archive_path = work.path().join("Teskad.app.tar.gz");
         fs::write(
             &archive_path,
             tar_gz(&[
-                ("Hangar.AI.app/Contents/Info.plist", b"<plist/>", 0o644),
-                (
-                    "./Hangar.AI.app/Contents/MacOS/hangar-ai",
-                    b"#!binary",
-                    0o755,
-                ),
+                ("Teskad.app/Contents/Info.plist", b"<plist/>", 0o644),
+                ("./Teskad.app/Contents/MacOS/teskad", b"#!binary", 0o755),
             ]),
         )
         .unwrap();
@@ -1132,12 +1128,12 @@ mod tests {
             b"<plist/>"
         );
         assert_eq!(
-            fs::read(dest.join("Contents/MacOS/hangar-ai")).unwrap(),
+            fs::read(dest.join("Contents/MacOS/teskad")).unwrap(),
             b"#!binary"
         );
         #[cfg(unix)]
         assert_eq!(
-            file_mode(&dest.join("Contents/MacOS/hangar-ai")).unwrap() & 0o777,
+            file_mode(&dest.join("Contents/MacOS/teskad")).unwrap() & 0o777,
             0o755
         );
     }
@@ -1148,7 +1144,7 @@ mod tests {
         let archive_path = work.path().join("evil.tar.gz");
         // `tar::Builder` refuses to write `..`, so the header is written raw.
         let mut raw = tar::Header::new_gnu();
-        let name = b"Hangar.AI.app/../../escaped";
+        let name = b"Teskad.app/../../escaped";
         raw.as_old_mut().name[..name.len()].copy_from_slice(name);
         raw.set_size(1);
         raw.set_mode(0o644);
@@ -1173,32 +1169,28 @@ mod tests {
     #[cfg(unix)]
     fn a_mac_bundle_is_swapped_for_the_new_one() {
         let apps = tempfile::tempdir().unwrap();
-        let bundle = apps.path().join("Hangar.AI.app");
+        let bundle = apps.path().join("Teskad.app");
         fs::create_dir_all(bundle.join("Contents/MacOS")).unwrap();
-        fs::write(bundle.join("Contents/MacOS/hangar-ai"), b"old binary").unwrap();
+        fs::write(bundle.join("Contents/MacOS/teskad"), b"old binary").unwrap();
         fs::write(bundle.join("Contents/old-only"), b"gone after the update").unwrap();
 
         let archive_path = apps.path().join("update.tar.gz");
         fs::write(
             &archive_path,
-            tar_gz(&[(
-                "Hangar.AI.app/Contents/MacOS/hangar-ai",
-                b"new binary",
-                0o755,
-            )]),
+            tar_gz(&[("Teskad.app/Contents/MacOS/teskad", b"new binary", 0o755)]),
         )
         .unwrap();
 
         replace_mac_bundle(&archive_path, &bundle, &[0; 32]).unwrap();
 
         assert_eq!(
-            fs::read(bundle.join("Contents/MacOS/hangar-ai")).unwrap(),
+            fs::read(bundle.join("Contents/MacOS/teskad")).unwrap(),
             b"new binary"
         );
         assert!(!bundle.join("Contents/old-only").exists());
         assert_eq!(
             names(apps.path()),
-            ["Hangar.AI.app", "update.tar.gz"],
+            ["Teskad.app", "update.tar.gz"],
             "the old bundle and the work folder are gone"
         );
     }
@@ -1367,9 +1359,9 @@ mod tests {
             return None;
         }
         let apps = tempfile::tempdir().unwrap();
-        let bundle = apps.path().join("Hangar.AI.app");
+        let bundle = apps.path().join("Teskad.app");
         fs::create_dir_all(bundle.join("Contents/MacOS")).unwrap();
-        fs::write(bundle.join("Contents/MacOS/hangar-ai"), b"old binary").unwrap();
+        fs::write(bundle.join("Contents/MacOS/teskad"), b"old binary").unwrap();
         let downloads = tempfile::tempdir().unwrap();
         let path = downloads.path().join("update.tar.gz");
         fs::write(&path, archive).unwrap();
@@ -1384,23 +1376,19 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn the_mac_root_command_unpacks_and_swaps_the_verified_archive() {
-        let archive = tar_gz(&[(
-            "Hangar.AI.app/Contents/MacOS/hangar-ai",
-            b"new binary",
-            0o755,
-        )]);
+        let archive = tar_gz(&[("Teskad.app/Contents/MacOS/teskad", b"new binary", 0o755)]);
         let Some((output, apps)) = run_admin_swap(&archive, &sha256::hex(&digest_of(&archive)))
         else {
             return;
         };
         assert!(output.status.success(), "{output:?}");
         assert_eq!(
-            fs::read(apps.path().join("Hangar.AI.app/Contents/MacOS/hangar-ai")).unwrap(),
+            fs::read(apps.path().join("Teskad.app/Contents/MacOS/teskad")).unwrap(),
             b"new binary"
         );
         assert_eq!(
             names(apps.path()),
-            ["Hangar.AI.app"],
+            ["Teskad.app"],
             "the work folder is gone"
         );
     }
@@ -1408,16 +1396,8 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn the_mac_root_command_refuses_an_archive_swapped_after_the_check() {
-        let verified = tar_gz(&[(
-            "Hangar.AI.app/Contents/MacOS/hangar-ai",
-            b"new binary",
-            0o755,
-        )]);
-        let swapped = tar_gz(&[(
-            "Hangar.AI.app/Contents/MacOS/hangar-ai",
-            b"evil binary",
-            0o755,
-        )]);
+        let verified = tar_gz(&[("Teskad.app/Contents/MacOS/teskad", b"new binary", 0o755)]);
+        let swapped = tar_gz(&[("Teskad.app/Contents/MacOS/teskad", b"evil binary", 0o755)]);
         let Some((output, apps)) = run_admin_swap(&swapped, &sha256::hex(&digest_of(&verified)))
         else {
             return;
@@ -1428,10 +1408,10 @@ mod tests {
             "{output:?}"
         );
         assert_eq!(
-            fs::read(apps.path().join("Hangar.AI.app/Contents/MacOS/hangar-ai")).unwrap(),
+            fs::read(apps.path().join("Teskad.app/Contents/MacOS/teskad")).unwrap(),
             b"old binary"
         );
-        assert_eq!(names(apps.path()), ["Hangar.AI.app"]);
+        assert_eq!(names(apps.path()), ["Teskad.app"]);
     }
 
     #[test]
@@ -1444,10 +1424,10 @@ mod tests {
         };
         assert_eq!(output.status.code(), Some(98), "{output:?}");
         assert_eq!(
-            fs::read(apps.path().join("Hangar.AI.app/Contents/MacOS/hangar-ai")).unwrap(),
+            fs::read(apps.path().join("Teskad.app/Contents/MacOS/teskad")).unwrap(),
             b"old binary"
         );
-        assert_eq!(names(apps.path()), ["Hangar.AI.app"]);
+        assert_eq!(names(apps.path()), ["Teskad.app"]);
     }
 
     #[test]
@@ -1582,28 +1562,22 @@ mod tests {
 
         // An AppImage is started as the image, never as the file inside its mount.
         let appimage = Install::AppImage {
-            path: "/home/me/Hangar.AI.AppImage".into(),
+            path: "/home/me/Teskad.AppImage".into(),
         };
         assert_eq!(
-            waiting(&appimage, "/tmp/.mount_x/usr/bin/hangar-ai"),
-            ["/home/me/Hangar.AI.AppImage", "--flag"]
+            waiting(&appimage, "/tmp/.mount_x/usr/bin/teskad"),
+            ["/home/me/Teskad.AppImage", "--flag"]
         );
         assert_eq!(
-            waiting(&Install::Deb, "/usr/bin/hangar-ai"),
-            ["/usr/bin/hangar-ai", "--flag"]
+            waiting(&Install::Deb, "/usr/bin/teskad"),
+            ["/usr/bin/teskad", "--flag"]
         );
         let mac = Install::MacApp {
-            bundle: "/Applications/Hangar.AI.app".into(),
+            bundle: "/Applications/Teskad.app".into(),
         };
         assert_eq!(
-            waiting(&mac, "/Applications/Hangar.AI.app/Contents/MacOS/hangar-ai"),
-            [
-                "open",
-                "-n",
-                "/Applications/Hangar.AI.app",
-                "--args",
-                "--flag"
-            ]
+            waiting(&mac, "/Applications/Teskad.app/Contents/MacOS/teskad"),
+            ["open", "-n", "/Applications/Teskad.app", "--args", "--flag"]
         );
     }
 
@@ -1620,7 +1594,7 @@ mod tests {
         // that records it ran.
         let dir = tempfile::tempdir().unwrap();
         let marker = dir.path().join("started");
-        let launched = dir.path().join("Hangar.AI.AppImage");
+        let launched = dir.path().join("Teskad.AppImage");
         fs::write(
             &launched,
             format!("#!/bin/sh\necho \"$1\" > '{}'\n", marker.display()),
@@ -1667,7 +1641,7 @@ mod tests {
             other => panic!("expected the swapped file to be refused, got {other:?}"),
         }
         assert_eq!(fs::read(path).unwrap(), b"old");
-        assert_eq!(names(dir.path()), ["Hangar.AI.AppImage"]);
+        assert_eq!(names(dir.path()), ["Teskad.AppImage"]);
     }
 
     #[test]
@@ -1728,14 +1702,14 @@ mod tests {
         link.set_size(0);
         link.set_mode(0o777);
         builder
-            .append_link(&mut link, "Hangar.AI.app/X", &outside)
+            .append_link(&mut link, "Teskad.app/X", &outside)
             .unwrap();
         let mut file = tar::Header::new_gnu();
         file.set_size(4);
         file.set_mode(0o644);
         file.set_cksum();
         builder
-            .append_data(&mut file, "Hangar.AI.app/X/authorized_keys", &b"evil"[..])
+            .append_data(&mut file, "Teskad.app/X/authorized_keys", &b"evil"[..])
             .unwrap();
         let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
         gz.write_all(&builder.into_inner().unwrap()).unwrap();

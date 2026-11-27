@@ -399,7 +399,7 @@ jobs:
             echo "APPLE_TEAM_ID=$TEAM_ID"
           } >> "$GITHUB_ENV"
 
-      # Unlike Tauri's bundler, cargo-packager takes the identity to sign with
+      # cargo-packager takes the identity to sign with
       # from its configuration and not from the environment, so it is written
       # into the copy of the manifest this job has, never into the repository.
       - name: Name the signing certificate to the packager
@@ -437,8 +437,7 @@ jobs:
             echo "GGML_BMI2=ON"
           } >> "$GITHUB_ENV"
 
-      # What `bundle.macOS.minimumSystemVersion` did for the Tauri build: the
-      # oldest macOS the executables are compiled to run on, which also tells
+      # The oldest macOS the executables are compiled to run on, which also tells
       # the C++ of whisper.cpp what it may call.
       - name: Target macOS 10.15
         if: runner.os == 'macOS'
@@ -544,9 +543,8 @@ jobs:
           merge-multiple: true
 
       # Linux and macOS are packaged by cargo-packager. Windows is not: its
-      # installer is the Tauri bundler's NSIS script with Hangar's pages and the
-      # update behaviour the updater relies on, which cargo-packager's older fork
-      # of that script does not have (docs/native/PACKAGING.md).
+      # installer is an NSIS script of our own, which cargo-packager's older
+      # NSIS template does not match (docs/native/PACKAGING.md).
       #
       # In a warm run too: rust-cache keeps ~/.cargo/bin, so the release finds
       # both already installed at these versions (part of the key, being
@@ -560,8 +558,7 @@ jobs:
             cargo install cargo-generate-rpm --version "$CARGO_GENERATE_RPM_VERSION" --locked
           fi
 
-      # NSIS itself, as the Tauri bundler fetched it: the same archive, checked
-      # against the same hash.
+      # NSIS itself: a pinned archive, checked against its hash.
       - name: Install NSIS
         if: runner.os == 'Windows' && env.RELEASING == 'true'
         shell: pwsh
@@ -630,8 +627,8 @@ jobs:
         with:
           save-if: ${{ env.RELEASING != 'true' }}
 
-      # Only for `cargo packager signer sign`: it writes the signature exactly
-      # as the Tauri signer did, and the build jobs do not need the key at all.
+      # Only for `cargo packager signer sign`; the build jobs do not need the
+      # key at all.
       - name: Install cargo-packager
         run: cargo install cargo-packager --version "$CARGO_PACKAGER_VERSION" --locked
 
@@ -651,14 +648,13 @@ jobs:
                 echo "fetched $name ($(wc -c < "artifacts/$name") bytes)"
               done
 
-      # The key is the one the Tauri build signed with, under the same secrets:
-      # its public half is in every install, and an install takes only what it
-      # signed. A key that is missing or is not that one fails below, before
+      # The key is the one in the UPDATER_SIGNING_KEY secrets: its public half
+      # is in every install, and an install takes only what it signed. A key that is missing or is not that one fails below, before
       # anything is published.
       - name: Sign
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          UPDATER_SIGNING_KEY: ${{ secrets.UPDATER_SIGNING_KEY }}
+          UPDATER_SIGNING_KEY_PASSWORD: ${{ secrets.UPDATER_SIGNING_KEY_PASSWORD }}
         run: crates/hangar-app/packaging/sign.sh artifacts/Teskad*
 
       - name: Write latest.json

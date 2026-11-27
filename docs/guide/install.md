@@ -5,7 +5,9 @@
 Download the file for your system from the
 **[latest release](https://github.com/BlasterWhite/hangar/releases/latest)**, under
 **Assets**. You only download once: after that, the app offers each new version and
-installs it in one click. A Teskad 1.x install offers 2.0 the same way.
+installs it in one click. Updates come from this fork's releases only, and only when they are
+signed with the fork's own key: the app never reads the official HangarAI's releases. A build you
+made yourself, or Teskad on Nix, does not update itself.
 
 | System | File | Notes |
 |---|---|---|

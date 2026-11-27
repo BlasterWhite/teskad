@@ -64,7 +64,7 @@ pub enum State {
 pub struct Config {
     /// Where `latest.json` is.
     pub endpoint: String,
-    /// The minisign public key, base64-encoded, as `tauri.conf.json` held it.
+    /// The minisign public key, base64-encoded ([`crate::PUBKEY`]).
     pub pubkey: String,
     /// The version that is running.
     pub current_version: Version,
@@ -511,7 +511,7 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    const RELEASE_BASE: &str = "https://github.com/hangar-ai/hangar/releases/download/v1.13.0";
+    const RELEASE_BASE: &str = "https://github.com/BlasterWhite/hangar/releases/download/v1.13.0";
 
     struct Fixture {
         server: Server,
@@ -528,10 +528,10 @@ mod tests {
             let server = Server::start();
             let feed = latest_json().replace(RELEASE_BASE, &server.base());
             server.reply("/latest.json", Reply::ok(feed.into_bytes()));
-            server.reply("/Hangar.AI_1.13.0_amd64.AppImage", Reply::ok(payload()));
+            server.reply("/Teskad_1.13.0_amd64.AppImage", Reply::ok(payload()));
 
             let dir = tempfile::tempdir().unwrap();
-            let image = dir.path().join("Hangar.AI.AppImage");
+            let image = dir.path().join("Teskad.AppImage");
             fs::write(&image, b"1.12.1 image").unwrap();
 
             let config = Config {
@@ -708,11 +708,7 @@ mod tests {
         assert_eq!(outcome, InstallOutcome::Replaced);
         assert_eq!(f.updater.state(), State::Installed(released()));
         assert_eq!(fs::read(&f.image).unwrap(), payload());
-        assert_eq!(
-            f.folder(),
-            ["Hangar.AI.AppImage"],
-            "no scratch file is left"
-        );
+        assert_eq!(f.folder(), ["Teskad.AppImage"], "no scratch file is left");
     }
 
     #[test]
@@ -744,7 +740,7 @@ mod tests {
     fn a_download_that_is_redirected_is_followed() {
         let f = Fixture::new();
         f.server.reply(
-            "/Hangar.AI_1.13.0_amd64.AppImage",
+            "/Teskad_1.13.0_amd64.AppImage",
             Reply::redirect("/cdn/objects/abc"),
         );
         f.server.reply("/cdn/objects/abc", Reply::ok(payload()));
@@ -760,7 +756,7 @@ mod tests {
         let mut tampered = payload();
         tampered[100] ^= 0xff;
         f.server
-            .reply("/Hangar.AI_1.13.0_amd64.AppImage", Reply::ok(tampered));
+            .reply("/Teskad_1.13.0_amd64.AppImage", Reply::ok(tampered));
 
         f.updater.check().unwrap();
         match f.updater.download() {
@@ -781,13 +777,13 @@ mod tests {
         assert_eq!(fs::read(&f.image).unwrap(), b"1.12.1 image");
         assert_eq!(
             f.folder(),
-            ["Hangar.AI.AppImage"],
+            ["Teskad.AppImage"],
             "the bad download is deleted"
         );
 
         // The server is fixed: calling download again is the retry.
         f.server
-            .reply("/Hangar.AI_1.13.0_amd64.AppImage", Reply::ok(payload()));
+            .reply("/Teskad_1.13.0_amd64.AppImage", Reply::ok(payload()));
         f.updater.download().unwrap();
         f.updater.install().unwrap();
         assert_eq!(fs::read(&f.image).unwrap(), payload());
@@ -797,7 +793,7 @@ mod tests {
     fn a_download_cut_short_is_an_error() {
         let f = Fixture::new();
         f.server.reply(
-            "/Hangar.AI_1.13.0_amd64.AppImage",
+            "/Teskad_1.13.0_amd64.AppImage",
             Reply::ok(payload()).truncated_to(1000),
         );
         f.updater.check().unwrap();
@@ -809,14 +805,14 @@ mod tests {
                 ..
             }
         ));
-        assert_eq!(f.folder(), ["Hangar.AI.AppImage"]);
+        assert_eq!(f.folder(), ["Teskad.AppImage"]);
     }
 
     #[test]
     fn cancelling_stops_the_download_and_goes_back_to_available() {
         let f = Fixture::new();
         f.server.reply(
-            "/Hangar.AI_1.13.0_amd64.AppImage",
+            "/Teskad_1.13.0_amd64.AppImage",
             Reply::ok(payload()).slowly(4096, Duration::from_millis(30)),
         );
         f.updater.check().unwrap();
@@ -834,12 +830,12 @@ mod tests {
         assert!(matches!(f.updater.download(), Err(Error::Cancelled)));
         assert_eq!(f.updater.state(), State::Available(released()));
         assert_eq!(fs::read(&f.image).unwrap(), b"1.12.1 image");
-        assert_eq!(f.folder(), ["Hangar.AI.AppImage"]);
+        assert_eq!(f.folder(), ["Teskad.AppImage"]);
 
         // And it can be started again.
         f.updater.on_change(|_| {});
         f.server
-            .reply("/Hangar.AI_1.13.0_amd64.AppImage", Reply::ok(payload()));
+            .reply("/Teskad_1.13.0_amd64.AppImage", Reply::ok(payload()));
         f.updater.download().unwrap();
         assert_eq!(f.updater.state(), State::Ready(released()));
     }
@@ -866,12 +862,13 @@ mod tests {
     }
 
     #[test]
-    fn the_released_app_is_configured_with_the_old_feed_and_key() {
+    fn the_released_app_is_configured_with_the_forks_feed_and_key() {
         let config = Config::hangar("1.12.1").unwrap();
         assert_eq!(
             config.endpoint,
             "https://github.com/BlasterWhite/hangar/releases/latest/download/latest.json"
         );
+        assert_eq!(config.pubkey, PUBKEY);
         assert_eq!(config.current_version, Version::new(1, 12, 1));
         assert!(Config::hangar("not a version").is_err());
     }
@@ -913,11 +910,7 @@ mod tests {
             }
         ));
         assert_eq!(fs::read(&f.image).unwrap(), b"1.12.1 image");
-        assert_eq!(
-            f.folder(),
-            ["Hangar.AI.AppImage"],
-            "the bad file is deleted"
-        );
+        assert_eq!(f.folder(), ["Teskad.AppImage"], "the bad file is deleted");
 
         // Downloading again is the retry, and that one installs.
         f.updater.download().unwrap();
@@ -929,7 +922,7 @@ mod tests {
     fn a_second_download_while_one_runs_is_refused() {
         let f = Fixture::new();
         f.server.reply(
-            "/Hangar.AI_1.13.0_amd64.AppImage",
+            "/Teskad_1.13.0_amd64.AppImage",
             Reply::ok(payload()).slowly(4096, Duration::from_millis(30)),
         );
         f.updater.check().unwrap();
@@ -944,6 +937,6 @@ mod tests {
         assert!(matches!(f.updater.check(), Err(Error::State(_))));
         f.updater.cancel();
         assert!(matches!(running.join().unwrap(), Err(Error::Cancelled)));
-        assert_eq!(f.folder(), ["Hangar.AI.AppImage"], "one staging file, gone");
+        assert_eq!(f.folder(), ["Teskad.AppImage"], "one staging file, gone");
     }
 }

@@ -7,7 +7,7 @@
 #
 #   packaging/macos/build.sh <out-dir>
 #
-# One universal app rather than two downloads, as the Tauri build was: an Apple
+# One universal app rather than two downloads: an Apple
 # Silicon user who picks the Intel build still gets a working app. Needs, built
 # first for both targets,
 #

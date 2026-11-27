@@ -11,10 +11,11 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-/// Whether this build may replace itself with a release from the feed. Off in
-/// this fork: the feed is hangar-ai's, and its releases would overwrite the
-/// fork's changes (see [`Install::detect`]).
-pub const SELF_UPDATE: bool = false;
+/// Whether this build may replace itself with a release from the feed. On: the
+/// feed is the fork's own ([`crate::ENDPOINT`]) and its releases are signed with
+/// the fork's key ([`crate::PUBKEY`]), so an update never brings the official
+/// app's code in.
+pub const SELF_UPDATE: bool = true;
 
 /// The operating system and CPU the feed's keys are built from, in the words
 /// the plugin used: `linux`, `darwin` and `windows`; `x86_64`, `aarch64`,
@@ -112,11 +113,6 @@ impl Install {
     /// Not being able to tell is a "no" on purpose. The plugin fell back to
     /// treating an unknown Linux binary as an AppImage and overwrote it, which
     /// for a development build is the build the developer is standing on.
-    ///
-    /// Fork: always `None` while [`SELF_UPDATE`] is off. The feed and its
-    /// signing key are upstream's, so an update would replace this fork with
-    /// the official release (on Windows every copy reads as the NSIS install).
-    /// To take upstream's changes, merge them and rebuild (FORK.md).
     pub fn detect() -> Option<Self> {
         if !SELF_UPDATE {
             return None;
@@ -146,7 +142,7 @@ impl Install {
 }
 
 /// After a package upgrade replaces the running binary, Linux reports the old
-/// file as `/usr/bin/hangar-ai (deleted)`. The new one is at the path without
+/// file as `/usr/bin/teskad (deleted)`. The new one is at the path without
 /// the suffix, which is the one to start again.
 pub(crate) fn strip_deleted_marker(path: PathBuf) -> PathBuf {
     match path.to_str().and_then(|p| p.strip_suffix(" (deleted)")) {
@@ -225,8 +221,8 @@ fn package_manager_owns(manager: PackageManager, exe: &Path) -> bool {
         .is_ok_and(|status| status.success())
 }
 
-/// `/Applications/Hangar.AI.app` out of
-/// `/Applications/Hangar.AI.app/Contents/MacOS/hangar-ai`.
+/// `/Applications/Teskad.app` out of
+/// `/Applications/Teskad.app/Contents/MacOS/teskad`.
 pub(crate) fn mac_bundle(exe: &Path) -> Option<PathBuf> {
     exe.ancestors()
         .find(|dir| dir.extension() == Some(OsStr::new("app")))
@@ -261,7 +257,7 @@ mod tests {
         assert_eq!(linux.keys(None), ["linux-x86_64"]);
 
         let mac = Install::MacApp {
-            bundle: "/Applications/Hangar.AI.app".into(),
+            bundle: "/Applications/Teskad.app".into(),
         };
         assert_eq!(
             Target::new("darwin", "aarch64").keys(Some(&mac)),
@@ -296,10 +292,10 @@ mod tests {
     #[test]
     fn an_appimage_is_the_file_the_runtime_names() {
         let dir = tempfile::tempdir().unwrap();
-        let image = dir.path().join("Hangar.AI.AppImage");
+        let image = dir.path().join("Teskad.AppImage");
         std::fs::write(&image, b"x").unwrap();
         let mount = dir.path().join("mount");
-        let exe = mount.join("usr/bin/hangar-ai");
+        let exe = mount.join("usr/bin/teskad");
 
         let found = detect_linux(
             Some(image.as_os_str()),
@@ -315,7 +311,7 @@ mod tests {
         );
 
         // The runtime's variables copied into a shell, running a binary of its own.
-        let elsewhere = Path::new("/home/me/dev/hangar/target/debug/hangar-ai");
+        let elsewhere = Path::new("/home/me/dev/hangar/target/debug/teskad");
         assert_eq!(
             detect_linux(
                 Some(image.as_os_str()),
@@ -327,7 +323,7 @@ mod tests {
         );
 
         // `APPIMAGE` pointing at nothing is not an AppImage either.
-        let gone = OsString::from("/nonexistent/Hangar.AI.AppImage");
+        let gone = OsString::from("/nonexistent/Teskad.AppImage");
         assert_eq!(
             detect_linux(Some(&gone), Some(mount.as_os_str()), &exe, never),
             None
@@ -336,7 +332,7 @@ mod tests {
 
     #[test]
     fn a_package_is_what_its_manager_says() {
-        let exe = Path::new("/usr/bin/hangar-ai");
+        let exe = Path::new("/usr/bin/teskad");
         let dpkg = |m: PackageManager, _: &Path| m == PackageManager::Dpkg;
         let rpm = |m: PackageManager, _: &Path| m == PackageManager::Rpm;
         assert_eq!(detect_linux(None, None, exe, dpkg), Some(Install::Deb));
@@ -347,13 +343,11 @@ mod tests {
     #[test]
     fn the_mac_bundle_is_the_app_directory_around_the_binary() {
         assert_eq!(
-            mac_bundle(Path::new(
-                "/Applications/Hangar.AI.app/Contents/MacOS/hangar-ai"
-            )),
-            Some(PathBuf::from("/Applications/Hangar.AI.app"))
+            mac_bundle(Path::new("/Applications/Teskad.app/Contents/MacOS/teskad")),
+            Some(PathBuf::from("/Applications/Teskad.app"))
         );
         assert_eq!(
-            mac_bundle(Path::new("/Users/me/dev/hangar/target/debug/hangar-ai")),
+            mac_bundle(Path::new("/Users/me/dev/hangar/target/debug/teskad")),
             None
         );
     }
@@ -361,12 +355,12 @@ mod tests {
     #[test]
     fn a_replaced_binary_is_started_from_its_own_path() {
         assert_eq!(
-            strip_deleted_marker(PathBuf::from("/usr/bin/hangar-ai (deleted)")),
-            PathBuf::from("/usr/bin/hangar-ai")
+            strip_deleted_marker(PathBuf::from("/usr/bin/teskad (deleted)")),
+            PathBuf::from("/usr/bin/teskad")
         );
         assert_eq!(
-            strip_deleted_marker(PathBuf::from("/usr/bin/hangar-ai")),
-            PathBuf::from("/usr/bin/hangar-ai")
+            strip_deleted_marker(PathBuf::from("/usr/bin/teskad")),
+            PathBuf::from("/usr/bin/teskad")
         );
     }
 }

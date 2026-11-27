@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
 # Signs the files the updater downloads, leaving <file>.sig beside each.
 #
-#   TAURI_SIGNING_PRIVATE_KEY=... packaging/sign.sh <file>...
+#   UPDATER_SIGNING_KEY=... UPDATER_SIGNING_KEY_PASSWORD=... packaging/sign.sh <file>...
 #
-# The private key is the one the Tauri build signed with, under the same
-# secret names (TAURI_SIGNING_PRIVATE_KEY and, if it has one,
-# TAURI_SIGNING_PRIVATE_KEY_PASSWORD): its public half is compiled into every
-# install as hangar_update::PUBKEY, and an install only accepts what that key
-# signed. CARGO_PACKAGER_SIGN_PRIVATE_KEY(_PASSWORD) name the same things for
-# cargo-packager and win if set.
+# The private key is the one `cargo packager signer generate` made, kept in the
+# repository secrets UPDATER_SIGNING_KEY and UPDATER_SIGNING_KEY_PASSWORD (the
+# password is not empty; docs/native/PACKAGING.md, "The updater's signing key").
+# Its public half is compiled into every install as hangar_update::PUBKEY, and
+# an install only accepts what that key signed.
 #
-# `cargo packager signer sign` writes what the feed needs and the Tauri signer
-# wrote: a minisign signature of the file's BLAKE2b hash, with the file's name
-# in its trusted comment, the whole .sig text base64-encoded.
+# `cargo packager signer sign` writes what the feed needs: a minisign signature
+# of the file's BLAKE2b hash, with the file's name in its trusted comment, the
+# whole .sig text base64-encoded. It reads the key and its password from
+# CARGO_PACKAGER_SIGN_PRIVATE_KEY and CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD,
+# which are set below for it alone, never put on a command line.
 set -euo pipefail
 
 if [ "$#" -lt 1 ]; then
@@ -20,37 +21,20 @@ if [ "$#" -lt 1 ]; then
   exit 2
 fi
 
-key="${CARGO_PACKAGER_SIGN_PRIVATE_KEY:-${TAURI_SIGNING_PRIVATE_KEY:-}}"
+key="${UPDATER_SIGNING_KEY:-}"
 if [ -z "$key" ]; then
-  echo "no signing key: set TAURI_SIGNING_PRIVATE_KEY (without it the release would be refused by every install)" >&2
+  echo "no signing key: set UPDATER_SIGNING_KEY (without it the release would be refused by every install)" >&2
   exit 1
 fi
-password="${CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD:-${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}}"
-
-# The real key, made by `tauri signer generate` with an empty password, is
-# refused by cargo-packager's signer ("Wrong password for that key", 2.0.0's
-# first publish), while the Tauri signer that signed every 1.x release reads
-# it. So when cargo-packager refuses, the same Tauri CLI as 1.12.1 signs: its
-# .sig is the same text, and the publish job verifies every one of them
-# against the public key the installs carry before anything is published.
-# The key goes through the environment, never the command line; an empty
-# password has to be given as an argument, since an empty variable reads as
-# no password at all and the CLI would then ask for one.
-TAURI_CLI="@tauri-apps/cli@2.11.4"
+password="${UPDATER_SIGNING_KEY_PASSWORD:-}"
+if [ -z "$password" ]; then
+  echo "no password: set UPDATER_SIGNING_KEY_PASSWORD (the key is generated with a non-empty one)" >&2
+  exit 1
+fi
 
 for file in "$@"; do
-  if ! CARGO_PACKAGER_SIGN_PRIVATE_KEY="$key" \
+  CARGO_PACKAGER_SIGN_PRIVATE_KEY="$key" \
     CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD="$password" \
-    cargo packager signer sign "$file"; then
-    echo "cargo-packager refused the key: signing $file with $TAURI_CLI" >&2
-    rm -f "$file.sig"
-    if [ -z "$password" ]; then
-      TAURI_SIGNING_PRIVATE_KEY="$key" \
-        npx --yes "$TAURI_CLI" signer sign --password "" "$file"
-    else
-      TAURI_SIGNING_PRIVATE_KEY="$key" TAURI_SIGNING_PRIVATE_KEY_PASSWORD="$password" \
-        npx --yes "$TAURI_CLI" signer sign "$file"
-    fi
-  fi
+    cargo packager signer sign "$file"
   test -s "$file.sig"
 done

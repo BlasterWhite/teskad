@@ -8,8 +8,8 @@
 #
 #   packaging/linux/build.sh <out-dir>
 #
-# The names are the Tauri build's, because the download page links to them and
-# the feed's URLs are made from them. Needs cargo-packager (the AppImage and the
+# The names are fixed here because the download page links to them and the
+# feed's URLs are made from them. Needs cargo-packager (the AppImage and the
 # .deb), cargo-generate-rpm (the .rpm), jq, and `cargo build --profile dist --locked
 # -p hangar-app -p hangar-webview --features hangar-webview/engine` done first,
 # and hangar-node-x86_64 and hangar-node-aarch64 in <target dir>/node.

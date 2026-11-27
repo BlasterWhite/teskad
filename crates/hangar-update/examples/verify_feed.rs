@@ -90,7 +90,7 @@ fn requests() -> Vec<(String, Target, Option<Install>, &'static str)> {
         (
             "an AppImage",
             Install::AppImage {
-                path: PathBuf::from("/Hangar.AI.AppImage"),
+                path: PathBuf::from("/Teskad.AppImage"),
             },
             ".AppImage",
         ),
@@ -120,7 +120,7 @@ fn requests() -> Vec<(String, Target, Option<Install>, &'static str)> {
     for arch in ["aarch64", "x86_64"] {
         let target = Target::new("darwin", arch);
         let bundle = Install::MacApp {
-            bundle: PathBuf::from("/Applications/Hangar.AI.app"),
+            bundle: PathBuf::from("/Applications/Teskad.app"),
         };
         out.push((
             format!("macOS {arch}, the app"),
@@ -293,7 +293,7 @@ fn check_app_archive(path: &Path) -> Result<(), String> {
     }
     for needed in [
         "Contents/Info.plist",
-        "Contents/MacOS/hangar-ai",
+        "Contents/MacOS/teskad",
         "Contents/MacOS/hangar-webview",
     ] {
         if !files.contains(&Path::new(&bundle).join(needed)) {

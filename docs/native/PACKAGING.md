@@ -1,7 +1,7 @@
 # Hangar, native — packaging and releases
 
 How the native Hangar is turned into the installers people download, and into
-the update that installs of the old Tauri app and of this one both pick up. The
+the update that installs of the app pick up from this fork's releases. The
 plan is in [PLAN.md](PLAN.md) (section 3.3 lists what must stay compatible;
 this file is where each item is kept), the log in [STATUS.md](STATUS.md).
 
@@ -109,15 +109,15 @@ unpacks by dropping that first path component (as the plugin did).
 | --- | --- |
 | AppImage, `.deb`, macOS `.app` and `.dmg`, signing | **cargo-packager** 0.11.8, pinned |
 | `.rpm` | **cargo-generate-rpm** 0.21.1, pinned |
-| Windows installer | **`makensis`** on the vendored Tauri NSIS script, no bundler |
+| Windows installer | **`makensis`** on our own NSIS script (`installer.nsi`), no bundler |
 | Icon and version of `teskad.exe` | `winresource`, from `crates/hangar-app/build.rs` |
 
 **cargo-packager** is the Tauri bundler, extracted from Tauri and kept by
 CrabNebula: the same `.deb` and `.app` code, the same create-dmg, the same
 codesign-and-notarise sequence (it reads the secrets' `APPLE_*` names the old
-workflow already used), the same minisign signer and key format (a key made by
-`tauri signer generate` is read as it is, and its `.sig` files are what
-`hangar-update` verifies; checked, see section 5). Its configuration is a
+workflow already used), the minisign signer, whose key
+(`cargo packager signer generate`) and `.sig` files are what `hangar-update`
+verifies (checked, see section 5). Its configuration is a
 `[package.metadata.packager]` table in `crates/hangar-app/Cargo.toml`, so the
 version, description, authors and executable names come from the package and a
 release bumps one number. What the alternatives would have cost:
@@ -332,8 +332,8 @@ makensis overflows a stack buffer on very long include paths.
 **Signing and the feed**, with any key (the real one is only in the CI secrets):
 
 ```bash
-cargo packager signer generate --ci --path /tmp/test-key --password ""
-TAURI_SIGNING_PRIVATE_KEY="$(cat /tmp/test-key)" crates/hangar-app/packaging/sign.sh target/packager/Teskad*
+cargo packager signer generate --ci --path /tmp/test-key --password test
+UPDATER_SIGNING_KEY="$(cat /tmp/test-key)" UPDATER_SIGNING_KEY_PASSWORD=test crates/hangar-app/packaging/sign.sh target/packager/Teskad*
 TAG=v1.13.0 REPO=BlasterWhite/hangar crates/hangar-app/packaging/latest-json.sh target/packager latest.json
 cargo run -p hangar-update --example verify_feed -- latest.json target/packager --version v1.13.0 --pubkey /tmp/test-key.pub
 ```
@@ -355,21 +355,20 @@ release notes' "glibc 2.35 or later" is that runner's.
 3. **build** (three at once, beside `node`): Defender exclusion on Windows; build dependencies
    on Linux; `pnpm mobile:build` and `check-mobile.sh`; the Apple secrets and
    whisper.cpp's portable-AVX2 pins as before; `MACOSX_DEPLOYMENT_TARGET=10.15`
-   (what `minimumSystemVersion` did for the Tauri build); the two cargo builds;
+   (the oldest macOS the executables run on); the two cargo builds;
    `check-mobile.sh` again on the executable; a wait for `node`'s two files, then
    the `hangar-node` files downloaded; the packaging script of the
    platform; upload to the draft by id (`upload-assets.sh`, which replaces an
    asset of the same name, so a re-run is harmless).
 4. **publish** downloads the updater artifacts from the draft, **signs** them
-   (the only job that sees `TAURI_SIGNING_PRIVATE_KEY`), writes `latest.json`,
+   (the only job that sees `UPDATER_SIGNING_KEY`), writes `latest.json`,
    runs **`verify_feed`**, uploads the `.sig` files and the feed, and only then
    makes the release public. `verify_feed` is new: it fails the release if a
    platform the updater can ask for is missing, if an artifact is not what its
    name says (an ELF, an `ar`, an RPM, a PE; a `.app.tar.gz` with one `.app` that
    has the helper beside the executable), or if any signature does not verify
-   against the key the installs carry. A signing secret that is not the old key
-   used to be found by the first person who tried to update; now the release
-   stays a draft.
+   against the key the installs carry. A signing secret that is not the key the
+   installs trust keeps the release a draft.
 
 ### Rust caches: warmed on main, read by releases
 
@@ -399,16 +398,46 @@ its warm run is still going) restores main's previous one and compiles what
 changed; one built with a rustc main has not warmed yet finds nothing and
 compiles from scratch, as every release did before.
 
-Secrets, all as before: `TAURI_SIGNING_PRIVATE_KEY` and `_PASSWORD`,
-`APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`,
-`APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`. The names are kept so nothing
-has to change in the repository settings.
+Secrets: `UPDATER_SIGNING_KEY` and `UPDATER_SIGNING_KEY_PASSWORD` (below), and,
+for Apple signing and notarisation (not set up yet; the macOS build is unsigned
+without them), `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`,
+`APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`.
+
+### The updater's signing key
+
+Every release file the updater downloads is signed with a minisign key. Its
+public half is `hangar_update::PUBKEY` (`crates/hangar-update/src/lib.rs`, the
+only place), its private half is in two repository secrets and nowhere else.
+
+To make one, or to renew it:
+
+```bash
+cargo install cargo-packager --version 0.11.8 --locked
+cargo packager signer generate --path teskad.key     # asks for a password: give a non-empty one
+```
+
+(`--ci` generates without prompting and with an empty password, which
+cargo-packager's own signer then refuses to read: do not use it for the real
+key.) It writes `teskad.key` (private, base64) and `teskad.key.pub`. Then:
+
+1. Repository settings › Secrets and variables › Actions: create
+   `UPDATER_SIGNING_KEY` with the content of `teskad.key` and
+   `UPDATER_SIGNING_KEY_PASSWORD` with the password.
+2. Put `base64 -w0 teskad.key.pub` in `PUBKEY`, update the key id in its comment
+   and in this file, and release.
+3. Keep the private key and its password somewhere safe, and delete the local copy.
+
+Renewing strands the installs that carry the old public key: they cannot verify
+what the new key signs, so their owners install that release by hand once. Do it
+only when the key is lost or leaked.
+
+The current key's id is `70C57C3F4975A19B`.
 
 ## 5. Identity, and the official app
 
 | What an install knows | Kept how |
 | --- | --- |
-| The feed and the key | Same URL (`ENDPOINT`), same `latest.json` shape, signed by the same private key; `hangar-update` and the plugin verify the same `.sig` text. Checked with a key made by cargo-packager's `signer generate` (the same format as `tauri signer generate`) through `hangar-update`'s `verify_file`; the shipped `PUBKEY` is read by it too. The real key could not be tried here. |
+| The feed and the key | The fork's own feed (`ENDPOINT`, on `BlasterWhite/hangar`) and key (`PUBKEY`, id `70C57C3F4975A19B`), never the official app's: `hangar-update` refuses anything another key signed (a test checks it). Checked with a key made by `cargo packager signer generate` through `hangar-update`'s `verify_file`. The real key is only in the CI secrets; the publish job's `verify_feed` is what tries it. |
 | Asset names | `Teskad…`, in every row of section 1; the download page links to them. The official app's `Hangar.AI…` names are not used. |
 | Identifier, product name, executable | `io.github.blasterwhite.teskad`, `Teskad`, `teskad`, publisher `BlasterWhite`: nothing shared with the official app (`com.simnjs.iabench`, `Hangar.AI`, `hangar-ai`, `simnjs`), which Teskad installs beside. `teskad --mcp` is what agents' MCP configs name: `/usr/bin/teskad`, `…/Teskad.app/Contents/MacOS/teskad`, `%LOCALAPPDATA%\Teskad\teskad.exe`. The helpers `hangar-webview` and `hangar-node` keep their names, they are internal. |
 | `.deb` | Package `teskad`: `dpkg -i` never replaces the official `hangar-ai`. It depends on `libwebkit2gtk-4.1-0` and GTK, `libasound2`, `libstdc++6`, `libc6`. The desktop file is `teskad.desktop`, with `StartupWMClass=teskad`. Icons go in the `hicolor` folders, from 16 to 512 px plus `scalable/apps/teskad.svg`: a rounded tile with room around it, as GNOME and KDE draw app icons (`packaging/icons/linux/`, rendered from its SVG by `render.sh`). |
@@ -454,8 +483,8 @@ Done on Linux with the real release build (1.12.1, `x86_64`):
   stand-in for each executable. `makensis` refuses a call to a plugin function
   the DLL does not export, so every `nsis_tauri_utils::` call is known to exist
   in v0.5.3; all the language strings and macros resolve.
-- Signing and the feed with a throwaway key: five artifacts signed through the
-  Tauri secret names, `latest.json` written with the ten keys, and
+- Signing and the feed with a throwaway key: five artifacts signed through
+  `sign.sh`, `latest.json` written with the ten keys, and
   `verify_feed` accepting it, then refusing it with the shipped key, with a
   changed byte, and with a missing Windows signature.
 

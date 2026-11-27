@@ -49,15 +49,15 @@ const LATEST_JSON_TEMPLATE: &str = r#"{
   "notes": "- **Windows** — the `.exe` under **Assets**. Installs for you alone,\n  with no administrator rights.\n- **macOS** — the `.dmg`, universal for Apple Silicon and Intel.\n- **Linux** — the `.AppImage` runs without installing; the `.deb` and\n  `.rpm` are there for a package manager.",
   "pub_date": "2026-11-03T09:41:07Z",
   "platforms": {
-    "darwin-aarch64": { "signature": "@SIG_MAC@", "url": "https://github.com/hangar-ai/hangar/releases/download/v1.13.0/Hangar.AI_universal.app.tar.gz" },
-    "darwin-x86_64": { "signature": "@SIG_MAC@", "url": "https://github.com/hangar-ai/hangar/releases/download/v1.13.0/Hangar.AI_universal.app.tar.gz" },
-    "darwin-aarch64-app": { "signature": "@SIG_MAC@", "url": "https://github.com/hangar-ai/hangar/releases/download/v1.13.0/Hangar.AI_universal.app.tar.gz" },
-    "darwin-x86_64-app": { "signature": "@SIG_MAC@", "url": "https://github.com/hangar-ai/hangar/releases/download/v1.13.0/Hangar.AI_universal.app.tar.gz" },
-    "linux-x86_64": { "signature": "@SIG_APPIMAGE@", "url": "https://github.com/hangar-ai/hangar/releases/download/v1.13.0/Hangar.AI_1.13.0_amd64.AppImage" },
-    "linux-x86_64-appimage": { "signature": "@SIG_APPIMAGE@", "url": "https://github.com/hangar-ai/hangar/releases/download/v1.13.0/Hangar.AI_1.13.0_amd64.AppImage" },
-    "linux-x86_64-deb": { "signature": "@SIG_DEB@", "url": "https://github.com/hangar-ai/hangar/releases/download/v1.13.0/Hangar.AI_1.13.0_amd64.deb" },
-    "linux-x86_64-rpm": { "signature": "@SIG_DEB@", "url": "https://github.com/hangar-ai/hangar/releases/download/v1.13.0/Hangar.AI-1.13.0-1.x86_64.rpm" },
-    "windows-x86_64": { "signature": "@SIG_NSIS@", "url": "https://github.com/hangar-ai/hangar/releases/download/v1.13.0/Hangar.AI_1.13.0_x64-setup.exe" },
-    "windows-x86_64-nsis": { "signature": "@SIG_NSIS@", "url": "https://github.com/hangar-ai/hangar/releases/download/v1.13.0/Hangar.AI_1.13.0_x64-setup.exe" }
+    "darwin-aarch64": { "signature": "@SIG_MAC@", "url": "https://github.com/BlasterWhite/hangar/releases/download/v1.13.0/Teskad_universal.app.tar.gz" },
+    "darwin-x86_64": { "signature": "@SIG_MAC@", "url": "https://github.com/BlasterWhite/hangar/releases/download/v1.13.0/Teskad_universal.app.tar.gz" },
+    "darwin-aarch64-app": { "signature": "@SIG_MAC@", "url": "https://github.com/BlasterWhite/hangar/releases/download/v1.13.0/Teskad_universal.app.tar.gz" },
+    "darwin-x86_64-app": { "signature": "@SIG_MAC@", "url": "https://github.com/BlasterWhite/hangar/releases/download/v1.13.0/Teskad_universal.app.tar.gz" },
+    "linux-x86_64": { "signature": "@SIG_APPIMAGE@", "url": "https://github.com/BlasterWhite/hangar/releases/download/v1.13.0/Teskad_1.13.0_amd64.AppImage" },
+    "linux-x86_64-appimage": { "signature": "@SIG_APPIMAGE@", "url": "https://github.com/BlasterWhite/hangar/releases/download/v1.13.0/Teskad_1.13.0_amd64.AppImage" },
+    "linux-x86_64-deb": { "signature": "@SIG_DEB@", "url": "https://github.com/BlasterWhite/hangar/releases/download/v1.13.0/Teskad_1.13.0_amd64.deb" },
+    "linux-x86_64-rpm": { "signature": "@SIG_DEB@", "url": "https://github.com/BlasterWhite/hangar/releases/download/v1.13.0/Teskad-1.13.0-1.x86_64.rpm" },
+    "windows-x86_64": { "signature": "@SIG_NSIS@", "url": "https://github.com/BlasterWhite/hangar/releases/download/v1.13.0/Teskad_1.13.0_x64-setup.exe" },
+    "windows-x86_64-nsis": { "signature": "@SIG_NSIS@", "url": "https://github.com/BlasterWhite/hangar/releases/download/v1.13.0/Teskad_1.13.0_x64-setup.exe" }
   }
 }"#;

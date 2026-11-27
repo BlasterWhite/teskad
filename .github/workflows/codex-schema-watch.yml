@@ -37,7 +37,7 @@ concurrency:
 jobs:
   watch:
     # A fork has no issues of ours to open.
-    if: github.repository == 'hangar-ai/hangar'
+    if: github.repository == 'BlasterWhite/hangar'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

@@ -217,4 +217,29 @@ mod tests {
     fn the_embedded_release_key_is_readable() {
         parse_public_key(crate::PUBKEY).expect("the key shipped in the binary must decode");
     }
+
+    /// What the shipped key trusts is the fork's key, and only it: a release
+    /// signed by any other (upstream's, or a test key) is refused.
+    #[test]
+    fn the_shipped_key_refuses_every_other_key() {
+        use base64::Engine as _;
+        let shipped = crate::PUBKEY;
+        let text = String::from_utf8(
+            base64::engine::general_purpose::STANDARD
+                .decode(shipped)
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(text.contains("70C57C3F4975A19B"), "{text}");
+
+        let file = file_with(&payload());
+        for signature in [SIG_PREHASHED, SIG_LEGACY, SIG_OTHER_KEY] {
+            let why = rejected(verify_file(file.path(), shipped, signature));
+            assert!(why.contains("different key"), "{why}");
+        }
+        // The key upstream's releases were signed with (id DE7C429DA089C53).
+        const UPSTREAM: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERFN0M0MjlEQTA4OUM1MwpSV1JUbkFqYUtjVG5EUldHd0F6aGRWSmdpWWRWcXVOanhqUG5Tak5NZVhpdXRKTzZZRmkxQXl3RQo=";
+        assert_ne!(shipped, UPSTREAM);
+        rejected(verify_file(file.path(), UPSTREAM, SIG_PREHASHED));
+    }
 }

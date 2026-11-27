@@ -13,7 +13,7 @@ upstream: this fork goes its own way, on `main`.
 
 | Change | Where | Why |
 |---|---|---|
-| No upstream self-update | `crates/hangar-update/src/platform.rs` (`SELF_UPDATE`) | The update feed and its signing key are upstream's: an update would replace this build with theirs. For a new version, pull and build again. |
+| Updates from this fork's releases only | `crates/hangar-update/src/lib.rs` (`ENDPOINT`, `PUBKEY`), `platform.rs` (`SELF_UPDATE`) | The app updates itself from the GitHub Releases of `BlasterWhite/hangar`, signed with this fork's own key; it never reads upstream's feed and refuses anything signed by another key. A build of your own (from `target/`) does not update itself: pull and build again. |
 | No cloud account | Settings, statistics; the account server's crates are gone | This fork runs no hosted service. |
 | No website | the website and its build are gone, as are the rented build machines | Everything builds on your own machine or on GitHub Actions. |
 | No link to upstream's services | title bar, Discord Rich Presence, Web Push contact | The app does not send people to a project it is not part of. Rich Presence needs a Discord application ID of your own (Settings › Discord). |

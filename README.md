@@ -93,15 +93,17 @@ Something wrong in a Codex pane? Use the
 
 ## Install
 
-This fork ships no prebuilt installers yet, and its builds do not update themselves:
-build it from source (see [Build from source](#build-from-source)), then pull and build
-again for a new version.
+Download the installer for your system from this fork's
+**[releases](https://github.com/BlasterWhite/hangar/releases/latest)**
+([install guide](docs/guide/install.md)): the app then updates itself from those releases
+only, which are signed with this fork's own key. Or build it from source (see
+[Build from source](#build-from-source)); a build of your own does not update itself.
 
 | System | How |
 |---|---|
-| Linux (x86_64) | Build the binaries, then the `.rpm` or `.deb` with [`crates/hangar-app/packaging/linux/build.sh`](crates/hangar-app/packaging/linux/build.sh) ([packaging guide](docs/native/PACKAGING.md)), or run `./target/dist/hangar-ai` straight from the build |
-| Windows (x64) | [Build it from source](#build-from-source) |
-| macOS (Apple Silicon + Intel) | [Build it on your Mac](#build-on-macos) |
+| Linux (x86_64) | `.AppImage`, `.deb` or `.rpm` from the releases, or build the binaries, then the `.rpm` or `.deb` with [`crates/hangar-app/packaging/linux/build.sh`](crates/hangar-app/packaging/linux/build.sh) ([packaging guide](docs/native/PACKAGING.md)), or run `./target/dist/teskad` straight from the build |
+| Windows (x64) | `Teskad_<version>_x64-setup.exe` from the releases, or [build it from source](#build-from-source) |
+| macOS (Apple Silicon + Intel) | `Teskad_<version>_universal.dmg` from the releases, or [build it on your Mac](#build-on-macos) |
 | NixOS / Nix | `nix run github:BlasterWhite/hangar` (builds `main`), or the flake in your config: [NixOS](docs/guide/install.md#nixos-and-nix) |
 
 You also need [Claude Code](https://code.claude.com/docs/en/overview) or
@@ -138,7 +140,7 @@ git clone https://github.com/BlasterWhite/hangar && cd hangar
 pnpm install && pnpm mobile:build      # optional: the phone app Teskad serves
 cargo build --profile dist --locked -p hangar-app
 cargo build --profile dist --locked -p hangar-webview --features engine
-./target/dist/hangar-ai
+./target/dist/teskad
 ```
 
 `--release` instead of `--profile dist` builds several times faster (a bigger, slightly

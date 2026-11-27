@@ -13,10 +13,10 @@
 //!   name): `version`, `notes`, `pub_date`, and a `platforms` map from a key
 //!   such as `linux-x86_64-appimage` to the `url` of that build and its
 //!   `signature`. The key is `{os}-{arch}` with an optional `-{installer}`;
-//!   [`Target::keys`] has the rules, which are `tauri-plugin-updater`'s, so
-//!   an install of the old Tauri app finds its entry here the same way.
-//! - **A minisign signature** of every artifact, made by `tauri signer` (or
-//!   `minisign`) with the private key whose public half is [`PUBKEY`]. The
+//!   [`Target::keys`] has the rules, which are the ones `tauri-plugin-updater`
+//!   set, a format the feed keeps.
+//! - **A minisign signature** of every artifact, made by `cargo packager signer`
+//!   (or `minisign`) with the private key whose public half is [`PUBKEY`]. The
 //!   `signature` in the feed is the `.sig` file's text, base64-encoded. An
 //!   artifact whose signature does not verify is deleted unread: the feed is
 //!   plain JSON over HTTPS from a place anyone with a GitHub account can
@@ -78,12 +78,17 @@ pub use updater::{Config, ReleaseInfo, State, Updater};
 
 /// The feed, which is a file of the newest published release: GitHub redirects
 /// `/releases/latest/download/` to the latest release that is not a draft or a
-/// pre-release. It is `plugins.updater.endpoints` of the old `tauri.conf.json`.
+/// pre-release. Only this fork's releases are ever read.
 pub const ENDPOINT: &str =
     "https://github.com/BlasterWhite/hangar/releases/latest/download/latest.json";
 
-/// The public half of the key every release is signed with, base64-encoded as
-/// `plugins.updater.pubkey` of the old `tauri.conf.json` held it. Changing it
-/// strands every install that has the old one: they can no longer verify what
-/// the new key signs.
-pub const PUBKEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERFN0M0MjlEQTA4OUM1MwpSV1JUbkFqYUtjVG5EUldHd0F6aGRWSmdpWWRWcXVOanhqUG5Tak5NZVhpdXRKTzZZRmkxQXl3RQo=";
+/// The public half of the key every Teskad release is signed with, base64 of
+/// the minisign `.pub` file (key id 70C57C3F4975A19B). The private half is made
+/// by `cargo packager signer generate` and lives in the repository secrets
+/// `UPDATER_SIGNING_KEY` and `UPDATER_SIGNING_KEY_PASSWORD`
+/// (docs/native/PACKAGING.md). This is the only place the key is written.
+///
+/// An install accepts what this key signed and nothing else, upstream's key
+/// included. Changing it strands every install that has the old one: they can
+/// no longer verify what the new key signs.
+pub const PUBKEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDcwQzU3QzNGNDk3NUExOUIKUldTYm9YVkpQM3pGY0N1Tzl1VEliK2RSd2NaaWZkTDBnSC85djFmeHo1ZHBraWw1NldjckxDU1AK";
