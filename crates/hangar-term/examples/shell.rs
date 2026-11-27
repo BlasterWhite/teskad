@@ -73,10 +73,10 @@ type Output = mpsc::UnboundedReceiver<Option<Vec<u8>>>;
 
 impl Shell {
     fn boot() -> Self {
-        let font = hangar_core::env::var("TESKAD_TERM_FONT").unwrap_or_else(|_| {
+        let font = env_var("TESKAD_TERM_FONT", "HANGAR_TERM_FONT").unwrap_or_else(|_| {
             "\"JetBrains Mono\", \"Cascadia Code\", \"DejaVu Sans Mono\", monospace".into()
         });
-        let size = hangar_core::env::var("TESKAD_TERM_SIZE")
+        let size = env_var("TESKAD_TERM_SIZE", "HANGAR_TERM_SIZE")
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(14.0);
@@ -333,4 +333,10 @@ impl Shell {
             .push(container(terminal).width(Length::Fill).height(Length::Fill))
             .into()
     }
+}
+
+/// `name`, then its pre-rename `old` name. hangar-core (whose `env::var` does
+/// this) is a dev-dependency on Unix only, and this example builds everywhere.
+fn env_var(name: &str, old: &str) -> Result<String, std::env::VarError> {
+    std::env::var(name).or_else(|_| std::env::var(old))
 }

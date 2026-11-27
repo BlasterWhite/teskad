@@ -35,7 +35,8 @@ fn main() {
 
     let mut terminal = Terminal::new(Config::default(), columns, rows);
     terminal.set_font(Font::from_css_stack(
-        &hangar_core::env::var("TESKAD_TERM_FONT")
+        &std::env::var("TESKAD_TERM_FONT")
+            .or_else(|_| std::env::var("HANGAR_TERM_FONT"))
             .unwrap_or_else(|_| "\"DejaVu Sans Mono\", monospace".into()),
         14.0,
         1.25,
