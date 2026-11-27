@@ -40,10 +40,18 @@ use crate::state::{Model, PaneId, StoreAction, Workspace, WsId};
 pub struct State {
     /// The tasks whose row is open on its description and last comment.
     expanded: HashSet<String>,
+    /// The panel opened from its icon, in a window too narrow to keep it
+    /// open on its own.
+    unfolded: bool,
     cache: model::Cache,
 }
 
 impl State {
+    /// Whether a panel that `narrow` would fold shows only its icon.
+    pub fn folded(&self, narrow: bool) -> bool {
+        narrow && !self.unfolded
+    }
+
     pub fn is_expanded(&self, task: &str) -> bool {
         self.expanded.contains(task)
     }
@@ -54,6 +62,9 @@ impl State {
 pub enum Msg {
     /// A row was clicked: open or close it.
     Toggle(String),
+    /// In a narrow window: the panel opened from its icon (`true`), or
+    /// folded back to it.
+    Unfold(bool),
     /// Go to a pane (an agent in a dialog, the orchestrator to answer): the
     /// panes come back, the pane focused.
     GoTo { ws: WsId, pane: PaneId },
@@ -69,6 +80,10 @@ pub fn update(st: &mut State, m: &mut Model, msg: Msg) -> Task<Message> {
             if !st.expanded.remove(&task) {
                 st.expanded.insert(task);
             }
+            Task::none()
+        }
+        Msg::Unfold(on) => {
+            st.unfolded = on;
             Task::none()
         }
         Msg::GoTo { ws, pane } => {
@@ -98,9 +113,22 @@ pub fn on_event(_st: &mut State, _m: &mut Model, _event: &CoreEvent) -> Option<T
     None
 }
 
-pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, Message> {
+pub use view::RAIL_WIDTH;
+
+/// The panel of `ws`, in a window that is `narrow` or not: folded to its
+/// icon there until asked for.
+pub fn view<'a>(
+    st: &'a State,
+    ctx: Ctx<'a>,
+    ws: &'a Workspace,
+    narrow: bool,
+) -> Element<'a, Message> {
     let panel = st.cache.panel(ctx.model, ws);
-    view::panel(st, ctx, ws, &panel)
+    if st.folded(narrow) {
+        view::rail(ctx, &panel)
+    } else {
+        view::panel(st, ctx, ws, &panel, narrow)
+    }
 }
 
 #[cfg(test)]

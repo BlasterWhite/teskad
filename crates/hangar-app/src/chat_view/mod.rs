@@ -37,6 +37,13 @@ use crate::state::{Model, StoreAction, Workspace, WsId};
 /// rest.
 pub const TASKS_WIDTH: f32 = 300.0;
 
+/// The tasks fold to their icon under this width of the main area: a window
+/// of 1180 px with the navigator shown.
+const TASKS_FOLD_BELOW: f32 = 1180.0 - tokens::scale::size::SIDEBAR;
+
+/// The least the conversation is given while the main area has that much.
+const CONVERSATION_MIN_WIDTH: f32 = 480.0;
+
 /// How the room left of the tasks is shared when there are tools: the
 /// conversation's part, then the tools'.
 const CONVERSATION_PORTION: u16 = 3;
@@ -118,33 +125,46 @@ pub fn on_event(
 /// The chat view of `ws`, filling the main area.
 pub fn view<'a>(ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, Message> {
     let st = &ctx.pkg.chat_view;
-    let left = (ctx.metrics.body_width - TASKS_WIDTH).max(0.0);
-    let tools_width =
-        left * f32::from(TOOLS_PORTION) / f32::from(CONVERSATION_PORTION + TOOLS_PORTION);
-    let tools = crate::panes::view_tools(ctx, ws, tools_width);
+    let narrow = ctx.metrics.body_width < TASKS_FOLD_BELOW;
+    let tasks_width = if st.tasks.folded(narrow) {
+        tasks::RAIL_WIDTH
+    } else {
+        TASKS_WIDTH
+    };
+    let left = (ctx.metrics.body_width - tasks_width).max(0.0);
+    let shared =
+        left * f32::from(CONVERSATION_PORTION) / f32::from(CONVERSATION_PORTION + TOOLS_PORTION);
+    // Its part of the room, never under its least: the tools take the rest.
+    let least = shared < CONVERSATION_MIN_WIDTH;
+    let conversation_width = shared.max(CONVERSATION_MIN_WIDTH.min(left));
+    let tools = crate::panes::view_tools(ctx, ws, left - conversation_width);
 
     let conversation = container(conversation::view(&st.conversation, ctx, ws))
-        .width(if tools.is_some() {
-            Length::FillPortion(CONVERSATION_PORTION)
-        } else {
-            Length::Fill
+        .width(match (&tools, least) {
+            (Some(_), true) => Length::Fixed(conversation_width),
+            (Some(_), false) => Length::FillPortion(CONVERSATION_PORTION),
+            (None, _) => Length::Fill,
         })
         .height(Length::Fill);
     let mut regions = row![conversation].height(Length::Fill);
     if let Some(tools) = tools {
         regions = regions.push(sep(ctx)).push(
             container(tools)
-                .width(Length::FillPortion(TOOLS_PORTION))
+                .width(if least {
+                    Length::Fill
+                } else {
+                    Length::FillPortion(TOOLS_PORTION)
+                })
                 .height(Length::Fill),
         );
     }
     regions
         .push(sep(ctx))
         .push(
-            container(tasks::view(&st.tasks, ctx, ws))
-                .width(TASKS_WIDTH)
+            container(tasks::view(&st.tasks, ctx, ws, narrow))
+                .width(tasks_width)
                 .height(Length::Fill)
-                .style(style::container::panel(ctx.theme)),
+                .style(style::container::plain(ctx.theme)),
         )
         .into()
 }
