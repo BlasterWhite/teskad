@@ -3,17 +3,22 @@
 //! divider dragged sets the pixels it keeps (`StoreAction::ResizeSplit`),
 //! and its header shows the pin that lets it go.
 
-use iced::Point;
+use iced::{Point, Size};
 use iced_test::Simulator;
 
 use super::*;
 use crate::app::Packages;
 use crate::navigator::testing::{WINDOW, ctx, model_of, pane, simulate, workspace};
+use crate::panes::grid::CARD_GAP;
 use crate::panes::header::pin_glyph_id;
 use crate::panes::terminal_pane::slot_id;
 use crate::state::types::{AgentId, AppState, PinEdge};
 
 const WS: &str = "pin-grid";
+
+/// What the grid divides in a window of [`WINDOW`]'s size, and says it
+/// measured: the window less one gap each way.
+const TILES: Size = Size::new(WINDOW.width - CARD_GAP, WINDOW.height - CARD_GAP);
 
 /// Two shells side by side, Leo on the left and Term on the right, in a
 /// grid that has measured itself at the window's size.
@@ -32,7 +37,7 @@ fn two_shells() -> (Model, Packages) {
         ..AppState::default()
     });
     let mut pkg = Packages::default();
-    pkg.panes.grid_sizes.insert(WS.into(), WINDOW);
+    pkg.panes.grid_sizes.insert(WS.into(), TILES);
     pkg.panes
         .mount_for_test(m.workspace(WS).expect("the workspace"));
     (m, pkg)
@@ -129,10 +134,10 @@ fn a_pinned_pane_keeps_its_width_while_one_to_six_workers_open_beside_it() {
     let (mut m, mut pkg) = two_shells();
     pin_pane(&mut m, &pkg, "term", true);
     let kept = m.workspace(WS).unwrap().pin_of("term").cloned().unwrap();
-    // On the edge it lay along, at the pixels it was drawn at: half the
-    // window.
+    // On the edge it lay along, at the pixels it was drawn at: half of what
+    // the grid divides.
     assert_eq!(kept.edge, PinEdge::Right);
-    assert!((pinned_px(&m, "term") - 550.0).abs() < 0.5, "{kept:?}");
+    assert!((pinned_px(&m, "term") - 546.0).abs() < 0.5, "{kept:?}");
 
     let mut widths = Vec::new();
     for workers in 1..=6 {
@@ -141,11 +146,15 @@ fn a_pinned_pane_keeps_its_width_while_one_to_six_workers_open_beside_it() {
         assert_eq!(ws.panes.len(), 2 + workers);
         let mut ui = grid(&m, &pkg);
         let term = bounds_of(&mut ui, "term");
-        // Against the right edge, its 550 px less the separator column it
-        // gives on its left.
-        assert_eq!(term.x + term.width, WINDOW.width, "{workers} workers");
+        // A gap in from the right edge, its 546 px less the gap its card
+        // gives up.
+        assert_eq!(
+            term.x + term.width,
+            WINDOW.width - CARD_GAP,
+            "{workers} workers"
+        );
         assert!(
-            (term.width - 549.0).abs() <= 1.0,
+            (term.width - 538.0).abs() <= 1.0,
             "{workers} workers: {term:?}"
         );
         // Every other pane shares the room it leaves.
@@ -164,7 +173,7 @@ fn a_pinned_pane_keeps_its_width_while_one_to_six_workers_open_beside_it() {
         "the same width throughout: {widths:?}"
     );
     // The pixels it keeps never moved.
-    assert!((pinned_px(&m, "term") - 550.0).abs() < 0.5);
+    assert!((pinned_px(&m, "term") - 546.0).abs() < 0.5);
 }
 
 #[test]
@@ -178,12 +187,12 @@ fn dragging_a_pinned_panes_divider_sets_the_pixels_it_keeps() {
     assert_eq!(said.len(), 1, "one write, on release: {said:?}");
     let (path, ratio) = said[0].clone();
     assert!(path.is_empty(), "the pin's split is the grid's first");
-    assert!((ratio - 700.0 / 1100.0).abs() < 0.005, "{ratio}");
+    assert!((ratio - 696.0 / 1092.0).abs() < 0.005, "{ratio}");
 
     // The engine keeps the pixels that is (`ResizeSplit`), not a share.
     set_ratio(&pkg.panes.grid_sizes, &mut m, WS.into(), path, ratio);
     assert!(
-        (pinned_px(&m, "term") - 400.0).abs() < 2.0,
+        (pinned_px(&m, "term") - 396.0).abs() < 2.0,
         "{}",
         pinned_px(&m, "term")
     );
@@ -191,8 +200,8 @@ fn dragging_a_pinned_panes_divider_sets_the_pixels_it_keeps() {
     open_worker(&mut m, &mut pkg);
     let mut ui = grid(&m, &pkg);
     let term = bounds_of(&mut ui, "term");
-    assert!((term.width - 399.0).abs() <= 2.0, "{term:?}");
-    assert_eq!(term.x + term.width, WINDOW.width);
+    assert!((term.width - 388.0).abs() <= 2.0, "{term:?}");
+    assert_eq!(term.x + term.width, WINDOW.width - CARD_GAP);
 }
 
 #[test]
@@ -200,7 +209,7 @@ fn a_pinned_panes_divider_stops_where_the_engine_keeps_it() {
     let (mut m, pkg) = two_shells();
     pin_pane(&mut m, &pkg, "term", true);
     // Dragged nearly to the left edge: the pinned pane would take 1000 px of
-    // 1100; it takes the most the engine lets it, 70% of the grid, while it
+    // 1092; it takes the most the engine lets it, 70% of the grid, while it
     // is dragged and once let go.
     let mut ui = grid(&m, &pkg);
     drag(&mut ui, 550.0, 100.0);
@@ -208,10 +217,10 @@ fn a_pinned_panes_divider_stops_where_the_engine_keeps_it() {
     let (path, ratio) = said.last().cloned().expect("a ratio");
     assert!((ratio - 0.3).abs() < 1e-6, "{ratio}");
     set_ratio(&pkg.panes.grid_sizes, &mut m, WS.into(), path, ratio);
-    assert!((pinned_px(&m, "term") - 770.0).abs() < 0.5);
+    assert!((pinned_px(&m, "term") - 764.4).abs() < 0.5);
     let mut ui = grid(&m, &pkg);
     let term = bounds_of(&mut ui, "term");
-    assert!((term.width - 769.0).abs() <= 1.0, "{term:?}");
+    assert!((term.width - 756.4).abs() <= 1.0, "{term:?}");
 }
 
 #[test]

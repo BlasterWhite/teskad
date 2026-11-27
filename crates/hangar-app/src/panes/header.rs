@@ -1,5 +1,11 @@
-//! A pane's header (`.pane__bar` of TerminalPane.tsx): one line of status,
-//! and the drag handle for the whole pane.
+//! A pane's header: one 40 px line of status, and the drag handle for the
+//! whole pane (`docs/teskad-brand/docs/ecrans.md`, §1).
+//!
+//! From the left: the state's glyph, the name, the role, the account when the
+//! pane runs on its own, the worker's task, the branch; from the right: the
+//! alerts, the context gauge, the « Details » button and the actions. What is
+//! not on the line is in the Details popover: the agent CLI (with its beta
+//! badge and side channel), the shell, the session, and the state in words.
 //!
 //! What it says about the agent (its activity, whether the mod reports it,
 //! the queue, the context gauge, the attention badge, an overlap, the git
@@ -13,23 +19,23 @@
 //!
 //! A narrowing pane drops its details in a fixed order, so nothing ever wraps
 //! or overlaps, down to eight panes beside both side panels in the smallest
-//! window. The web app did it with container queries in `em` of the header's
-//! 12 px font; [`Fit::of`] is the same table over the header's content width
-//! (the pane's width less its 16 px of padding).
+//! window ([`Fit::of`], over the header's content width). The part left of
+//! the alerts is clipped: the actions are never pushed off the line.
 
 use hangar_core::pty::FloorReason;
 use hangar_i18n::{Key, Translator, args};
-use hangar_theme::{AgentState, style, tokens};
+use hangar_theme::{AgentState, Theme, style, tokens};
 use hangar_ui::badge::{self, Tone};
-use hangar_ui::{Icon, button, glyph, icon, menu, tip};
-use iced::widget::{Id, Space, container, mouse_area, row, text};
-use iced::{Alignment, Element, Length, Padding};
+use hangar_ui::{Icon, button, focus, glyph, icon, menu, popover, tip};
+use iced::widget::{Id, Space, column, container, responsive, row, rule, text};
+use iced::{Alignment, Background, Border, Element, Length, Padding};
 
 use crate::ctx::Ctx;
 use crate::message::Message;
 use crate::pane_menu::Folded;
 use crate::panes::controller::{PaneRt, Side, folder_of};
 use crate::panes::gauge;
+use crate::panes::label::fit_end;
 use crate::panes::status::{shell_short_name, state_key, ui_glyph};
 use crate::panes::{Msg, Picker};
 use crate::panes_logic::agents::is_resumable;
@@ -38,13 +44,22 @@ use crate::state::live::PaneStatus;
 use crate::state::types::{AGENTS, AgentId, Pane, PinEdge, ShellInfo, Workspace};
 use crate::state::{AgentActivity, GlyphState, WsId};
 
-/// The header's font size, which its breakpoints are counted in.
-const EM: f32 = 12.0;
+/// The header's height.
+pub const HEIGHT: f32 = tokens::scale::size::CONTROL_LG;
 /// The header's padding, left and right: what its content box loses.
-pub const PADDING_X: f32 = 16.0;
-/// The branch label's widest (`max-width: 18ch` at the header's 10.8 px
-/// mono).
-const BRANCH_MAX: f32 = 18.0 * 6.5;
+const PADDING_LEFT: f32 = 12.0;
+const PADDING_RIGHT: f32 = 8.0;
+pub const PADDING_X: f32 = PADDING_LEFT + PADDING_RIGHT;
+/// The gap between two things on the line.
+const GAP: f32 = 8.0;
+/// The widest the branch's name gets before it is cut.
+const BRANCH_MAX: f32 = 112.0;
+/// The size of the branch's name, and of the node's.
+const MONO_SIZE: f32 = 11.0;
+/// The side of the state's glyph.
+const STATE_SIDE: f32 = 12.0;
+/// The Details button's height.
+const DETAILS_HEIGHT: f32 = 22.0;
 /// The pin of a pinned pane: a button as small as the header's chips, its
 /// glyph the size of the queue's tray.
 const PIN_SIDE: f32 = 18.0;
@@ -53,57 +68,53 @@ const PIN_ICON: f32 = 11.0;
 /// What a header of a given width shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Fit {
-    pub shell: bool,
-    /// The waiting word in its short form ("Answer?").
-    pub short_waiting: bool,
-    /// Every state word in its short form.
-    pub short_states: bool,
-    pub session_id: bool,
-    pub gauge_pct: bool,
+    /// The account badge of a pane on an account of its own.
+    pub account: bool,
+    /// The worker's task.
+    pub task: bool,
+    /// The context gauge's bar beside its figure.
+    pub gauge_bar: bool,
+    pub branch: bool,
     pub diff: bool,
-    /// The state word, on the focused pane, where the actions take its place.
-    pub state_focused: bool,
-    /// The state word while the header is hovered.
-    pub state_hovered: bool,
+    /// The word on the Details button, else its chevron alone.
+    pub details_word: bool,
+    /// The context gauge's figure.
+    pub gauge: bool,
     pub commands: bool,
-    pub session: bool,
-    pub meta: bool,
     pub zoom: bool,
-    /// The agent's first word ("Claude") rather than its full name.
-    pub short_agent: bool,
-    /// The small icons (the picker's chevron, the queue's tray).
-    pub icons: bool,
-    /// Actions 20 px wide instead of 22.
+    /// The node a worker was sent to.
+    pub node: bool,
+    /// The delivery chip's word in its short form.
+    pub short_states: bool,
+    /// Actions 22 px wide instead of 26.
     pub narrow_actions: bool,
-    pub agent: bool,
+    /// The Details button.
+    pub details: bool,
     pub queue: bool,
-    pub state: bool,
+    /// The delivery chip.
+    pub delivery: bool,
 }
 
 impl Fit {
-    /// The table of the `@container pane-bar` rules, for a content box
-    /// `width` logical pixels wide.
+    /// What a content box `width` logical pixels wide has room for.
     pub fn of(width: f32) -> Fit {
-        let below = |em: f32| width <= em * EM;
+        let at_least = |limit: f32| width > limit;
         Fit {
-            shell: !below(47.0),
-            short_waiting: below(47.0),
-            short_states: below(42.0),
-            session_id: !below(42.0),
-            gauge_pct: !below(37.0),
-            diff: !below(34.0),
-            state_focused: !below(29.0),
-            state_hovered: !below(28.5),
-            commands: !below(27.5),
-            session: !below(27.5) && !below(21.0),
-            meta: !below(25.0) && !below(15.5),
-            zoom: !below(25.0),
-            short_agent: below(21.0),
-            icons: !below(15.5),
-            narrow_actions: below(15.5),
-            agent: !below(12.0),
-            queue: !below(12.0),
-            state: !below(12.0),
+            account: at_least(500.0),
+            task: at_least(500.0),
+            gauge_bar: at_least(470.0),
+            branch: at_least(430.0),
+            diff: at_least(408.0),
+            details_word: at_least(360.0),
+            gauge: at_least(340.0),
+            commands: at_least(330.0),
+            zoom: at_least(300.0),
+            node: at_least(300.0),
+            short_states: !at_least(504.0),
+            narrow_actions: !at_least(220.0),
+            details: at_least(150.0),
+            queue: at_least(144.0),
+            delivery: at_least(144.0),
         }
     }
 
@@ -124,7 +135,6 @@ pub struct Head<'a> {
     pub pane: &'a Pane,
     pub rt: &'a PaneRt,
     pub focused: bool,
-    pub hovered: bool,
     pub zoomed: bool,
     pub can_close: bool,
     /// Zoom means something: there is more than one pane.
@@ -134,6 +144,8 @@ pub struct Head<'a> {
     pub index: usize,
     pub shell: Option<&'a ShellInfo>,
     pub picker: Option<Picker>,
+    /// The Details popover is open.
+    pub details: bool,
 }
 
 fn wrap(msg: Msg) -> Message {
@@ -168,6 +180,47 @@ fn name_tip(ctx: Ctx<'_>, pane: &Pane, index: usize) -> String {
     }
 }
 
+/// The header's surface: `surface`, its top corners following the pane's
+/// card; the hairline under it is [`frame`]'s.
+fn surface(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
+    move |_| container::Style {
+        background: Some(Background::Color(t.palette.surface)),
+        text_color: Some(t.palette.text),
+        border: Border {
+            radius: iced::border::top(crate::panes::grid::CARD_RADIUS - 1.0),
+            ..Border::default()
+        },
+        ..container::Style::default()
+    }
+}
+
+/// A pane's header around its line, a terminal's or a view's: [`HEIGHT`]
+/// tall, its last pixel the `border` hairline under it.
+pub fn frame<'a>(t: &'a Theme, bar: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
+    let line = container(bar)
+        .padding(Padding {
+            top: 0.0,
+            right: PADDING_RIGHT,
+            bottom: 0.0,
+            left: PADDING_LEFT,
+        })
+        .height(HEIGHT - 1.0)
+        .width(Length::Fill)
+        .align_y(Alignment::Center)
+        .clip(true)
+        .style(surface(t));
+    column![
+        line,
+        rule::horizontal(1).style(move |_| rule::Style {
+            color: t.palette.border,
+            radius: 0.0.into(),
+            fill_mode: rule::FillMode::Full,
+            snap: true,
+        })
+    ]
+    .into()
+}
+
 pub fn view<'a>(ctx: Ctx<'a>, head: Head<'a>) -> Element<'a, Message> {
     let t = ctx.theme;
     let c = &t.colors;
@@ -177,45 +230,22 @@ pub fn view<'a>(ctx: Ctx<'a>, head: Head<'a>) -> Element<'a, Message> {
     let content_width = head.width - PADDING_X;
     let fit = Fit::of(content_width);
 
-    // The shell's life until it runs, then the agent's state, or nothing
-    // more than a resting ring for a plain shell, whose builds and tests are
-    // not an agent at work.
-    let status = logic.pane_status(&pane.id).unwrap_or(rt.status);
-    let published = logic.pane_activity(&pane.id);
-    let bridged = published.is_some_and(|p| p.bridged);
-    let activity = published.map(|p| p.activity);
-    let reports = activity.is_some();
-    let glyph_state = crate::panes_logic::state_glyph_state(ctx.model, &pane.id);
-    let state_label = ctx.t(state_key(status, activity)).into_owned();
-    let source = (status == PaneStatus::Running && reports).then(|| {
-        ctx.t(if bridged {
-            Key::PaneStateReported
-        } else {
-            Key::PaneStateGuessed
-        })
-    });
-    let state_title = match &source {
-        Some(source) => format!("{state_label} · {source}"),
-        None => state_label.clone(),
-    };
-    let short_state = match glyph_state {
-        GlyphState::Waiting => ctx.t(Key::PaneStateWaitingShort).into_owned(),
-        GlyphState::Yours => ctx.t(Key::PaneStateYoursShort).into_owned(),
-        _ => state_label.clone(),
-    };
+    let state = StateWords::of(ctx, pane, rt);
+    let status = state.status;
+    let reports = state.reports;
     let insight = logic.insight(&pane.id);
 
-    let mut bar = row![].spacing(tokens::space::SM).align_y(Alignment::Center);
-
-    bar = bar.push(tip::bottom(
+    // Who the pane is, from the left. This part gives way: it is clipped.
+    let mut lead = row![].spacing(GAP).align_y(Alignment::Center);
+    lead = lead.push(tip::bottom(
         t,
-        container(glyph::state(t, ui_glyph(glyph_state), 8.0)).center_x(10),
-        state_title.clone(),
+        container(glyph::state(t, ui_glyph(state.glyph), STATE_SIDE - 3.0)).center_x(STATE_SIDE),
+        state.title(),
     ));
 
     let name_tip = name_tip(ctx, pane, head.index);
     let focused = head.focused;
-    bar = bar.push(tip::bottom(
+    lead = lead.push(tip::bottom(
         t,
         text(pane.name.as_str())
             .size(tokens::font_size::UI)
@@ -225,7 +255,7 @@ pub fn view<'a>(ctx: Ctx<'a>, head: Head<'a>) -> Element<'a, Message> {
                 if focused {
                     style::text::primary(t)(theme)
                 } else {
-                    style::text::muted(t)(theme)
+                    style::text::secondary(t)(theme)
                 }
             }),
         name_tip,
@@ -233,85 +263,58 @@ pub fn view<'a>(ctx: Ctx<'a>, head: Head<'a>) -> Element<'a, Message> {
 
     // Pinned to an edge of the grid: the pin says which, and lets it go.
     if let Some(pin) = head.ws.pin_of(&pane.id) {
-        bar = bar.push(pin_glyph(ctx, &head.ws.id, &pane.id, pin.edge));
+        lead = lead.push(pin_glyph(ctx, &head.ws.id, &pane.id, pin.edge));
     }
 
     // A worker sent to a node from this workspace: where it runs.
-    if let Some(node) = crate::nodes::away::pane_node(pane) {
-        bar = bar.push(node_label(ctx, &node));
-    }
-
-    // The worker's delivery, while Hangar merges, checks, reviews and lands
-    // it, then how it went for a few seconds. Its chip takes the branch's
-    // room: the branch is the one being delivered, and the header has no
-    // width for both beside the worker's badges.
-    let now = crate::panes_logic::wall_clock_ms();
-    let delivery = pane
-        .task_id
-        .as_deref()
-        .filter(|task| fit.state && !task.is_empty())
-        .and_then(|task| Some((task, logic.delivery_stage(task, now)?)));
-    if delivery.is_none()
-        && let Some(branch) = logic.pane_branch(&folder_of(head.ws, pane))
+    if fit.node
+        && let Some(node) = crate::nodes::away::pane_node(pane)
     {
-        bar = bar.push(branch_label(ctx, branch));
+        lead = lead.push(node_label(ctx, &node));
     }
 
-    bar = bar.push(crate::orchestration_ui::pane_badge_in(
+    lead = lead.push(crate::orchestration_ui::pane_badge_in(
         ctx,
         &head.ws.id,
         &pane.id,
         content_width,
     ));
-    bar = bar.push(crate::accounts::pane_badge(ctx, &head.ws.id, &pane.id));
-
-    if fit.agent {
-        bar = bar.push(agent_picker(ctx, &head, fit));
-        // Beside its full name, not its first word.
-        if !fit.short_agent
-            && let Some(beta) = beta_badge(ctx, pane.agent)
-        {
-            bar = bar.push(beta);
-        }
+    if fit.account {
+        lead = lead.push(crate::accounts::pane_badge(ctx, &head.ws.id, &pane.id));
     }
 
-    if fit.meta {
-        let mut meta = row![].spacing(tokens::space::SM).align_y(Alignment::Center);
-        if let Some(side) = side_chip(ctx, pane.agent, rt.side.as_ref(), bridged) {
-            meta = meta.push(side);
-        }
-        if fit.shell {
-            meta = meta.push(shell_picker(ctx, &head));
-        }
-        if fit.session && is_resumable(pane.agent) {
-            meta = meta.push(session_button(ctx, &head, fit));
-        }
-        if let Some(reading) = &insight.context {
-            meta = meta.push(gauge::view(ctx, reading, pane.agent, fit.gauge_pct));
-        }
-        bar = bar.push(meta);
+    // The worker's delivery, while Hangar merges, checks, reviews and lands
+    // it, then how it went for a few seconds. Its chip takes the branch's
+    // room: the branch is the one being delivered, and the header has no
+    // width for both beside the worker's badge.
+    let now = crate::panes_logic::wall_clock_ms();
+    let delivery = pane
+        .task_id
+        .as_deref()
+        .filter(|task| fit.delivery && !task.is_empty())
+        .and_then(|task| Some((task, logic.delivery_stage(task, now)?)));
+    // A worker's task takes what is left of the line.
+    let task = fit
+        .task
+        .then(|| crate::orchestration_ui::worker_task(ctx, &head.ws.id, &pane.id))
+        .flatten();
+    let spread = task.is_some();
+    if let Some((title, hint)) = task {
+        lead = lead.push(task_label(t, title, hint));
+    }
+    if delivery.is_none()
+        && fit.branch
+        && let Some(branch) = logic.pane_branch(&folder_of(head.ws, pane))
+    {
+        lead = lead.push(branch_label(ctx, branch));
+    }
+    if !spread {
+        lead = lead.push(Space::new().width(Length::Fill));
     }
 
-    bar = bar.push(Space::new().width(Length::Fill));
-
-    let actions_shown = head.focused || head.hovered;
-    let show_state = (status != PaneStatus::Running || reports)
-        && fit.state
-        && !(head.focused && !fit.state_focused)
-        && !(head.hovered && !head.focused && !fit.state_hovered);
-    if show_state {
-        let shortened =
-            fit.short_states || (fit.short_waiting && glyph_state == GlyphState::Waiting);
-        bar = bar.push(tip::bottom(
-            t,
-            text(if shortened { short_state } else { state_label })
-                .size(tokens::font_size::CAPTION_LG)
-                .font(hangar_theme::fonts::ui_medium())
-                .wrapping(text::Wrapping::None)
-                .style(style::text::state(t, state_tone(glyph_state))),
-            state_title,
-        ));
-    }
+    let mut bar = row![container(lead).width(Length::Fill).clip(true)]
+        .spacing(GAP)
+        .align_y(Alignment::Center);
 
     if let Some((task, stage)) = delivery {
         bar = bar.push(crate::chat_view::tasks::chip::delivery_chip(
@@ -329,15 +332,14 @@ pub fn view<'a>(ctx: Ctx<'a>, head: Head<'a>) -> Element<'a, Message> {
     if fit.queue && !insight.queue.is_empty() {
         let n = insight.queue.len();
         let words = ctx.i18n.tn(Key::PaneQueue, n, &[]).into_owned();
-        let mut content = row![].spacing(3).align_y(Alignment::Center);
-        if fit.icons {
-            content = content.push(icon(Icon::Tray, 11.0));
-        }
-        content = content.push(
+        let content = row![
+            icon(Icon::Tray, 11.0),
             text(n.to_string())
                 .size(tokens::font_size::LABEL)
                 .font(hangar_theme::fonts::mono()),
-        );
+        ]
+        .spacing(3)
+        .align_y(Alignment::Center);
         bar = bar.push(tip::bottom(
             t,
             iced::widget::button(content)
@@ -367,6 +369,17 @@ pub fn view<'a>(ctx: Ctx<'a>, head: Head<'a>) -> Element<'a, Message> {
             .i18n
             .t_with(Key::PaneNotOnPath, &args!("agent" => pane.agent.as_str()))
             .into_owned();
+        bar = bar.push(tip::bottom(
+            t,
+            icon(Icon::Alert, 13.0).color(c.warning),
+            words,
+        ));
+    }
+    // On the floor: the line warns, and Details says why.
+    if let Some(side @ Side::Floor(_)) = rt.side.as_ref()
+        && shows_side(pane.agent)
+    {
+        let (_, words) = side_words(ctx.i18n, pane.agent, side, state.bridged);
         bar = bar.push(tip::bottom(
             t,
             icon(Icon::Alert, 13.0).color(c.warning),
@@ -404,28 +417,226 @@ pub fn view<'a>(ctx: Ctx<'a>, head: Head<'a>) -> Element<'a, Message> {
         ));
     }
 
-    if actions_shown {
-        bar = bar.push(actions(ctx, &head, fit));
+    if fit.gauge
+        && let Some(reading) = &insight.context
+    {
+        bar = bar.push(gauge::view(ctx, reading, pane.agent, fit.gauge_bar));
+    }
+    if fit.details {
+        bar = bar.push(details(ctx, &head, fit, &state));
+    }
+    bar = bar.push(actions(ctx, &head, fit));
+
+    frame(t, bar)
+}
+
+/// How the pane's state is said: the shell's life until it runs, then the
+/// agent's state, or nothing more than a resting ring for a plain shell,
+/// whose builds and tests are not an agent at work.
+struct StateWords {
+    status: PaneStatus,
+    /// The agent reports an activity.
+    reports: bool,
+    /// Its mod does, rather than Hangar guessing.
+    bridged: bool,
+    glyph: GlyphState,
+    label: String,
+    /// Where an activity came from.
+    source: Option<String>,
+}
+
+impl StateWords {
+    fn of(ctx: Ctx<'_>, pane: &Pane, rt: &PaneRt) -> StateWords {
+        let logic = &ctx.model.live.panes_logic;
+        let status = logic.pane_status(&pane.id).unwrap_or(rt.status);
+        let published = logic.pane_activity(&pane.id);
+        let bridged = published.is_some_and(|p| p.bridged);
+        let activity = published.map(|p| p.activity);
+        let reports = activity.is_some();
+        let source = (status == PaneStatus::Running && reports).then(|| {
+            ctx.t(if bridged {
+                Key::PaneStateReported
+            } else {
+                Key::PaneStateGuessed
+            })
+            .into_owned()
+        });
+        StateWords {
+            status,
+            reports,
+            bridged,
+            glyph: crate::panes_logic::state_glyph_state(ctx.model, &pane.id),
+            label: ctx.t(state_key(status, activity)).into_owned(),
+            source,
+        }
     }
 
-    let header = container(bar)
-        .padding(Padding {
-            top: 0.0,
-            right: 6.0,
-            bottom: 0.0,
-            left: 10.0,
-        })
-        .height(tokens::size::PANE_HEAD_HEIGHT)
-        .width(Length::Fill)
-        .align_y(Alignment::Center)
-        .clip(true)
-        .style(style::container::pane_head(t, head.focused));
+    /// The state in words, and where it came from.
+    fn title(&self) -> String {
+        match &self.source {
+            Some(source) => format!("{} · {source}", self.label),
+            None => self.label.clone(),
+        }
+    }
+}
 
-    let id = pane.id.clone();
-    mouse_area(header)
-        .on_enter(wrap(Msg::Hover(Some(id))))
-        .on_exit(wrap(Msg::Hover(None)))
+/// The id of the Details button of `pane`'s header.
+pub fn details_id(pane: &str) -> Id {
+    Id::from(format!("pane-details-{pane}"))
+}
+
+/// The look of the Details button: a `border_strong` outline, the accent's
+/// while its popover is open.
+fn details_style(
+    t: &Theme,
+    open: bool,
+) -> impl Fn(&iced::Theme, iced::widget::button::Status) -> iced::widget::button::Style + '_ {
+    use iced::widget::button::{Status, Style};
+    move |_, status| {
+        let p = &t.palette;
+        let background = match status {
+            Status::Hovered => Some(Background::Color(p.hover_overlay)),
+            Status::Pressed => Some(Background::Color(p.selection_bg)),
+            _ => open.then_some(Background::Color(p.selection_bg)),
+        };
+        Style {
+            background,
+            text_color: if open { p.text } else { p.text_secondary },
+            border: Border {
+                color: if open { p.accent } else { p.border_strong },
+                width: 1.0,
+                radius: tokens::scale::radius::SM.into(),
+            },
+            ..Style::default()
+        }
+    }
+}
+
+/// « Details ▾ » and the popover under it.
+fn details<'a>(
+    ctx: Ctx<'a>,
+    head: &Head<'a>,
+    fit: Fit,
+    state: &StateWords,
+) -> Element<'a, Message> {
+    let t = ctx.theme;
+    let pane = head.pane;
+    let toggle = wrap(Msg::ToggleDetails(pane.id.clone()));
+    let mut content = row![].spacing(4).align_y(Alignment::Center);
+    if fit.details_word {
+        content = content.push(
+            text(ctx.t(Key::PaneDetails))
+                .size(MONO_SIZE)
+                .font(hangar_theme::fonts::ui_medium())
+                .wrapping(text::Wrapping::None),
+        );
+    }
+    content = content.push(icon(Icon::ChevronDown, 10.0));
+    let button = iced::widget::button(container(content).center_y(Length::Fill))
+        .padding(Padding::from([
+            0.0,
+            if fit.details_word { 8.0 } else { 4.0 },
+        ]))
+        .height(DETAILS_HEIGHT)
+        .style(details_style(t, head.details))
+        .on_press(toggle.clone());
+    let button = container(
+        focus::ring(t, button)
+            .radius(tokens::scale::radius::SM)
+            .on_activate(toggle),
+    )
+    .id(details_id(&pane.id));
+    let anchor = tip::bottom(t, button, ctx.t(Key::PaneDetailsTitle).into_owned());
+    let content = head.details.then(|| {
+        Element::from(
+            popover::popover(t, details_content(ctx, head, state))
+                .width(popover::WIDTH)
+                .padding(tokens::scale::space::S3),
+        )
+    });
+    // Tab walks the popover's controls; no field takes the keyboard from the
+    // terminal just because it opened.
+    hangar_ui::layer::dropdown(anchor, content)
+        .tab_inside()
+        .align_end()
+        .on_dismiss(wrap(Msg::CloseDetails))
         .into()
+}
+
+/// What the line does not say: the agent CLI, the shell, the session, and
+/// the state in words.
+fn details_content<'a>(ctx: Ctx<'a>, head: &Head<'a>, state: &StateWords) -> Element<'a, Message> {
+    let t = ctx.theme;
+    let pane = head.pane;
+    let said = |key: Key| ctx.t(key).into_owned();
+    let mut lines = column![
+        text(said(Key::PaneDetailsTitle))
+            .size(MONO_SIZE)
+            .style(style::text::muted(t))
+    ]
+    .spacing(tokens::space::MD);
+
+    let mut agent = row![].spacing(tokens::space::SM).align_y(Alignment::Center);
+    if let Some(beta) = beta_badge(ctx, pane.agent) {
+        agent = agent.push(beta);
+    }
+    agent = agent.push(agent_picker(ctx, head));
+    lines = lines.push(popover::row(t, said(Key::PaneDetailsAgent), agent));
+    if let Some(side) = side_chip(ctx, pane.agent, head.rt.side.as_ref(), state.bridged) {
+        lines = lines.push(row![Space::new().width(Length::Fill), side]);
+    }
+    lines = lines.push(popover::row(
+        t,
+        said(Key::PaneShell),
+        shell_picker(ctx, head),
+    ));
+    if is_resumable(pane.agent) {
+        lines = lines.push(popover::row(
+            t,
+            said(Key::PaneDetailsSession),
+            session_value(ctx, head),
+        ));
+    }
+    let mut value = row![
+        glyph::state(t, ui_glyph(state.glyph), 8.0),
+        text(state.label.clone())
+            .size(tokens::font_size::LABEL)
+            .style(style::text::state(t, state_tone(state.glyph))),
+    ]
+    .spacing(tokens::space::SM)
+    .align_y(Alignment::Center);
+    if let Some(source) = &state.source {
+        value = value.push(tip::over(t, icon(Icon::Info, 12.0), source.clone()));
+    }
+    lines
+        .push(popover::row(t, said(Key::PaneDetailsState), value))
+        .into()
+}
+
+/// A worker's task, cut to the room it has, whole in its tip.
+fn task_label<'a>(t: &'a Theme, title: &'a str, hint: String) -> Element<'a, Message> {
+    let words = responsive(move |bounds| {
+        let font = hangar_theme::fonts::ui();
+        container(
+            text(fit_end(
+                title,
+                bounds.width,
+                tokens::font_size::CAPTION,
+                font,
+            ))
+            .size(tokens::font_size::CAPTION)
+            .font(font)
+            .wrapping(text::Wrapping::None)
+            .style(style::text::secondary(t)),
+        )
+        .center_y(Length::Fill)
+        .into()
+    });
+    tip::bottom(
+        t,
+        container(words).width(Length::Fill).height(18).clip(true),
+        hint,
+    )
 }
 
 /// The id of the pin a pinned pane's header shows (`pin_glyph`).
@@ -454,8 +665,6 @@ pub fn pin_glyph<'a>(ctx: Ctx<'a>, ws: &WsId, pane: &str, edge: PinEdge) -> Elem
     .into()
 }
 
-/// The git branch of the pane's folder, beside its name; a detached head
-/// shows its short sha, marked (`PaneBranchLabel`).
 /// The machine a pane of a local workspace runs on: its icon and its
 /// label, in the look of its link's state.
 fn node_label<'a>(ctx: Ctx<'a>, node: &str) -> Element<'a, Message> {
@@ -466,20 +675,23 @@ fn node_label<'a>(ctx: Ctx<'a>, node: &str) -> Element<'a, Message> {
     let words = presence::tip_of(ctx.model, ctx.i18n, node, ctx.now);
     let content = row![
         icon(look.icon, 11.0).color(look.tone.color(t)),
-        text(label)
-            .size(tokens::font_size::LABEL)
-            .wrapping(text::Wrapping::None)
-            .style(style::text::muted(t)),
+        text(fit_end(
+            &label,
+            BRANCH_MAX,
+            MONO_SIZE,
+            hangar_theme::fonts::ui()
+        ))
+        .size(MONO_SIZE)
+        .wrapping(text::Wrapping::None)
+        .style(style::text::muted(t)),
     ]
     .spacing(3)
     .align_y(Alignment::Center);
-    tip::bottom(
-        t,
-        container(content).max_width(BRANCH_MAX).clip(true),
-        words,
-    )
+    tip::bottom(t, content, words)
 }
 
+/// The git branch of the pane's folder; a detached head shows its short sha,
+/// marked (`PaneBranchLabel`).
 fn branch_label<'a>(ctx: Ctx<'a>, branch: &'a PaneBranch) -> Element<'a, Message> {
     let t = ctx.theme;
     let (label, words, detached) = match branch {
@@ -487,7 +699,7 @@ fn branch_label<'a>(ctx: Ctx<'a>, branch: &'a PaneBranch) -> Element<'a, Message
             name,
             linked_worktree,
         } => (
-            name.clone(),
+            name,
             ctx.i18n.t_with(
                 if *linked_worktree {
                     Key::PaneBranchBranchWorktree
@@ -499,24 +711,27 @@ fn branch_label<'a>(ctx: Ctx<'a>, branch: &'a PaneBranch) -> Element<'a, Message
             false,
         ),
         PaneBranch::Detached { head } => (
-            head.clone(),
+            head,
             ctx.i18n
                 .t_with(Key::PaneBranchDetached, &args!("head" => head.as_str())),
             true,
         ),
     };
+    let mono = hangar_theme::fonts::mono();
     let mut content = row![
-        text(label)
-            .size(tokens::font_size::LABEL)
-            .font(hangar_theme::fonts::mono())
+        icon(Icon::Branch, 12.0).color(t.palette.text_muted),
+        text(fit_end(label, BRANCH_MAX, MONO_SIZE, mono))
+            .size(MONO_SIZE)
+            .font(mono)
             .wrapping(text::Wrapping::None)
             .style(style::text::muted(t)),
     ]
-    .spacing(3);
+    .spacing(4)
+    .align_y(Alignment::Center);
     if detached {
         content = content.push(
             text(ctx.t(Key::PaneBranchDetachedMark))
-                .size(tokens::font_size::LABEL)
+                .size(MONO_SIZE)
                 .font(iced::Font {
                     style: iced::font::Style::Italic,
                     ..hangar_theme::fonts::ui()
@@ -524,20 +739,15 @@ fn branch_label<'a>(ctx: Ctx<'a>, branch: &'a PaneBranch) -> Element<'a, Message
                 .style(style::text::muted(t)),
         );
     }
-    tip::bottom(
-        t,
-        container(content).max_width(BRANCH_MAX).clip(true),
-        words.into_owned(),
-    )
+    tip::bottom(t, content, words.into_owned())
 }
 
-/// The ⚡, diff, zoom, "…" and close buttons: always on the focused pane, on
-/// the others while the header is hovered.
+/// The ⚡, diff, zoom, "…" and close buttons, on every pane.
 fn actions<'a>(ctx: Ctx<'a>, head: &Head<'a>, fit: Fit) -> Element<'a, Message> {
     let t = ctx.theme;
     let pane = head.pane;
     let ws = &head.ws.id;
-    let side = if fit.narrow_actions { 20.0 } else { 22.0 };
+    let side = action_side(fit.narrow_actions);
     let mut group = row![].spacing(1).align_y(Alignment::Center);
     if fit.commands {
         group = group.push(crate::saved_commands::menu_view(
@@ -600,12 +810,16 @@ fn actions<'a>(ctx: Ctx<'a>, head: &Head<'a>, fit: Fit) -> Element<'a, Message> 
                     .then(|| wrap(Msg::Close(ws.clone(), pane.id.clone()))),
             ),
     );
-    container(group)
-        .padding(Padding {
-            left: 4.0,
-            ..Padding::ZERO
-        })
-        .into()
+    group.into()
+}
+
+/// The side of a header's action button, a terminal's or a view's.
+pub fn action_side(narrow: bool) -> f32 {
+    if narrow {
+        22.0
+    } else {
+        button::Side::Xs.pixels()
+    }
 }
 
 /// A picker that reads as text: its label and a chevron, a menu under it.
@@ -615,7 +829,7 @@ fn picker_button<'a>(
     chevron: bool,
     mono: bool,
     on_press: Msg,
-) -> iced::widget::Button<'a, Message> {
+) -> Element<'a, Message> {
     let t = ctx.theme;
     let mut content = row![
         text(label)
@@ -634,28 +848,27 @@ fn picker_button<'a>(
     .spacing(3)
     .align_y(Alignment::Center);
     if chevron {
-        content = content.push(icon(Icon::Updown, 10.0));
+        content = content.push(icon(Icon::ChevronDown, 10.0));
     }
-    iced::widget::button(content)
+    let message = wrap(on_press);
+    let button = iced::widget::button(container(content).center_y(Length::Fill))
         .padding(Padding::from([0.0, 4.0]))
         .height(20)
         .style(style::button::ghost(t))
-        .on_press(wrap(on_press))
+        .on_press(message.clone());
+    focus::ring(t, button)
+        .radius(tokens::scale::radius::SM)
+        .on_activate(message)
+        .into()
 }
 
-fn agent_picker<'a>(ctx: Ctx<'a>, head: &Head<'a>, fit: Fit) -> Element<'a, Message> {
+fn agent_picker<'a>(ctx: Ctx<'a>, head: &Head<'a>) -> Element<'a, Message> {
     let t = ctx.theme;
     let pane = head.pane;
-    let label = pane.agent.info().label;
-    let shown = if fit.short_agent {
-        label.split(' ').next().unwrap_or(label)
-    } else {
-        label
-    };
     let anchor = picker_button(
         ctx,
-        shown.to_owned(),
-        fit.icons,
+        pane.agent.info().label.to_owned(),
+        true,
         false,
         Msg::OpenPicker(pane.id.clone(), Picker::Agent),
     );
@@ -901,9 +1114,9 @@ fn shell_picker<'a>(ctx: Ctx<'a>, head: &Head<'a>) -> Element<'a, Message> {
     )
 }
 
-/// The session a resumable agent comes back on, or "new"; a click opens the
-/// sessions picker.
-fn session_button<'a>(ctx: Ctx<'a>, head: &Head<'a>, fit: Fit) -> Element<'a, Message> {
+/// The session a resumable agent comes back on, or "new": a press opens the
+/// sessions picker. A session's id can be copied.
+fn session_value<'a>(ctx: Ctx<'a>, head: &Head<'a>) -> Element<'a, Message> {
     let t = ctx.theme;
     let pane = head.pane;
     let (words, label) = match pane.session_id.as_deref() {
@@ -918,30 +1131,26 @@ fn session_button<'a>(ctx: Ctx<'a>, head: &Head<'a>, fit: Fit) -> Element<'a, Me
             ctx.t(Key::PaneNewSession).into_owned(),
         ),
     };
-    let mut content = row![icon(Icon::Restart, 10.0)]
+    let pick = picker_button(
+        ctx,
+        label,
+        false,
+        true,
+        Msg::Sessions(head.ws.id.clone(), pane.id.clone()),
+    );
+    let mut value = row![tip::over(t, pick, words)]
         .spacing(tokens::space::XS)
         .align_y(Alignment::Center);
-    if fit.session_id {
-        content = content.push(
-            text(label)
-                .size(tokens::font_size::LABEL)
-                .font(hangar_theme::fonts::mono()),
+    if let Some(id) = &pane.session_id {
+        value = value.push(
+            button::icon_button(t, Icon::Copy)
+                .side(PIN_SIDE + 4.0)
+                .icon_size(12.0)
+                .tip(ctx.t(Key::PaneCopySession).into_owned())
+                .on_press(wrap(Msg::CopySession(id.clone()))),
         );
     }
-    tip::bottom(
-        t,
-        iced::widget::button(content)
-            .padding(Padding {
-                top: 0.0,
-                right: 6.0,
-                bottom: 0.0,
-                left: 5.0,
-            })
-            .height(18)
-            .style(style::button::toggle(t, pane.session_id.is_some()))
-            .on_press(wrap(Msg::Sessions(head.ws.id.clone(), pane.id.clone()))),
-        words,
-    )
+    value.into()
 }
 
 /// The activity's word for a pane out of sight (the zoom bar's chips).
@@ -1003,7 +1212,6 @@ mod tests {
                 pane: entry,
                 rt: &pkg.panes.panes[pane],
                 focused: true,
-                hovered: false,
                 zoomed: false,
                 can_close: true,
                 can_zoom: true,
@@ -1011,85 +1219,179 @@ mod tests {
                 index: 0,
                 shell: None,
                 picker: None,
+                details: false,
             },
         )
     }
 
+    /// Whether the line of `pane`'s header says `words`.
     fn says(m: &Model, pkg: &Packages, pane: &str, words: &str) -> bool {
         simulate(header_of(m, pkg, pane)).find(words).is_ok()
     }
 
-    /// A Codex pane is named with its « beta », and says Hangar is attached
-    /// to it; a Claude Code pane's header has neither, as before.
+    /// What the Details popover of `pane` holds, laid out on its own.
+    fn details_of<'a>(m: &'a Model, pkg: &'a Packages, pane: &str) -> Element<'a, Message> {
+        let ws = m.workspace(WS).expect("the workspace");
+        let entry = ws.panes.iter().find(|p| p.id == pane).expect("the pane");
+        let rt = &pkg.panes.panes[pane];
+        let head = Head {
+            ws,
+            pane: entry,
+            rt,
+            focused: true,
+            zoomed: false,
+            can_close: true,
+            can_zoom: true,
+            width: 1000.0,
+            index: 0,
+            shell: None,
+            picker: None,
+            details: true,
+        };
+        let state = StateWords::of(ctx(m, pkg), entry, rt);
+        iced::widget::container(details_content(ctx(m, pkg), &head, &state))
+            .width(hangar_ui::popover::WIDTH)
+            .into()
+    }
+
+    fn details_say(m: &Model, pkg: &Packages, pane: &str, words: &str) -> bool {
+        simulate(details_of(m, pkg, pane)).find(words).is_ok()
+    }
+
+    /// A Codex pane's Details name its agent with its « beta » and say
+    /// Hangar is attached to it; a Claude Code pane's have neither. None of
+    /// it is on the header's one line.
     #[test]
-    fn a_codex_header_names_its_agent_in_beta_and_says_hangar_is_attached() {
+    fn a_codex_panes_details_name_its_agent_in_beta_and_say_hangar_is_attached() {
         let (m, mut pkg) = two_agents();
         started(&mut pkg, "cx", Side::Attached);
         started(&mut pkg, "cl", Side::Attached);
-        assert!(says(&m, &pkg, "cx", "Codex"));
-        assert!(says(&m, &pkg, "cx", "beta"));
-        assert!(says(&m, &pkg, "cx", "attached"));
-        assert!(says(&m, &pkg, "cl", "Claude Code"));
+        assert!(details_say(&m, &pkg, "cx", "Codex"));
+        assert!(details_say(&m, &pkg, "cx", "beta"));
+        assert!(details_say(&m, &pkg, "cx", "attached"));
+        assert!(details_say(&m, &pkg, "cl", "Claude Code"));
         for word in ["beta", "attached", "not attached"] {
-            assert!(!says(&m, &pkg, "cl", word), "{word}");
+            assert!(!details_say(&m, &pkg, "cl", word), "{word}");
         }
+        for word in ["Codex", "beta", "attached", "Shell"] {
+            assert!(!says(&m, &pkg, "cx", word), "{word}");
+        }
+        assert!(says(&m, &pkg, "cx", "Iris"));
+        assert!(says(&m, &pkg, "cx", "Details"));
     }
 
     /// On the floor, the chip says it is not attached; before its spawn
     /// has said, it says nothing either way.
     #[test]
-    fn a_codex_header_on_the_floor_says_it_is_not_attached() {
+    fn a_codex_pane_on_the_floor_says_it_is_not_attached() {
         let (m, mut pkg) = two_agents();
-        assert!(!says(&m, &pkg, "cx", "attached"));
-        assert!(!says(&m, &pkg, "cx", "not attached"));
+        assert!(!details_say(&m, &pkg, "cx", "attached"));
+        assert!(!details_say(&m, &pkg, "cx", "not attached"));
         started(
             &mut pkg,
             "cx",
             Side::Floor(FloorReason::Timeout { seconds: 10 }),
         );
-        assert!(says(&m, &pkg, "cx", "not attached"));
-        assert!(!says(&m, &pkg, "cx", "attached"));
+        assert!(details_say(&m, &pkg, "cx", "not attached"));
+        assert!(!details_say(&m, &pkg, "cx", "attached"));
         started(&mut pkg, "cx", Side::Off);
-        assert!(says(&m, &pkg, "cx", "not attached"));
-        // A Claude Code without the mod keeps its header as it was.
+        assert!(details_say(&m, &pkg, "cx", "not attached"));
+        // A Claude Code without the mod keeps its Details as they were.
         started(&mut pkg, "cl", Side::Off);
-        assert!(!says(&m, &pkg, "cl", "not attached"));
+        assert!(!details_say(&m, &pkg, "cl", "not attached"));
     }
 
-    /// A narrow header names the agent by its first word and drops the
-    /// badge; narrower, the chip goes with the other details.
+    /// The Details popover holds what the line does not: the agent CLI, the
+    /// shell, the session, which a press resumes another of, and the state.
     #[test]
-    fn a_narrow_header_drops_the_badge_then_the_chip() {
-        let (m, mut pkg) = two_agents();
-        started(&mut pkg, "cx", Side::Attached);
-        let drawn = |width: f32| {
-            let ws = m.workspace(WS).expect("the workspace");
-            let entry = &ws.panes[0];
-            let element = view(
-                ctx(&m, &pkg),
-                Head {
-                    ws,
-                    pane: entry,
-                    rt: &pkg.panes.panes["cx"],
-                    focused: false,
-                    hovered: false,
-                    zoomed: false,
-                    can_close: true,
-                    can_zoom: false,
-                    width,
-                    index: 0,
-                    shell: None,
-                    picker: None,
-                },
-            );
-            let mut ui = simulate(element);
-            (ui.find("beta").is_ok(), ui.find("attached").is_ok())
-        };
-        assert_eq!(drawn(800.0), (true, true));
-        // 22em: the metadata goes, the name stays whole.
-        assert_eq!(drawn(22.0 * EM + PADDING_X), (true, false));
-        // 20em: the agent's first word, no badge.
-        assert_eq!(drawn(20.0 * EM + PADDING_X), (false, false));
+    fn the_details_hold_the_agent_the_shell_the_session_and_the_state() {
+        let (m, pkg) = two_agents();
+        for word in ["Session details", "Agent CLI", "Shell", "Session", "State"] {
+            assert!(details_say(&m, &pkg, "cl", word), "{word}");
+        }
+        let mut ui = simulate(details_of(&m, &pkg, "cl"));
+        ui.click("new").expect("no session yet");
+        ui.click("Claude Code").expect("the agent's picker");
+        let sent: Vec<Message> = ui.into_messages().collect();
+        assert!(
+            matches!(
+                sent.as_slice(),
+                [
+                    Message::Panes(Msg::Sessions(_, a)),
+                    Message::Panes(Msg::OpenPicker(b, Picker::Agent)),
+                ] if a == "cl" && b == "cl"
+            ),
+            "{sent:?}"
+        );
+    }
+
+    /// The agent picker opens over the Details popover: picking a line there
+    /// sends the choice, and the press is not one « outside » the popover,
+    /// which would close it first.
+    #[test]
+    fn a_line_picked_in_the_agent_menu_over_the_details_does_not_dismiss_them() {
+        let (m, pkg) = two_agents();
+        let ws = m.workspace(WS).expect("the workspace");
+        let entry = ws.panes.iter().find(|p| p.id == "cl").expect("the pane");
+        let element = view(
+            ctx(&m, &pkg),
+            Head {
+                ws,
+                pane: entry,
+                rt: &pkg.panes.panes["cl"],
+                focused: true,
+                zoomed: false,
+                can_close: true,
+                can_zoom: true,
+                width: 600.0,
+                index: 0,
+                shell: None,
+                picker: Some(Picker::Agent),
+                details: true,
+            },
+        );
+        let mut ui = simulate(element);
+        // The simulator's selectors do not look into overlays: the menu's
+        // first line, « Shell », by where it hangs, under the picker at the
+        // right of the popover, itself under the Details button.
+        let button = ui.find(details_id("cl")).expect("the button").bounds();
+        let line = iced::Point::new(
+            button.x + button.width - 62.0,
+            button.y + button.height + 82.0,
+        );
+        ui.point_at(line);
+        ui.simulate([iced::Event::Mouse(iced::mouse::Event::CursorMoved {
+            position: line,
+        })]);
+        ui.simulate(iced_test::simulator::click());
+        let sent: Vec<Message> = ui.into_messages().collect();
+        assert!(
+            sent.iter()
+                .any(|msg| matches!(msg, Message::Panes(Msg::SetAgent(_, pane, AgentId::Shell)) if pane == "cl")),
+            "{sent:?}"
+        );
+        assert!(
+            !sent
+                .iter()
+                .any(|msg| matches!(msg, Message::Panes(Msg::CloseDetails))),
+            "{sent:?}"
+        );
+    }
+
+    /// A press on « Details » asks for the popover.
+    #[test]
+    fn the_details_button_toggles_the_popover() {
+        let (m, pkg) = two_agents();
+        let mut ui = simulate(header_of(&m, &pkg, "cl"));
+        ui.click("Details").expect("the button");
+        let sent: Vec<Message> = ui.into_messages().collect();
+        assert!(
+            matches!(
+                sent.as_slice(),
+                [Message::Panes(Msg::ToggleDetails(pane))] if pane == "cl"
+            ),
+            "{sent:?}"
+        );
     }
 
     /// Each reason a pane runs the floor is said in the person's language,
@@ -1180,41 +1482,41 @@ mod tests {
     #[test]
     fn a_wide_header_shows_everything() {
         let fit = Fit::of(800.0);
-        assert!(
-            fit.shell && fit.session_id && fit.gauge_pct && fit.diff && fit.commands && fit.zoom
-        );
-        assert!(!fit.short_states && !fit.short_agent);
+        assert!(fit.account && fit.task && fit.branch && fit.gauge && fit.gauge_bar);
+        assert!(fit.details && fit.details_word && fit.diff && fit.commands && fit.zoom);
+        assert!(!fit.short_states && !fit.narrow_actions);
+    }
+
+    /// A pane of the mockups, half of a 1440 window, keeps the whole line.
+    #[test]
+    fn a_pane_of_the_mockup_keeps_the_gauge_the_branch_and_the_details_word() {
+        let fit = Fit::of(583.0 - PADDING_X);
+        assert!(fit.task && fit.branch && fit.gauge_bar && fit.details_word);
     }
 
     #[test]
-    fn details_go_in_the_order_of_the_stylesheet() {
-        // 46em: the shell picker first, and the waiting word shortens.
-        let fit = Fit::of(46.0 * EM);
-        assert!(!fit.shell && fit.short_waiting && fit.session_id);
-        // 40em: the session's id, and every word shortens.
-        let fit = Fit::of(40.0 * EM);
-        assert!(!fit.session_id && fit.short_states && fit.gauge_pct);
-        // 33em: the gauge's figure and the diff button.
-        let fit = Fit::of(33.0 * EM);
-        assert!(!fit.gauge_pct && !fit.diff && fit.commands);
-        // 26em: the commands and the session button.
-        let fit = Fit::of(26.0 * EM);
-        assert!(!fit.commands && !fit.session && fit.meta && fit.zoom);
-        // 24em: the metadata and the zoom.
-        let fit = Fit::of(24.0 * EM);
-        assert!(!fit.meta && !fit.zoom && !fit.short_agent);
-        // 20em: the agent's first word.
-        assert!(Fit::of(20.0 * EM).short_agent);
-        // 11em: the glyph and the name.
-        let fit = Fit::of(11.0 * EM);
-        assert!(!fit.agent && !fit.queue && !fit.state);
+    fn what_gives_way_goes_in_order() {
+        // The task and the account first, then the gauge's bar, the branch.
+        let fit = Fit::of(490.0);
+        assert!(!fit.task && !fit.account && fit.gauge_bar && fit.branch);
+        let fit = Fit::of(420.0);
+        assert!(!fit.gauge_bar && !fit.branch && fit.diff && fit.gauge);
+        // The diff button, the Details' word, the gauge, then the commands.
+        let fit = Fit::of(335.0);
+        assert!(!fit.diff && !fit.details_word && !fit.gauge && fit.commands);
+        let fit = Fit::of(310.0);
+        assert!(!fit.commands && fit.zoom);
+        let fit = Fit::of(200.0);
+        assert!(!fit.zoom && fit.details && fit.narrow_actions);
+        let fit = Fit::of(140.0);
+        assert!(!fit.details && !fit.queue && !fit.delivery);
     }
 
     #[test]
     fn what_the_header_folds_the_menu_takes() {
         assert_eq!(Fit::of(800.0).folded(), Folded::default());
         assert_eq!(
-            Fit::of(30.0 * EM).folded(),
+            Fit::of(360.0).folded(),
             Folded {
                 commands: false,
                 diff: true,
@@ -1222,7 +1524,7 @@ mod tests {
             }
         );
         assert_eq!(
-            Fit::of(20.0 * EM).folded(),
+            Fit::of(240.0).folded(),
             Folded {
                 commands: true,
                 diff: true,

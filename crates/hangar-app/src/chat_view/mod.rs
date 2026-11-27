@@ -121,7 +121,7 @@ pub fn view<'a>(ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, Message> {
     let left = (ctx.metrics.body_width - TASKS_WIDTH).max(0.0);
     let tools_width =
         left * f32::from(TOOLS_PORTION) / f32::from(CONVERSATION_PORTION + TOOLS_PORTION);
-    let tools = crate::panes::view_tools(&ctx.pkg.panes, ctx, ws, tools_width);
+    let tools = crate::panes::view_tools(ctx, ws, tools_width);
 
     let conversation = container(conversation::view(&st.conversation, ctx, ws))
         .width(if tools.is_some() {

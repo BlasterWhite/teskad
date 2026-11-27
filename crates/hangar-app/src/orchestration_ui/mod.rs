@@ -32,7 +32,7 @@ use crate::state::{Model, WsId};
 
 // For the pane header (P5), which knows its own width.
 #[allow(unused_imports)]
-pub use badge::pane_badge_in;
+pub use badge::{pane_badge_in, worker_task};
 
 /// The package's UI state; lives in `App.pkg.orchestration_ui`.
 /// `actions` provides pin, unpin, create orchestrator and open manager, reached

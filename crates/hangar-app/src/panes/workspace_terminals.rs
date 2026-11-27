@@ -15,7 +15,7 @@ use iced::{Element, Size};
 
 use crate::ctx::Ctx;
 use crate::message::Message;
-use crate::panes::grid::{Grid, Slot};
+use crate::panes::grid::{self, Grid, Slot};
 use crate::panes::header::PADDING_X;
 use crate::panes::zoom_bar::{self, Other};
 use crate::panes::{
@@ -51,11 +51,8 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, M
             .get(id)
             .copied()
             .unwrap_or(geometry::Rect::FULL);
-        let width = if is_zoomed {
-            measured.width
-        } else {
-            rect.width as f32 * measured.width
-        };
+        let fraction = if is_zoomed { 1.0 } else { rect.width };
+        let width = grid::card_width(fraction, measured.width);
         terminal_pane::Placing {
             focused: is_focused,
             zoomed: is_zoomed,
@@ -74,8 +71,9 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, M
         let is_focused = placing.focused;
         let element = terminal_pane::view(st, ctx, ws, pane, rt, placing);
         // The outline says what the pane wants, an answer or (finished, or a
-        // shell whose command is done) your turn; else the focus ring. Never
-        // the accent for the first two: it would pass for the focused pane.
+        // shell whose command is done) your turn; else the focused pane's
+        // accent. Never the accent for the first two: it would pass for the
+        // focused pane.
         let logic = &ctx.model.live.panes_logic;
         let ring = if logic.needs_attention(&pane.id) {
             Some(if logic.is_waiting(&pane.id) {
@@ -84,7 +82,7 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, M
                 c.state_yours_fill
             })
         } else if is_focused {
-            Some(c.accent.scale_alpha(0.66))
+            Some(t.palette.accent)
         } else {
             None
         };
@@ -94,6 +92,7 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, M
             rect,
             element,
             ring,
+            focused: is_focused,
             terminal: true,
         });
     }
@@ -104,14 +103,15 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, M
             continue;
         };
         let placing = place(&view.id);
-        let ring = placing.focused.then(|| c.accent.scale_alpha(0.66));
-        let hovered = st.hovered.as_deref() == Some(view.id.as_str());
+        let is_focused = placing.focused;
+        let ring = is_focused.then_some(t.palette.accent);
         slots.push(Slot {
             id: &view.id,
             name: view_pane::name_of(ctx, &ws.id, &view.id),
             rect,
-            element: view_pane::view(ctx, ws, &view.id, hovered, placing),
+            element: view_pane::view(ctx, ws, &view.id, placing),
             ring,
+            focused: is_focused,
             terminal: false,
         });
     }

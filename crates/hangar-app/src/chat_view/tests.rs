@@ -199,7 +199,7 @@ fn a_workspace_without_a_view_pane_has_no_tools_area() {
     set(&mut m, "chat-bare", true);
     let pkg = Packages::default();
     let ws = m.workspace("chat-bare").unwrap();
-    assert!(crate::panes::view_tools(&pkg.panes, ctx(&m, &pkg), ws, 400.0).is_none());
+    assert!(crate::panes::view_tools(ctx(&m, &pkg), ws, 400.0).is_none());
 }
 
 #[test]

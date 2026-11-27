@@ -67,7 +67,6 @@ pub fn view<'a>(
             pane,
             rt,
             focused: placing.focused,
-            hovered: st.hovered.as_deref() == Some(pane.id.as_str()),
             zoomed: placing.zoomed,
             can_close: placing.can_close,
             can_zoom: placing.can_zoom,
@@ -75,6 +74,7 @@ pub fn view<'a>(
             index: placing.index,
             shell: shell_of(ctx.model, ws, pane),
             picker: picker.filter(|p| matches!(p, Picker::Agent | Picker::Shell)),
+            details: st.details.as_deref() == Some(pane.id.as_str()),
         },
     );
 

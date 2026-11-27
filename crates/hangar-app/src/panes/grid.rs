@@ -49,7 +49,7 @@ use iced::{
 
 use crate::message::Message;
 use crate::panes::Msg;
-use crate::panes::zoom_bar;
+use crate::panes::{header, zoom_bar};
 use crate::state::layout::{self as geometry, Handle, Path, Rect, Side};
 use crate::state::types::{DropZone, PinEdge, SplitDir, SplitNode};
 use crate::state::{PaneId, WsId};
@@ -65,6 +65,28 @@ const MIN_PANE: f32 = crate::state::layout::MIN_PANE_PX;
 const KEY_STEP: f32 = 24.0;
 const KEY_STEP_SHIFT: f32 = 5.0;
 
+/// Between two panes, and around them all: each pane is a card of its own
+/// on the window's `bg`.
+pub const CARD_GAP: f32 = 8.0;
+/// The corners of a pane's card.
+pub const CARD_RADIUS: f32 = hangar_theme::tokens::scale::radius::LG;
+/// The halo round the focused pane's accent border, and its opacity.
+const HALO: f32 = 3.0;
+const HALO_ALPHA: f32 = 0.16;
+
+/// The width of a pane's card that takes `fraction` of a grid `width` wide:
+/// what its header has to fit in.
+pub fn card_width(fraction: f64, width: f32) -> f32 {
+    (fraction as f32 * (width - CARD_GAP).max(0.0) - CARD_GAP).max(0.0)
+}
+
+/// The part of the grid's bounds the split tree divides: half a gap in from
+/// each edge, so that with the half gap each card gives up there is a whole
+/// one all round.
+fn tiles(bounds: Rectangle) -> Rectangle {
+    bounds.shrink(CARD_GAP / 2.0)
+}
+
 /// One pane's slot.
 pub struct Slot<'a> {
     pub id: &'a PaneId,
@@ -74,6 +96,8 @@ pub struct Slot<'a> {
     /// The outline drawn over the pane: the focus ring, or the colour of what
     /// it wants while it waits for the person.
     pub ring: Option<Color>,
+    /// The focused pane, whose card has a halo.
+    pub focused: bool,
     /// A terminal, which takes the files dropped on it; a view pane (what a
     /// preview shows) takes none.
     pub terminal: bool,
@@ -90,6 +114,8 @@ pub struct Grid<'a> {
     names: Vec<&'a str>,
     rects: Vec<Rect>,
     rings: Vec<Option<Color>>,
+    /// The slot of the pane with the halo.
+    lit: Vec<bool>,
     terminals: Vec<bool>,
     zoomed: Option<usize>,
     tree: SplitNode,
@@ -136,6 +162,7 @@ impl<'a> Grid<'a> {
             names: Vec::new(),
             rects: Vec::new(),
             rings: Vec::new(),
+            lit: Vec::new(),
             terminals: Vec::new(),
             zoomed,
             tree,
@@ -153,6 +180,7 @@ impl<'a> Grid<'a> {
             grid.names.push(slot.name);
             grid.rects.push(slot.rect);
             grid.rings.push(slot.ring);
+            grid.lit.push(slot.focused);
             grid.terminals.push(slot.terminal);
             grid.children.push(slot.element);
         }
@@ -674,23 +702,9 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
                     Point::new(0.0, zoom_bar::HEIGHT),
                     Size::new(size.width, (size.height - zoom_bar::HEIGHT).max(0.0)),
                 )
+                .shrink(CARD_GAP)
             } else {
-                // The 1 px separators: a pane off the grid's left or top edge
-                // gives its first column or row to one, inside its own slot,
-                // so a separator never covers the focus ring of the pane
-                // beside it.
-                let mut area = to_px(rects[index], bounds);
-                if zoomed.is_none() {
-                    if rects[index].left > 1e-6 {
-                        area.x += 1.0;
-                        area.width = (area.width - 1.0).max(0.0);
-                    }
-                    if rects[index].top > 1e-6 {
-                        area.y += 1.0;
-                        area.height = (area.height - 1.0).max(0.0);
-                    }
-                }
-                area
+                to_px(rects[index], tiles(bounds)).shrink(CARD_GAP / 2.0)
             };
             let exact = layout::Limits::new(area.size(), area.size());
             let node = child
@@ -736,14 +750,17 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
         viewport: &Rectangle,
     ) {
         let bounds = layout.bounds();
+        // What the boundaries are laid out in.
+        let within = tiles(bounds);
         let zoomed = self.zoomed.is_some();
 
         {
             let state = tree.state.downcast_mut::<State>();
             // The panes' headers fold their details by width: they are told
-            // the grid's size whenever it changes.
+            // the size of what the grid divides, whenever it changes, which
+            // is also what the engine keeps a pinned pane's pixels of.
             if let Event::Window(window::Event::RedrawRequested(_)) = event {
-                let size = bounds.size();
+                let size = within.size();
                 if state.sent != Some(size) && self.known != Some(size) {
                     state.sent = Some(size);
                     self.publish(shell, Msg::GridSized(self.ws.clone(), size));
@@ -755,8 +772,8 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
                 match event {
                     Event::Mouse(mouse::Event::CursorMoved { position }) => {
                         if let Some(handle) = self.handles.iter().find(|h| h.path == resize.path) {
-                            let ratio = ratio_for(handle, bounds, *position);
-                            resize.latest = self.bounded(handle, bounds, ratio);
+                            let ratio = ratio_for(handle, within, *position);
+                            resize.latest = self.bounded(handle, within, ratio);
                         }
                         shell.invalidate_layout();
                         shell.request_redraw();
@@ -883,7 +900,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
                     }) if !zoomed => {
                         if self.boundary_key_pressed(
                             state,
-                            bounds,
+                            within,
                             shell,
                             key,
                             *physical_key,
@@ -898,7 +915,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
                         let on_it = cursor.position_over(bounds).is_some_and(|at| {
                             self.handles.iter().any(|handle| {
                                 Some(&handle.path) == state.selected.as_ref()
-                                    && grab_area(handle, bounds).contains(at)
+                                    && grab_area(handle, within).contains(at)
                             })
                         });
                         if state.selected.is_some() && !on_it {
@@ -921,7 +938,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
                 && let Some(handle) = self
                     .handles
                     .iter()
-                    .find(|handle| grab_area(handle, bounds).contains(position))
+                    .find(|handle| grab_area(handle, within).contains(position))
             {
                 let click = Click::new(
                     position,
@@ -930,7 +947,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
                 );
                 state.last_click = Some((usize::MAX, click));
                 if click.kind() == mouse::click::Kind::Double {
-                    let even = self.bounded(handle, bounds, 0.5);
+                    let even = self.bounded(handle, within, 0.5);
                     self.publish(
                         shell,
                         Msg::SetRatio(self.ws.clone(), handle.path.clone(), even),
@@ -954,7 +971,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
                     .then(|| {
                         self.handles
                             .iter()
-                            .find(|handle| grab_area(handle, bounds).contains(*position))
+                            .find(|handle| grab_area(handle, within).contains(*position))
                             .map(|handle| handle.path.clone())
                     })
                     .flatten();
@@ -1062,8 +1079,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
                 self.publish(shell, msg);
             }
             let slot = layout.children().nth(index).map(|child| child.bounds());
-            let on_header =
-                slot.is_some_and(|slot| position.y < slot.y + tokens::size::PANE_HEAD_HEIGHT);
+            let on_header = slot.is_some_and(|slot| position.y < slot.y + header::HEIGHT);
             if on_header && !shell.is_event_captured() {
                 let previous = state
                     .last_click
@@ -1130,9 +1146,9 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
             let bounds = child_layout.bounds();
             if index < self.slots()
                 && self.zoomed.is_none()
-                && cursor.position().is_some_and(|at| {
-                    bounds.contains(at) && at.y < bounds.y + tokens::size::PANE_HEAD_HEIGHT
-                })
+                && cursor
+                    .position()
+                    .is_some_and(|at| bounds.contains(at) && at.y < bounds.y + header::HEIGHT)
             {
                 return mouse::Interaction::Grab;
             }
@@ -1153,19 +1169,13 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
         let state = tree.state.downcast_ref::<State>();
         let c = &self.theme.colors;
         let bounds = layout.bounds();
-        // What shows between the panes is the separator colour. On a window
-        // the desktop shows through, only the strips between them, at the
-        // window's alpha: under the panes is the page (shell/frame.rs), which
-        // a fill here would make opaque.
-        if !self.theme.is_translucent() {
-            fill(renderer, bounds, c.sep, None);
-        } else if self.zoomed.is_none() {
-            let sep = self.theme.see_through(c.sep);
-            for pane in layout.children().take(self.slots()) {
-                for strip in separator_strips(pane.bounds(), bounds) {
-                    fill(renderer, strip, sep, None);
-                }
-            }
+        // What shows between the cards is the window's `bg`. A window the
+        // desktop shows through has the page under the grid (shell/frame.rs)
+        // there already, which a fill here would make opaque.
+        let opaque = !self.theme.is_translucent();
+        let behind = self.theme.palette.bg;
+        if opaque {
+            fill(renderer, bounds, behind, None);
         }
 
         let dragging = state
@@ -1194,6 +1204,33 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
             );
         }
 
+        // A terminal fills its square: its card's corners are cut over it,
+        // by a band of what is behind the card, clipped to the card, whose
+        // inner edge is the rounded one. Each in a layer of its own, before
+        // the layer the outlines are drawn in, so that they stay over it.
+        if opaque {
+            for (index, child_layout) in layout.children().take(self.slots()).enumerate() {
+                if self.behind(index) {
+                    continue;
+                }
+                let slot = child_layout.bounds();
+                renderer.with_layer(slot, |renderer| {
+                    renderer.fill_quad(
+                        Quad {
+                            bounds: slot.expand(CARD_RADIUS),
+                            border: Border {
+                                color: behind,
+                                width: CARD_RADIUS,
+                                radius: (2.0 * CARD_RADIUS).into(),
+                            },
+                            ..Quad::default()
+                        },
+                        Background::Color(Color::TRANSPARENT),
+                    );
+                });
+            }
+        }
+
         // Over the panes, in a layer of their own: iced draws a layer's
         // quads before its text, and these have to cover the terminals' text.
         renderer.with_layer(bounds, |renderer| {
@@ -1205,11 +1242,24 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
                 // The pane being dragged stays in place, dimmed, as its own
                 // drop origin.
                 if dragging == Some(index) {
-                    fill(renderer, slot, c.bg.scale_alpha(0.55), None);
+                    card(renderer, slot, c.bg.scale_alpha(0.55), None);
                 }
-                if let Some(ring) = self.rings[index] {
-                    fill(renderer, slot, Color::TRANSPARENT, Some((ring, 1.0)));
+                if self.lit[index] {
+                    renderer.fill_quad(
+                        Quad {
+                            bounds: slot.expand(HALO),
+                            border: Border {
+                                color: self.theme.palette.accent.scale_alpha(HALO_ALPHA),
+                                width: HALO,
+                                radius: (CARD_RADIUS + HALO).into(),
+                            },
+                            ..Quad::default()
+                        },
+                        Background::Color(Color::TRANSPARENT),
+                    );
                 }
+                let edge = self.rings[index].unwrap_or(self.theme.palette.border);
+                card(renderer, slot, Color::TRANSPARENT, Some(edge));
             }
 
             // The boundary under the pointer, or being dragged: an accent
@@ -1226,7 +1276,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
                     .into_iter()
                     .find(|h| &h.path == path)
             {
-                let line = to_px(handle.rect, bounds);
+                let line = to_px(handle.rect, tiles(bounds));
                 // The one the keyboard has is thicker, to be told from a
                 // boundary that is only hovered.
                 let held = state.selected.as_ref() == Some(path) && state.resize.is_none();
@@ -1251,7 +1301,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
                         renderer,
                         self.theme,
                         &label(&handle),
-                        to_px(handle.rect, bounds).center(),
+                        to_px(handle.rect, tiles(bounds)).center(),
                         true,
                         c.accent,
                     );
@@ -1333,24 +1383,21 @@ fn resize_cursor(dir: SplitDir) -> mouse::Interaction {
     }
 }
 
-/// The 1 px separators `layout` takes from the left and the top of a pane's
-/// slot when the pane is off the grid's left or top edge, as strips: the
-/// corner where the two meet is in the left one.
-fn separator_strips(pane: Rectangle, grid: Rectangle) -> impl Iterator<Item = Rectangle> {
-    let left = pane.x - grid.x >= 0.5;
-    let top = pane.y - grid.y >= 0.5;
-    let above = if top { 1.0 } else { 0.0 };
-    [
-        left.then(|| {
-            Rectangle::new(
-                Point::new(pane.x - 1.0, pane.y - above),
-                Size::new(1.0, pane.height + above),
-            )
-        }),
-        top.then(|| Rectangle::new(Point::new(pane.x, pane.y - 1.0), Size::new(pane.width, 1.0))),
-    ]
-    .into_iter()
-    .flatten()
+/// A card's shape over `bounds`: filled, with a hairline of `edge` when it
+/// has one.
+fn card(renderer: &mut iced::Renderer, bounds: Rectangle, color: Color, edge: Option<Color>) {
+    renderer.fill_quad(
+        Quad {
+            bounds,
+            border: Border {
+                color: edge.unwrap_or(Color::TRANSPARENT),
+                width: if edge.is_some() { 1.0 } else { 0.0 },
+                radius: CARD_RADIUS.into(),
+            },
+            ..Quad::default()
+        },
+        Background::Color(color),
+    );
 }
 
 fn fill(
@@ -1455,30 +1502,26 @@ mod tests {
 
     const WINDOW: Size = Size::new(800.0, 600.0);
 
+    /// Two halves of a grid come out as cards a gap apart, the same gap all
+    /// round, as wide as `card_width` says the header has.
     #[test]
-    fn the_strips_between_panes_are_the_pixels_their_slots_give_up() {
-        let grid = Rectangle::new(Point::new(10.0, 20.0), Size::new(400.0, 300.0));
-        // The top-left pane gives up nothing.
-        let first = Rectangle::new(Point::new(10.0, 20.0), Size::new(200.0, 150.0));
-        assert_eq!(separator_strips(first, grid).count(), 0);
-        // The one to its right, its first column.
-        let right = Rectangle::new(Point::new(211.0, 20.0), Size::new(199.0, 150.0));
-        assert_eq!(
-            separator_strips(right, grid).collect::<Vec<_>>(),
-            [Rectangle::new(
-                Point::new(210.0, 20.0),
-                Size::new(1.0, 150.0)
-            )]
-        );
-        // The bottom-right one, its first column and row, corner included.
-        let corner = Rectangle::new(Point::new(211.0, 171.0), Size::new(199.0, 149.0));
-        assert_eq!(
-            separator_strips(corner, grid).collect::<Vec<_>>(),
-            [
-                Rectangle::new(Point::new(210.0, 170.0), Size::new(1.0, 150.0)),
-                Rectangle::new(Point::new(211.0, 170.0), Size::new(199.0, 1.0)),
-            ]
-        );
+    fn the_cards_stand_a_gap_apart_and_a_gap_in_from_the_edges() {
+        let grid = Rectangle::new(Point::new(10.0, 20.0), Size::new(408.0, 300.0));
+        let half = |left: f64| {
+            let rect = Rect {
+                left,
+                top: 0.0,
+                width: 0.5,
+                height: 1.0,
+            };
+            to_px(rect, tiles(grid)).shrink(CARD_GAP / 2.0)
+        };
+        let (first, second) = (half(0.0), half(0.5));
+        assert_eq!(first.x - grid.x, CARD_GAP);
+        assert_eq!(first.y - grid.y, CARD_GAP);
+        assert_eq!(second.x - (first.x + first.width), CARD_GAP);
+        assert_eq!((grid.x + grid.width) - (second.x + second.width), CARD_GAP);
+        assert_eq!(card_width(0.5, grid.width), first.width);
     }
 
     fn leaf(id: &str) -> SplitNode {
@@ -1502,6 +1545,7 @@ mod tests {
                 rect: layout.rects[id],
                 element: Space::new().width(Length::Fill).height(Length::Fill).into(),
                 ring: None,
+                focused: false,
                 terminal: true,
             })
             .collect();
@@ -1710,6 +1754,9 @@ mod keyboard_tests {
         SplitNode::Pane { id: id.into() }
     }
 
+    /// The pixels the split divides: the 800 px window less the gap.
+    const SPAN: f64 = 800.0 - CARD_GAP as f64;
+
     /// Two panes side by side, `a` focused, with the keyboard allowed (or
     /// not) to reach the boundary between them.
     fn grid<'a>(
@@ -1733,6 +1780,7 @@ mod keyboard_tests {
                 rect: layout.rects[id],
                 element: Space::new().width(Length::Fill).height(Length::Fill).into(),
                 ring: None,
+                focused: false,
                 terminal: true,
             })
             .collect();
@@ -1907,11 +1955,11 @@ mod keyboard_tests {
         ui.simulate([arrow(Named::ArrowRight)]);
         ui.simulate([named(Named::ArrowRight, Modifiers::SHIFT)]);
         let moved = ratios(ui);
-        // 24 px, then 120 px, of the 800 px split. The app rebuilds the grid
+        // 24 px, then 120 px, of the split: the window less the gap. The app rebuilds the grid
         // between two keys; here it is not, so each is measured from the half.
         assert_eq!(moved.len(), 2, "{moved:?}");
-        assert!((moved[0] - 0.53).abs() < 1e-6, "{moved:?}");
-        assert!((moved[1] - 0.65).abs() < 1e-6, "{moved:?}");
+        assert!((moved[0] - (0.5 + 24.0 / SPAN)).abs() < 1e-6, "{moved:?}");
+        assert!((moved[1] - (0.5 + 120.0 / SPAN)).abs() < 1e-6, "{moved:?}");
     }
 
     #[test]
@@ -1925,7 +1973,7 @@ mod keyboard_tests {
         ui.simulate([named(Named::ArrowRight, Modifiers::SHIFT)]);
         let moved = ratios(ui);
         assert_eq!(moved.len(), 1, "{moved:?}");
-        assert!((moved[0] - 0.65).abs() < 1e-6, "{moved:?}");
+        assert!((moved[0] - (0.5 + 120.0 / SPAN)).abs() < 1e-6, "{moved:?}");
     }
 
     #[test]
@@ -1939,8 +1987,8 @@ mod keyboard_tests {
         ui.simulate([arrow(Named::Enter)]);
         let moved = ratios(ui);
         assert_eq!(moved.len(), 2, "{moved:?}");
-        assert!((moved[0] - 150.0 / 800.0).abs() < 1e-6);
-        assert!((moved[1] - (1.0 - 150.0 / 800.0)).abs() < 1e-6);
+        assert!((moved[0] - 150.0 / SPAN).abs() < 1e-6);
+        assert!((moved[1] - (1.0 - 150.0 / SPAN)).abs() < 1e-6);
     }
 
     #[test]
@@ -2001,7 +2049,7 @@ mod keyboard_tests {
             1,
             "the click wrote nothing, the arrow one move"
         );
-        assert!((moved[0] - 0.47).abs() < 1e-6, "{moved:?}");
+        assert!((moved[0] - (0.5 - 24.0 / SPAN)).abs() < 1e-6, "{moved:?}");
     }
 
     #[test]

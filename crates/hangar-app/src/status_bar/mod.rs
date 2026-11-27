@@ -25,9 +25,9 @@ use iced::{Alignment, Element, Event, Length, Padding, Subscription, Task, windo
 
 use hangar_core::git::RepoInfo;
 use hangar_i18n::{Key, args};
-use hangar_theme::tokens::{font_size, space};
+use hangar_theme::tokens::{self, font_size, space};
 use hangar_theme::{fonts, style};
-use hangar_ui::{Icon, button, icon, keys, tip};
+use hangar_ui::{Icon, button, icon, keycap, keys, tip};
 
 use crate::commands::CommandId;
 use crate::ctx::Ctx;
@@ -36,6 +36,29 @@ use crate::navigator::{reads, skin};
 use crate::services::{CoreEvent, Services};
 use crate::shell::{Focus, Region, View};
 use crate::state::{AgentActivity, Model, WsId};
+
+/// The bar's height under the terminals, where it holds the broadcast field
+/// (`ecrans.md`, « Barre d'envoi groupé »); elsewhere it keeps
+/// [`tokens::size::STATUS_BAR_HEIGHT`].
+pub const BROADCAST_HEIGHT: f32 = 52.0;
+/// The broadcast field's height.
+const FIELD_HEIGHT: f32 = 34.0;
+
+/// Whether the window's bar holds the broadcast field: over the terminals.
+/// The chat view has its own input: the field would type into terminals that
+/// are not on screen.
+fn broadcasts(ctx: Ctx<'_>, ws: &crate::state::Workspace) -> bool {
+    ctx.view() == View::Terminals && !crate::chat_view::shown(ctx.model, ws)
+}
+
+/// How tall the window's bar is.
+pub fn height(ctx: Ctx<'_>) -> f32 {
+    if ctx.workspace().is_some_and(|ws| broadcasts(ctx, ws)) {
+        BROADCAST_HEIGHT
+    } else {
+        tokens::size::STATUS_BAR_HEIGHT
+    }
+}
 
 /// Often enough to follow an agent switching branches, rarely enough to cost
 /// nothing.
@@ -326,10 +349,8 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
     let tr = ctx.i18n;
     let pane_count = ws.panes.len();
 
-    // The chat view has its own input: the broadcast field would type into
-    // terminals that are not on screen.
-    let chat = crate::chat_view::shown(ctx.model, ws);
-    let lead: Element<'a, Message> = if ctx.view() == View::Terminals && !chat {
+    let sending = broadcasts(ctx, ws);
+    let lead: Element<'a, Message> = if sending {
         broadcast(st, ctx, ws)
     } else {
         info(ctx, ws)
@@ -398,14 +419,16 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
                 .into_owned(),
         ));
     }
-    let panes = row![
-        icon(Icon::Layout4, 13.0),
+    // Under the broadcast field the count is words alone, as in the mockup.
+    let mut panes = row![].spacing(5).align_y(Alignment::Center);
+    if !sending {
+        panes = panes.push(icon(Icon::Layout4, 13.0));
+    }
+    panes = panes.push(
         text(tr.tn(Key::StatusPanes, pane_count, &[]).into_owned())
             .size(font_size::LABEL)
             .font(fonts::mono()),
-    ]
-    .spacing(5)
-    .align_y(Alignment::Center);
+    );
     items = items.push(tip::over(
         t,
         readout(t, panes),
@@ -518,21 +541,27 @@ fn broadcast<'a>(
     };
     let shown = iced::widget::stack![input, placeholder];
 
-    let mut field = row![shown].align_y(Alignment::Center).spacing(space::SM);
+    // The broadcast mark inside the field at the left, its shortcut as key
+    // caps at the right.
+    let mut field = row![
+        icon(Icon::Broadcast, 16.0).color(t.palette.text_muted),
+        shown
+    ]
+    .align_y(Alignment::Center)
+    .spacing(space::LG);
     if !hint.is_empty() {
         field = field.push(tip::over(
             t,
-            hangar_ui::text::mono(t, hangar_ui::shortcut::format_binding(&hint))
-                .size(font_size::LABEL),
+            Element::from(keycap::binding(t, hint)),
             tr.t(Key::CmdViewBroadcast).into_owned(),
         ));
     }
     let field = container(field)
-        .height(24)
-        .padding([0.0, space::MD])
+        .height(FIELD_HEIGHT)
+        .padding([0.0, space::LG])
         .align_y(Alignment::Center)
         .width(Length::Fill)
-        .style(skin::field(t, false));
+        .style(field_style(t));
 
     // The panes whose Claude Code loaded the mod, which can hold a line until
     // it is free (`useBridgedCount`).
@@ -553,16 +582,26 @@ fn broadcast<'a>(
         .on_press_maybe((!empty).then(|| send(false)))
         .tip(tr.t(Key::StatusSendHint).into_owned());
 
-    row![
-        container(icon(Icon::Broadcast, 16.0).color(t.colors.fg_muted)).padding([0.0, 2.0]),
-        field,
-        when_free,
-        now,
-    ]
-    .spacing(space::SM)
-    .align_y(Alignment::Center)
-    .width(Length::Fill)
-    .into()
+    row![field, when_free, now,]
+        .spacing(space::SM)
+        .align_y(Alignment::Center)
+        .width(Length::Fill)
+        .into()
+}
+
+/// The broadcast field's surface: `surface`, a `border` hairline, corners
+/// of 8.
+fn field_style(t: &hangar_theme::Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
+    move |_| container::Style {
+        background: Some(iced::Background::Color(t.palette.surface)),
+        text_color: Some(t.palette.text),
+        border: iced::Border {
+            color: t.palette.border,
+            width: 1.0,
+            radius: tokens::scale::radius::MD.into(),
+        },
+        ..container::Style::default()
+    }
 }
 
 /// The folder, and how the workspace's agents are doing, for every view but

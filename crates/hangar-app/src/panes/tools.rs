@@ -15,19 +15,14 @@ use iced::{Element, Length};
 use crate::ctx::Ctx;
 use crate::message::Message;
 use crate::panes::terminal_pane::Placing;
-use crate::panes::{Msg, State, focused_pane, view_pane};
+use crate::panes::{Msg, focused_pane, view_pane};
 use crate::state::Workspace;
 use crate::state::layout as geometry;
 
 /// Nothing when the workspace has no view pane: the chat view then leaves
 /// the room to the conversation. `width` is the room the area has, for the
 /// headers' breakpoints.
-pub fn view<'a>(
-    st: &'a State,
-    ctx: Ctx<'a>,
-    ws: &'a Workspace,
-    width: f32,
-) -> Option<Element<'a, Message>> {
+pub fn view<'a>(ctx: Ctx<'a>, ws: &'a Workspace, width: f32) -> Option<Element<'a, Message>> {
     if ws.view_panes.is_empty() {
         return None;
     }
@@ -50,10 +45,9 @@ pub fn view<'a>(
             width,
             index: order.iter().position(|at| at == id).unwrap_or_default(),
         };
-        let hovered = st.hovered.as_deref() == Some(id);
         // A press in the pane gives it the focus, as it does in the grid;
         // one a control inside took (a button, the 3D view's drag) does not.
-        let pane = mouse_area(view_pane::view(ctx, ws, id, hovered, placing))
+        let pane = mouse_area(view_pane::view(ctx, ws, id, placing))
             .on_press(Message::Panes(Msg::Focus(ws.id.clone(), id.to_owned())));
         list = list.push(pane);
     }

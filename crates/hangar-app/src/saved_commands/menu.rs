@@ -140,7 +140,7 @@ pub fn bolt<'a>(st: &'a State, ctx: Ctx<'a>, pane: &'a PaneId) -> Element<'a, Me
     let anchor = button::icon_button(ctx.theme, Icon::Bolt)
         .tip(ctx.t(Key::CommandsMenu))
         .toggled(open)
-        .small()
+        .sized(button::Side::Xs)
         .on_press(send(Msg::ToggleMenu(pane.clone())));
     dropdown(ctx, anchor, pane, open)
 }

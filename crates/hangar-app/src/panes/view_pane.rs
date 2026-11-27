@@ -4,8 +4,7 @@
 //! Its header is a terminal pane's in shape and in what it answers: the same
 //! height and look, the drag handle the grid reads off the header's band
 //! (`grid.rs`), a double click that zooms, the pin of a pinned pane, and the
-//! pin, zoom and close buttons on the focused pane and the one under the
-//! pointer (a view has no « … » menu to pin it from). What it says (the mark
+//! pin, zoom and close buttons (a view has no « … » menu to pin it from). What it says (the mark
 //! of the entry's kind, its title, who opened it or the kit page's word for
 //! its state) is the preview's (`preview::head`), and so is its body
 //! (`preview::view_entry`): the viewers, the 3D view, the kit tab, or the
@@ -14,7 +13,7 @@
 use hangar_i18n::{Key, args};
 use hangar_theme::{fonts, style, tokens};
 use hangar_ui::{Icon, button, tip};
-use iced::widget::{Space, column, container, mouse_area, row, text};
+use iced::widget::{Space, column, container, row, text};
 use iced::{Alignment, Element, Length, Padding};
 
 use crate::ctx::Ctx;
@@ -64,7 +63,6 @@ pub fn view<'a>(
     ctx: Ctx<'a>,
     ws: &'a Workspace,
     id: &'a str,
-    hovered: bool,
     placing: Placing,
 ) -> Element<'a, Message> {
     let t = ctx.theme;
@@ -105,25 +103,9 @@ pub fn view<'a>(
         );
     }
     bar = bar.push(Space::new().width(Length::Fill));
-    if focused || hovered {
-        bar = bar.push(actions(ctx, ws, id, entry, &placing));
-    }
+    bar = bar.push(actions(ctx, ws, id, entry, &placing));
 
-    let header = container(bar)
-        .padding(Padding {
-            top: 0.0,
-            right: 6.0,
-            bottom: 0.0,
-            left: 10.0,
-        })
-        .height(tokens::size::PANE_HEAD_HEIGHT)
-        .width(Length::Fill)
-        .align_y(Alignment::Center)
-        .clip(true)
-        .style(style::container::pane_head(t, focused));
-    let header = mouse_area(header)
-        .on_enter(wrap(Msg::Hover(Some(id.to_owned()))))
-        .on_exit(wrap(Msg::Hover(None)));
+    let header = header::frame(t, bar);
 
     // What the preview draws may hold fields of its own (a kit's tab): they
     // take the keyboard from the terminals as the app's own fields do.
@@ -157,11 +139,8 @@ fn actions<'a>(
     placing: &Placing,
 ) -> Element<'a, Message> {
     let t = ctx.theme;
-    let side = if placing.width < 15.5 * 12.0 {
-        20.0
-    } else {
-        22.0
-    };
+    let side =
+        header::action_side(header::Fit::of(placing.width - header::PADDING_X).narrow_actions);
     let mut group = row![].spacing(1).align_y(Alignment::Center);
     // A view has no « … » menu: it pins and lets go from here, as a
     // terminal does from its menu.

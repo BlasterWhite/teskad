@@ -29,8 +29,11 @@ pub(crate) mod controller;
 mod gauge;
 
 mod grid;
+#[cfg(test)]
+pub(crate) use grid::CARD_GAP;
 mod header;
 mod hub;
+mod label;
 pub(crate) mod launch;
 mod look;
 mod press;
@@ -90,10 +93,10 @@ pub struct State {
     /// Files dropped in the batch of events being handled, joined into one
     /// paste per pane.
     drops: Vec<(PaneId, PathBuf)>,
-    /// The header under the pointer, which shows its actions.
-    hovered: Option<PaneId>,
-    /// An agent or shell picker open in a header.
+    /// An agent or shell picker open in a header's Details.
     picker: Option<(PaneId, Picker)>,
+    /// The pane whose header has its Details popover open.
+    details: Option<PaneId>,
     /// The signature of the model the last sync brought the panes in line
     /// with.
     synced: u64,
@@ -250,7 +253,11 @@ pub enum Msg {
     /// A press in a pane that a field of it took (its terminal's search
     /// bar): the pane becomes the focused one, the field keeps the keyboard.
     Select(WsId, PaneId),
-    Hover(Option<PaneId>),
+    /// The Details button of a header: its popover opens, or closes.
+    ToggleDetails(PaneId),
+    CloseDetails,
+    /// The session's id goes to the clipboard.
+    CopySession(String),
     OpenPicker(PaneId, Picker),
     ClosePicker,
     SetAgent(WsId, PaneId, crate::state::AgentId),
@@ -477,10 +484,17 @@ fn handle(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Messag
                 terminal: false,
             }),
         ]),
-        Msg::Hover(pane) => {
-            st.hovered = pane;
+        Msg::ToggleDetails(pane) => {
+            st.picker = None;
+            st.details = (st.details.as_ref() != Some(&pane)).then_some(pane);
             Task::none()
         }
+        Msg::CloseDetails => {
+            st.details = None;
+            st.picker = None;
+            Task::none()
+        }
+        Msg::CopySession(id) => iced::clipboard::write(id),
         Msg::OpenPicker(pane, picker) => {
             st.picker = match &st.picker {
                 Some((open, kind)) if *open == pane && *kind == picker => None,
@@ -494,6 +508,7 @@ fn handle(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Messag
         }
         Msg::SetAgent(ws, pane, agent) => {
             st.picker = None;
+            st.details = None;
             intent(Intent::ReplacePane {
                 ws,
                 pane,
@@ -505,6 +520,7 @@ fn handle(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Messag
         }
         Msg::SetShell(ws, pane, shell) => {
             st.picker = None;
+            st.details = None;
             intent(Intent::ReplacePane {
                 ws,
                 pane,
@@ -537,7 +553,12 @@ fn handle(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Messag
             zoom_to(ws, target)
         }
         Msg::Zoom(ws, target) => zoom_to(ws, target),
-        Msg::Sessions(ws, pane) => intent(Intent::OpenSessions { ws, pane }),
+        Msg::Sessions(ws, pane) => {
+            // The picker opens over the window: Details goes.
+            st.details = None;
+            st.picker = None;
+            intent(Intent::OpenSessions { ws, pane })
+        }
         Msg::Diff(ws, pane) => intent(Intent::OpenDiff {
             ws,
             pane: Some(pane),
@@ -1235,13 +1256,8 @@ impl State {
 
 /// The workspace's panes that are not terminals, for the tools area of the
 /// chat view: nothing when it has none (`tools.rs`).
-pub fn view_tools<'a>(
-    st: &'a State,
-    ctx: Ctx<'a>,
-    ws: &'a Workspace,
-    width: f32,
-) -> Option<Element<'a, Message>> {
-    tools::view(st, ctx, ws, width)
+pub fn view_tools<'a>(ctx: Ctx<'a>, ws: &'a Workspace, width: f32) -> Option<Element<'a, Message>> {
+    tools::view(ctx, ws, width)
 }
 
 /// What the engines may do with the terminals (`Services::terminals`).
@@ -1666,8 +1682,8 @@ fn sync(st: &mut State, m: &mut Model, sv: &Services) -> Task<Message> {
             continue;
         };
         st.waves.forget(&id);
-        if st.hovered.as_ref() == Some(&id) {
-            st.hovered = None;
+        if st.details.as_ref() == Some(&id) {
+            st.details = None;
         }
         if st.picker.as_ref().is_some_and(|(open, _)| *open == id) {
             st.picker = None;
@@ -1752,17 +1768,21 @@ fn sync(st: &mut State, m: &mut Model, sv: &Services) -> Task<Message> {
             );
         }
     }
-    // The menus are placed from their button on screen, and a hidden
-    // workspace has none.
-    if let Some((open, _)) = &st.picker {
-        let shown = st
-            .panes
+    // The menus and Details are placed from their button on screen, and a
+    // hidden workspace has none.
+    let hidden = |open: &PaneId| {
+        !st.panes
             .get(open)
             .and_then(|rt| m.workspace(&rt.ws))
-            .is_some_and(|ws| seen(m, ws, open));
-        if !shown {
-            st.picker = None;
-        }
+            .is_some_and(|ws| seen(m, ws, open))
+    };
+    let picker_gone = st.picker.as_ref().is_some_and(|(open, _)| hidden(open));
+    let details_gone = st.details.as_ref().is_some_and(hidden);
+    if picker_gone {
+        st.picker = None;
+    }
+    if details_gone {
+        st.details = None;
     }
     // What is on screen is part of the signature: every change of it comes
     // through here.
@@ -1943,12 +1963,12 @@ fn pane_width(
 ) -> f32 {
     let size = st.grid_sizes.get(&ws.id).copied().unwrap_or(UNMEASURED);
     if zoomed_pane(m, ws).as_deref() == Some(pane) {
-        return size.width;
+        return grid::card_width(1.0, size.width);
     }
     layout
         .rects
         .get(pane)
-        .map_or(size.width, |rect| rect.width as f32 * size.width)
+        .map_or(size.width, |rect| grid::card_width(rect.width, size.width))
 }
 
 #[cfg(test)]

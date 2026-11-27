@@ -160,13 +160,22 @@ fn workspace_body<'a>(ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, Message> {
     ))
     .on_enter(Message::Shell(Action::PointerOverToolbar(true)))
     .on_exit(Message::Shell(Action::PointerOverToolbar(false)));
+    // The taller bar of the broadcast field lies on the window's `bg`, as
+    // the top bar does; the readouts of the other views keep the status bar.
+    let broadcasting = crate::status_bar::height(ctx) == crate::status_bar::BROADCAST_HEIGHT;
     let status = container(crate::status_bar::view(&p.status_bar, ctx))
         .width(Length::Fill)
-        .height(tokens::size::STATUS_BAR_HEIGHT)
+        .height(crate::status_bar::height(ctx))
         .style(title_bar::rounded_style(
             ctx,
             Corners::bottom(ctx),
-            style::container::see_through(t, style::container::statusbar(t)),
+            style::container::see_through(t, move |theme: &iced::Theme| {
+                if broadcasting {
+                    skin::window_chrome(t)(theme)
+                } else {
+                    style::container::statusbar(t)(theme)
+                }
+            }),
         ));
 
     let mut body = row![work_area(ctx, ws)].height(Length::Fill);
@@ -352,7 +361,7 @@ fn layered<'a>(ctx: Ctx<'a>, frame: Element<'a, Message>) -> Element<'a, Message
         layers = layers.push(
             container(column![
                 bottom,
-                Space::new().height(tokens::size::STATUS_BAR_HEIGHT + 12.0)
+                Space::new().height(crate::status_bar::height(ctx) + 12.0)
             ])
             .width(Length::Fill)
             .height(Length::Fill)
@@ -591,11 +600,12 @@ mod tests {
         // The first pane's terminal, below the lines printed in it.
         let terminal = area(300.0, 300.0, 300.0, 100.0);
         // Its header, a bar of text that stays opaque.
+        // A gap under the toolbar, where the pane's card begins.
         let head = area(
             300.0,
-            tokens::size::TOOLBAR_HEIGHT + 4.0,
+            tokens::size::TOOLBAR_HEIGHT + crate::panes::CARD_GAP + 4.0,
             300.0,
-            tokens::size::PANE_HEAD_HEIGHT - 8.0,
+            tokens::scale::size::CONTROL_LG - 8.0,
         );
         let through = see_through(theme.window_alpha());
         // A solid window everywhere but on Linux.

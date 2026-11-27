@@ -76,6 +76,7 @@ fn figure<'a, M: 'a>(
 pub struct Context<'a> {
     theme: &'a Theme,
     pct: u8,
+    bar: bool,
     tip: Option<String>,
 }
 
@@ -83,11 +84,19 @@ pub fn context(t: &Theme, pct: u8) -> Context<'_> {
     Context {
         theme: t,
         pct,
+        bar: true,
         tip: None,
     }
 }
 
 impl Context<'_> {
+    /// Whether the bar is drawn (it is), or the figure alone, where there
+    /// is no room for both.
+    pub fn bar(mut self, bar: bool) -> Self {
+        self.bar = bar;
+        self
+    }
+
     /// The numbers behind the bar, in a tooltip.
     pub fn tip(mut self, words: impl Into<String>) -> Self {
         self.tip = Some(words.into());
@@ -98,18 +107,18 @@ impl Context<'_> {
 impl<'a, M: 'a> From<Context<'a>> for Element<'a, M> {
     fn from(c: Context<'a>) -> Self {
         let t = c.theme;
-        let content = row![
-            container(bar(t, c.pct)).width(CONTEXT_WIDTH),
-            figure(
+        let gauge = c.bar.then(|| container(bar(t, c.pct)).width(CONTEXT_WIDTH));
+        let content = row![]
+            .push(gauge)
+            .push(figure(
                 t,
                 format!("{}%", c.pct),
                 c.pct,
                 t.palette.text_muted,
-                Length::Shrink
-            ),
-        ]
-        .spacing(space::SM)
-        .align_y(Alignment::Center);
+                Length::Shrink,
+            ))
+            .spacing(space::SM)
+            .align_y(Alignment::Center);
         match c.tip {
             Some(words) => tip::bottom(t, content, words),
             None => content.into(),

@@ -597,7 +597,7 @@ pub fn view_folded<'a>(
     let anchor = button::icon_button(ctx.theme, Icon::More)
         .tip(ctx.t(Key::PaneMore))
         .toggled(open.is_some() || commands)
-        .small()
+        .sized(button::Side::Xs)
         .on_press(send(Msg::Toggle(pane.clone(), folded)));
     // The saved commands hang off this button when the header folded the ⚡
     // one away.

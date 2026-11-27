@@ -684,7 +684,7 @@ impl App {
             - docked(panels.dock);
         let height = window.height / scale
             - hangar_theme::tokens::size::TOOLBAR_HEIGHT
-            - hangar_theme::tokens::size::STATUS_BAR_HEIGHT;
+            - crate::status_bar::BROADCAST_HEIGHT;
         Some((rect.width as f32 * width, rect.height as f32 * height))
     }
 
