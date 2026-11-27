@@ -24,24 +24,25 @@
 //!
 //! The control that records a shortcut is in [`crate::form`].
 
-use hangar_theme::tokens::{font_size, size, space};
+use hangar_theme::tokens::{font_size, radius, size, space};
 use hangar_theme::{Theme, fonts, style};
 use iced::widget::{
-    Id, button, checkbox as iced_checkbox, column, container, pick_list, row,
-    slider as iced_slider, space as iced_space, stack, text, text_editor, text_input, toggler,
+    Id, Space, button, checkbox as iced_checkbox, column, container, mouse_area, pick_list, row,
+    slider as iced_slider, space as iced_space, stack, text, text_editor, text_input,
 };
-use iced::{Alignment, Element, Length, Padding, Pixels};
+use iced::{Alignment, Element, Length, Padding, Pixels, alignment};
 
 use crate::button::icon_button;
+use crate::focus;
 use crate::icon::{Icon, icon};
 use crate::text as typography;
 
-/// A field's text is 12 px on a 16 px line, in a box 26 px tall.
+/// A field's text is on a 16 px line, in a box 32 px tall (`controlMd`).
 const FIELD_PADDING: Padding = Padding {
-    top: 5.0,
-    right: space::MD,
-    bottom: 5.0,
-    left: space::MD,
+    top: space::MD,
+    right: space::LG,
+    bottom: space::MD,
+    left: space::LG,
 };
 const FIELD_LINE: f32 = 16.0;
 
@@ -158,7 +159,7 @@ impl<'a, M: Clone + 'a> From<TextField<'a, M>> for Element<'a, M> {
             .secure(field.secure)
             .width(Length::Fill);
         if field.mono {
-            input = input.font(fonts::mono());
+            input = input.font(fonts::mono()).size(font_size::LABEL);
         }
         if let Some(id) = field.id {
             input = input.id(id);
@@ -582,6 +583,8 @@ pub struct Switch<'a, M> {
     on: bool,
     label: Option<String>,
     on_toggle: Option<Box<dyn Fn(bool) -> M + 'a>>,
+    shown_as: Option<button::Status>,
+    ring_shown: bool,
 }
 
 pub fn switch<'a, M>(t: &'a Theme, on: bool) -> Switch<'a, M> {
@@ -590,10 +593,20 @@ pub fn switch<'a, M>(t: &'a Theme, on: bool) -> Switch<'a, M> {
         on,
         label: None,
         on_toggle: None,
+        shown_as: None,
+        ring_shown: false,
     }
 }
 
 impl<'a, M> Switch<'a, M> {
+    /// Draws the switch in this state whatever the pointer does, with the
+    /// keyboard's ring if `ring`: for the component sheet.
+    pub fn shown_as(mut self, status: button::Status, ring: bool) -> Self {
+        self.shown_as = Some(status);
+        self.ring_shown = ring;
+        self
+    }
+
     pub fn label(mut self, label: impl Into<String>) -> Self {
         self.label = Some(label.into());
         self
@@ -608,18 +621,54 @@ impl<'a, M> Switch<'a, M> {
 
 impl<'a, M: Clone + 'a> From<Switch<'a, M>> for Element<'a, M> {
     fn from(s: Switch<'a, M>) -> Self {
-        let mut built = toggler(s.on)
-            .size(size::SWITCH_HEIGHT)
+        let t = s.theme;
+        let on = s.on;
+        let disabled = s.on_toggle.is_none();
+        let forced = s.shown_as;
+        let message = s.on_toggle.as_ref().map(|on_toggle| on_toggle(!on));
+        let knob = container(Space::new())
+            .width(size::SWITCH_KNOB)
+            .height(size::SWITCH_KNOB)
+            .style(style::toggler::knob(t, on, disabled));
+        let travel = container(knob)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(if on {
+                alignment::Horizontal::Right
+            } else {
+                alignment::Horizontal::Left
+            })
+            .align_y(alignment::Vertical::Center);
+        let track = button(travel)
+            .padding(space::XXS)
+            .width(size::SWITCH_WIDTH)
+            .height(size::SWITCH_HEIGHT)
+            .style(move |theme: &iced::Theme, status| {
+                style::toggler::switch(t, on)(theme, forced.unwrap_or(status))
+            })
+            .on_press_maybe(message.clone());
+        let track = focus::ring(t, track)
+            .radius(radius::FULL)
+            .on_activate_maybe(message.clone())
+            .shown(s.ring_shown);
+        let Some(label) = s.label else {
+            return track.into();
+        };
+        // The words beside it press it too, as a browser's `<label>` does.
+        let words = text(label).size(font_size::BODY);
+        let words = if disabled {
+            words.style(style::text::muted(t))
+        } else {
+            words
+        };
+        let words: Element<'a, M> = match message {
+            Some(message) => mouse_area(words).on_press(message).into(),
+            None => words.into(),
+        };
+        row![track, words]
             .spacing(space::MD)
-            .text_size(font_size::BODY)
-            .style(style::toggler::default(s.theme));
-        if let Some(label) = s.label {
-            built = built.label(label);
-        }
-        if let Some(on_toggle) = s.on_toggle {
-            built = built.on_toggle(on_toggle);
-        }
-        built.into()
+            .align_y(Alignment::Center)
+            .into()
     }
 }
 
@@ -701,6 +750,9 @@ impl<'a, M: Clone + 'a> From<Slider<'a, M>> for Element<'a, M> {
     }
 }
 
+/// The room between a segmented control's track and its segments.
+const SEGMENT_PADDING: f32 = 3.0;
+
 /// A row of segments, one of which is chosen (`.seg`). The chosen one is
 /// raised out of the track.
 pub fn segmented<'a, V, M>(
@@ -747,8 +799,8 @@ where
         Length::Fill,
     );
     container(row(segments).spacing(space::XXS))
-        .padding(space::XXS)
-        .height(size::CONTROL_HEIGHT)
+        .padding(SEGMENT_PADDING)
+        .height(size::CONTROL_HEIGHT + 2.0 * SEGMENT_PADDING)
         .style(style::container::segmented(t))
         .into()
 }
@@ -795,15 +847,20 @@ where
     V: Clone + PartialEq,
     M: Clone + 'a,
 {
-    let inner = size::CONTROL_HEIGHT - 2.0 * space::XXS;
-    let segments = segment_buttons(t, options, selected, on_select, Length::Fixed(inner));
+    let segments = segment_buttons(
+        t,
+        options,
+        selected,
+        on_select,
+        Length::Fixed(size::CONTROL_HEIGHT),
+    );
     container(
         row(segments)
             .spacing(space::XXS)
             .wrap()
             .vertical_spacing(space::XXS),
     )
-    .padding(space::XXS)
+    .padding(SEGMENT_PADDING)
     .style(style::container::segmented(t))
     .into()
 }
@@ -840,12 +897,17 @@ where
             if let Some(why) = option.unavailable {
                 face = face.push(text(why).size(font_size::CAPTION).color(subtle));
             }
+            let message = (!off).then(|| on_select(option.value));
             let segment = button(container(face).center_y(Length::Fill))
-                .padding(Padding::from([0.0, space::LG]))
+                .padding(Padding::from([0.0, space::XL]))
                 .height(height)
                 .style(style::button::tab(t, chosen))
-                .on_press_maybe((!off).then(|| on_select(option.value)));
-            Element::from(segment)
+                .on_press_maybe(message.clone());
+            Element::from(
+                focus::ring(t, segment)
+                    .radius(radius::SM)
+                    .on_activate_maybe(message),
+            )
         })
         .collect()
 }

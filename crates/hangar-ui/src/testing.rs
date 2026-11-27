@@ -82,3 +82,105 @@ impl<M> Drive for Simulator<'_, M> {
             .unwrap_or(iced::event::Status::Ignored)
     }
 }
+
+/// A window the tests can also run iced's focus operations in, which the
+/// simulator cannot: what `widget::focus_next` does to a tree.
+pub struct Keyboard<'a, M> {
+    ui: iced_test::runtime::UserInterface<'a, M, iced::Theme, iced::Renderer>,
+    renderer: iced::Renderer,
+    cursor: mouse::Cursor,
+    messages: Vec<M>,
+}
+
+impl<'a, M> Keyboard<'a, M> {
+    pub fn new(element: impl Into<Element<'a, M>>) -> Self {
+        use iced_test::core::renderer::Headless;
+        for font in hangar_theme::fonts::ALL {
+            iced_test::renderer::graphics::text::font_system()
+                .write()
+                .expect("the font system")
+                .load_font(Cow::Borrowed(font));
+        }
+        let mut renderer = iced_test::futures::futures::executor::block_on(
+            <iced::Renderer as Headless>::new(fonts::ui(), iced::Pixels(14.0), None),
+        )
+        .expect("a headless renderer");
+        let ui = iced_test::runtime::UserInterface::build(
+            element.into(),
+            WINDOW,
+            iced_test::runtime::user_interface::Cache::default(),
+            &mut renderer,
+        );
+        Keyboard {
+            ui,
+            renderer,
+            cursor: mouse::Cursor::Unavailable,
+            messages: Vec::new(),
+        }
+    }
+
+    /// Tab: the focus moves to the next control that can take it.
+    pub fn focus_next(&mut self) {
+        self.run(Box::new(
+            iced_test::core::widget::operation::focusable::focus_next::<()>(),
+        ));
+    }
+
+    /// Shift+Tab.
+    pub fn focus_previous(&mut self) {
+        self.run(Box::new(
+            iced_test::core::widget::operation::focusable::focus_previous::<()>(),
+        ));
+    }
+
+    /// Runs an operation as the runtime does: again for each one it chains.
+    fn run(&mut self, mut operation: Box<dyn iced_test::core::widget::Operation<()>>) {
+        use iced_test::core::widget::operation::Outcome;
+        loop {
+            self.ui.operate(&self.renderer, operation.as_mut());
+            match operation.finish() {
+                Outcome::Chain(next) => operation = next,
+                _ => break,
+            }
+        }
+    }
+
+    /// A press and release of a named key, with no modifiers.
+    pub fn key(&mut self, named: Named) {
+        let key = Key::Named(named);
+        let press = Event::Keyboard(keyboard::Event::KeyPressed {
+            key: key.clone(),
+            modified_key: key,
+            physical_key: keyboard::key::Physical::Unidentified(
+                keyboard::key::NativeCode::Unidentified,
+            ),
+            location: keyboard::Location::Standard,
+            modifiers: keyboard::Modifiers::empty(),
+            text: None,
+            repeat: false,
+        });
+        self.send(press);
+    }
+
+    /// The pointer is pressed where it is.
+    pub fn press_pointer(&mut self) {
+        self.cursor = mouse::Cursor::Available(Point::new(1.0, 1.0));
+        self.send(Event::Mouse(mouse::Event::ButtonPressed(
+            mouse::Button::Left,
+        )));
+    }
+
+    fn send(&mut self, event: Event) {
+        let _ = self.ui.update(
+            &[event],
+            self.cursor,
+            &mut self.renderer,
+            &mut iced_test::core::clipboard::Null,
+            &mut self.messages,
+        );
+    }
+
+    pub fn into_messages(self) -> Vec<M> {
+        self.messages
+    }
+}

@@ -11,45 +11,49 @@ use iced::overlay::menu;
 use iced::widget::pick_list::{Status, Style};
 use iced::{Background, Border};
 
-use super::{drop_shadow, hairline};
+use super::{drop_shadow, focus_border, hairline, lit};
 use crate::Theme;
 use crate::tokens::radius;
 
 /// The closed field: dressed like a text field, with its chevron in
-/// `fg_muted`.
+/// `text_muted`, the ring while it is open.
 pub fn field(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
     move |_, status| {
-        let c = &t.colors;
-        let border = match status {
-            Status::Active => c.line_strong,
-            Status::Hovered => c.border_strong,
-            Status::Opened { .. } => c.accent,
+        let p = &t.palette;
+        let (background, border) = match status {
+            Status::Active => (p.surface_sunken, hairline(p.border_strong, radius::LG)),
+            Status::Hovered => (
+                lit(p.surface_sunken, p.hover_overlay, 1),
+                hairline(p.border_strong, radius::LG),
+            ),
+            Status::Opened { .. } => (p.surface_sunken, focus_border(t, radius::LG)),
         };
         Style {
-            text_color: c.fg,
-            placeholder_color: c.fg_subtle,
-            handle_color: c.fg_muted,
-            background: Background::Color(c.bg),
-            border: hairline(border, radius::LG),
+            text_color: p.text,
+            placeholder_color: p.text_muted,
+            handle_color: p.text_muted,
+            background: Background::Color(background),
+            border,
         }
     }
 }
 
-/// The open list: a popover, whose highlighted line is the accent as in a
-/// context menu.
+/// The open list: `surface_raised`, a strong hairline and the shadow of what
+/// floats; the highlighted line is `selection_bg` (a fill and the text, not a
+/// colour alone: the line under the pointer also reads in `text`).
 pub fn menu(t: &Theme) -> impl Fn(&iced::Theme) -> menu::Style + '_ {
     move |_| {
-        let c = &t.colors;
+        let p = &t.palette;
         menu::Style {
-            background: Background::Color(c.chrome_bar),
+            background: Background::Color(p.surface_raised),
             border: Border {
                 radius: radius::LG.into(),
-                ..hairline(c.line_strong, radius::LG)
+                ..hairline(p.border_strong, radius::LG)
             },
-            text_color: c.fg,
-            selected_text_color: c.accent_fg,
-            selected_background: Background::Color(c.accent),
-            shadow: drop_shadow(c.shadow, 12.0, 32.0),
+            text_color: p.text,
+            selected_text_color: p.text,
+            selected_background: Background::Color(p.selection_bg),
+            shadow: drop_shadow(t.colors.shadow, 8.0, 24.0),
         }
     }
 }

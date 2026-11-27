@@ -23,6 +23,7 @@ use crate::{GLYPHS, Gallery, Message, Mode, Page, demo_entries};
 pub fn view(g: &Gallery) -> Element<'_, Message> {
     let t = g.theme;
     let body = match g.page {
+        Page::Controls => hangar_ui::sheet::view(t).map(|()| Message::Noop),
         Page::Buttons => buttons(g),
         Page::Inputs => inputs(g),
         Page::Overlays => overlays(g),

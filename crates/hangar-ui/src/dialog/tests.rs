@@ -77,24 +77,42 @@ mod keys {
     }
 
     #[test]
-    fn tab_moves_to_the_next_field_and_wraps_round_the_end() {
+    fn tab_moves_to_the_next_field_and_then_on_to_the_buttons() {
         let mut ui = simulate(open());
         ui.key(Named::Tab);
         ui.typewrite("b");
+        // The next stop is the footer's first button, Cancel, and Enter
+        // presses it.
         ui.key(Named::Tab);
-        ui.typewrite("c");
-        assert_eq!(
-            messages(ui),
-            [Msg::Second("b".into()), Msg::First("c".into())]
+        ui.key(Named::Enter);
+        assert_eq!(messages(ui), [Msg::Second("b".into()), Msg::Close]);
+    }
+
+    #[test]
+    fn tab_wraps_round_the_end_of_the_dialog() {
+        let mut ui = simulate(open());
+        // Field, field, Cancel, Save: the next one is the dialog's own
+        // close button or the first field, never the page under it.
+        for _ in 0..4 {
+            ui.key(Named::Tab);
+        }
+        ui.key(Named::Enter);
+        let sent = messages(ui);
+        assert!(
+            sent.iter().all(|m| !matches!(m, Msg::Page(_))),
+            "the page was reached: {sent:?}"
         );
     }
 
     #[test]
     fn shift_tab_goes_back_and_wraps_the_other_way() {
         let mut ui = simulate(open());
+        // Back from the first field: whatever comes before it, or the last
+        // button, the footer's Save, if nothing does.
         ui.key_with(Named::Tab, Modifiers::SHIFT);
-        ui.typewrite("z");
-        assert_eq!(messages(ui), [Msg::Second("z".into())]);
+        ui.key(Named::Enter);
+        let sent = messages(ui);
+        assert!(sent == [Msg::Close] || sent == [Msg::Save], "{sent:?}");
     }
 
     #[test]

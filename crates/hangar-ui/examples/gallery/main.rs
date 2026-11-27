@@ -34,6 +34,7 @@ use iced::{Alignment, Element, Length, Padding, Size, Subscription, Task, Vector
 /// The pages of the sidebar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Page {
+    Controls,
     Buttons,
     Inputs,
     Overlays,
@@ -43,7 +44,8 @@ pub enum Page {
 }
 
 impl Page {
-    pub const ALL: [Page; 6] = [
+    pub const ALL: [Page; 7] = [
+        Page::Controls,
         Page::Buttons,
         Page::Inputs,
         Page::Overlays,
@@ -54,6 +56,7 @@ impl Page {
 
     pub fn name(self) -> &'static str {
         match self {
+            Page::Controls => "Controls and their states",
             Page::Buttons => "Buttons",
             Page::Inputs => "Inputs",
             Page::Overlays => "Menus and dialogs",
@@ -65,6 +68,7 @@ impl Page {
 
     pub fn key(self) -> &'static str {
         match self {
+            Page::Controls => "controls",
             Page::Buttons => "buttons",
             Page::Inputs => "inputs",
             Page::Overlays => "overlays",
@@ -76,6 +80,7 @@ impl Page {
 
     pub fn icon(self) -> Icon {
         match self {
+            Page::Controls => Icon::Sliders,
             Page::Buttons => Icon::Bolt,
             Page::Inputs => Icon::Pencil,
             Page::Overlays => Icon::Window,

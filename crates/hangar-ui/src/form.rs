@@ -36,6 +36,9 @@ use crate::button::icon_button;
 use crate::icon::Icon;
 use crate::text as typography;
 
+/// The room above and below a row's text: 14 px, as in the mockups.
+const ROW_PADDING_Y: f32 = 14.0;
+
 /// The width a row's control takes when it asks for [`Row::wide`].
 const WIDE: f32 = 240.0;
 
@@ -132,17 +135,17 @@ impl<'a, M: Clone + 'a> From<Row<'a, M>> for Element<'a, M> {
         } else {
             control.into()
         };
-        // 42 px at least; a row with a hint is taller than that on its own.
+        // 48 px at least; a row with a hint is taller than that on its own.
         let line = container(
             iced::widget::row![text.width(Length::Fill), control]
-                .spacing(20)
+                .spacing(space::XXXL)
                 .align_y(Alignment::Center),
         )
-        .padding(Padding::from([space::MD, space::XL]));
+        .padding(Padding::from([ROW_PADDING_Y, space::XXL]));
         if has_hint {
             line.into()
         } else {
-            line.height(42.0).align_y(Alignment::Center).into()
+            line.height(48.0).align_y(Alignment::Center).into()
         }
     }
 }
@@ -168,7 +171,7 @@ pub fn block<'a, M: 'a>(
         stack = stack.push(text);
     }
     stack = stack.push(content.into());
-    container(stack).padding(space::XL).into()
+    container(stack).padding(space::XXL).into()
 }
 
 /// A card around rows, a hairline between them inset at both ends like the
@@ -178,10 +181,7 @@ pub fn group<'a, M: 'a>(t: &'a Theme, rows: Vec<Element<'a, M>>) -> Element<'a, 
     let mut stack = column![];
     for (at, one) in rows.into_iter().enumerate() {
         if at > 0 {
-            stack = stack.push(
-                container(rule::horizontal(1).style(style::rule::hairline(t)))
-                    .padding(Padding::from([0.0, space::XL])),
-            );
+            stack = stack.push(rule::horizontal(1).style(style::rule::hairline(t)));
         }
         stack = stack.push(one);
     }

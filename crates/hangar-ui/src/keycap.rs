@@ -20,6 +20,10 @@ use iced::{Alignment, Element, Length, Padding};
 
 use crate::shortcut::{chord_segments, parse_binding};
 
+/// A key cap: 10 px mono in a 4 px box 18 px tall (`kbd` of the mockups).
+const KBD_TEXT: f32 = 10.0;
+const KBD_HEIGHT: f32 = 18.0;
+
 /// One key, as a cap.
 pub fn keycap<'a, M: 'a>(t: &'a Theme, label: impl Into<String>) -> Element<'a, M> {
     cap(t, label.into(), false, 1.0)
@@ -27,23 +31,20 @@ pub fn keycap<'a, M: 'a>(t: &'a Theme, label: impl Into<String>) -> Element<'a, 
 
 fn cap<'a, M: 'a>(t: &'a Theme, label: String, conflict: bool, opacity: f32) -> Element<'a, M> {
     let narrow = label.chars().count() <= 1;
-    let words = text(label)
-        .size(font_size::CAPTION)
-        .font(fonts::mono())
-        .center();
+    let words = text(label).size(KBD_TEXT).font(fonts::mono()).center();
     let words = if opacity < 1.0 {
         words.style(move |_: &iced::Theme| text::Style {
-            color: Some(t.colors.fg.scale_alpha(opacity)),
+            color: Some(t.palette.text_muted.scale_alpha(opacity)),
         })
     } else {
         words
     };
     let cap = container(words)
-        .height(20.0)
+        .height(KBD_HEIGHT)
         .padding(Padding::from([0.0, 5.0]))
         .align_y(Alignment::Center)
         .center_x(Length::Shrink);
-    let cap = if narrow { cap.width(20.0) } else { cap };
+    let cap = if narrow { cap.width(KBD_HEIGHT) } else { cap };
     if conflict {
         cap.style(style::container::kbd_conflict(t)).into()
     } else {
