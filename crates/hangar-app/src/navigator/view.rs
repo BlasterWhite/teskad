@@ -534,6 +534,12 @@ fn row_shell<'a>(
     context(f, kind, id, area.into())
 }
 
+/// The rows' menus: 248 px (`ecrans.md` §3), wider for a long machine's or
+/// folder's name, and tall enough for a workspace's lines before they scroll.
+const MENU_WIDTH: f32 = 248.0;
+const MENU_MAX_WIDTH: f32 = 320.0;
+const MENU_MAX_HEIGHT: f32 = 640.0;
+
 /// The row's context menu: asked for with the right button, from the « … »,
 /// or with the menu key (`openMenu`).
 fn context<'a>(
@@ -557,6 +563,8 @@ fn context<'a>(
     let asked = id.to_string();
     ui_menu::context_menu(t, row, open.map(|menu| menu.at), entries)
         .from_keyboard(open.is_some_and(|menu| menu.from_keyboard))
+        .width_between(MENU_WIDTH, MENU_MAX_WIDTH)
+        .max_height(MENU_MAX_HEIGHT)
         .on_open(move |at| {
             msg(Msg::OpenMenu {
                 kind,

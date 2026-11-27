@@ -12,32 +12,51 @@
 //!
 //! Which agent runs what is said at the top (`agents`), Codex with its
 //! « beta », and the workers' agent is chosen here, per workspace. Each model
-//! field offers the models of its agent (`models`): Claude Code's aliases,
-//! and what Codex's own server lists.
+//! field offers the models of its agent (`models`): Claude Code's aliases on
+//! a segmented control that fills the field, and under Codex's own fields,
+//! in a section that folds, what Codex's server lists.
 
 use std::fmt;
 
-use iced::widget::{column, container, row, space};
-use iced::{Alignment, Element, Length, Padding};
+use iced::widget::{button as iced_button, column, container, row, space};
+use iced::{Alignment, Background, Element, Length, Padding};
 
 use hangar_i18n::{Key, args};
-use hangar_theme::{fonts, style, tokens};
-use hangar_ui::{Icon, button, dialog, form, icon, input, text as typography};
+use hangar_theme::tokens::{self, font_size, radius};
+use hangar_theme::{fonts, style};
+use hangar_ui::{Icon, badge, button, dialog, focus, form, icon, input, text as typography};
 
 use super::form::{
     DEFAULT_ORCHESTRATOR_MODEL, DEFAULT_REVIEWER_MODEL, DEFAULT_WORKER_MODEL, Draft, Field,
-    Problem, draft_of, draft_problems, normalize_draft, same_settings, stored_orchestration,
+    MODEL_SUGGESTIONS, Problem, draft_of, draft_problems, normalize_draft, same_settings,
+    stored_orchestration,
 };
 use super::{Msg, State, agents, models};
 use crate::ctx::Ctx;
 use crate::message::{Intent, Message};
-use crate::shell::Notice;
+use crate::shell::{Notice, brand_logo};
 use crate::state::roles::{
     ORCHESTRATION_PERMISSION_MODES, RoleRefusal, orchestration_defaults, orchestration_of,
     orchestrator_of, worker_refusal, workers_of,
 };
 use crate::state::types::{AgentKind, WsId};
 use crate::state::{Model, Patch, StoreAction, Workspace};
+
+/// The window's width at most (`ecrans.md` §3), and the tallest its body
+/// grows before it scrolls.
+const WIDTH: f32 = 780.0;
+const BODY_MAX_HEIGHT: f32 = 500.0;
+/// The Fork symbol of its head.
+const MARK: f32 = 36.0;
+/// Between two parts of the body, and between a title and its block.
+const SECTION_GAP: f32 = 20.0;
+const BLOCK_GAP: f32 = 14.0;
+/// A role's identity tile, the symbol in it and the column of its name.
+const TILE: f32 = 28.0;
+const TILE_SYMBOL: f32 = 16.0;
+const ROLE_WIDTH: f32 = 150.0;
+/// The column of the roles' names beside Codex's fields.
+const CODEX_ROLE_WIDTH: f32 = 120.0;
 
 /// One of the three model fields.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,6 +90,8 @@ pub enum PanelMsg {
     Model(ModelField, String),
     /// One of Codex's models: empty is Codex's own default.
     CodexModel(ModelField, String),
+    /// Folds or unfolds the section of Codex's models.
+    FoldCodex,
     /// Every field back to the value Hangar ships with.
     Reset,
     Save,
@@ -85,6 +106,9 @@ pub struct Panel {
     pub ws: WsId,
     draft: Draft,
     cache: Cache,
+    /// The section of Codex's models is folded away. Open to begin with: a
+    /// folded section hides what a workspace runs on.
+    codex_folded: bool,
 }
 
 /// The workspace's build cache folder as the panel knows it: its size once
@@ -104,6 +128,7 @@ impl Panel {
             ws: ws.id.clone(),
             draft: draft_of(ws),
             cache: Cache::default(),
+            codex_folded: false,
         })
     }
 }
@@ -267,6 +292,13 @@ pub fn update(st: &mut State, m: &mut Model, msg: PanelMsg) -> iced::Task<Messag
             // the workspace goes back to Codex's own default.
             *codex_model_field(&mut panel.draft, which) = (!text.trim().is_empty()).then_some(text);
         }
+        PanelMsg::FoldCodex => {
+            // Held open by a refused name: the press folds nothing, now or
+            // once the name is fixed.
+            if !codex_refused(&draft_problems(&panel.draft)) {
+                panel.codex_folded = !panel.codex_folded;
+            }
+        }
         PanelMsg::Reset => panel.draft = draft_of(&Workspace::default()),
         PanelMsg::Save => return save(panel, m),
         PanelMsg::CreateOrchestrator => {
@@ -347,76 +379,104 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, ws_id: &'a WsId) -> Element<'a, Mes
     let body = column![
         typography::label(t, ctx.t(Key::OrchIntro)),
         status(ctx, ws),
-        form::section(t, ctx.t(Key::OrchSectionWorkers)).group(vec![
-            worker_agent_row(ctx, ws, draft),
-            permission_row(ctx, draft),
-            form::row(
+        section(
+            ctx,
+            Key::OrchSectionWorkers,
+            None,
+            form::group(
                 t,
-                ctx.t(Key::OrchBuildCache),
-                input::switch(t, draft.shared_build_cache)
-                    .on_toggle(|on| msg(PanelMsg::BuildCache(on)))
+                vec![
+                    worker_agent_row(ctx, ws, draft),
+                    permission_row(ctx, draft),
+                    form::row(
+                        t,
+                        ctx.t(Key::OrchBuildCache),
+                        input::switch(t, draft.shared_build_cache)
+                            .on_toggle(|on| msg(PanelMsg::BuildCache(on)))
+                    )
+                    .hint(ctx.t(Key::OrchBuildCacheHint))
+                    .into(),
+                    cache_row(ctx, &panel.cache),
+                ]
             )
-            .hint(ctx.t(Key::OrchBuildCacheHint))
-            .into(),
-            cache_row(ctx, &panel.cache),
-        ]),
-        form::section(t, ctx.t(Key::OrchSectionDeliveries)).group(vec![
-            form::row(
+        ),
+        section(
+            ctx,
+            Key::OrchSectionDeliveries,
+            None,
+            form::group(
                 t,
-                ctx.t(Key::OrchAutoMerge),
-                input::switch(t, draft.auto_merge).on_toggle(|on| msg(PanelMsg::AutoMerge(on)))
+                vec![
+                    form::row(
+                        t,
+                        ctx.t(Key::OrchAutoMerge),
+                        input::switch(t, draft.auto_merge)
+                            .on_toggle(|on| msg(PanelMsg::AutoMerge(on)))
+                    )
+                    .hint(ctx.t(Key::OrchAutoMergeHint))
+                    .into(),
+                    text_row(
+                        ctx,
+                        Key::OrchCheckCommand,
+                        ctx.t(Key::OrchCheckHint),
+                        &draft.check_command,
+                        label(ctx, Key::OrchCheckPlaceholder),
+                        None,
+                        PanelMsg::Check,
+                    ),
+                    text_row(
+                        ctx,
+                        Key::OrchBranch,
+                        ctx.t(Key::OrchBranchHint),
+                        &draft.branch,
+                        label(ctx, Key::OrchBranchPlaceholder),
+                        (problems.get(Field::Branch) == Some(Problem::Branch))
+                            .then(|| ctx.t(Key::OrchBranchInvalid).into_owned()),
+                        PanelMsg::Branch,
+                    ),
+                    batch_row(ctx, draft),
+                ]
             )
-            .hint(ctx.t(Key::OrchAutoMergeHint))
-            .into(),
-            text_row(
+        ),
+        column![
+            section(
                 ctx,
-                Key::OrchCheckCommand,
-                ctx.t(Key::OrchCheckHint),
-                &draft.check_command,
-                label(ctx, Key::OrchCheckPlaceholder),
-                None,
-                PanelMsg::Check,
+                Key::OrchSectionModels,
+                Some(Key::OrchModelsHint),
+                form::group(
+                    t,
+                    vec![
+                        model_row(ctx, &problems, draft, ModelField::Orchestrator),
+                        model_row(ctx, &problems, draft, ModelField::Worker),
+                        model_row(ctx, &problems, draft, ModelField::Reviewer),
+                    ]
+                )
             ),
-            text_row(
-                ctx,
-                Key::OrchBranch,
-                ctx.t(Key::OrchBranchHint),
-                &draft.branch,
-                label(ctx, Key::OrchBranchPlaceholder),
-                (problems.get(Field::Branch) == Some(Problem::Branch))
-                    .then(|| ctx.t(Key::OrchBranchInvalid).into_owned()),
-                PanelMsg::Branch,
-            ),
-            batch_row(ctx, draft),
-        ]),
-        form::section(t, ctx.t(Key::OrchSectionModels))
-            .hint(ctx.t(Key::OrchModelsHint))
-            .group(vec![
-                model_row(ctx, &problems, draft, ModelField::Orchestrator),
-                model_row(ctx, &problems, draft, ModelField::Worker),
-                model_row(ctx, &problems, draft, ModelField::Reviewer),
-                codex_model_row(ctx, &problems, draft, ModelField::Orchestrator),
-                codex_model_row(ctx, &problems, draft, ModelField::Worker),
-                codex_model_row(ctx, &problems, draft, ModelField::Reviewer),
-            ]),
+            codex_models(ctx, &problems, draft, panel.codex_folded),
+        ]
+        .spacing(BLOCK_GAP),
     ]
-    .spacing(tokens::space::XXL);
+    .spacing(SECTION_GAP);
 
     let sub = format!("{} · {}", ws.name, ws.cwd);
     let reset = button::ghost(t, ctx.t(Key::OrchReset))
+        .size(button::Size::Large)
         .tip(ctx.t(Key::OrchResetHint))
         .on_press_maybe((!at_defaults).then(|| msg(PanelMsg::Reset)));
-    let cancel =
-        button::ghost(t, ctx.t(Key::CreateCancel)).on_press(Message::Intent(Intent::CloseOverlay));
+    let cancel = button::secondary(t, ctx.t(Key::CreateCancel))
+        .size(button::Size::Large)
+        .on_press(Message::Intent(Intent::CloseOverlay));
     let save = button::primary(t, ctx.t(Key::OrchSave))
+        .size(button::Size::Large)
         .on_press_maybe((!blocked && changed).then(|| msg(PanelMsg::Save)));
 
     let shown = dialog::dialog(t, ctx.t(Key::OrchTitle), body)
+        .mark(brand_logo::logo(t, MARK))
         .subtitle(sub)
         .note(ctx.t(Key::OrchApplies))
-        .width(640.0)
-        .body_max_height(480.0)
-        .body_padding(Padding::from([tokens::space::XL, tokens::space::XXL]))
+        .width(WIDTH)
+        .body_max_height(BODY_MAX_HEIGHT)
+        .body_padding(Padding::from([SECTION_GAP, tokens::space::XXXL]))
         .close_tip(ctx.t(Key::McpClose))
         .on_close(Message::Intent(Intent::CloseOverlay))
         .action(reset)
@@ -428,6 +488,23 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, ws_id: &'a WsId) -> Element<'a, Mes
         Some(shown),
     )
     .into()
+}
+
+/// A part of the window: its title in 14 px, what it is about under it if it
+/// says, and its block.
+fn section<'a>(
+    ctx: Ctx<'a>,
+    title: Key,
+    hint: Option<Key>,
+    block: Element<'a, Message>,
+) -> Element<'a, Message> {
+    let t = ctx.theme;
+    let mut head = column![typography::body(t, ctx.t(title)).font(fonts::ui_semibold())]
+        .spacing(tokens::space::XS);
+    if let Some(hint) = hint {
+        head = head.push(form::hint(t, ctx.t(hint)));
+    }
+    column![head, block].spacing(BLOCK_GAP).into()
 }
 
 /// A label without arguments, for the widgets that keep a `&str` for the
@@ -562,7 +639,7 @@ fn permission_row<'a>(ctx: Ctx<'a>, draft: &'a Draft) -> Element<'a, Message> {
         .iter()
         .find(|option| option.id == draft.permission_mode)
         .cloned();
-    let select = input::select(t, options, chosen, |mode: Mode| {
+    let select = input::keyboard_select(t, options, chosen, |mode: Mode| {
         msg(PanelMsg::Permission(mode.id.to_owned()))
     });
     form::row(
@@ -594,7 +671,7 @@ impl fmt::Display for AgentChoice {
 fn worker_agent_row<'a>(ctx: Ctx<'a>, ws: &'a Workspace, draft: &'a Draft) -> Element<'a, Message> {
     let t = ctx.theme;
     let (options, chosen) = worker_choice(ctx, ws, draft);
-    let select = input::select(t, options, chosen, |choice: AgentChoice| {
+    let select = input::keyboard_select(t, options, chosen, |choice: AgentChoice| {
         msg(PanelMsg::WorkerAgent(choice.agent))
     });
     let hint = worker_problem(ctx, ws, draft)
@@ -702,7 +779,7 @@ const BATCH_SIZES: [u32; 6] = [1, 2, 3, 4, 6, 8];
 fn batch_row<'a>(ctx: Ctx<'a>, draft: &'a Draft) -> Element<'a, Message> {
     let t = ctx.theme;
     let (options, chosen) = batch_choice(ctx, draft);
-    let select = input::select(t, options, chosen, |size: Size| {
+    let select = input::keyboard_select(t, options, chosen, |size: Size| {
         msg(PanelMsg::BatchSize(size.size))
     });
     form::row(t, ctx.t(Key::OrchBatchSize), container(select).width(300.0))
@@ -765,34 +842,75 @@ fn text_row<'a>(
         .into()
 }
 
-/// The models `kind`'s agent is offered (`models`), each one press away (the
-/// `datalist` of the web panel); while its server is being asked, says so.
+/// The models Codex's server lists, each one press away (the `datalist` of
+/// the web panel); while it is being asked, says so.
 fn suggestions<'a>(
     ctx: Ctx<'a>,
     kind: AgentKind,
     pick: impl Fn(String) -> PanelMsg,
-) -> Element<'a, Message> {
+) -> Option<Element<'a, Message>> {
     let t = ctx.theme;
     let Some(names) = models::offered(ctx.model, kind) else {
         if models::asking(ctx.model, kind) {
             let asking = ctx
                 .i18n
                 .t_with(Key::OrchModelsAsking, &args!("agent" => kind.info().label));
-            return typography::hint(t, asking.into_owned()).into();
+            return Some(typography::hint(t, asking.into_owned()).into());
         }
-        return space().into();
+        return None;
     };
     let links: Vec<Element<'a, Message>> = names
         .into_iter()
         .map(|name| button::link(t, name.clone(), msg(pick(name))))
         .collect();
-    container(row(links).spacing(tokens::space::LG).wrap())
-        .width(300.0)
+    Some(row(links).spacing(tokens::space::LG).wrap().into())
+}
+
+/// A role's identity tile: the orchestrator's is the brand's node, the
+/// workers' its branches, the reviewer's an eye in the colour of what passed.
+fn tile<'a>(ctx: Ctx<'a>, which: ModelField) -> Element<'a, Message> {
+    let t = ctx.theme;
+    let symbol: Element<'a, Message> = match which {
+        ModelField::Orchestrator => return brand_logo::orchestrator_tile(TILE),
+        ModelField::Worker => brand_logo::branches(t, TILE_SYMBOL),
+        ModelField::Reviewer => icon(Icon::Eye, TILE_SYMBOL)
+            .color(t.palette.status.completed)
+            .into(),
+    };
+    let fill = form::between(t.palette.surface_raised, t.palette.selection_bg, 0.4);
+    container(symbol)
+        .center_x(TILE)
+        .center_y(TILE)
+        .style(move |_: &iced::Theme| container::Style {
+            background: Some(Background::Color(fill)),
+            border: iced::border::rounded(radius::LG),
+            ..container::Style::default()
+        })
         .into()
 }
 
-/// A model row: the name, the default beside it, and the names Claude Code
-/// answers to, one press away (the `datalist` of the web panel).
+/// A role's name, as its rows call it.
+fn role_name(which: ModelField) -> Key {
+    match which {
+        ModelField::Orchestrator => Key::OrchOrchestratorModel,
+        ModelField::Worker => Key::OrchWorkerModel,
+        ModelField::Reviewer => Key::OrchReviewerModel,
+    }
+}
+
+/// The aliases Claude Code answers to, the one the field holds chosen: a
+/// press fills the field, and a full id typed there chooses none.
+fn aliases<'a>(ctx: Ctx<'a>, which: ModelField, value: &str) -> Element<'a, Message> {
+    let options = MODEL_SUGGESTIONS
+        .map(|name| (name.to_owned(), name.to_owned()))
+        .to_vec();
+    input::segmented_accent(ctx.theme, options, &value.trim().to_owned(), move |name| {
+        msg(PanelMsg::Model(which, name))
+    })
+}
+
+/// A role's row: its tile, its name over its default, the aliases and the
+/// field that takes any model id.
 fn model_row<'a>(
     ctx: Ctx<'a>,
     problems: &super::form::Problems,
@@ -800,21 +918,18 @@ fn model_row<'a>(
     which: ModelField,
 ) -> Element<'a, Message> {
     let t = ctx.theme;
-    let (label_key, value, default, field) = match which {
+    let (value, default, field) = match which {
         ModelField::Orchestrator => (
-            Key::OrchOrchestratorModel,
             &draft.orchestrator_model,
             DEFAULT_ORCHESTRATOR_MODEL,
             Field::OrchestratorModel,
         ),
         ModelField::Worker => (
-            Key::OrchWorkerModel,
             &draft.worker_model,
             DEFAULT_WORKER_MODEL,
             Field::WorkerModel,
         ),
         ModelField::Reviewer => (
-            Key::OrchReviewerModel,
             &draft.reviewer_model,
             DEFAULT_REVIEWER_MODEL,
             Field::ReviewerModel,
@@ -828,21 +943,97 @@ fn model_row<'a>(
         .error(error)
         .on_input(move |text| msg(PanelMsg::Model(which, text)))
         .on_submit(msg(PanelMsg::Save));
-    let names = suggestions(ctx, AgentKind::Claude, move |name| {
-        PanelMsg::Model(which, name)
-    });
-    let control = column![container(input).width(300.0), names].spacing(tokens::space::SM);
-    form::row(t, ctx.t(label_key), control)
-        .hint(
+    let name = column![
+        form::label(t, ctx.t(role_name(which))),
+        typography::mono(
+            t,
             ctx.i18n
-                .t_with(Key::OrchDefault, &args!("value" => default)),
+                .t_with(Key::OrchDefault, &args!("value" => default))
         )
-        .into()
+        .size(tokens::scale::type_scale::LABEL.size),
+    ]
+    .width(ROLE_WIDTH);
+    container(
+        row![
+            tile(ctx, which),
+            name,
+            aliases(ctx, which, value),
+            container(input).width(Length::Fill),
+        ]
+        .spacing(tokens::space::XXL)
+        .align_y(Alignment::Center),
+    )
+    .padding(Padding::from([14.0, tokens::space::XXL]))
+    .into()
 }
 
-/// One of Codex's model rows, beside Claude Code's: the name, empty being
-/// Codex's own default model, which it picks itself, and the models Codex
-/// lists, one press away. Labelled « beta ».
+/// One of Codex's names is refused: its section stays open.
+fn codex_refused(problems: &super::form::Problems) -> bool {
+    [
+        Field::CodexOrchestratorModel,
+        Field::CodexWorkerModel,
+        Field::CodexReviewerModel,
+    ]
+    .into_iter()
+    .any(|field| problems.get(field).is_some())
+}
+
+/// Codex's models, in a block that folds: a field per role, empty being
+/// Codex's own default. A field that is refused keeps the block open, so
+/// that what holds « Save » back is in sight.
+fn codex_models<'a>(
+    ctx: Ctx<'a>,
+    problems: &super::form::Problems,
+    draft: &'a Draft,
+    folded: bool,
+) -> Element<'a, Message> {
+    let t = ctx.theme;
+    let open = codex_refused(problems) || !folded;
+    let chevron = if open {
+        Icon::ChevronDown
+    } else {
+        Icon::ChevronRight
+    };
+    let title = row![
+        icon(chevron, 12.0),
+        form::label(t, ctx.t(Key::OrchCodexSection)),
+        badge::beta(t, ctx.t(Key::SettingsAgentBeta).to_uppercase()),
+        space::horizontal(),
+        form::hint(t, ctx.t(Key::OrchCodexSectionNote)),
+    ]
+    .spacing(tokens::space::MD)
+    .align_y(Alignment::Center);
+    let toggle = iced_button(title)
+        .padding(Padding::from([tokens::space::XL, tokens::space::XXL]))
+        .width(Length::Fill)
+        .style(style::button::plain(t))
+        .on_press(msg(PanelMsg::FoldCodex));
+    let toggle = focus::ring(t, toggle)
+        .radius(radius::XL)
+        .on_activate(msg(PanelMsg::FoldCodex));
+    let mut block = column![toggle];
+    if open {
+        let mut fields =
+            column![form::hint(t, ctx.t(Key::OrchCodexModelHint))].spacing(tokens::space::LG);
+        for which in [
+            ModelField::Orchestrator,
+            ModelField::Worker,
+            ModelField::Reviewer,
+        ] {
+            fields = fields.push(codex_model_row(ctx, problems, draft, which));
+        }
+        block = block.push(container(fields).padding(Padding {
+            top: tokens::space::XS,
+            right: tokens::space::XXL,
+            bottom: tokens::space::XXL,
+            left: tokens::space::XXL,
+        }));
+    }
+    form::group(t, vec![block.into()])
+}
+
+/// One of Codex's model rows: the role, its field, and the models Codex
+/// lists, one press away.
 fn codex_model_row<'a>(
     ctx: Ctx<'a>,
     problems: &super::form::Problems,
@@ -850,22 +1041,13 @@ fn codex_model_row<'a>(
     which: ModelField,
 ) -> Element<'a, Message> {
     let t = ctx.theme;
-    let (label_key, value, field) = match which {
+    let (value, field) = match which {
         ModelField::Orchestrator => (
-            Key::OrchCodexOrchestratorModel,
             &draft.codex_models.orchestrator,
             Field::CodexOrchestratorModel,
         ),
-        ModelField::Worker => (
-            Key::OrchCodexWorkerModel,
-            &draft.codex_models.worker,
-            Field::CodexWorkerModel,
-        ),
-        ModelField::Reviewer => (
-            Key::OrchCodexReviewerModel,
-            &draft.codex_models.reviewer,
-            Field::CodexReviewerModel,
-        ),
+        ModelField::Worker => (&draft.codex_models.worker, Field::CodexWorkerModel),
+        ModelField::Reviewer => (&draft.codex_models.reviewer, Field::CodexReviewerModel),
     };
     let error = (problems.get(field) == Some(Problem::Model))
         .then(|| ctx.t(Key::OrchModelInvalid).into_owned());
@@ -875,12 +1057,18 @@ fn codex_model_row<'a>(
         .error(error)
         .on_input(move |text| msg(PanelMsg::CodexModel(which, text)))
         .on_submit(msg(PanelMsg::Save));
-    let names = suggestions(ctx, AgentKind::Codex, move |name| {
+    let mut control = column![input].spacing(tokens::space::SM);
+    if let Some(names) = suggestions(ctx, AgentKind::Codex, move |name| {
         PanelMsg::CodexModel(which, name)
-    });
-    let control = column![container(input).width(300.0), names].spacing(tokens::space::SM);
-    form::row(t, ctx.t(label_key), control)
-        .hint(ctx.t(Key::OrchCodexModelHint))
+    }) {
+        control = control.push(names);
+    }
+    // The name stays level with the field, whatever comes under it.
+    let name = container(typography::label(t, ctx.t(role_name(which))).size(font_size::UI))
+        .width(CODEX_ROLE_WIDTH)
+        .center_y(tokens::scale::size::CONTROL_MD);
+    row![name, control.width(Length::Fill)]
+        .spacing(tokens::space::XXL)
         .into()
 }
 
@@ -995,22 +1183,122 @@ mod tests {
     }
 
     #[test]
-    fn shows_codex_s_models_beside_claude_codes_with_their_beta_label() {
-        let model = shop(false);
-        let st = opened(&model);
+    fn shows_codex_s_models_in_their_beta_section_which_folds() {
+        let mut model = shop(false);
+        let mut st = opened(&model);
         let pkg = Packages::default();
         let ws: WsId = "w1".into();
-        let mut ui = simulate(view(&st, ctx(&model, &pkg), &ws));
-        for shown in [
-            "Orchestrator",
-            "Workers",
-            "Reviewer",
-            "Orchestrator, Codex (beta)",
-            "Workers, Codex (beta)",
-            "Reviewer, Codex (beta)",
-        ] {
-            assert!(ui.find(shown).is_ok(), "{shown}");
+        {
+            let mut ui = simulate(view(&st, ctx(&model, &pkg), &ws));
+            for shown in [
+                "Orchestrator",
+                "Workers",
+                "Reviewer",
+                "Codex models",
+                "BETA",
+                "Used when a role runs on Codex",
+                "A Codex model id. Empty: the model Codex picks itself.",
+            ] {
+                assert!(ui.find(shown).is_ok(), "{shown}");
+            }
         }
+        {
+            // Below the dialog's fold, so pressed on its own.
+            let draft = &st.panel.as_ref().unwrap().draft;
+            let problems = draft_problems(draft);
+            let mut ui = simulate(codex_models(ctx(&model, &pkg), &problems, draft, false));
+            ui.click("Codex models").expect("the section's title");
+            let said: Vec<Message> = ui.into_messages().collect();
+            assert!(
+                matches!(
+                    said.as_slice(),
+                    [Message::OrchestrationUi(Msg::Panel(PanelMsg::FoldCodex))]
+                ),
+                "{said:?}"
+            );
+        }
+        let note = "A Codex model id. Empty: the model Codex picks itself.";
+        let _ = update(&mut st, &mut model, PanelMsg::FoldCodex);
+        {
+            let mut ui = simulate(view(&st, ctx(&model, &pkg), &ws));
+            assert!(ui.find("Codex models").is_ok());
+            assert!(ui.find(note).is_err());
+        }
+        // A refused name keeps the section open: it is what holds Save back.
+        let _ = update(
+            &mut st,
+            &mut model,
+            PanelMsg::CodexModel(ModelField::Worker, "two words".into()),
+        );
+        {
+            let mut ui = simulate(view(&st, ctx(&model, &pkg), &ws));
+            assert!(ui.find(note).is_ok());
+        }
+        // A press while it is held open changes nothing, then or later.
+        let folded = st.panel.as_ref().unwrap().codex_folded;
+        let _ = update(&mut st, &mut model, PanelMsg::FoldCodex);
+        assert_eq!(st.panel.as_ref().unwrap().codex_folded, folded);
+    }
+
+    /// In the smallest main window (`MAIN_MIN_SIZE`), as in a taller one
+    /// that is still short of the whole dialog, the body gives up its room
+    /// and the foot keeps its buttons.
+    #[test]
+    fn the_foot_stays_in_sight_in_a_short_window() {
+        let mut model = shop(false);
+        let mut st = opened(&model);
+        // Something to save: « Save » is greyed otherwise.
+        let merges = orchestration_defaults().auto_merge;
+        let _ = update(&mut st, &mut model, PanelMsg::AutoMerge(!merges));
+        let pkg = Packages::default();
+        let ws: WsId = "w1".into();
+        for height in [560.0, 600.0, 640.0] {
+            let settings = iced::Settings {
+                fonts: hangar_theme::fonts::ALL
+                    .map(std::borrow::Cow::Borrowed)
+                    .to_vec(),
+                default_font: fonts::ui(),
+                ..iced::Settings::default()
+            };
+            let window = iced::Size::new(900.0, height);
+            let drawn = view(&st, ctx(&model, &pkg), &ws);
+            let mut ui = iced_test::Simulator::with_size(settings, window, drawn);
+            for button in ["Cancel", "Save"] {
+                let words = ui.find(button).expect(button).bounds();
+                assert!(
+                    words.y + words.height <= height - 8.0,
+                    "{button} at {height}: {words:?}"
+                );
+            }
+            ui.click("Save").expect("Save");
+            let said: Vec<Message> = ui.into_messages().collect();
+            assert!(
+                matches!(
+                    said.as_slice(),
+                    [Message::OrchestrationUi(Msg::Panel(PanelMsg::Save))]
+                ),
+                "{height}: {said:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_alias_fills_the_field_of_its_role() {
+        let model = shop(false);
+        let pkg = Packages::default();
+        let mut ui = simulate(aliases(ctx(&model, &pkg), ModelField::Worker, "sonnet"));
+        ui.click("haiku").expect("Claude Code's alias");
+        let said: Vec<Message> = ui.into_messages().collect();
+        assert!(
+            matches!(
+                said.as_slice(),
+                [Message::OrchestrationUi(Msg::Panel(PanelMsg::Model(
+                    ModelField::Worker,
+                    name
+                )))] if name == "haiku"
+            ),
+            "{said:?}"
+        );
     }
 
     #[test]
@@ -1182,19 +1470,20 @@ mod tests {
         let pkg = Packages::default();
         {
             // Not asked yet: nothing to offer, and nothing said.
-            let mut ui = simulate(suggestions(ctx(&model, &pkg), AgentKind::Codex, |name| {
+            let offered = suggestions(ctx(&model, &pkg), AgentKind::Codex, |name| {
                 PanelMsg::CodexModel(ModelField::Worker, name)
-            }));
-            assert!(ui.find("gpt-b").is_err());
+            });
+            assert!(offered.is_none());
         }
         models::answered(
             &mut model,
             AgentKind::Codex,
             Ok(vec!["gpt-b".into(), "gpt-a".into()]),
         );
-        let mut ui = simulate(suggestions(ctx(&model, &pkg), AgentKind::Codex, |name| {
+        let offered = suggestions(ctx(&model, &pkg), AgentKind::Codex, |name| {
             PanelMsg::CodexModel(ModelField::Worker, name)
-        }));
+        });
+        let mut ui = simulate(offered.expect("what Codex lists"));
         ui.click("gpt-a").expect("Codex's model is offered");
         let said: Vec<Message> = ui.into_messages().collect();
         assert!(
@@ -1207,13 +1496,6 @@ mod tests {
             )),
             "{said:?}"
         );
-        // Claude Code's fields keep the aliases they always offered.
-        let mut ui = simulate(suggestions(ctx(&model, &pkg), AgentKind::Claude, |name| {
-            PanelMsg::Model(ModelField::Worker, name)
-        }));
-        for alias in ["opus", "sonnet", "haiku"] {
-            assert!(ui.find(alias).is_ok(), "{alias}");
-        }
     }
 
     #[test]

@@ -97,11 +97,14 @@ pub enum Icon {
     Pin,
     Phone,
     Flask,
+    External,
+    Apps,
+    Eye,
 }
 
 impl Icon {
     /// All of them, in the order of the web app's table.
-    pub const ALL: [Icon; 91] = [
+    pub const ALL: [Icon; 94] = [
         Icon::Layout1,
         Icon::Layout2,
         Icon::Layout4,
@@ -193,6 +196,9 @@ impl Icon {
         Icon::Pin,
         Icon::Phone,
         Icon::Flask,
+        Icon::External,
+        Icon::Apps,
+        Icon::Eye,
     ];
 
     /// The name the web app knows it by (`"splitRight"`), which is what the
@@ -290,6 +296,9 @@ impl Icon {
             Icon::Pin => "pin",
             Icon::Phone => "phone",
             Icon::Flask => "flask",
+            Icon::External => "external",
+            Icon::Apps => "apps",
+            Icon::Eye => "eye",
         }
     }
 
@@ -398,6 +407,9 @@ impl Icon {
             Icon::Phone => r##"<rect x="4.5" y="1.75" width="7" height="12.5" rx="1.6"/><path d="M7 12h2"/>"##,
             // A flask: what is still being tried out.
             Icon::Flask => r##"<path d="M6 1.75h4M7 1.75v4L3.2 12.8a1 1 0 0 0 .9 1.45h7.8a1 1 0 0 0 .9-1.45L9 5.75v-4"/>"##,
+            Icon::External => r##"<path d="M9 2.5h4.5V7M13.5 2.5 8 8M11.5 9.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3"/>"##,
+            Icon::Apps => r##"<rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/>"##,
+            Icon::Eye => r##"<path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/>"##,
         }
     }
 }

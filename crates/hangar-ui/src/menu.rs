@@ -44,11 +44,12 @@
 //! The list is drawn by one widget rather than built of buttons, because the
 //! highlight is shared state between the pointer and the keyboard.
 
-use hangar_theme::tokens::{font_size, radius, size};
+use hangar_theme::tokens::{DISABLED_OPACITY, font_size, radius, scale, size};
 use hangar_theme::{Theme, fonts, style};
 use iced::advanced::layout::{self, Layout};
 use iced::advanced::overlay;
 use iced::advanced::renderer::{self, Quad};
+use iced::advanced::svg::{self, Renderer as _};
 use iced::advanced::text::{self, Renderer as _, Text};
 use iced::advanced::widget::{Tree, tree};
 use iced::advanced::{Clipboard, Renderer as _, Shell, Widget};
@@ -66,19 +67,28 @@ use crate::menu_nav::{Move, menu_move, move_selectable};
 use crate::text_metrics::text_width;
 
 /// The menu's inner padding around its lines.
-const PAD: f32 = 5.0;
+const PAD: f32 = 6.0;
 /// A line's height (`.ctx-menu__item`).
 const LINE: f32 = size::MENU_ITEM_HEIGHT;
 /// A heading's height.
 const HEADING: f32 = 24.0;
-/// A separator's height: a hairline with 4 px above and below.
-const SEPARATOR: f32 = 9.0;
+/// A separator's height: a hairline with 6 px above and below.
+const SEPARATOR: f32 = 13.0;
+/// How far a separator stops short of the lines' ends.
+const SEPARATOR_INSET: f32 = 4.0;
 /// The space inside a line at both ends.
 const INSET: f32 = 8.0;
 /// The gap between a line's parts.
-const GAP: f32 = 8.0;
+const GAP: f32 = 10.0;
 /// The icon column.
 const ICON: f32 = size::ICON;
+/// The size of a line's label, and of a heading over lines.
+const LABEL_SIZE: f32 = font_size::UI;
+const HEADING_SIZE: f32 = scale::type_scale::LABEL.size;
+/// The size of what is written at the end of a line ([`Item::meta`]).
+const META_SIZE: f32 = scale::type_scale::LABEL.size;
+/// An agent's state, in the icon column (`ecrans.md` §3).
+const GLYPH: f32 = 12.0;
 /// A line's small action buttons.
 const ACTION: f32 = 20.0;
 
@@ -92,7 +102,11 @@ pub struct Item<M> {
     /// a saved command runs.
     detail: Option<String>,
     icon: Option<Icon>,
+    /// A drawing in its own colours, in place of the icon.
+    art: Option<svg::Handle>,
     glyph: Option<GlyphState>,
+    /// A quiet word in the mono face at the end of the line.
+    meta: Option<String>,
     shortcut: Option<String>,
     checked: Option<bool>,
     danger: bool,
@@ -120,7 +134,9 @@ pub fn item<M>(label: impl Into<String>) -> Item<M> {
         mono: false,
         detail: None,
         icon: None,
+        art: None,
         glyph: None,
+        meta: None,
         shortcut: None,
         checked: None,
         danger: false,
@@ -170,6 +186,26 @@ impl<M> Item<M> {
     pub fn icon(mut self, icon: Icon) -> Self {
         self.icon = Some(icon);
         self
+    }
+
+    /// A drawing that keeps its own colours (the Fork symbol of the
+    /// orchestration), drawn where an icon would be.
+    pub fn art(mut self, art: svg::Handle) -> Self {
+        self.art = Some(art);
+        self
+    }
+
+    /// A quiet word in the mono face at the right end of the line: what an
+    /// agent of the list is ("Worker"). Empty is left out.
+    pub fn meta(mut self, words: impl Into<String>) -> Self {
+        let words = words.into();
+        self.meta = (!words.is_empty()).then_some(words);
+        self
+    }
+
+    /// The word at the end of the line, when it has one.
+    pub fn ending(&self) -> Option<&str> {
+        self.meta.as_deref()
     }
 
     /// An agent's state, drawn where an icon would be.
@@ -243,7 +279,7 @@ impl<M> Item<M> {
     }
 
     fn has_lead(&self) -> bool {
-        self.icon.is_some() || self.glyph.is_some()
+        self.icon.is_some() || self.art.is_some() || self.glyph.is_some()
     }
 
     fn label_font(&self) -> Font {
@@ -360,9 +396,9 @@ impl<M> Menu<'_, M> {
     /// Whether any line has something in the icon column, so that the labels
     /// line up whether or not each has its own.
     fn has_icons(&self) -> bool {
-        self.entries.iter().any(|entry| {
-            matches!(entry, Entry::Item(item) if item.icon.is_some() || item.glyph.is_some())
-        })
+        self.entries
+            .iter()
+            .any(|entry| matches!(entry, Entry::Item(item) if item.has_lead()))
     }
 
     fn has_checks(&self) -> bool {
@@ -455,7 +491,7 @@ impl<M: Clone> Menu<'_, M> {
             .iter()
             .map(|entry| match entry {
                 Entry::Item(item) => {
-                    let label = text_width(&item.label, font_size::BODY, item.label_font())
+                    let label = text_width(&item.label, LABEL_SIZE, item.label_font())
                         + item.detail.as_ref().map_or(0.0, |detail| {
                             GAP + text_width(detail, font_size::LABEL, fonts::mono())
                         });
@@ -468,10 +504,14 @@ impl<M: Clone> Menu<'_, M> {
                     } else {
                         GAP + (ACTION * item.actions.len() as f32)
                     };
-                    INSET + icons + label + end + checks + INSET
+                    let meta = item
+                        .meta
+                        .as_ref()
+                        .map_or(0.0, |meta| GAP + text_width(meta, META_SIZE, fonts::mono()));
+                    INSET + icons + label + meta + end + checks + INSET
                 }
                 Entry::Heading(label) => {
-                    INSET + text_width(label, font_size::CAPTION, fonts::ui_semibold()) + INSET
+                    INSET + text_width(label, HEADING_SIZE, fonts::ui()) + INSET
                 }
                 Entry::Separator => 0.0,
             })
@@ -699,9 +739,9 @@ impl<M: Clone> Widget<M, iced::Theme, iced::Renderer> for Menu<'_, M> {
                 match entry {
                     Entry::Separator => {
                         let line = Rectangle {
-                            x: row.x + INSET - PAD + 3.0,
+                            x: row.x + SEPARATOR_INSET,
                             y: row.y + (height - 1.0) / 2.0,
-                            width: row.width - 2.0 * (INSET - PAD + 3.0),
+                            width: row.width - 2.0 * SEPARATOR_INSET,
                             height: 1.0,
                         };
                         renderer.fill_quad(
@@ -716,8 +756,8 @@ impl<M: Clone> Widget<M, iced::Theme, iced::Renderer> for Menu<'_, M> {
                         draw_text(
                             renderer,
                             label,
-                            font_size::CAPTION,
-                            fonts::ui_semibold(),
+                            HEADING_SIZE,
+                            fonts::ui(),
                             self.theme.palette.text_muted,
                             Line {
                                 anchor: Point::new(row.x + INSET, row.y + (height + 2.0) / 2.0),
@@ -843,7 +883,12 @@ impl<M: Clone> Menu<'_, M> {
         } else if item.danger {
             (None, c.danger, c.danger, p.text_muted)
         } else {
-            (None, p.text, p.text_secondary, p.text_muted)
+            let text = if item.checked == Some(true) {
+                p.text
+            } else {
+                p.text_secondary
+            };
+            (None, text, p.text_secondary, p.text_muted)
         };
 
         if let Some(background) = background {
@@ -881,10 +926,16 @@ impl<M: Clone> Menu<'_, M> {
         };
         if lead {
             let slot = Rectangle::new(Point::new(x, middle - ICON / 2.0), Size::new(ICON, ICON));
-            if let Some(which) = item.icon {
+            if let Some(art) = &item.art {
+                let mut drawing = svg::Svg::new(art.clone());
+                if item.disabled {
+                    drawing = drawing.opacity(DISABLED_OPACITY);
+                }
+                renderer.draw_svg(drawing, slot, slot);
+            } else if let Some(which) = item.icon {
                 icon::draw(renderer, which, slot, icon_color, Radians(0.0));
             } else if let Some(state) = item.glyph {
-                let side = 7.0;
+                let side = GLYPH;
                 let glyph_slot = Rectangle::new(
                     Point::new(slot.center_x() - side / 2.0, middle - side / 2.0),
                     Size::new(side, side),
@@ -954,6 +1005,22 @@ impl<M: Clone> Menu<'_, M> {
             end -= 18.0 + text_width(keys, font_size::LABEL, fonts::mono());
         }
 
+        if let Some(meta) = &item.meta {
+            draw_text(
+                renderer,
+                meta,
+                META_SIZE,
+                fonts::mono(),
+                keys_color,
+                Line {
+                    anchor: Point::new(end, middle),
+                    align: alignment::Horizontal::Right,
+                    clip: row,
+                },
+            );
+            end -= GAP + text_width(meta, META_SIZE, fonts::mono());
+        }
+
         let room = Rectangle {
             x,
             y: row.y,
@@ -963,7 +1030,7 @@ impl<M: Clone> Menu<'_, M> {
         draw_text(
             renderer,
             &item.label,
-            font_size::BODY,
+            LABEL_SIZE,
             item.label_font(),
             text_color,
             Line {
@@ -973,7 +1040,7 @@ impl<M: Clone> Menu<'_, M> {
             },
         );
         if let Some(detail) = &item.detail {
-            let from = x + text_width(&item.label, font_size::BODY, item.label_font()) + GAP;
+            let from = x + text_width(&item.label, LABEL_SIZE, item.label_font()) + GAP;
             if from < end {
                 draw_text(
                     renderer,
@@ -1114,6 +1181,22 @@ pub fn context_menu<'a, M: Clone + 'a>(
 }
 
 impl<'a, M: Clone + 'a> ContextMenu<'a, M> {
+    /// The bounds of the list's width ([`Menu::width_between`]).
+    pub fn width_between(mut self, min: f32, max: f32) -> Self {
+        self.open = self
+            .open
+            .map(|(at, menu)| (at, menu.width_between(min, max)));
+        self
+    }
+
+    /// Past this height the list scrolls ([`Menu::max_height`]).
+    pub fn max_height(mut self, max_height: f32) -> Self {
+        self.open = self
+            .open
+            .map(|(at, menu)| (at, menu.max_height(max_height)));
+        self
+    }
+
     /// Opened from the keyboard (the menu key on a focused row): the first
     /// line has the highlight at once, so that the arrows work straight away.
     pub fn from_keyboard(mut self, from_keyboard: bool) -> Self {
