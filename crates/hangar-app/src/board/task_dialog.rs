@@ -1,5 +1,6 @@
-//! A task in a dialog (`TaskDialog.tsx`): read and edited as it is made, or
-//! written new.
+//! A task (`TaskDialog.tsx`): its sheet, down the right of the window, where
+//! it is read and edited (`ecrans.md` §4, 04b), or the dialog a new one is
+//! written in.
 //!
 //! Opening a task shows the board's version of it, and every edit goes to the
 //! board when the field is left (the web app saved on blur; iced's fields have
@@ -15,25 +16,32 @@
 
 use hangar_core::board::Task as BoardTask;
 use hangar_i18n::{Key, Translator, args};
-use hangar_theme::tokens::{font_size, space};
+use hangar_theme::tokens::scale::{self, type_scale};
+use hangar_theme::tokens::{BORDER_WIDTH, font_size, radius, size, space};
 use hangar_theme::{Theme, fonts, style};
 use hangar_ui::button;
 use hangar_ui::dialog;
+use hangar_ui::glyph::GlyphState;
 use hangar_ui::icon::{Icon, icon};
 use hangar_ui::input::{NumberField, NumberMsg, number_input};
-use hangar_ui::tip;
+use hangar_ui::menu::{self, Entry};
+use hangar_ui::tail_text::tail_text;
+use hangar_ui::{focus, layer, tab_toolbar, tip};
+use iced::keyboard::{Key as Key_, key::Named};
+use iced::widget::text_editor::Binding;
 use iced::widget::{
-    Space, checkbox, column, container, pick_list, row, rule, scrollable, text, text_editor,
-    text_input,
+    Space, checkbox, column, container, mouse_area, opaque, pick_list, row, rule, scrollable, text,
+    text_editor, text_input,
 };
-use iced::{Alignment, Element, Length, Padding, Task};
+use iced::{Alignment, Color, Element, Length, Padding, Pixels, Task};
 
 use crate::message::{Intent, Message};
+use crate::shell::View as MainView;
 use crate::state::Model;
 
 use super::actions::{self, After, Draft, Edit, Errors, Mutation};
-use super::card::assignee_view;
-use super::format::{DateStyle, short_task_id, when};
+use super::card::{assignee_view, chip};
+use super::format::{DateStyle, elapsed_label, short_task_id, time_today, when};
 use super::look;
 use super::model::{Column, MAX_BLOCK_REASON, Task as T, index_by_id, recheck_problem};
 use super::view::View;
@@ -42,7 +50,7 @@ use super::{Msg as BoardMsg, State, card_id};
 /// The thread scrolls to its newest message.
 const THREAD: &str = "board-task-thread";
 const TITLE_FIELD: &str = "board-task-title";
-const REASON_FIELD: &str = "board-task-reason";
+pub(super) const REASON_FIELD: &str = "board-task-reason";
 
 /// A dialog's open task, and everything typed that is not on the board yet.
 #[derive(Debug)]
@@ -51,6 +59,9 @@ pub struct Dialog {
     /// The task, or `None` for one being written.
     pub task: Option<String>,
     title: String,
+    /// The title as the sheet's heading edits it: it wraps as a heading does,
+    /// and holds the one line `title` holds.
+    heading: text_editor::Content,
     description: text_editor::Content,
     /// The paths and globs the task's worker may change, one per line.
     owns: text_editor::Content,
@@ -70,6 +81,9 @@ pub struct Dialog {
     note: String,
     error: Option<String>,
     confirm_delete: bool,
+    /// The sheet's menus: the columns under the state's badge, and "…".
+    column_menu: bool,
+    more_menu: bool,
     /// How many comments the thread showed, to follow a new one.
     comments: usize,
 }
@@ -118,6 +132,7 @@ impl Dialog {
             cwd: cwd.to_owned(),
             task: task.map(str::to_owned),
             title: seen.title.clone(),
+            heading: text_editor::Content::with_text(&seen.title),
             description: text_editor::Content::with_text(&seen.description),
             owns: text_editor::Content::with_text(&seen.owns),
             priority: priority_field(found.map_or(1, |task| task.priority)),
@@ -133,7 +148,14 @@ impl Dialog {
             note: String::new(),
             error: None,
             confirm_delete: false,
+            column_menu: false,
+            more_menu: false,
         }
+    }
+
+    /// The form that puts the task on hold, open.
+    pub(super) fn start_block(&mut self) {
+        self.blocking = true;
     }
 
     pub fn is_new(&self) -> bool {
@@ -153,6 +175,7 @@ impl Dialog {
         let now = Seen::of(task);
         if now.title != self.seen.title {
             self.title = now.title.clone();
+            self.heading = text_editor::Content::with_text(&now.title);
         }
         if now.description != self.seen.description {
             self.description = text_editor::Content::with_text(&now.description);
@@ -194,6 +217,23 @@ impl Dialog {
         edits
     }
 
+    /// The heading was typed in: the title is its text on one line (a paste
+    /// may bring more).
+    fn edit_heading(&mut self, action: text_editor::Action) {
+        let edits = action.is_edit();
+        self.heading.perform(action);
+        if !edits {
+            return;
+        }
+        let typed = text_of(&self.heading);
+        self.title = typed.replace('\n', " ");
+        if typed.contains('\n') {
+            self.heading = text_editor::Content::with_text(&self.title);
+            self.heading
+                .perform(text_editor::Action::Move(text_editor::Motion::DocumentEnd));
+        }
+    }
+
     /// The block form and the unblock note, back to rest.
     fn finish_block(&mut self) {
         self.blocking = false;
@@ -221,6 +261,9 @@ impl Dialog {
 pub enum Msg {
     Title(String),
     SaveTitle,
+    Heading(text_editor::Action),
+    ColumnMenu(bool),
+    MoreMenu(bool),
     Description(text_editor::Action),
     Owns(text_editor::Action),
     Column(Column),
@@ -251,6 +294,7 @@ impl Msg {
         matches!(
             self,
             Msg::Title(_)
+                | Msg::Heading(_)
                 | Msg::Description(_)
                 | Msg::Owns(_)
                 | Msg::Reason(_)
@@ -361,6 +405,18 @@ pub fn update(st: &mut State, m: &mut Model, msg: Msg) -> Task<Message> {
         }
         // Saved with everything else that was typed, above.
         Msg::SaveTitle => Task::none(),
+        Msg::Heading(action) => {
+            dialog.edit_heading(action);
+            Task::none()
+        }
+        Msg::ColumnMenu(open) => {
+            dialog.column_menu = open;
+            Task::none()
+        }
+        Msg::MoreMenu(open) => {
+            dialog.more_menu = open;
+            Task::none()
+        }
         Msg::Description(action) => {
             dialog.description.perform(action);
             Task::none()
@@ -370,7 +426,10 @@ pub fn update(st: &mut State, m: &mut Model, msg: Msg) -> Task<Message> {
             Task::none()
         }
         Msg::Column(column) => match &id {
-            Some(id) => mutate(&cwd, id, Edit::Column(column), Errors::Swallow),
+            Some(id) => {
+                dialog.column_menu = false;
+                mutate(&cwd, id, Edit::Column(column), Errors::Swallow)
+            }
             None => {
                 dialog.column = column;
                 Task::none()
@@ -388,7 +447,7 @@ pub fn update(st: &mut State, m: &mut Model, msg: Msg) -> Task<Message> {
             None => Task::none(),
         },
         Msg::StartBlock => {
-            dialog.blocking = true;
+            dialog.start_block();
             focus_soon(REASON_FIELD)
         }
         Msg::CancelBlock => {
@@ -471,6 +530,7 @@ pub fn update(st: &mut State, m: &mut Model, msg: Msg) -> Task<Message> {
             }
         }
         Msg::AskDelete => {
+            dialog.more_menu = false;
             dialog.confirm_delete = true;
             Task::none()
         }
@@ -647,7 +707,8 @@ fn msg(inner: Msg) -> Message {
     Message::Board(BoardMsg::Dialog(inner))
 }
 
-/// `Overlay::Task`: the dialog over the window.
+/// `Overlay::Task`: a task's sheet, or the dialog of a new one, over the
+/// window.
 pub fn view<'a>(
     st: &'a State,
     ctx: crate::ctx::Ctx<'a>,
@@ -665,16 +726,71 @@ pub fn view<'a>(
     };
     let v = View::new(st, ctx, cwd, false);
     let found = task.and_then(|id| v.all.iter().find(|candidate| candidate.id == id));
-    let content = match (task, found) {
-        (Some(_), Some(found)) => edit_form(&v, dialog, found),
+    match (task, found) {
+        (Some(_), Some(found)) => {
+            // No veil: the board stays as it is behind the sheet, and a press
+            // anywhere else closes it.
+            layer::modal(page, Some(placed(ctx, sheet(&v, dialog, found))))
+                .margin(0.0)
+                .on_dismiss(msg(Msg::Close))
+                .into()
+        }
         // The task is gone (an agent deleted it): the board closes the dialog
         // with the next read; until then there is nothing to show.
-        (Some(_), None) => return page.into(),
-        (None, _) => create_form(&v, dialog),
+        (Some(_), None) => page.into(),
+        (None, _) => dialog::veiled(t, page, Some(create_form(&v, dialog)))
+            .on_dismiss(msg(Msg::Close))
+            .into(),
+    }
+}
+
+/// Where the sheet goes in the window: down its right side, under the top bar
+/// (and the board's own bar when the board is what it covers) and over the
+/// status bar. In a window whose content is under [`look::SHEET_FULL_BELOW`]
+/// it takes the whole content.
+fn placed<'a>(ctx: crate::ctx::Ctx<'a>, sheet: Element<'a, Message>) -> Element<'a, Message> {
+    // A press on what the sheet does not cover closes it.
+    fn outside<'a>(width: Length, height: Length) -> Element<'a, Message> {
+        mouse_area(Space::new().width(width).height(height))
+            .on_press(msg(Msg::Close))
+            .into()
+    }
+    let board = ctx.view() == MainView::Board;
+    let top = size::TOOLBAR_HEIGHT + BORDER_WIDTH + if board { tab_toolbar::HEIGHT } else { 0.0 };
+    let bottom = crate::status_bar::height(ctx) + BORDER_WIDTH;
+    let content = ctx
+        .model
+        .ui
+        .body_width
+        .get(&ctx.window)
+        .copied()
+        .unwrap_or(ctx.metrics.body_width);
+    let full = content < look::SHEET_FULL_BELOW;
+    let beside: Element<'a, Message> = if !full {
+        outside(Length::Fill, Length::Fill)
+    } else if ctx.panels().navigator {
+        outside(
+            Length::Fixed(scale::size::SIDEBAR + BORDER_WIDTH),
+            Length::Fill,
+        )
+    } else {
+        Space::new().into()
     };
-    dialog::veiled(t, page, Some(content))
-        .on_dismiss(msg(Msg::Close))
-        .into()
+    let panel = container(opaque(sheet))
+        .width(if full {
+            Length::Fill
+        } else {
+            Length::Fixed(look::SHEET_WIDTH)
+        })
+        .height(Length::Fill);
+    column![
+        outside(Length::Fill, Length::Fixed(top)),
+        row![beside, panel].height(Length::Fill),
+        outside(Length::Fill, Length::Fixed(bottom)),
+    ]
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .into()
 }
 
 fn shell<'a>(
@@ -759,14 +875,8 @@ fn head<'a>(
         .into()
 }
 
-/// Title and description, then the grid of column, priority and assignee.
-fn fields<'a>(
-    v: &View<'a>,
-    dialog: &'a Dialog,
-    column: Column,
-    blocked: bool,
-    assignee: Option<Element<'a, Message>>,
-) -> Vec<Element<'a, Message>> {
+/// A new task's title and description, then its column and priority.
+fn fields<'a>(v: &View<'a>, dialog: &'a Dialog) -> Vec<Element<'a, Message>> {
     let t = v.t();
     let tr = v.ctx.i18n;
     let mut parts: Vec<Element<'a, Message>> = Vec::new();
@@ -779,11 +889,7 @@ fn fields<'a>(
                 .id(TITLE_FIELD)
                 .font(fonts::ui_semibold())
                 .on_input(|text| msg(Msg::Title(text)))
-                .on_submit(msg(if dialog.is_new() {
-                    Msg::Create
-                } else {
-                    Msg::SaveTitle
-                })),
+                .on_submit(msg(Msg::Create)),
         ),
     ]));
     parts.push(stack_of(vec![
@@ -792,26 +898,13 @@ fn fields<'a>(
             tr.t(Key::TaskDescription),
             Some(tr.t(Key::TaskDescriptionHint).into_owned()),
         ),
-        guarded(
-            v,
-            editor(t, &dialog.description, 92.0, |action| {
-                msg(Msg::Description(action))
-            }),
-        ),
+        description_editor(v, dialog),
     ]));
 
-    // While a task is blocked it stays in To do: the others are not offered.
-    let choices: Vec<ColumnChoice> = Column::ALL
-        .into_iter()
-        .filter(|candidate| !blocked || *candidate == Column::Todo)
-        .map(|candidate| ColumnChoice {
-            column: candidate,
-            label: tr.t(candidate.label_key()).into_owned(),
-        })
-        .collect();
+    let choices = column_choices(tr, false);
     let selected = choices
         .iter()
-        .find(|choice| choice.column == column)
+        .find(|choice| choice.column == dialog.column)
         .cloned();
     let column_field = stack_of(vec![
         label(t, tr.t(Key::TaskColumn), None),
@@ -819,31 +912,59 @@ fn fields<'a>(
             msg(Msg::Column(choice.column))
         }),
     ]);
-    let priority_value = dialog.priority.value().round() as u8;
     let priority_field = stack_of(vec![
         label(t, tr.t(Key::TaskPriority), None),
-        row![
-            container(guarded(
-                v,
-                number_input(t, &dialog.priority, |change| { msg(Msg::Priority(change)) }),
-            ))
-            .width(120.0),
-            super::card::priority(v, priority_value),
-        ]
-        .spacing(space::LG)
-        .align_y(Alignment::Center)
-        .into(),
+        priority_stepper(v, dialog),
     ]);
-    let mut grid = row![
-        container(column_field).width(Length::FillPortion(10)),
-        container(priority_field).width(Length::FillPortion(12)),
-    ]
-    .spacing(space::XL);
-    if let Some(who) = assignee {
-        grid = grid.push(container(who).width(Length::FillPortion(13)));
-    }
-    parts.push(grid.into());
+    parts.push(
+        row![
+            container(column_field).width(Length::FillPortion(10)),
+            container(priority_field).width(Length::FillPortion(12)),
+        ]
+        .spacing(space::XL)
+        .into(),
+    );
     parts
+}
+
+/// The columns a task can be put in. While it is blocked it stays in To do:
+/// the others are not offered.
+fn column_choices(tr: Translator, blocked: bool) -> Vec<ColumnChoice> {
+    Column::ALL
+        .into_iter()
+        .filter(|candidate| !blocked || *candidate == Column::Todo)
+        .map(|candidate| ColumnChoice {
+            column: candidate,
+            label: tr.t(candidate.label_key()).into_owned(),
+        })
+        .collect()
+}
+
+fn description_editor<'a>(v: &View<'a>, dialog: &'a Dialog) -> Element<'a, Message> {
+    guarded(
+        v,
+        editor(v.t(), &dialog.description, 92.0, |action| {
+            msg(Msg::Description(action))
+        }),
+    )
+}
+
+/// The number agents set, and the way it reads on a card.
+fn priority_stepper<'a>(v: &View<'a>, dialog: &'a Dialog) -> Element<'a, Message> {
+    let value = dialog.priority.value().round() as u8;
+    row![
+        container(guarded(
+            v,
+            number_input(v.t(), &dialog.priority, |change| {
+                msg(Msg::Priority(change))
+            }),
+        ))
+        .width(120.0),
+        super::card::priority(v, value),
+    ]
+    .spacing(space::LG)
+    .align_y(Alignment::Center)
+    .into()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -868,107 +989,442 @@ fn owns_field<'a>(v: &View<'a>, dialog: &'a Dialog) -> Element<'a, Message> {
             tr.t(Key::TaskOwns),
             Some(tr.t(Key::TaskOwnsHint).into_owned()),
         ),
-        guarded(
-            v,
-            editor(t, &dialog.owns, 56.0, |action| msg(Msg::Owns(action))),
-        ),
+        owns_editor(v, dialog),
     ])
 }
 
-fn edit_form<'a>(v: &View<'a>, dialog: &'a Dialog, task: &'a T) -> Element<'a, Message> {
+fn owns_editor<'a>(v: &View<'a>, dialog: &'a Dialog) -> Element<'a, Message> {
+    guarded(
+        v,
+        text_editor(&dialog.owns)
+            .on_action(|action| msg(Msg::Owns(action)))
+            .size(type_scale::CAPTION.size)
+            .font(fonts::mono())
+            .padding([6.0, space::LG])
+            .min_height(56.0)
+            .style(style::text_editor::field(v.t())),
+    )
+}
+
+/// The task's sheet: its head stays, and the rest scrolls under it.
+fn sheet<'a>(v: &View<'a>, dialog: &'a Dialog, task: &'a T) -> Element<'a, Message> {
     let t = v.t();
     let tr = v.ctx.i18n;
-    let column = Column::of(task).unwrap_or(Column::Todo);
+    let column_of = Column::of(task).unwrap_or(Column::Todo);
 
-    let who: Element<'a, Message> = {
-        let body: Element<'a, Message> = match &task.assignee {
-            Some(assignee) => row![
-                assignee_view(v, assignee, column == Column::Done, true),
-                button::secondary(t, tr.t(Key::TaskRelease))
-                    .small()
-                    .on_press(msg(Msg::Release)),
-            ]
-            .spacing(space::MD)
-            .align_y(Alignment::Center)
-            .into(),
-            None => text(tr.t(Key::TaskFree))
-                .size(font_size::UI)
-                .style(style::text::subtle(t))
-                .into(),
-        };
-        stack_of(vec![
-            label(t, tr.t(Key::TaskAssignee), None),
-            container(body).center_y(look::FIELD_HEIGHT).into(),
-        ])
-    };
-
-    let mut body = fields(v, dialog, column, task.blocked.is_some(), Some(who));
-
-    if task.blocked.is_some() || column == Column::Todo || column == Column::Doing {
-        body.push(block_section(v, dialog, task));
+    let mut body: Vec<Element<'a, Message>> = vec![heading(v, dialog)];
+    if let Some(block) = block_section(v, dialog, task) {
+        body.push(block);
     }
-    body.push(owns_field(v, dialog));
-    if !task.labels.is_empty() {
-        body.push(
-            row(task.labels.iter().map(|text_label| {
-                container(
-                    text(text_label.as_str())
-                        .size(font_size::MICRO)
-                        .font(fonts::mono()),
+    body.push(properties(v, dialog, task, column_of));
+    body.push(section(
+        t,
+        tr.t(Key::TaskDescription),
+        None,
+        Some(tr.t(Key::TaskDescriptionHint).into_owned()),
+        description_editor(v, dialog),
+    ));
+    if let Some(dependencies) = dependency_section(v, dialog, task) {
+        body.push(dependencies);
+    }
+    body.push(section(
+        t,
+        tr.t(Key::TaskOwns),
+        Some(patterns(&text_of(&dialog.owns)).len()),
+        Some(tr.t(Key::TaskOwnsHint).into_owned()),
+        owns_editor(v, dialog),
+    ));
+    body.push(section(
+        t,
+        tr.t(Key::TaskThread),
+        Some(task.comments.len()),
+        Some(tr.t(Key::TaskThreadHint).into_owned()),
+        thread(v, dialog, task),
+    ));
+
+    let rule_in = move |color: Color| {
+        move |theme: &iced::Theme| rule::Style {
+            color,
+            ..style::rule::hairline(t)(theme)
+        }
+    };
+    let mut page = column![
+        sheet_head(v, dialog, task, column_of),
+        rule::horizontal(BORDER_WIDTH).style(rule_in(t.palette.border)),
+    ];
+    if dialog.confirm_delete {
+        page = page
+            .push(confirm_strip(v))
+            .push(rule::horizontal(BORDER_WIDTH).style(rule_in(t.palette.border)));
+    }
+    let page = page.push(
+        scrollable(
+            container(column(body).spacing(18.0))
+                .padding([18.0, 20.0])
+                .width(Length::Fill),
+        )
+        .height(Length::Fill)
+        .style(style::scrollable::default(t)),
+    );
+    container(row![
+        rule::vertical(BORDER_WIDTH).style(rule_in(t.palette.border_strong)),
+        page.width(Length::Fill),
+    ])
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .style(look::sheet(t))
+    .into()
+}
+
+/// The head: the task's id, the badge of its column (which moves it), the way
+/// to block it or to lift its block, "…" and close.
+fn sheet_head<'a>(
+    v: &View<'a>,
+    dialog: &'a Dialog,
+    task: &'a T,
+    column_of: Column,
+) -> Element<'a, Message> {
+    let t = v.t();
+    let tr = v.ctx.i18n;
+    let id = text(format!("#{}", short_task_id(&task.id)))
+        .size(type_scale::CAPTION.size)
+        .font(fonts::mono())
+        .color(t.palette.text_muted);
+
+    let open = msg(Msg::ColumnMenu(!dialog.column_menu));
+    let badge = iced::widget::button(look::centred(
+        row![
+            hangar_ui::glyph::state(t, look::mark(column_of), 10.0),
+            text(tr.t(column_of.label_key()))
+                .size(type_scale::CAPTION.size)
+                .wrapping(text::Wrapping::None),
+            icon(Icon::ChevronDown, 9.0),
+        ]
+        .spacing(space::SM)
+        .align_y(Alignment::Center),
+    ))
+    .height(22.0)
+    .padding([0.0, space::MD])
+    .style(look::state_pill(t))
+    .on_press(open.clone());
+    let badge = focus::ring(t, badge).radius(radius::FULL).on_activate(open);
+    let columns = dialog.column_menu.then(|| {
+        column_choices(tr, task.blocked.is_some())
+            .into_iter()
+            .map(|choice| {
+                Entry::from(
+                    menu::item(choice.label)
+                        .checked(choice.column == column_of)
+                        .on_select(msg(Msg::Column(choice.column))),
                 )
-                .padding([0.0, space::SM])
-                .style(look::chip(t))
-                .into()
-            }))
-            .spacing(space::XS)
-            .wrap()
-            .into(),
+            })
+            .collect::<Vec<_>>()
+    });
+    let badge = menu::dropdown(t, tip::bottom(t, badge, tr.t(Key::TaskColumn)), columns)
+        .on_dismiss(msg(Msg::ColumnMenu(false)));
+
+    let mut line = row![
+        tip::bottom(t, id, task.id.clone()),
+        Element::from(badge),
+        Space::new().width(Length::Fill),
+    ]
+    .spacing(space::LG)
+    .align_y(Alignment::Center);
+
+    if task.blocked.is_some() {
+        line = line.push(
+            button::secondary(t, tr.t(Key::BoardUnblock))
+                .icon(Icon::Unlock)
+                .on_press(msg(Msg::Unblock)),
+        );
+    } else if !dialog.blocking && matches!(column_of, Column::Todo | Column::Doing) {
+        line = line.push(
+            button::secondary(t, tr.t(Key::BoardBlock))
+                .icon(Icon::Lock)
+                .on_press(msg(Msg::StartBlock)),
         );
     }
-    body.push(dependencies(v, dialog, Some(task)));
-    body.push(thread(v, dialog, task));
 
-    let foot = row![
+    let more = button::icon_button(t, Icon::More)
+        .sized(button::Side::Sm)
+        .tip(tr.t(Key::SidebarMore))
+        .on_press(msg(Msg::MoreMenu(!dialog.more_menu)));
+    let entries = dialog.more_menu.then(|| {
+        vec![Entry::from(
+            menu::item(tr.t(Key::TaskDelete).into_owned())
+                .icon(Icon::Trash)
+                .danger()
+                .on_select(msg(Msg::AskDelete)),
+        )]
+    });
+    let more = menu::dropdown(t, more, entries)
+        .align_end()
+        .on_dismiss(msg(Msg::MoreMenu(false)));
+    let line = line.push(Element::from(more)).push(
+        button::icon_button(t, Icon::Close)
+            .sized(button::Side::Sm)
+            .tip(tr.t(Key::TaskClose))
+            .on_press(msg(Msg::Close)),
+    );
+    container(line)
+        .padding(Padding {
+            top: 0.0,
+            right: space::MD,
+            bottom: 0.0,
+            left: 20.0,
+        })
+        .center_y(look::SHEET_HEAD)
+        .into()
+}
+
+/// "Delete" was picked in "…": it asks once more, under the head.
+fn confirm_strip<'a>(v: &View<'a>) -> Element<'a, Message> {
+    let t = v.t();
+    let tr = v.ctx.i18n;
+    container(
+        row![
+            text(tr.t(Key::TaskDelete))
+                .size(type_scale::SMALL.size)
+                .color(t.palette.status.failed),
+            Space::new().width(Length::Fill),
+            button::ghost(t, tr.t(Key::CreateCancel)).on_press(msg(Msg::CancelDelete)),
+            button::danger(t, tr.t(Key::TaskDeleteConfirm)).on_press(msg(Msg::ConfirmDelete)),
+        ]
+        .spacing(space::MD)
+        .align_y(Alignment::Center),
+    )
+    .padding([space::MD, 20.0])
+    .width(Length::Fill)
+    .into()
+}
+
+/// The title, in the display face. Enter saves it.
+fn heading<'a>(v: &View<'a>, dialog: &'a Dialog) -> Element<'a, Message> {
+    let editor = text_editor(&dialog.heading)
+        .id(TITLE_FIELD)
+        .on_action(|action| msg(Msg::Heading(action)))
+        .key_binding(|press| match press.key {
+            Key_::Named(Named::Enter) => Some(Binding::Custom(msg(Msg::SaveTitle))),
+            _ => Binding::from_key_press(press),
+        })
+        .font(fonts::display())
+        .size(19.0)
+        .line_height(text::LineHeight::Absolute(Pixels(25.0)))
+        .wrapping(text::Wrapping::WordOrGlyph)
+        .padding([2.0, space::XS])
+        .style(look::heading_field(v.t()));
+    guarded(v, editor)
+}
+
+/// A section of the sheet: its name, how many it holds, a word about it, and
+/// what it holds.
+fn section<'a>(
+    t: &'a Theme,
+    title: impl Into<String>,
+    count: Option<usize>,
+    hint: Option<String>,
+    body: Element<'a, Message>,
+) -> Element<'a, Message> {
+    let mut head = row![
+        text(title.into())
+            .size(type_scale::CAPTION.size)
+            .font(fonts::ui_semibold())
+            .color(t.palette.text_muted)
+            .wrapping(text::Wrapping::None),
+    ]
+    .spacing(space::MD)
+    .align_y(Alignment::Center);
+    if let Some(count) = count {
+        head = head.push(
+            text(count.to_string())
+                .size(type_scale::CAPTION.size)
+                .font(fonts::mono())
+                .color(t.palette.text_muted),
+        );
+    }
+    if let Some(hint) = hint {
+        head = head.push(
+            text(hint)
+                .size(type_scale::LABEL.size)
+                .color(t.palette.text_muted)
+                .width(Length::Fill),
+        );
+    }
+    column![head, body].spacing(space::MD).into()
+}
+
+/// The grid of what the task is: who holds it, since when, how urgent it is,
+/// its labels, and when it was written.
+fn properties<'a>(
+    v: &View<'a>,
+    dialog: &'a Dialog,
+    task: &'a T,
+    column_of: Column,
+) -> Element<'a, Message> {
+    let t = v.t();
+    let tr = v.ctx.i18n;
+    let line = |name: Key, value: Element<'a, Message>| -> Element<'a, Message> {
+        row![
+            text(tr.t(name))
+                .size(type_scale::SMALL.size)
+                .color(t.palette.text_muted)
+                .width(look::PROPERTY_LABEL),
+            container(value).width(Length::Fill),
+        ]
+        .align_y(Alignment::Center)
+        .into()
+    };
+
+    let who: Element<'a, Message> = match &task.assignee {
+        Some(assignee) => {
+            let mut who = row![assignee_view(
+                v,
+                assignee,
+                column_of == Column::Done,
+                true,
+                true
+            )]
+            .spacing(space::MD)
+            .align_y(Alignment::Center);
+            if let Some(pane) = v.pane(assignee) {
+                who = who.push(button::link(
+                    t,
+                    tr.t(Key::TaskOpenPane),
+                    Message::Board(BoardMsg::FocusAgent {
+                        ws: pane.workspace.clone(),
+                        pane: pane.id.clone(),
+                        from_dialog: true,
+                    }),
+                ));
+            }
+            who.push(
+                button::ghost(t, tr.t(Key::TaskRelease))
+                    .small()
+                    .on_press(msg(Msg::Release)),
+            )
+            .wrap()
+            .into()
+        }
+        None => text(tr.t(Key::TaskFree))
+            .size(type_scale::SMALL.size)
+            .color(t.palette.text_muted)
+            .into(),
+    };
+
+    let mut lines = vec![line(Key::TaskAssignee, who)];
+    if let (Column::Doing, Some(since)) = (column_of, task.doing_since) {
+        let started = match time_today(since, v.now as u64, tr.locale()) {
+            Some(time) => tr
+                .t_with(Key::TaskToday, &args!("time" => time.as_str()))
+                .into_owned(),
+            None => when(since, tr.locale(), DateStyle::Short),
+        };
+        lines.push(line(
+            Key::TaskDoingSince,
+            row![
+                text(started).size(type_scale::SMALL.size),
+                text(format!("· {}", elapsed_label(v.now - since as i64, tr)))
+                    .size(type_scale::SMALL.size)
+                    .color(t.palette.text_muted),
+            ]
+            .spacing(space::MD)
+            .into(),
+        ));
+    }
+    lines.push(line(Key::TaskPriority, priority_stepper(v, dialog)));
+    if !task.labels.is_empty() {
+        lines.push(line(
+            Key::TaskLabels,
+            row(task.labels.iter().map(|label| chip(t, label)))
+                .spacing(space::SM)
+                .wrap()
+                .into(),
+        ));
+    }
+    lines.push(
         text(
             tr.t_with(
                 Key::TaskCreatedAt,
                 &args!("date" => when(task.created_at, tr.locale(), DateStyle::Short).as_str()),
             )
-            .into_owned()
+            .into_owned(),
         )
-        .size(font_size::CAPTION)
-        .style(style::text::subtle(t)),
-        Space::new().width(Length::Fill),
-    ]
-    .push(if dialog.confirm_delete {
-        Element::from(
-            row![
-                button::ghost(t, tr.t(Key::CreateCancel)).on_press(msg(Msg::CancelDelete)),
-                button::danger(t, tr.t(Key::TaskDeleteConfirm)).on_press(msg(Msg::ConfirmDelete)),
-            ]
-            .spacing(space::MD),
-        )
-    } else {
-        button::ghost(t, tr.t(Key::TaskDelete))
-            .icon(Icon::Trash)
-            .on_press(msg(Msg::AskDelete))
+        .size(type_scale::LABEL.size)
+        .color(t.palette.text_muted)
+        .into(),
+    );
+    column(lines.into_iter().map(|line| {
+        container(line)
+            .center_y(Length::Shrink)
+            .padding([2.0, 0.0])
             .into()
-    })
-    .push(button::primary(t, tr.t(Key::TaskClose)).on_press(msg(Msg::Close)))
-    .spacing(space::MD)
-    .align_y(Alignment::Center);
+    }))
+    .spacing(space::XS)
+    .into()
+}
 
-    shell(
+/// What the task waits on, which can be changed, and what waits on it.
+fn dependency_section<'a>(
+    v: &View<'a>,
+    dialog: &'a Dialog,
+    task: &'a T,
+) -> Option<Element<'a, Message>> {
+    let t = v.t();
+    let tr = v.ctx.i18n;
+    let blocked: Vec<&'a T> = v
+        .all
+        .iter()
+        .filter(|other| other.depends_on.contains(&task.id))
+        .collect();
+    let waits = task
+        .depends_on
+        .iter()
+        .filter(|id| v.by_id.contains_key(id.as_str()))
+        .count();
+    if blocked.is_empty() && waits == 0 && v.all.len() < 2 {
+        return None;
+    }
+    let mut parts = column![].spacing(space::MD);
+    if waits > 0 || v.all.len() > 1 {
+        parts = parts.push(dependencies(v, dialog, Some(task)));
+    }
+    let count = waits + blocked.len();
+    if !blocked.is_empty() {
+        let rows = blocked.into_iter().map(|other| {
+            let column_of = Column::of(other).unwrap_or(Column::Todo);
+            row![
+                hangar_ui::glyph::state(t, look::mark(column_of), 10.0).still(),
+                text(format!("#{}", short_task_id(&other.id)))
+                    .size(type_scale::CAPTION.size)
+                    .font(fonts::mono())
+                    .color(t.palette.text_muted),
+                Element::from(
+                    tail_text(other.title.as_str())
+                        .cut_end()
+                        .readable()
+                        .size(type_scale::SMALL.size)
+                        .color(t.palette.text_secondary)
+                ),
+            ]
+            .spacing(space::MD)
+            .align_y(Alignment::Center)
+            .into()
+        });
+        parts = parts.push(
+            column![
+                label(t, tr.t(Key::TaskBlocks), None),
+                column(rows).spacing(space::SM)
+            ]
+            .spacing(space::SM),
+        );
+    }
+    Some(section(
         t,
-        head(
-            v,
-            Some(column),
-            tr.t(Key::TaskTitle).into_owned(),
-            Some(&task.id),
-        ),
-        stack_column(body),
-        dialog::foot(t, foot),
-    )
+        tr.t(Key::TaskDependenciesSection),
+        Some(count),
+        None,
+        parts.into(),
+    ))
 }
 
 fn stack_column<'a>(parts: Vec<Element<'a, Message>>) -> Element<'a, Message> {
@@ -978,7 +1434,7 @@ fn stack_column<'a>(parts: Vec<Element<'a, Message>>) -> Element<'a, Message> {
 fn create_form<'a>(v: &View<'a>, dialog: &'a Dialog) -> Element<'a, Message> {
     let t = v.t();
     let tr = v.ctx.i18n;
-    let mut body = fields(v, dialog, dialog.column, false, None);
+    let mut body = fields(v, dialog);
     body.push(owns_field(v, dialog));
     body.push(dependencies(v, dialog, None));
     if let Some(error) = &dialog.error {
@@ -1011,9 +1467,14 @@ fn create_form<'a>(v: &View<'a>, dialog: &'a Dialog) -> Element<'a, Message> {
     )
 }
 
-/// Why a task is on hold, and the way to lift it; or the way to put one on
-/// hold. Errors the board gives are shown here and nowhere else.
-fn block_section<'a>(v: &View<'a>, dialog: &'a Dialog, task: &'a T) -> Element<'a, Message> {
+/// Why a task is on hold, with a note to lift it with; or the form that puts
+/// it on hold. Errors the board gives are shown here and nowhere else.
+/// `None` when there is nothing to say: the sheet's head has the buttons.
+fn block_section<'a>(
+    v: &View<'a>,
+    dialog: &'a Dialog,
+    task: &'a T,
+) -> Option<Element<'a, Message>> {
     let t = v.t();
     let tr = v.ctx.i18n;
     let mut parts: Vec<Element<'a, Message>> = Vec::new();
@@ -1021,7 +1482,7 @@ fn block_section<'a>(v: &View<'a>, dialog: &'a Dialog, task: &'a T) -> Element<'
     if let Some(blocked) = &task.blocked {
         parts.push(
             row![
-                icon(Icon::Pause, 12.0).color(t.colors.fg_muted),
+                hangar_ui::glyph::state(t, GlyphState::Failed, 12.0),
                 text(
                     tr.t_with(
                         Key::BoardBlockedFor,
@@ -1029,7 +1490,8 @@ fn block_section<'a>(v: &View<'a>, dialog: &'a Dialog, task: &'a T) -> Element<'
                     )
                     .into_owned()
                 )
-                .size(font_size::BODY)
+                .size(type_scale::SMALL.size)
+                .color(t.palette.status.failed)
                 .width(Length::Fill),
             ]
             .spacing(space::SM)
@@ -1053,23 +1515,16 @@ fn block_section<'a>(v: &View<'a>, dialog: &'a Dialog, task: &'a T) -> Element<'
         }
         parts.push(
             text(since)
-                .size(font_size::CAPTION)
-                .style(style::text::subtle(t))
+                .size(type_scale::CAPTION.size)
+                .color(t.palette.text_muted)
                 .into(),
         );
-        parts.push(
-            row![
-                guarded(
-                    v,
-                    field(t, &tr.t(Key::BoardUnblockNote), &dialog.note)
-                        .on_input(|text| msg(Msg::Note(text)))
-                        .on_submit(msg(Msg::Unblock)),
-                ),
-                button::secondary(t, tr.t(Key::BoardUnblock)).on_press(msg(Msg::Unblock)),
-            ]
-            .spacing(space::MD)
-            .into(),
-        );
+        parts.push(guarded(
+            v,
+            field(t, &tr.t(Key::BoardUnblockNote), &dialog.note)
+                .on_input(|text| msg(Msg::Note(text)))
+                .on_submit(msg(Msg::Unblock)),
+        ));
     } else if dialog.blocking {
         parts.push(label(
             t,
@@ -1107,24 +1562,25 @@ fn block_section<'a>(v: &View<'a>, dialog: &'a Dialog, task: &'a T) -> Element<'
             .spacing(space::MD)
             .into(),
         );
-    } else {
-        parts.push(
-            button::secondary(t, tr.t(Key::BoardBlock))
-                .icon(Icon::Pause)
-                .small()
-                .on_press(msg(Msg::StartBlock))
-                .into(),
-        );
     }
     if let Some(error) = &dialog.error {
         parts.push(
             text(error.as_str())
-                .size(font_size::BODY)
-                .style(style::text::danger(t))
+                .size(type_scale::SMALL.size)
+                .color(t.palette.status.failed)
                 .into(),
         );
     }
-    column(parts).spacing(space::MD).into()
+    if parts.is_empty() {
+        return None;
+    }
+    Some(
+        container(column(parts).spacing(space::MD))
+            .padding([space::LG, space::XL])
+            .width(Length::Fill)
+            .style(look::blocked_inset(t))
+            .into(),
+    )
 }
 
 /// The tasks this one waits on, with the way to add and to drop one. A
@@ -1236,63 +1692,48 @@ fn dependencies<'a>(v: &View<'a>, dialog: &'a Dialog, task: Option<&'a T>) -> El
 fn thread<'a>(v: &View<'a>, dialog: &'a Dialog, task: &'a T) -> Element<'a, Message> {
     let t = v.t();
     let tr = v.ctx.i18n;
-    let heading = label(
-        t,
-        tr.t(Key::TaskThread),
-        Some(tr.t(Key::TaskThreadHint).into_owned()),
-    );
 
     let messages: Element<'a, Message> = if task.comments.is_empty() {
-        container(
-            text(tr.t(Key::TaskNoComments))
-                .size(font_size::UI)
-                .style(style::text::subtle(t)),
-        )
-        .padding(space::XL)
-        .width(Length::Fill)
-        .style(style::container::well(t))
-        .into()
+        text(tr.t(Key::TaskNoComments))
+            .size(type_scale::SMALL.size)
+            .color(t.palette.text_muted)
+            .into()
     } else {
-        let mut list = column![];
-        for (n, entry) in task.comments.iter().enumerate() {
-            if n > 0 {
-                list = list.push(rule::horizontal(1).style(style::rule::hairline(t)));
-            }
-            list = list.push(
-                container(
-                    column![
-                        row![
-                            text(entry.author.as_str())
-                                .size(font_size::UI)
-                                .font(fonts::ui_semibold()),
-                            Space::new().width(Length::Fill),
-                            text(when(entry.created_at, tr.locale(), DateStyle::Short))
-                                .size(font_size::LABEL)
-                                .font(fonts::mono())
-                                .style(style::text::subtle(t)),
-                        ]
-                        .align_y(Alignment::Center),
-                        text(entry.text.as_str())
-                            .size(font_size::UI_LG)
-                            .wrapping(text::Wrapping::WordOrGlyph),
+        let list = column(task.comments.iter().map(|entry| {
+            let at = time_today(entry.created_at, v.now as u64, tr.locale())
+                .unwrap_or_else(|| when(entry.created_at, tr.locale(), DateStyle::Short));
+            container(
+                column![
+                    row![
+                        text(entry.author.as_str())
+                            .size(type_scale::CAPTION.size)
+                            .font(fonts::ui_semibold()),
+                        text(at)
+                            .size(type_scale::LABEL.size)
+                            .font(fonts::mono())
+                            .color(t.palette.text_muted),
                     ]
-                    .spacing(3.0),
-                )
-                .padding(Padding {
-                    top: 9.0,
-                    right: space::XL,
-                    bottom: space::LG,
-                    left: space::XL,
-                }),
-            );
-        }
+                    .spacing(space::MD)
+                    .align_y(Alignment::Center),
+                    text(entry.text.as_str())
+                        .size(type_scale::SMALL.size)
+                        .color(t.palette.text_secondary)
+                        .wrapping(text::Wrapping::WordOrGlyph),
+                ]
+                .spacing(space::XS),
+            )
+            .padding([space::LG, space::XL])
+            .width(Length::Fill)
+            .style(look::comment(t))
+            .into()
+        }))
+        .spacing(space::MD);
         container(
             scrollable(list.width(Length::Fill))
                 .id(THREAD)
                 .style(style::scrollable::default(t)),
         )
         .max_height(look::THREAD_MAX_HEIGHT)
-        .style(style::container::well(t))
         .into()
     };
 
@@ -1304,19 +1745,14 @@ fn thread<'a>(v: &View<'a>, dialog: &'a Dialog, task: &'a T) -> Element<'a, Mess
                 .on_submit(msg(Msg::Send)),
         ),
         button::secondary(t, tr.t(Key::TaskSend))
+            .icon(Icon::Send)
+            .size(button::Size::Large)
             .on_press_maybe((!dialog.comment.trim().is_empty()).then(|| msg(Msg::Send))),
     ]
-    .spacing(space::MD);
-
-    column![
-        rule::horizontal(1).style(style::rule::hairline(t)),
-        Space::new().height(space::XS),
-        heading,
-        messages,
-        compose
-    ]
     .spacing(space::MD)
-    .into()
+    .align_y(Alignment::Center);
+
+    column![messages, compose].spacing(space::MD).into()
 }
 
 #[cfg(test)]

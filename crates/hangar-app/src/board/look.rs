@@ -8,25 +8,33 @@
 //! `theme.colors`.
 
 use hangar_theme::Theme;
-use hangar_theme::tokens::{BORDER_WIDTH, radius};
-use iced::widget::{button, container, text_input};
+use hangar_theme::tokens::{BORDER_WIDTH, radius, scale};
+use iced::widget::{button, container, text_editor, text_input};
 use iced::{Background, Border, Color, Shadow, Vector};
 
 /// The dot that marks a column (`.column__mark`) and a task dialog's header.
-pub const MARK: f32 = 8.0;
+pub const MARK: f32 = 12.0;
 /// The mark in the task dialog's header.
 pub const MARK_LARGE: f32 = 9.0;
-/// The widest a column grows in the full board (`minmax(0, 360px)`).
-pub const COLUMN_MAX_WIDTH: f32 = 360.0;
-/// Under this width the full board stacks its columns (`@container (max-width: 640px)`).
-pub const STACK_BELOW: f32 = 640.0;
-/// Under this width the MCP button loses its words (`@container (max-width: 900px)`).
-pub const COMPACT_BELOW: f32 = 900.0;
-/// A bar of the full board, and of the dock (`.board__bar`).
-pub const BAR_HEIGHT: f32 = 44.0;
+/// Under this width the full board's columns scroll sideways (`ecrans.md` §4,
+/// « Place qui manque »), none of them narrower than [`COLUMN_MIN`].
+pub const SCROLL_BELOW: f32 = 1180.0;
+pub const COLUMN_MIN: f32 = 260.0;
+/// Between two columns, and the room around them.
+pub const COLUMN_GAP: f32 = 12.0;
+pub const PAGE_PADDING: (f32, f32) = (12.0, 16.0);
+/// A task's sheet (`ecrans.md` §4, 04b): its width, the room under which it
+/// takes the whole content, its head and the column of its properties' names.
+pub const SHEET_WIDTH: f32 = 520.0;
+pub const SHEET_FULL_BELOW: f32 = 960.0;
+pub const SHEET_HEAD: f32 = 48.0;
+pub const PROPERTY_LABEL: f32 = 136.0;
+/// A card's padding, across.
+pub const CARD_PADDING: f32 = 12.0;
+/// The dock's bar (`.board__bar`).
 pub const DOCK_BAR_HEIGHT: f32 = 30.0;
 /// A column's header (`.column__head`), and the dock's.
-pub const COLUMN_HEAD: f32 = 34.0;
+pub const COLUMN_HEAD: f32 = 36.0;
 pub const DOCK_COLUMN_HEAD: f32 = 28.0;
 /// The dock's grip: the area that takes the pointer, and the line it draws.
 pub const GRIP_WIDTH: f32 = 5.0;
@@ -66,16 +74,6 @@ pub fn alpha(color: Color, alpha: f32) -> Color {
     Color { a: alpha, ..color }
 }
 
-/// `color-mix(in srgb, tint amount%, base)`.
-pub fn mix(base: Color, tint: Color, amount: f32) -> Color {
-    Color {
-        r: base.r + (tint.r - base.r) * amount,
-        g: base.g + (tint.g - base.g) * amount,
-        b: base.b + (tint.b - base.b) * amount,
-        a: base.a + (tint.a - base.a) * amount,
-    }
-}
-
 fn hairline(color: Color, radius: f32) -> Border {
     Border {
         color,
@@ -91,17 +89,6 @@ fn rounded(radius: f32) -> Border {
     }
 }
 
-/// What the columns sit on: the terminal's own colour on a dark theme, where
-/// the cards are lifted off it; the grey desk on a light one, where the cards
-/// are the white sheets (`light-dark(var(--surface), var(--bg))`).
-pub fn floor(t: &Theme) -> Color {
-    if t.is_dark() {
-        t.colors.bg
-    } else {
-        t.colors.surface
-    }
-}
-
 /// The board itself (`.board`): the page; in the dock, the chrome's colour,
 /// like the inspector.
 pub fn surface(t: &Theme, in_dock: bool) -> impl Fn(&iced::Theme) -> container::Style + '_ {
@@ -109,82 +96,178 @@ pub fn surface(t: &Theme, in_dock: bool) -> impl Fn(&iced::Theme) -> container::
         background: Some(Background::Color(if in_dock {
             t.colors.chrome
         } else {
-            t.colors.bg
+            t.palette.bg
         })),
-        text_color: Some(t.colors.fg),
+        text_color: Some(t.palette.text),
         ..container::Style::default()
     }
 }
 
-/// A column. The one a dragged card would land in is tinted with the accent
-/// and ringed (`.column--over`).
+/// A column: `deep` in a hairline, corners of 12. The one a dragged card
+/// would land in takes the selection's fill and the accent's hairline.
 pub fn column(
     t: &Theme,
     over: bool,
     in_dock: bool,
 ) -> impl Fn(&iced::Theme) -> container::Style + '_ {
     move |_| {
-        let c = &t.colors;
-        if over {
-            return container::Style {
-                background: Some(Background::Color(mix(floor(t), c.accent, 0.07))),
-                border: hairline(c.accent_ring, radius::NONE),
-                text_color: Some(c.fg),
-                ..container::Style::default()
-            };
-        }
+        let p = &t.palette;
+        // The dock's columns are sections on the panel, not columns.
+        let round = if in_dock {
+            radius::NONE
+        } else {
+            scale::radius::LG
+        };
+        let (background, line) = if over {
+            (Some(p.selection_bg), p.accent)
+        } else if in_dock {
+            (None, Color::TRANSPARENT)
+        } else {
+            (Some(t.deep()), p.border)
+        };
         container::Style {
-            // The dock's columns are sections on the panel, not columns.
-            background: (!in_dock).then(|| Background::Color(floor(t))),
-            text_color: Some(c.fg),
+            background: background.map(Background::Color),
+            border: hairline(line, round),
+            text_color: Some(p.text),
             ..container::Style::default()
         }
     }
 }
 
-/// A card's states (`.card--done`, `--onhold`, `--dragging`).
+/// A card's states: under the pointer, open in the task's sheet, or being
+/// dragged.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct CardLook {
-    pub done: bool,
-    pub on_hold: bool,
+    pub hovered: bool,
+    pub selected: bool,
     pub dragging: bool,
 }
 
-/// A card: lifted off the column, a hairline around it. Finished work recedes
-/// (no fill), a task on hold is a little quieter, and the one being dragged is
-/// dimmed to 40 %.
+/// A card: `surface` in a hairline, corners of 8. Under the pointer it is
+/// raised; the one whose sheet is open has the selection's fill and the
+/// accent around it; the one being dragged is dimmed to 40 %.
 pub fn card(t: &Theme, look: CardLook) -> impl Fn(&iced::Theme) -> container::Style + '_ {
     move |_| {
-        let c = &t.colors;
-        let fade = if look.dragging {
-            0.4
-        } else if look.on_hold {
-            0.85
+        let p = &t.palette;
+        let (fill, line) = if look.selected {
+            (p.selection_bg, p.accent)
+        } else if look.hovered {
+            (p.surface_raised, p.border_strong)
         } else {
-            1.0
+            (p.surface, p.border)
         };
-        let fill = (!look.done).then(|| Background::Color(alpha(c.card, c.card.a * fade)));
+        let fade = if look.dragging { 0.4 } else { 1.0 };
         container::Style {
-            background: fill,
-            border: hairline(alpha(c.line, c.line.a * fade), radius::LG),
+            background: Some(Background::Color(alpha(fill, fill.a * fade))),
+            border: hairline(alpha(line, line.a * fade), scale::radius::MD),
             shadow: Shadow::default(),
-            text_color: Some(alpha(c.fg, fade)),
+            text_color: Some(alpha(p.text, fade)),
             ..container::Style::default()
         }
     }
 }
 
-/// The wash over a card under the pointer.
-pub fn card_hover(t: &Theme) -> Color {
-    alpha(t.colors.fg, 0.04)
-}
-
-/// A label on a card (`.chip`).
+/// A label on a card (`.chip`): `surfaceRaised` in a hairline, corners of 4.
 pub fn chip(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
     move |_| container::Style {
-        background: Some(Background::Color(t.colors.line)),
-        border: rounded(radius::XS),
-        text_color: Some(t.colors.fg_secondary),
+        background: Some(Background::Color(t.palette.surface_raised)),
+        border: hairline(t.palette.border, scale::radius::XS),
+        text_color: Some(t.palette.text_secondary),
+        ..container::Style::default()
+    }
+}
+
+/// Why a card waits for a person: an inset in `surfaceSunken`.
+pub fn blocked_inset(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
+    move |_| container::Style {
+        background: Some(Background::Color(t.palette.surface_sunken)),
+        border: hairline(t.palette.border, scale::radius::SM),
+        text_color: Some(t.palette.text),
+        ..container::Style::default()
+    }
+}
+
+/// The agent's name on a card: a link with nothing around it until it is
+/// pointed at.
+pub fn name_link(t: &Theme) -> impl Fn(&iced::Theme, button::Status) -> button::Style + '_ {
+    move |_, status| {
+        let p = &t.palette;
+        let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
+        button::Style {
+            background: hovered.then_some(Background::Color(p.hover_overlay)),
+            text_color: p.text,
+            border: rounded(scale::radius::XS),
+            shadow: Shadow::default(),
+            ..button::Style::default()
+        }
+    }
+}
+
+/// A task's sheet: `surface`, with the modal's shadow. Its left edge is a
+/// rule of its own, which a container's border cannot be.
+pub fn sheet(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
+    move |_| container::Style {
+        background: Some(Background::Color(t.palette.surface)),
+        text_color: Some(t.palette.text),
+        shadow: Shadow {
+            color: t.colors.shadow,
+            offset: Vector::new(0.0, 24.0),
+            blur_radius: 64.0,
+        },
+        ..container::Style::default()
+    }
+}
+
+/// The sheet's badge of the task's column: a pill on the selection's fill.
+pub fn state_pill(t: &Theme) -> impl Fn(&iced::Theme, button::Status) -> button::Style + '_ {
+    move |_, status| {
+        let p = &t.palette;
+        let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
+        button::Style {
+            background: Some(Background::Color(p.selection_bg)),
+            text_color: p.accent_text,
+            border: hairline(
+                if hovered {
+                    p.selection_border
+                } else {
+                    Color::TRANSPARENT
+                },
+                scale::radius::PILL,
+            ),
+            shadow: Shadow::default(),
+            ..button::Style::default()
+        }
+    }
+}
+
+/// The sheet's title: written as a heading, with a frame only once it has the
+/// keyboard.
+pub fn heading_field(
+    t: &Theme,
+) -> impl Fn(&iced::Theme, text_editor::Status) -> text_editor::Style + '_ {
+    move |_, status| {
+        let p = &t.palette;
+        let line = match status {
+            text_editor::Status::Focused { .. } => p.focus_ring,
+            text_editor::Status::Hovered => p.border_strong,
+            _ => Color::TRANSPARENT,
+        };
+        text_editor::Style {
+            background: Background::Color(Color::TRANSPARENT),
+            border: hairline(line, scale::radius::SM),
+            placeholder: p.text_muted,
+            value: p.text,
+            selection: p.selection_border.scale_alpha(0.45),
+        }
+    }
+}
+
+/// A comment in the sheet: a card of its own.
+pub fn comment(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
+    move |_| container::Style {
+        background: Some(Background::Color(t.palette.surface)),
+        border: hairline(t.palette.border, scale::radius::MD),
+        text_color: Some(t.palette.text),
         ..container::Style::default()
     }
 }
@@ -200,62 +283,6 @@ pub fn mark(column: super::model::Column) -> hangar_ui::glyph::GlyphState {
         Column::Doing => GlyphState::Working,
         Column::Review => GlyphState::Yours,
         Column::Done => GlyphState::Completed,
-    }
-}
-
-/// A filter's button (`.board-filter__button`): a tint with a hairline, and
-/// the accent when the filter hides cards, so it is seen from across the room
-/// and never mistaken for the whole board.
-pub fn filter_button(
-    t: &Theme,
-    active: bool,
-) -> impl Fn(&iced::Theme, button::Status) -> button::Style + '_ {
-    move |_, status| {
-        let c = &t.colors;
-        let (background, ring, text) = if active {
-            (c.accent_soft, c.accent_ring, c.accent_hi)
-        } else {
-            let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
-            (if hovered { c.line_strong } else { c.line }, c.line, c.fg)
-        };
-        button::Style {
-            background: Some(Background::Color(background)),
-            text_color: text,
-            border: hairline(ring, radius::MD),
-            shadow: Shadow::default(),
-            ..button::Style::default()
-        }
-    }
-}
-
-/// The "Clear" next to the filters (`.board__clear`): the accent as text,
-/// a wash of it under the pointer.
-pub fn clear_button(t: &Theme) -> impl Fn(&iced::Theme, button::Status) -> button::Style + '_ {
-    move |_, status| {
-        let c = &t.colors;
-        let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
-        button::Style {
-            background: hovered.then_some(Background::Color(c.accent_soft)),
-            text_color: c.accent_hi,
-            border: rounded(radius::MD),
-            shadow: Shadow::default(),
-            ..button::Style::default()
-        }
-    }
-}
-
-/// The quiet words-and-icon button of the bar (`.board__mcp`).
-pub fn quiet_button(t: &Theme) -> impl Fn(&iced::Theme, button::Status) -> button::Style + '_ {
-    move |_, status| {
-        let c = &t.colors;
-        let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
-        button::Style {
-            background: hovered.then_some(Background::Color(c.line)),
-            text_color: if hovered { c.fg_muted } else { c.fg_subtle },
-            border: rounded(radius::MD),
-            shadow: Shadow::default(),
-            ..button::Style::default()
-        }
     }
 }
 
@@ -348,9 +375,9 @@ pub fn toast(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
 pub fn prio_bar(t: &Theme, lit: bool) -> impl Fn(&iced::Theme) -> container::Style + '_ {
     move |_| container::Style {
         background: Some(Background::Color(if lit {
-            t.colors.fg_muted
+            t.palette.text_muted
         } else {
-            t.colors.line_strong
+            t.palette.border_strong
         })),
         border: rounded(1.0),
         ..container::Style::default()

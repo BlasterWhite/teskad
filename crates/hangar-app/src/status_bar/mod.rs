@@ -338,109 +338,38 @@ pub fn on_event(
     None
 }
 
-/// Region `status`: the broadcast input and the bar's readouts.
+/// Region `status`: the broadcast input and the bar's readouts over the
+/// terminals; the folder, the agents' news and the readouts elsewhere.
 pub fn view<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
     // The workspace this window draws: a workspace window's own, never the
     // main window's active one.
     let Some(ws) = ctx.workspace() else {
         return Space::new().into();
     };
+    if !broadcasts(ctx, ws) {
+        return info(st, ctx, ws);
+    }
     let t = ctx.theme;
-    let tr = ctx.i18n;
-    let pane_count = ws.panes.len();
 
-    let sending = broadcasts(ctx, ws);
-    let lead: Element<'a, Message> = if sending {
-        broadcast(st, ctx, ws)
-    } else {
-        info(ctx, ws)
-    };
-
-    // The repository, the dictation keys, the panes: what is true of the whole
-    // workspace, mono and quiet.
     let mut items = row![].spacing(2).align_y(Alignment::Center);
-    if let Some(Some(repo)) = st.repos.get(&ws.cwd) {
-        let root = repo.root.as_deref().unwrap_or(&ws.cwd);
-        let hint = match &repo.branch {
-            Some(branch) => tr.t_with(
-                Key::StatusBranch,
-                &args!("branch" => branch.as_str(), "root" => root),
-            ),
-            None => tr.t_with(
-                Key::StatusDetached,
-                &args!("head" => repo.head.as_deref().unwrap_or("?"), "root" => root),
-            ),
-        };
-        let name = repo
-            .branch
-            .as_deref()
-            .or(repo.head.as_deref())
-            .unwrap_or("");
-        let mut item = row![
-            icon(Icon::Branch, 13.0),
-            text(name.to_string())
-                .size(font_size::LABEL)
-                .font(fonts::mono()),
-        ]
-        .spacing(5)
-        .align_y(Alignment::Center);
-        if repo.is_linked_worktree {
-            item = item.push(
-                container(
-                    text(tr.t(Key::StatusWorktree).into_owned())
-                        .size(font_size::MICRO)
-                        .font(fonts::mono()),
-                )
-                .padding([0.0, 4.0])
-                .style(style::container::tag(t)),
-            );
-        }
-        items = items.push(tip::over(t, readout(t, item), hint.into_owned()));
-    }
-    let dictate = if ctx.model.settings().voice_enabled {
-        reads::binding(&ctx, CommandId::VoiceDictate)
-    } else {
-        String::new()
-    };
-    if !dictate.is_empty() {
-        let shown = hangar_ui::shortcut::format_binding(&dictate);
-        let item = row![
-            icon(Icon::Mic, 13.0),
-            text(shown.clone())
-                .size(font_size::LABEL)
-                .font(fonts::mono()),
-        ]
-        .spacing(5)
-        .align_y(Alignment::Center);
-        items = items.push(tip::over(
-            t,
-            readout(t, item),
-            tr.t_with(Key::StatusDictate, &args!("keys" => shown))
-                .into_owned(),
-        ));
-    }
     // Under the broadcast field the count is words alone, as in the mockup.
-    let mut panes = row![].spacing(5).align_y(Alignment::Center);
-    if !sending {
-        panes = panes.push(icon(Icon::Layout4, 13.0));
+    for item in [
+        branch(st, ctx, ws),
+        dictation(ctx),
+        Some(panes(ctx, ws, false)),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        items = items.push(item.element);
     }
-    panes = panes.push(
-        text(tr.tn(Key::StatusPanes, pane_count, &[]).into_owned())
-            .size(font_size::LABEL)
-            .font(fonts::mono()),
-    );
-    items = items.push(tip::over(
-        t,
-        readout(t, panes),
-        tr.t(Key::StatusPanesHint).into_owned(),
-    ));
 
     let right = row![
         container(Space::new())
             .width(1)
             .height(18)
             .style(move |_: &iced::Theme| container::Style {
-                background: Some(iced::Background::Color(t.colors.line)),
+                background: Some(iced::Background::Color(t.palette.border)),
                 ..container::Style::default()
             }),
         items,
@@ -448,7 +377,7 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
     .spacing(space::SM)
     .align_y(Alignment::Center);
 
-    row![lead, right]
+    row![broadcast(st, ctx, ws), right]
         .spacing(space::LG)
         .padding(Padding {
             top: 0.0,
@@ -461,6 +390,126 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
         .into()
 }
 
+/// The size of the bar's words: mono, quiet.
+const WORDS: f32 = font_size::MICRO;
+/// A readout's padding on each side, the side of its icon and the gap after
+/// it.
+const PAD: f32 = 7.0;
+const ICON: f32 = 13.0;
+const GAP: f32 = 5.0;
+/// The bar's own padding and the gap between the folder and the readouts.
+const EDGE: f32 = 8.0;
+/// Under this room the folder says too little to be worth showing.
+const FOLDER_ROOM: f32 = 96.0;
+
+/// One readout of the right-hand side, and how wide it is drawn.
+struct Item<'a> {
+    element: Element<'a, Message>,
+    width: f32,
+}
+
+/// How wide `words` are with an icon before them, in a readout.
+fn item_width(words: &str) -> f32 {
+    2.0 * PAD + ICON + GAP + tail::path_width(words, WORDS)
+}
+
+fn mono<'a>(words: String) -> iced::widget::Text<'a> {
+    text(words)
+        .size(WORDS)
+        .font(fonts::mono())
+        .wrapping(text::Wrapping::None)
+}
+
+/// The branch the workspace folder is on, if it is in a repository.
+fn branch<'a>(st: &State, ctx: Ctx<'a>, ws: &'a crate::state::Workspace) -> Option<Item<'a>> {
+    let t = ctx.theme;
+    let tr = ctx.i18n;
+    let repo = st.repos.get(&ws.cwd)?.as_ref()?;
+    let root = repo.root.as_deref().unwrap_or(&ws.cwd);
+    let hint = match &repo.branch {
+        Some(branch) => tr.t_with(
+            Key::StatusBranch,
+            &args!("branch" => branch.as_str(), "root" => root),
+        ),
+        None => tr.t_with(
+            Key::StatusDetached,
+            &args!("head" => repo.head.as_deref().unwrap_or("?"), "root" => root),
+        ),
+    };
+    let name = repo
+        .branch
+        .as_deref()
+        .or(repo.head.as_deref())
+        .unwrap_or("")
+        .to_string();
+    let mut width = item_width(&name);
+    let mut item = row![icon(Icon::Branch, ICON), mono(name)]
+        .spacing(GAP)
+        .align_y(Alignment::Center);
+    if repo.is_linked_worktree {
+        let word = tr.t(Key::StatusWorktree).into_owned();
+        width += GAP + 8.0 + tail::path_width(&word, WORDS);
+        item = item.push(
+            container(mono(word))
+                .padding([0.0, 4.0])
+                .style(style::container::tag(t)),
+        );
+    }
+    Some(Item {
+        element: tip::over(t, readout(t, item), hint.into_owned()),
+        width,
+    })
+}
+
+/// The keys that dictate into the focused pane, while the voice is on.
+fn dictation<'a>(ctx: Ctx<'a>) -> Option<Item<'a>> {
+    let t = ctx.theme;
+    if !ctx.model.settings().voice_enabled {
+        return None;
+    }
+    let dictate = reads::binding(&ctx, CommandId::VoiceDictate);
+    if dictate.is_empty() {
+        return None;
+    }
+    let shown = hangar_ui::shortcut::format_binding(&dictate);
+    let item = row![icon(Icon::Mic, ICON), mono(shown.clone())]
+        .spacing(GAP)
+        .align_y(Alignment::Center);
+    Some(Item {
+        width: item_width(&shown),
+        element: tip::over(
+            t,
+            readout(t, item),
+            ctx.i18n
+                .t_with(Key::StatusDictate, &args!("keys" => shown.as_str()))
+                .into_owned(),
+        ),
+    })
+}
+
+/// How many panes the workspace has, with their icon when `marked`.
+fn panes<'a>(ctx: Ctx<'a>, ws: &'a crate::state::Workspace, marked: bool) -> Item<'a> {
+    let t = ctx.theme;
+    let words = ctx
+        .i18n
+        .tn(Key::StatusPanes, ws.panes.len(), &[])
+        .into_owned();
+    let width = item_width(&words);
+    let mut line = row![].spacing(GAP).align_y(Alignment::Center);
+    if marked {
+        line = line.push(icon(Icon::Layout4, ICON));
+    }
+    line = line.push(mono(words));
+    Item {
+        element: tip::over(
+            t,
+            readout(t, line),
+            ctx.t(Key::StatusPanesHint).into_owned(),
+        ),
+        width,
+    }
+}
+
 /// A readout of the right-hand side: padded, muted.
 fn readout<'a>(
     t: &'a hangar_theme::Theme,
@@ -471,7 +520,7 @@ fn readout<'a>(
         .padding([0.0, 7.0])
         .align_y(Alignment::Center)
         .style(move |_: &iced::Theme| container::Style {
-            text_color: Some(t.colors.fg_secondary),
+            text_color: Some(t.palette.text_muted),
             ..container::Style::default()
         })
         .into()
@@ -604,74 +653,165 @@ fn field_style(t: &hangar_theme::Theme) -> impl Fn(&iced::Theme) -> container::S
     }
 }
 
-/// The folder, and how the workspace's agents are doing, for every view but
-/// the terminals.
-fn info<'a>(ctx: Ctx<'a>, ws: &'a crate::state::Workspace) -> Element<'a, Message> {
+/// The agents' news: what needs the person first, as the navigator's row
+/// orders it. It leads to the first pane in that state, in reading order;
+/// with no agent at work there is nowhere to go.
+fn news<'a>(ctx: Ctx<'a>, ws: &'a crate::state::Workspace) -> Item<'a> {
     let t = ctx.theme;
     let tr = ctx.i18n;
     let counts = reads::counts(ctx.model, ws);
-    // Same order as the navigator's row: what needs you first.
-    let (kind, summary) = if counts.waiting > 0 {
+    let found = [
         (
-            Some(AgentActivity::Waiting),
-            tr.tn(Key::SidebarActivityWaiting, counts.waiting, &[]),
-        )
-    } else if counts.yours > 0 {
+            AgentActivity::Waiting,
+            counts.waiting,
+            Key::SidebarActivityWaiting,
+        ),
         (
-            Some(AgentActivity::Yours),
-            tr.tn(Key::SidebarActivityYours, counts.yours, &[]),
-        )
-    } else if counts.working > 0 {
+            AgentActivity::Yours,
+            counts.yours,
+            Key::SidebarActivityYours,
+        ),
         (
-            Some(AgentActivity::Working),
-            tr.tn(Key::SidebarActivityWorking, counts.working, &[]),
-        )
-    } else {
-        (None, tr.t(Key::ToolbarActivityQuiet))
-    };
-    let summary: Element<'a, Message> = match kind {
-        Some(kind) => row![
-            hangar_ui::glyph::state(t, reads::activity_glyph(kind), 7.0),
-            text(summary.into_owned())
-                .size(font_size::UI)
-                .style(skin::state_text(t, kind)),
-        ]
-        .spacing(space::SM)
-        .align_y(Alignment::Center)
-        .into(),
-        None => text(summary.into_owned())
-            .size(font_size::UI)
-            .style(style::text::secondary(t))
-            .into(),
-    };
-
-    let cwd = ws.cwd.as_str();
-    let path = responsive(move |bounds| {
-        let shown = tail::fit(cwd, bounds.width, |s| {
-            tail::path_width(s, font_size::CAPTION)
-        });
-        text(shown)
-            .size(font_size::CAPTION)
-            .font(fonts::mono())
-            .wrapping(text::Wrapping::None)
-            .style(style::text::secondary(t))
-            .into()
-    });
-    let path = tip::over(
-        t,
-        container(path).width(Length::Fill).height(18),
-        cwd.to_string(),
-    );
-
-    row![
-        icon(Icon::Folder, 15.0).color(t.colors.fg_muted),
-        path,
-        text("·").size(font_size::UI).style(style::text::subtle(t)),
-        summary,
+            AgentActivity::Working,
+            counts.working,
+            Key::SidebarActivityWorking,
+        ),
     ]
-    .spacing(space::SM)
-    .align_y(Alignment::Center)
-    .width(Length::Fill)
+    .into_iter()
+    .find(|(_, count, _)| *count > 0);
+    let Some((kind, count, key)) = found else {
+        let words = tr.t(Key::ToolbarActivityQuiet).into_owned();
+        return Item {
+            width: 2.0 * PAD + tail::path_width(&words, WORDS),
+            element: readout(t, mono(words)),
+        };
+    };
+    let words = tr.tn(key, count, &[]).into_owned();
+    let width = item_width(&words);
+    let line = row![
+        hangar_ui::glyph::state(t, reads::activity_glyph(kind), 8.0),
+        mono(words).style(skin::state_text(t, kind)),
+    ]
+    .spacing(GAP + 1.0)
+    .align_y(Alignment::Center);
+    let first = reads::agents_in(ctx.model, &[ws], kind)
+        .first()
+        .map(|(_, pane)| (pane.id.clone(), pane.name.clone()));
+    let Some((pane, name)) = first else {
+        return Item {
+            element: readout(t, line),
+            width,
+        };
+    };
+    let go = Message::Intent(Intent::FocusPane {
+        ws: ws.id.clone(),
+        pane,
+        terminal: true,
+    });
+    let face = iced::widget::button(container(line).center_y(Length::Fill))
+        .height(24)
+        .padding([0.0, PAD])
+        .style(style::button::ghost(t))
+        .on_press(go.clone());
+    let face = hangar_ui::focus::ring(t, face)
+        .radius(tokens::scale::radius::SM)
+        .on_activate(go);
+    Item {
+        element: tip::over(
+            t,
+            face,
+            tr.t_with(Key::BoardFocusAgent, &args!("name" => name.as_str()))
+                .into_owned(),
+        ),
+        width,
+    }
+}
+
+/// What a bar `room` wide has room for besides the agents' news, which always
+/// stays: the panes, then the branch, then the dictation keys, then the
+/// folder, which is the first to go (`ecrans.md`, « Place qui manque »).
+/// Each is `true` when it is shown, in that order.
+fn kept(room: f32, news: f32, rest: [Option<f32>; 3]) -> ([bool; 3], bool) {
+    let mut used = 2.0 * EDGE + news;
+    let mut shown = [false; 3];
+    for (at, width) in rest.into_iter().enumerate() {
+        let Some(width) = width else {
+            continue;
+        };
+        if used + width > room {
+            return (shown, false);
+        }
+        used += width;
+        shown[at] = true;
+    }
+    (shown, used + EDGE + FOLDER_ROOM <= room)
+}
+
+/// The bar of every view but the terminals: the folder, the agents' news, the
+/// branch and the panes.
+fn info<'a>(st: &'a State, ctx: Ctx<'a>, ws: &'a crate::state::Workspace) -> Element<'a, Message> {
+    responsive(move |bounds| {
+        let t = ctx.theme;
+        let news = news(ctx, ws);
+        let panes = panes(ctx, ws, true);
+        let branch = branch(st, ctx, ws);
+        let dictation = dictation(ctx);
+        let ([panes_fit, branch_fits, dictation_fits], folder_fits) = kept(
+            bounds.width,
+            news.width,
+            [
+                Some(panes.width),
+                branch.as_ref().map(|item| item.width),
+                dictation.as_ref().map(|item| item.width),
+            ],
+        );
+
+        let mut line = row![].align_y(Alignment::Center);
+        if folder_fits {
+            let cwd = ws.cwd.as_str();
+            let path = responsive(move |bounds| {
+                let shown = tail::fit(cwd, bounds.width, |s| tail::path_width(s, WORDS));
+                mono(shown)
+                    .style(move |_: &iced::Theme| text::Style {
+                        color: Some(t.palette.text_muted),
+                    })
+                    .into()
+            });
+            let path = tip::over(
+                t,
+                container(path).width(Length::Fill).height(15),
+                cwd.to_string(),
+            );
+            line = line.push(
+                row![icon(Icon::Folder, ICON).color(t.palette.text_muted), path]
+                    .spacing(space::SM)
+                    .align_y(Alignment::Center)
+                    .padding(Padding {
+                        left: PAD,
+                        right: PAD,
+                        ..Padding::ZERO
+                    })
+                    .width(Length::Fill),
+            );
+        } else {
+            line = line.push(Space::new().width(Length::Fill));
+        }
+        line = line.push(news.element);
+        if let Some(item) = branch.filter(|_| branch_fits) {
+            line = line.push(item.element);
+        }
+        if let Some(item) = dictation.filter(|_| dictation_fits) {
+            line = line.push(item.element);
+        }
+        if panes_fit {
+            line = line.push(panes.element);
+        }
+        container(line)
+            .padding([0.0, EDGE])
+            .height(Length::Fill)
+            .align_y(Alignment::Center)
+            .into()
+    })
     .into()
 }
 

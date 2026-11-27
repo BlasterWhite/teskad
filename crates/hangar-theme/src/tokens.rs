@@ -142,8 +142,8 @@ pub mod size {
     /// The toolbar and the navigator's top row, level so the window reads as
     /// one band.
     pub const TOOLBAR_HEIGHT: f32 = 44.0;
-    /// The status bar, as tall as the navigator's bottom bar.
-    pub const STATUS_BAR_HEIGHT: f32 = 36.0;
+    /// The status bar (`ecrans.md`, « Barre d'état »).
+    pub const STATUS_BAR_HEIGHT: f32 = 32.0;
     /// A workspace in the navigator (`--nav-row`).
     pub const NAV_ROW_HEIGHT: f32 = 28.0;
     /// A button, a field, a segmented control.

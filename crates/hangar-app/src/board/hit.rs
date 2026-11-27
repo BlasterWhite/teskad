@@ -44,6 +44,8 @@ pub struct Look {
     pub hover: Option<Color>,
     /// The ring around it while it has the keyboard.
     pub ring: Option<Color>,
+    /// How far off the content the ring is drawn: 0 draws it on the edge.
+    pub ring_offset: f32,
     /// Corner radius of both.
     pub radius: f32,
     /// The wash and the ring stop this far in from the sides.
@@ -55,6 +57,7 @@ impl Default for Look {
         Look {
             hover: None,
             ring: None,
+            ring_offset: 0.0,
             radius: 0.0,
             inset_x: 0.0,
         }
@@ -356,13 +359,19 @@ impl<M: Clone> Widget<M, iced::Theme, iced::Renderer> for Hit<'_, M> {
         if let Some(ring) = self.look.ring
             && state.focused
         {
+            let width = hangar_theme::tokens::FOCUS_RING_WIDTH;
+            let reach = if self.look.ring_offset > 0.0 {
+                self.look.ring_offset + width
+            } else {
+                0.0
+            };
             renderer.fill_quad(
                 Quad {
-                    bounds: shape,
+                    bounds: shape.expand(reach),
                     border: Border {
                         color: ring,
-                        width: hangar_theme::tokens::FOCUS_RING_WIDTH,
-                        radius: self.look.radius.into(),
+                        width,
+                        radius: (self.look.radius + reach).into(),
                     },
                     ..Quad::default()
                 },

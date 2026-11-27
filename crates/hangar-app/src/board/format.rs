@@ -145,6 +145,27 @@ pub fn when(ms: u64, locale: Locale, style: DateStyle) -> String {
     }
 }
 
+/// A moment as the person reads it when it may well be today's: its time of
+/// day alone when it falls on the same day as `now` (both ms since the
+/// epoch), else `None`.
+pub fn time_today(ms: u64, now: u64, locale: Locale) -> Option<String> {
+    let local = |ms: u64| {
+        i64::try_from(ms)
+            .ok()
+            .and_then(|ms| Local.timestamp_millis_opt(ms).single())
+    };
+    let (at, today) = (local(ms)?, local(now)?);
+    (at.date_naive() == today.date_naive()).then(|| render_time(at.naive_local(), locale))
+}
+
+fn render_time(at: NaiveDateTime, locale: Locale) -> String {
+    let pattern = match locale {
+        Locale::En => "%-I:%M %p",
+        Locale::Fr => "%H:%M",
+    };
+    at.format(pattern).to_string()
+}
+
 /// The time now, in ms since the epoch: what `Date.now()` was.
 pub fn now_ms() -> u64 {
     std::time::SystemTime::now()
@@ -178,6 +199,18 @@ mod tests {
             render_when(at, Locale::Fr, DateStyle::Full),
             "03/11/2026 14:05:09"
         );
+    }
+
+    #[test]
+    fn writes_a_time_of_day_only_for_today() {
+        let at = chrono::NaiveDate::from_ymd_opt(2026, 11, 3)
+            .and_then(|day| day.and_hms_opt(14, 5, 9))
+            .expect("a date");
+        assert_eq!(render_time(at, Locale::En), "2:05 PM");
+        assert_eq!(render_time(at, Locale::Fr), "14:05");
+        let now = now_ms();
+        assert!(time_today(now, now, Locale::Fr).is_some());
+        assert_eq!(time_today(now - 3 * 86_400_000, now, Locale::Fr), None);
     }
 
     #[test]

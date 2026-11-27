@@ -85,6 +85,14 @@ pub enum Pointer {
 pub struct State {
     filters: Filters,
     open_filter: Option<FilterKind>,
+    /// The one menu the three filters fold into in a narrow window.
+    filters_menu: bool,
+    /// The card under the pointer, by its board and task: it trades its
+    /// priority for the button that blocks or unblocks it.
+    hovered: Option<(String, String)>,
+    /// The task whose block form was asked for from its card, to open its
+    /// sheet on.
+    block_on_open: Option<String>,
     /// What is typed in the add field of each column of each board, not made a
     /// card yet. Keyed by the board's folder as well as the column: two
     /// windows can draw two boards at once, and a draft belongs to the board
@@ -115,6 +123,9 @@ impl Default for State {
         State {
             filters: Filters::default(),
             open_filter: None,
+            filters_menu: false,
+            hovered: None,
+            block_on_open: None,
             drafts: HashMap::new(),
             adding: None,
             folded: vec![Column::Todo, Column::Done],
@@ -127,6 +138,16 @@ impl Default for State {
             dialog: None,
             seed: None,
         }
+    }
+}
+
+impl State {
+    /// The task of the board in `cwd` whose sheet is open.
+    pub(super) fn open_task(&self, cwd: &str) -> Option<&str> {
+        self.dialog
+            .as_ref()
+            .filter(|dialog| dialog.cwd == cwd)
+            .and_then(|dialog| dialog.task.as_deref())
     }
 }
 
@@ -152,6 +173,8 @@ pub enum Msg {
 
     // The bars
     OpenFilter(Option<FilterKind>),
+    /// The folded filters' menu, open or shut.
+    FiltersMenu(bool),
     Filter(FilterKind, String),
     ClearFilters,
     ToggleFilterBar,
@@ -173,6 +196,13 @@ pub enum Msg {
     Fold(Column),
 
     // Cards
+    /// `(cwd, task)`: the pointer came over a card, or left it.
+    Hover(String, String),
+    Unhover(String, String),
+    /// `(cwd, task)`, from a card: its sheet with the block form open.
+    BlockTask(String, String),
+    /// `(cwd, task)`, from a card: the block is lifted.
+    UnblockTask(String, String),
     /// `(cwd, task, position)`.
     Press(String, String, Point),
     Pointer(Pointer),
@@ -216,6 +246,9 @@ impl Msg {
                 | Msg::OpenTask(..)
                 | Msg::Fold(_)
                 | Msg::OpenFilter(_)
+                | Msg::FiltersMenu(_)
+                | Msg::BlockTask(..)
+                | Msg::UnblockTask(..)
                 | Msg::Filter(..)
                 | Msg::ClearFilters
                 | Msg::ToggleFilterBar
@@ -458,9 +491,15 @@ fn handle(st: &mut State, m: &mut Model, msg: Msg) -> Task<Message> {
                 FilterKind::State => st.filters.state = value,
             }
             st.open_filter = None;
+            st.filters_menu = false;
+            Task::none()
+        }
+        Msg::FiltersMenu(open) => {
+            st.filters_menu = open;
             Task::none()
         }
         Msg::ClearFilters => {
+            st.filters_menu = false;
             st.filters.clear();
             Task::none()
         }
@@ -523,6 +562,39 @@ fn handle(st: &mut State, m: &mut Model, msg: Msg) -> Task<Message> {
         }
 
         // ---- Cards ------------------------------------------------------
+        Msg::Hover(cwd, id) => {
+            st.hovered = Some((cwd, id));
+            Task::none()
+        }
+        Msg::Unhover(cwd, id) => {
+            // The next card's "came over" may arrive before this "left".
+            if st
+                .hovered
+                .as_ref()
+                .is_some_and(|(at, task)| *at == cwd && *task == id)
+            {
+                st.hovered = None;
+            }
+            Task::none()
+        }
+        Msg::BlockTask(cwd, id) => {
+            st.block_on_open = Some(id.clone());
+            Task::done(Message::Intent(Intent::OpenTask {
+                cwd,
+                task: Some(id),
+            }))
+        }
+        Msg::UnblockTask(cwd, id) => actions::run(
+            &cwd,
+            Mutation::Update {
+                id,
+                edit: Edit::Unblock {
+                    note: String::new(),
+                },
+            },
+            Errors::Swallow,
+            After::Nothing,
+        ),
         Msg::Press(cwd, id, at) => {
             let Some(column) = task_named(m, &cwd, &id).and_then(Column::of) else {
                 return Task::none();
@@ -787,7 +859,21 @@ fn react(st: &mut State, m: &mut Model, intent: &Intent) -> Option<Task<Message>
                 }
                 return Some(opened);
             }
-            Some(task_dialog::opened(st, m, cwd, task.as_deref()))
+            let opened = task_dialog::opened(st, m, cwd, task.as_deref());
+            // Asked for by a card's "Block": the sheet opens on the form.
+            if let (Some(asked), Some(task)) = (st.block_on_open.clone(), task)
+                && asked == *task
+            {
+                st.block_on_open = None;
+                if let Some(dialog) = &mut st.dialog {
+                    dialog.start_block();
+                    return Some(Task::batch([
+                        opened,
+                        task_dialog::focus_soon(task_dialog::REASON_FIELD),
+                    ]));
+                }
+            }
+            Some(opened)
         }
         // The dialog is closed by the shell (Escape, its scrim) or by itself;
         // either way what was typed is saved, and the keyboard goes back.
@@ -805,6 +891,8 @@ fn react(st: &mut State, m: &mut Model, intent: &Intent) -> Option<Task<Message>
         // move do not outlive it.
         Intent::SetView(_) | Intent::OpenBoard(_) | Intent::ToggleDock | Intent::CloseDock => {
             st.open_filter = None;
+            st.filters_menu = false;
+            st.hovered = None;
             st.press = None;
             end_grip(st, m);
             st.adding = None;
