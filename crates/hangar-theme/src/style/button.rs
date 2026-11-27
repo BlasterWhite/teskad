@@ -202,9 +202,8 @@ pub fn menu_item_danger(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '
 
 fn menu_line(t: &Theme, destructive: bool) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
     move |_, status| {
-        let c = &t.colors;
         let rest = if destructive {
-            c.danger
+            t.inks.danger()
         } else {
             t.palette.text
         };
@@ -242,13 +241,13 @@ pub fn row(t: &Theme, selected: bool) -> impl Fn(&iced::Theme, Status) -> Style 
             border: rounded(radius::SM),
             shadow: Shadow::default(),
         };
-        let selected_look = || look(Some(c.surface_active));
+        let selected_look = || look(Some(t.palette.selection_bg));
         match status {
             Status::Active if selected => selected_look().style(),
             Status::Active => look(None).style(),
             Status::Hovered | Status::Pressed if selected => selected_look().style(),
             Status::Hovered => look(Some(c.surface_hover)).style(),
-            Status::Pressed => look(Some(c.surface_active)).style(),
+            Status::Pressed => look(Some(t.palette.selection_bg)).style(),
             Status::Disabled => look(None).disabled(),
         }
     }
@@ -310,16 +309,16 @@ pub fn toggle(t: &Theme, on: bool) -> impl Fn(&iced::Theme, Status) -> Style + '
         if on {
             return by_status(
                 status,
-                look(Some(c.surface_active), c.accent_hi),
-                look(Some(c.surface_active), brightness(c.accent_hi, 1.1)),
-                look(Some(c.surface_active), brightness(c.accent_hi, 0.9)),
+                look(Some(t.palette.selection_bg), c.accent_hi),
+                look(Some(t.palette.selection_bg), brightness(c.accent_hi, 1.1)),
+                look(Some(t.palette.selection_bg), brightness(c.accent_hi, 0.9)),
             );
         }
         by_status(
             status,
             look(None, c.fg_muted),
             look(Some(c.surface_hover), c.fg),
-            look(Some(c.surface_active), c.fg),
+            look(Some(t.palette.selection_bg), c.fg),
         )
     }
 }
@@ -337,7 +336,7 @@ pub fn tab_strip(t: &Theme, active: bool) -> impl Fn(&iced::Theme, Status) -> St
             shadow: Shadow::default(),
         };
         if active {
-            let front = look(Some(c.chrome), c.fg);
+            let front = look(Some(t.palette.surface), c.fg);
             return match status {
                 Status::Disabled => front.disabled(),
                 _ => front.style(),
@@ -346,8 +345,11 @@ pub fn tab_strip(t: &Theme, active: bool) -> impl Fn(&iced::Theme, Status) -> St
         by_status(
             status,
             look(None, c.fg_muted),
-            look(Some(with_alpha(c.line, c.line.a * 0.6)), c.fg),
-            look(Some(c.line), c.fg),
+            look(
+                Some(with_alpha(t.palette.border, t.palette.border.a * 0.6)),
+                c.fg,
+            ),
+            look(Some(t.palette.border), c.fg),
         )
     }
 }
@@ -359,8 +361,8 @@ pub fn palette_row(t: &Theme, chosen: bool) -> impl Fn(&iced::Theme, Status) -> 
     move |_, _| {
         let c = &t.colors;
         Style {
-            background: chosen.then_some(Background::Color(c.accent)),
-            text_color: if chosen { c.accent_fg } else { c.fg },
+            background: chosen.then_some(Background::Color(t.palette.accent)),
+            text_color: if chosen { t.palette.on_accent } else { c.fg },
             border: rounded(radius::MD),
             shadow: Shadow::default(),
             ..Style::default()

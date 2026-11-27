@@ -1,6 +1,6 @@
 //! The window's colours, from a theme file.
 //!
-//! Two steps, both here:
+//! Three steps, all here:
 //!
 //! 1. [`derive_palette`]: the interface's semantic colours ([`Palette`]) from
 //!    the theme's terminal colours, by the rules of
@@ -8,18 +8,22 @@
 //!    as it is (Teskad Dark and Teskad Light set them all, so nothing is
 //!    computed for them); every other key is derived, then held to the
 //!    contrast the same document requires.
-//! 2. [`derive_colors`]: [`Colors`], the finer tokens views are drawn with
-//!    (a pane header, a hairline, a chart's data colours), computed from the
-//!    palette. It is an alias of the palette, not a second source of colour.
+//! 2. [`derive_inks`]: [`Inks`], the colours the palette has no token for (a
+//!    state's ink, warning, the shadow, a chart's data colours), computed
+//!    from the palette.
+//! 3. [`derive_colors`]: [`Colors`], the finer tokens views are drawn with
+//!    (a pane header, a hairline), computed from the palette and the inks. It
+//!    is an alias of both, not a second source of colour.
 
 use iced::Color;
 
 use crate::contrast::{
     Rgb, contrast_ratio, ensure_contrast, mix, perceived_lightness, worst_contrast,
 };
+use crate::inks::{Inks, Viz};
 use crate::palette::{Palette, Status};
 use crate::spec::UiOverrides;
-use crate::theme::{Appearance, Colors, TerminalColors};
+use crate::theme::{Appearance, Colors, StateColors, TerminalColors};
 
 /// Text on the window reads at this ratio at least: WCAG's AA for body text.
 pub const TEXT_CONTRAST: f64 = 4.5;
@@ -232,46 +236,95 @@ pub fn contrast_failures(palette: &Palette) -> Vec<String> {
     failures
 }
 
-/// Every colour token of the window for this palette: [`Colors`], the finer
-/// names views are drawn with, all computed from the palette (and, for the one
-/// state the palette has no colour for, from the terminal's yellow).
-pub fn derive_colors(
-    appearance: Appearance,
-    palette: &Palette,
-    terminal: &TerminalColors,
-) -> Colors {
+/// The surfaces a colour is held against, as [`derive_inks`] holds them.
+struct Surfaces {
+    /// Every surface text is written on. A colour is held to the least
+    /// favourable of them: the plain ones, the selected and the hovered row,
+    /// a chip (filled with the border's colour) and a filter that is on (the
+    /// accent's tint over the surface).
+    anywhere: Vec<Rgb>,
+    /// The three plain surfaces: the window, the surface, the raised one.
+    plain: [Rgb; 3],
+    /// A card is lifted off the window on a dark theme, and is the window's
+    /// own colour on a light one, where the window is the grey.
+    card: Rgb,
+}
+
+impl Surfaces {
+    fn of(appearance: Appearance, palette: &Palette) -> Surfaces {
+        let rgb = Rgb::from;
+        let p = palette;
+        let [bg, surface, raised, sunken] =
+            [p.bg, p.surface, p.surface_raised, p.surface_sunken].map(rgb);
+        let hover = crate::contrast::over(p.hover_overlay, surface);
+        let lit = mix(surface, rgb(p.accent), 0.14);
+        Surfaces {
+            anywhere: vec![
+                bg,
+                surface,
+                raised,
+                sunken,
+                rgb(p.selection_bg),
+                hover,
+                rgb(p.border),
+                lit,
+            ],
+            plain: [bg, surface, raised],
+            card: if appearance.is_dark() { raised } else { bg },
+        }
+    }
+
+    /// `color` as text: 4.5:1 on every surface.
+    fn text(&self, toward: Rgb, color: Rgb) -> Rgb {
+        reach(color, &self.anywhere, TEXT_CONTRAST, toward)
+    }
+
+    /// `color` as a glyph, a bar or a frame: 3:1 on every surface.
+    fn fill(&self, color: Rgb) -> Rgb {
+        ensure_contrast(color, &self.anywhere, FILL_CONTRAST, None)
+    }
+}
+
+/// The surfaces a state's ink is held to (text at 4.5:1, fill at 3:1), for
+/// tests and for a view that wants to check an ink of its own.
+pub fn ink_surfaces(appearance: Appearance, palette: &Palette) -> Vec<Color> {
+    Surfaces::of(appearance, palette)
+        .anywhere
+        .into_iter()
+        .map(Color::from)
+        .collect()
+}
+
+/// The colours the window is drawn with that the palette has no token for
+/// ([`Inks`]), computed from the palette (and, for the one state it has no
+/// colour for, from the terminal's yellow).
+pub fn derive_inks(appearance: Appearance, palette: &Palette, terminal: &TerminalColors) -> Inks {
     let is_dark = appearance.is_dark();
     let rgb = Rgb::from;
     let c = |color: Rgb| Color::from(color);
     let p = palette;
-    let [bg, surface, raised, sunken] =
-        [p.bg, p.surface, p.surface_raised, p.surface_sunken].map(rgb);
     let accent = rgb(p.accent);
     let fg = rgb(p.text);
     let lift = if is_dark { Rgb::WHITE } else { Rgb::BLACK };
-    let hover = crate::contrast::over(p.hover_overlay, surface);
-    let selection = rgb(p.selection_bg);
-
-    // Every surface text is written on. A colour is held to the least
-    // favourable of them.
-    // A chip is filled with the border's colour, and the hovered row counts too.
-    let tinted = rgb(p.border);
-    // So does a filter that is on: the accent's tint over the surface.
-    let lit = mix(surface, accent, 0.14);
-    let anywhere = [bg, surface, raised, sunken, selection, hover, tinted, lit];
-    let plain = [bg, surface, raised];
-    let text = |color: Rgb| reach(color, &anywhere, TEXT_CONTRAST, fg);
-    // Labels and the quietest greys answer to the plain surfaces only, as the
-    // palette's own check does; a rule that puts them on a fill takes the
-    // secondary text.
-    let quiet = |color: Color| c(reach(rgb(color), &plain, TEXT_CONTRAST, fg));
-    let fill = |color: Rgb| ensure_contrast(color, &anywhere, FILL_CONTRAST, None);
+    let surfaces = Surfaces::of(appearance, palette);
+    let card = surfaces.card;
+    let text = |color: Rgb| surfaces.text(fg, color);
+    let fill = |color: Rgb| surfaces.fill(color);
 
     let waiting = rgb(terminal.ansi[3]);
     let status = p.status;
-    // A card is lifted off the window on a dark theme, and is the window's own
-    // colour on a light one, where the window is the grey.
-    let card = if is_dark { raised } else { bg };
+    // An agent's state, always with its shape in the UI. Each comes twice:
+    // the word, at 4.5:1 like any text, and the fill of its glyph, a bar or a
+    // frame, at 3:1.
+    let ink = |base: Rgb| StateColors {
+        text: c(text(base)),
+        fill: c(fill(base)),
+    };
+    // Idle's word is the muted text, not the state's own colour.
+    let idle = StateColors {
+        text: c(text(rgb(p.text_muted))),
+        fill: c(fill(rgb(status.inactive))),
+    };
 
     // The statistics' data colours, all of one hue (the accent's) in steps
     // away from the card they are drawn on: brighter on a dark theme, deeper
@@ -336,6 +389,55 @@ pub fn derive_colors(
     // and its cells carry their values in a tooltip and a table.
     let heat = ramp(0.24, 5);
 
+    Inks {
+        running: ink(rgb(status.running)),
+        waiting: ink(waiting),
+        yours: ink(rgb(status.active)),
+        idle,
+        failed: ink(rgb(status.failed)),
+        completed: ink(rgb(status.completed)),
+        danger_soft: with_alpha(rgb(status.failed), 0.14),
+        shadow: if is_dark {
+            Color::from_rgba8(0, 0, 0, 0.45)
+        } else {
+            Color::from_rgba8(0, 0, 0, 0.12)
+        },
+        viz: Viz {
+            series: [c(series[0]), c(series[1]), c(series[2]), c(series[3])],
+            heat: [
+                c(mix(card, lift, if is_dark { 0.05 } else { 0.06 })),
+                c(heat[0]),
+                c(heat[1]),
+                c(heat[2]),
+                c(heat[3]),
+                c(heat[4]),
+            ],
+            mute: c(ensure_contrast(mix(card, fg, 0.22), &[card], 1.6, Some(fg))),
+            line: c(ensure_contrast(mix(card, fg, 0.42), &[card], 3.0, Some(fg))),
+        },
+    }
+}
+
+/// Every colour token of the window: [`Colors`], the finer names views are
+/// drawn with, computed from the palette and from [`Inks`], the colours the
+/// palette has no token for. Nothing here is a colour of its own.
+pub fn derive_colors(appearance: Appearance, palette: &Palette, inks: &Inks) -> Colors {
+    let is_dark = appearance.is_dark();
+    let rgb = Rgb::from;
+    let c = |color: Rgb| Color::from(color);
+    let p = palette;
+    let accent = rgb(p.accent);
+    let fg = rgb(p.text);
+    let hover = crate::contrast::over(p.hover_overlay, rgb(p.surface));
+    let surfaces = Surfaces::of(appearance, palette);
+    let text = |color: Rgb| surfaces.text(fg, color);
+    // Labels and the quietest greys answer to the plain surfaces only, as the
+    // palette's own check does; a rule that puts them on a fill takes the
+    // secondary text.
+    let quiet = |color: Color| c(reach(rgb(color), &surfaces.plain, TEXT_CONTRAST, fg));
+    let card = surfaces.card;
+    let (raised, surface) = (p.surface_raised, p.surface);
+
     Colors {
         chrome: p.surface,
         chrome_bar: p.surface_raised,
@@ -347,17 +449,14 @@ pub fn derive_colors(
         line: p.border,
         line_strong: p.border_strong,
         accent_hi: c(text(rgb(p.accent_text))),
-        // An agent's state, always with its shape in the UI. Each comes twice:
-        // the word, at 4.5:1 like any text, and the fill of its glyph, a bar
-        // or a frame, at 3:1.
-        state_working: c(text(rgb(status.running))),
-        state_working_fill: c(fill(rgb(status.running))),
-        state_waiting: c(text(waiting)),
-        state_waiting_fill: c(fill(waiting)),
-        state_yours: c(text(rgb(status.active))),
-        state_yours_fill: c(fill(rgb(status.active))),
-        state_idle: c(text(rgb(p.text_muted))),
-        state_idle_fill: c(fill(rgb(status.inactive))),
+        state_working: inks.running.text,
+        state_working_fill: inks.running.fill,
+        state_waiting: inks.waiting.text,
+        state_waiting_fill: inks.waiting.fill,
+        state_yours: inks.yours.text,
+        state_yours_fill: inks.yours.fill,
+        state_idle: inks.idle.text,
+        state_idle_fill: inks.idle.fill,
         bg: p.bg,
         bg_sunken: p.surface_sunken,
         surface: p.surface,
@@ -373,15 +472,11 @@ pub fn derive_colors(
         accent_soft: with_alpha(accent, 0.14),
         accent_ring: with_alpha(rgb(p.focus_ring), 0.45),
         accent_fg: p.on_accent,
-        danger: c(text(rgb(status.failed))),
-        danger_soft: with_alpha(rgb(status.failed), 0.14),
-        success: c(text(rgb(status.completed))),
-        warning: c(text(waiting)),
-        shadow: if is_dark {
-            Color::from_rgba8(0, 0, 0, 0.45)
-        } else {
-            Color::from_rgba8(0, 0, 0, 0.12)
-        },
+        danger: inks.danger(),
+        danger_soft: inks.danger_soft,
+        success: inks.success(),
+        warning: inks.warning(),
+        shadow: inks.shadow,
         // What floats over the window gets a dark outer edge under its hairline
         // on a dark theme, so a panel never melts into what is behind it; on a
         // light theme the shadow does that almost alone.
@@ -393,18 +488,18 @@ pub fn derive_colors(
         // A segmented control: a recessed track, and the chosen segment
         // raised out of it.
         seg_track: p.surface_sunken,
-        seg_thumb: if is_dark { p.surface_raised } else { p.surface },
-        viz_1: c(series[0]),
-        viz_2: c(series[1]),
-        viz_3: c(series[2]),
-        viz_4: c(series[3]),
-        viz_heat_0: c(mix(card, lift, if is_dark { 0.05 } else { 0.06 })),
-        viz_heat_1: c(heat[0]),
-        viz_heat_2: c(heat[1]),
-        viz_heat_3: c(heat[2]),
-        viz_heat_4: c(heat[3]),
-        viz_heat_5: c(heat[4]),
-        viz_mute: c(ensure_contrast(mix(card, fg, 0.22), &[card], 1.6, Some(fg))),
-        viz_line: c(ensure_contrast(mix(card, fg, 0.42), &[card], 3.0, Some(fg))),
+        seg_thumb: if is_dark { raised } else { surface },
+        viz_1: inks.viz.series[0],
+        viz_2: inks.viz.series[1],
+        viz_3: inks.viz.series[2],
+        viz_4: inks.viz.series[3],
+        viz_heat_0: inks.viz.heat[0],
+        viz_heat_1: inks.viz.heat[1],
+        viz_heat_2: inks.viz.heat[2],
+        viz_heat_3: inks.viz.heat[3],
+        viz_heat_4: inks.viz.heat[4],
+        viz_heat_5: inks.viz.heat[5],
+        viz_mute: inks.viz.mute,
+        viz_line: inks.viz.line,
     }
 }

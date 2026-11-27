@@ -7,7 +7,8 @@ use std::sync::{Mutex, OnceLock, PoisonError};
 use iced::Color;
 
 use crate::bundled;
-use crate::derive::{derive_colors, derive_palette};
+use crate::derive::{derive_colors, derive_inks, derive_palette};
+use crate::inks::Inks;
 use crate::palette::Palette;
 use crate::spec::UiOverrides;
 
@@ -55,7 +56,11 @@ pub struct Theme {
     pub terminal: TerminalColors,
     /// The semantic colours of the interface: the one set a theme defines.
     pub palette: Palette,
-    /// The finer tokens views are drawn with, computed from the palette.
+    /// The colours the palette has no token for: a state's inks, warning,
+    /// the shadow, the charts'. Computed from the palette.
+    pub inks: Inks,
+    /// The finer tokens views are drawn with, computed from the palette and
+    /// the inks. Being replaced by them: see the table in [`crate::Inks`].
     pub colors: Colors,
     /// How opaque the window's own background is, from 0 to 1: 1 for a solid
     /// window, less for one the desktop shows through, behind the terminals'
@@ -90,13 +95,15 @@ impl Theme {
         ui: &UiOverrides,
     ) -> Theme {
         let palette = derive_palette(appearance, &terminal, ui);
+        let inks = derive_inks(appearance, &palette, &terminal);
         Theme {
             id,
             name,
             appearance,
             terminal,
             palette,
-            colors: derive_colors(appearance, &palette, &terminal),
+            inks,
+            colors: derive_colors(appearance, &palette, &inks),
             window_opacity: 1.0,
         }
     }

@@ -51,6 +51,7 @@ mod derive;
 pub mod fixed;
 pub mod fonts;
 mod iced_theme;
+mod inks;
 mod kit;
 mod palette;
 mod spec;
@@ -64,9 +65,11 @@ pub use contrast::{
     hue_distance, mix, over, perceived_lightness, relative_luminance, with_hue, worst_contrast,
 };
 pub use derive::{
-    BORDER_CONTRAST, FILL_CONTRAST, TEXT_CONTRAST, contrast_failures, derive_colors, derive_palette,
+    BORDER_CONTRAST, FILL_CONTRAST, TEXT_CONTRAST, contrast_failures, derive_colors, derive_inks,
+    derive_palette, ink_surfaces,
 };
 pub use iced_theme::to_iced;
+pub use inks::{Inks, Viz};
 pub use kit::{css, kit_default_themes, kit_tokens};
 pub use palette::{Palette, Status};
 pub use spec::{ThemeSpec, UiOverrides};
@@ -77,3 +80,6 @@ pub use theme::{
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod inks_tests;

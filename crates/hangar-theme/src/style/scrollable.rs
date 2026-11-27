@@ -26,7 +26,7 @@ pub fn default(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
             },
         };
         let (vertical, horizontal) = match status {
-            Status::Active { .. } => (c.border_strong, c.border_strong),
+            Status::Active { .. } => (t.palette.border_strong, t.palette.border_strong),
             Status::Hovered {
                 is_vertical_scrollbar_hovered,
                 is_horizontal_scrollbar_hovered,
@@ -35,12 +35,12 @@ pub fn default(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
                 if is_vertical_scrollbar_hovered {
                     c.fg_subtle
                 } else {
-                    c.border_strong
+                    t.palette.border_strong
                 },
                 if is_horizontal_scrollbar_hovered {
                     c.fg_subtle
                 } else {
-                    c.border_strong
+                    t.palette.border_strong
                 },
             ),
             Status::Dragged {
@@ -51,12 +51,12 @@ pub fn default(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
                 if is_vertical_scrollbar_dragged {
                     c.fg_muted
                 } else {
-                    c.border_strong
+                    t.palette.border_strong
                 },
                 if is_horizontal_scrollbar_dragged {
                     c.fg_muted
                 } else {
-                    c.border_strong
+                    t.palette.border_strong
                 },
             ),
         };
@@ -66,9 +66,9 @@ pub fn default(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
             horizontal_rail: rail(horizontal),
             gap: None,
             auto_scroll: AutoScroll {
-                background: Background::Color(c.chrome_bar),
-                border: hairline(c.line_strong, radius::FULL),
-                shadow: drop_shadow(c.shadow, 2.0, 6.0),
+                background: Background::Color(t.palette.surface_raised),
+                border: hairline(t.palette.border_strong, radius::FULL),
+                shadow: drop_shadow(t.inks.shadow, 2.0, 6.0),
                 icon: c.fg,
             },
         }

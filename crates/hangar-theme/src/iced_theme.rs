@@ -28,9 +28,9 @@ pub fn to_iced(theme: &Theme) -> iced::Theme {
         background: c.bg,
         text: c.fg,
         primary: c.accent,
-        success: c.success,
-        warning: c.warning,
-        danger: c.danger,
+        success: theme.inks.success(),
+        warning: theme.inks.warning(),
+        danger: theme.inks.danger(),
     };
     let extended = extended(theme);
     iced::Theme::custom_with_fn(theme.name, palette, move |_| extended)
@@ -64,9 +64,10 @@ fn status(c: &Colors, base: Color, text_variant: Color) -> (Pair, Pair, Pair) {
 
 fn extended(theme: &Theme) -> Extended {
     let c = &theme.colors;
-    let (success_base, success_weak, success_strong) = status(c, c.success, c.state_working_fill);
-    let (warning_base, warning_weak, warning_strong) = status(c, c.warning, c.state_waiting_fill);
-    let (danger_base, danger_weak, danger_strong) = status(c, c.danger, c.danger);
+    let i = &theme.inks;
+    let (success_base, success_weak, success_strong) = status(c, i.success(), i.running.fill);
+    let (warning_base, warning_weak, warning_strong) = status(c, i.warning(), i.waiting.fill);
+    let (danger_base, danger_weak, danger_strong) = status(c, i.danger(), i.danger());
     let (_, primary_weak, primary_strong) = status(c, c.accent, c.accent_hi);
 
     Extended {
@@ -130,10 +131,10 @@ mod tests {
         let theme = by_id("graphite").unwrap();
         let iced = to_iced(theme);
         let palette = iced.palette();
-        assert_eq!(palette.background, theme.colors.bg);
+        assert_eq!(palette.background, theme.palette.bg);
         assert_eq!(palette.text, theme.colors.fg);
-        assert_eq!(palette.primary, theme.colors.accent);
-        assert_eq!(palette.danger, theme.colors.danger);
+        assert_eq!(palette.primary, theme.palette.accent);
+        assert_eq!(palette.danger, theme.inks.danger());
         assert_eq!(iced.to_string(), "Graphite");
     }
 

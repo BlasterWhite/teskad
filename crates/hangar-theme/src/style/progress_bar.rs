@@ -19,22 +19,22 @@ fn bar(t: &Theme, fill: Color) -> Style {
 
 /// The accent: progress in general.
 pub fn accent(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| bar(t, t.colors.accent)
+    move |_| bar(t, t.palette.accent)
 }
 
 /// Success, a working agent's green.
 pub fn success(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| bar(t, t.colors.state_working_fill)
+    move |_| bar(t, t.inks.running.fill)
 }
 
 /// A limit being approached.
 pub fn warning(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| bar(t, t.colors.state_waiting_fill)
+    move |_| bar(t, t.inks.waiting.fill)
 }
 
 /// A limit exceeded.
 pub fn danger(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| bar(t, t.colors.danger)
+    move |_| bar(t, t.inks.danger())
 }
 
 /// A gauge at its resting level (a plan's use, a context window): the
