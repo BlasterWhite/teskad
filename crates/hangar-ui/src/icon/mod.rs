@@ -27,7 +27,7 @@
 //! row![icon(Icon::Gear, 14.0), text("Settings")]
 //!
 //! // Or its own colour, from the theme:
-//! icon(Icon::Alert, 14.0).color(t.colors.warning)
+//! icon(Icon::Alert, 14.0).color(t.inks.warning())
 //! ```
 //!
 //! An icon is decoration: the control around it carries the label.

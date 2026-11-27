@@ -3,7 +3,7 @@
 
 use std::sync::OnceLock;
 
-use crate::derive::{derive_colors, derive_inks, derive_palette};
+use crate::derive::{derive_inks, derive_palette};
 use crate::palette::{Palette, Status};
 use crate::spec::ThemeSpec;
 use crate::theme::{Appearance, Theme};
@@ -59,8 +59,7 @@ pub fn theme_files() -> &'static [&'static str] {
 const SOLID: f32 = 1.0;
 
 /// A theme from its parsed file: the palette is what the file sets, with what
-/// it leaves out derived, and the finer [`crate::Colors`] are computed from
-/// that palette.
+/// it leaves out derived, and the inks computed from it.
 fn build(spec: ThemeSpec) -> Theme {
     let palette = derive_palette(spec.appearance, &spec.terminal, &spec.ui);
     let inks = derive_inks(spec.appearance, &palette, &spec.terminal);
@@ -71,7 +70,6 @@ fn build(spec: ThemeSpec) -> Theme {
         terminal: spec.terminal,
         palette,
         inks,
-        colors: derive_colors(spec.appearance, &palette, &inks),
         window_opacity: SOLID,
     }
 }

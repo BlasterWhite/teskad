@@ -97,10 +97,9 @@ pub fn font_cards(current: &str, custom_label: &str) -> Vec<(String, String)> {
 
 pub fn font_grid<'a>(ctx: Ctx<'a>) -> Element<'a, Message> {
     let t = ctx.theme;
-    let c = &t.colors;
     let current = ctx.model.settings().font_family.clone();
     let cards = font_cards(&current, &ctx.t(Key::SettingsFontCustom));
-    let (accent, line, bg) = (c.accent, c.line_strong, c.bg);
+    let (accent, line, bg) = (t.palette.accent, t.palette.border_strong, t.palette.bg);
     let mut grid = column![].spacing(space::LG);
     for chunk in cards.chunks(3) {
         let mut line_row = row![].spacing(space::LG);
@@ -108,7 +107,11 @@ pub fn font_grid<'a>(ctx: Ctx<'a>) -> Element<'a, Message> {
             let active = *stack == current;
             let label = text(name.clone())
                 .size(font_size::CAPTION)
-                .color(if active { c.accent_hi } else { c.fg_secondary });
+                .color(if active {
+                    t.inks.accent_text
+                } else {
+                    t.inks.text.secondary
+                });
             let sample = text("Aa Bb 0123 => != ->")
                 .size(font_size::BODY)
                 .font(font_of(stack));
@@ -183,7 +186,6 @@ fn spaced_text<'a>(
 /// Typography, cursor and padding, shown on the live theme.
 pub fn terminal_preview<'a>(ctx: Ctx<'a>) -> Element<'a, Message> {
     let t = ctx.theme;
-    let c = &t.colors;
     let settings = ctx.model.settings();
     let font = font_of(&settings.font_family);
     let size = settings.font_size as f32;
@@ -196,7 +198,7 @@ pub fn terminal_preview<'a>(ctx: Ctx<'a>) -> Element<'a, Message> {
     // spacing is part of it.
     let cell = size * 0.6 + spacing;
     let tall = size * 1.1;
-    let accent = c.accent;
+    let accent = t.palette.accent;
 
     let cursor = {
         let (width, height) = match settings.cursor_style {
@@ -213,13 +215,16 @@ pub fn terminal_preview<'a>(ctx: Ctx<'a>) -> Element<'a, Message> {
             })
     };
     let run = |content: &str, color: Color| spaced_text(content, size, font, line, color, spacing);
-    let prompt = row![run("❯", c.success), run(" claude --resume", c.fg)];
+    let prompt = row![
+        run("❯", t.inks.success()),
+        run(" claude --resume", t.inks.text.primary)
+    ];
     let dim = run(
         &format!("{APP_NAME} · 4 panes · session restored"),
-        c.fg_subtle,
+        t.inks.text.muted,
     );
     let last = row![
-        run("0123456789 => != -> |&", c.fg),
+        run("0123456789 => != -> |&", t.inks.text.primary),
         container(cursor).padding(Padding {
             left: 1.0,
             top: size * 0.15,
@@ -229,8 +234,8 @@ pub fn terminal_preview<'a>(ctx: Ctx<'a>) -> Element<'a, Message> {
     .align_y(Alignment::Start);
 
     let body = column![prompt, dim, last];
-    let border = c.line_strong;
-    let bg = c.bg;
+    let border = t.palette.border_strong;
+    let bg = t.palette.bg;
     container(body)
         .padding(settings.padding as f32)
         .width(Length::Fill)

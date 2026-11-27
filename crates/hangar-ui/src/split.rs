@@ -557,14 +557,13 @@ impl<M: Clone> Widget<M, iced::Theme, iced::Renderer> for Split<'_, M> {
 
         // The line is the separator's colour; it turns the accent where the
         // pointer, a drag or the keyboard has it.
-        let c = &self.theme.colors;
         let (line, _) = self.handle(first.bounds());
         renderer.fill_quad(
             Quad {
                 bounds: line,
                 ..Quad::default()
             },
-            Background::Color(c.sep),
+            Background::Color(self.theme.palette.surface_sunken),
         );
         if state.hovered || state.dragging || state.focused {
             let thick = if state.focused && !state.dragging {
@@ -589,7 +588,7 @@ impl<M: Clone> Widget<M, iced::Theme, iced::Renderer> for Split<'_, M> {
                     bounds,
                     ..Quad::default()
                 },
-                Background::Color(c.accent),
+                Background::Color(self.theme.palette.accent),
             );
         }
     }

@@ -77,25 +77,16 @@ mod animation {
 #[test]
 fn a_glyph_takes_its_fill_from_the_themes_state_colours() {
     let t = hangar_theme::default_theme();
-    assert_eq!(
-        Tint::of(t, GlyphState::Working).fill,
-        t.colors.state_working_fill
-    );
-    assert_eq!(
-        Tint::of(t, GlyphState::Waiting).fill,
-        t.colors.state_waiting_fill
-    );
-    assert_eq!(
-        Tint::of(t, GlyphState::Exited).fill,
-        t.colors.state_idle_fill
-    );
+    assert_eq!(Tint::of(t, GlyphState::Working).fill, t.inks.running.fill);
+    assert_eq!(Tint::of(t, GlyphState::Waiting).fill, t.inks.waiting.fill);
+    assert_eq!(Tint::of(t, GlyphState::Exited).fill, t.inks.idle.fill);
 }
 
 #[test]
 fn an_outcome_takes_the_themes_success_and_danger_and_draws_its_symbol_in_the_background() {
     let t = hangar_theme::default_theme();
     let done = Tint::of(t, GlyphState::Completed);
-    assert_eq!(done.fill, t.colors.success);
-    assert_eq!(done.ink, t.colors.bg);
-    assert_eq!(Tint::of(t, GlyphState::Failed).fill, t.colors.danger);
+    assert_eq!(done.fill, t.inks.success());
+    assert_eq!(done.ink, t.palette.bg);
+    assert_eq!(Tint::of(t, GlyphState::Failed).fill, t.inks.danger());
 }

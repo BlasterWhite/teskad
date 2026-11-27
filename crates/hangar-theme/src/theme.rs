@@ -7,7 +7,7 @@ use std::sync::{Mutex, OnceLock, PoisonError};
 use iced::Color;
 
 use crate::bundled;
-use crate::derive::{derive_colors, derive_inks, derive_palette};
+use crate::derive::{derive_inks, derive_palette};
 use crate::inks::Inks;
 use crate::palette::Palette;
 use crate::spec::UiOverrides;
@@ -59,9 +59,6 @@ pub struct Theme {
     /// The colours the palette has no token for: a state's inks, warning,
     /// the shadow, the charts'. Computed from the palette.
     pub inks: Inks,
-    /// The finer tokens views are drawn with, computed from the palette and
-    /// the inks. Being replaced by them: see the table in [`crate::Inks`].
-    pub colors: Colors,
     /// How opaque the window's own background is, from 0 to 1: 1 for a solid
     /// window, less for one the desktop shows through, behind the terminals'
     /// default background and the chrome's bars. Text, cards, menus, dialogs
@@ -103,7 +100,6 @@ impl Theme {
             terminal,
             palette,
             inks,
-            colors: derive_colors(appearance, &palette, &inks),
             window_opacity: 1.0,
         }
     }
@@ -290,162 +286,6 @@ impl AgentState {
         AgentState::Yours,
         AgentState::Idle,
     ];
-}
-
-/// Declares [`Colors`] from the CSS custom property each field was in
-/// `deriveChromeTokens`, so that the names kits and the stylesheets use can
-/// be looked up ([`Colors::get`]) and the tests can walk every token.
-macro_rules! colors {
-    ($($(#[$doc:meta])* $field:ident = $css:literal,)*) => {
-        /// Every colour token of the window, by the name it had as a CSS
-        /// custom property in the web app (`--chrome-bar` is `chrome_bar`).
-        /// Some are translucent; those say so.
-        #[derive(Debug, Clone, Copy, PartialEq)]
-        pub struct Colors {
-            $($(#[$doc])* pub $field: Color,)*
-        }
-
-        impl Colors {
-            /// The CSS names of all tokens, in the order of the fields.
-            pub const CSS_NAMES: &'static [&'static str] = &[$($css),*];
-
-            /// A token by its CSS name (`"--chrome-bar"`).
-            pub fn get(&self, css_name: &str) -> Option<Color> {
-                match css_name {
-                    $($css => Some(self.$field),)*
-                    _ => None,
-                }
-            }
-
-            /// Every token with its CSS name.
-            pub fn iter(&self) -> impl Iterator<Item = (&'static str, Color)> {
-                [$(($css, self.$field)),*].into_iter()
-            }
-        }
-    };
-}
-
-colors! {
-    /// The navigator, inspector and status bar sit on this: a step away from
-    /// the terminal background.
-    chrome = "--chrome",
-    /// The toolbar, a step above the chrome; floating panels too.
-    chrome_bar = "--chrome-bar",
-    /// A pane's header, just off the terminal itself.
-    pane_head = "--pane-head",
-    /// A pane's header while the pane has the focus.
-    pane_head_focus = "--pane-head-focus",
-    /// A raised group, a button at rest.
-    raised = "--raised",
-    /// A card or a settings group: lifted off the page on a dark theme, the
-    /// page's own colour on a light one (where the page is the grey).
-    card = "--card",
-    /// What sits between panes and columns: darker than anything around it.
-    sep = "--sep",
-    /// A hairline, translucent.
-    line = "--line",
-    /// A stronger hairline: the edge of a field, a panel or a button.
-    /// Translucent.
-    line_strong = "--line-strong",
-    /// The accent as text or an icon: held to 4.5:1 on every surface.
-    accent_hi = "--accent-hi",
-    /// The word for a working agent, 4.5:1 on every surface.
-    state_working = "--state-working",
-    /// A working agent's glyph, bar or frame, held to 3:1.
-    state_working_fill = "--state-working-fill",
-    state_waiting = "--state-waiting",
-    state_waiting_fill = "--state-waiting-fill",
-    /// "Your turn" has a hue of its own, so it never reads as a link or as the
-    /// focus.
-    state_yours = "--state-yours",
-    state_yours_fill = "--state-yours-fill",
-    state_idle = "--state-idle",
-    state_idle_fill = "--state-idle-fill",
-    /// The page: the terminal background, and what inputs are filled with.
-    bg = "--bg",
-    /// Darker than the page on a dark theme, white on a light one.
-    bg_sunken = "--bg-sunken",
-    surface = "--surface",
-    /// Under the pointer.
-    surface_hover = "--surface-hover",
-    /// The selected row.
-    surface_active = "--surface-active",
-    border = "--border",
-    border_strong = "--border-strong",
-    /// Body text, the terminal foreground unless that is too faint for the
-    /// chrome.
-    fg = "--fg",
-    /// Labels.
-    fg_secondary = "--fg-secondary",
-    /// Metadata and icons.
-    fg_muted = "--fg-muted",
-    /// The quietest hints, placeholders, paths and counts.
-    fg_subtle = "--fg-subtle",
-    /// The theme's accent as it is.
-    accent = "--accent",
-    /// A tint of the accent behind something selected or a focused field's
-    /// halo. Translucent.
-    accent_soft = "--accent-soft",
-    /// The focus ring. Translucent.
-    accent_ring = "--accent-ring",
-    /// Text and icons written on the accent.
-    accent_fg = "--accent-fg",
-    danger = "--danger",
-    /// Behind something destructive under the pointer, or a badge that
-    /// warns. Translucent.
-    danger_soft = "--danger-soft",
-    success = "--success",
-    warning = "--warning",
-    /// The colour of a drop shadow. Translucent.
-    shadow = "--shadow",
-    /// A dark outer edge for what floats, under its light hairline.
-    /// Translucent.
-    float_ring = "--float-ring",
-    /// The recessed track of a segmented control.
-    seg_track = "--seg-track",
-    /// The chosen segment, raised out of the track.
-    seg_thumb = "--seg-thumb",
-    /// The statistics' four ordered data colours, cheapest nearest the card.
-    viz_1 = "--viz-1",
-    viz_2 = "--viz-2",
-    viz_3 = "--viz-3",
-    viz_4 = "--viz-4",
-    /// The activity heatmap: an empty cell, then five steps up.
-    viz_heat_0 = "--viz-heat-0",
-    viz_heat_1 = "--viz-heat-1",
-    viz_heat_2 = "--viz-heat-2",
-    viz_heat_3 = "--viz-heat-3",
-    viz_heat_4 = "--viz-heat-4",
-    viz_heat_5 = "--viz-heat-5",
-    /// What steps back while something else is picked out.
-    viz_mute = "--viz-mute",
-    /// The line of a sparkline.
-    viz_line = "--viz-line",
-}
-
-impl Colors {
-    /// An agent state's word and its fill: the word at 4.5:1, the fill (a
-    /// glyph, a bar, a frame) at 3:1 and so closer to the theme's own colour.
-    pub fn state(&self, state: AgentState) -> StateColors {
-        match state {
-            AgentState::Working => StateColors {
-                text: self.state_working,
-                fill: self.state_working_fill,
-            },
-            AgentState::Waiting => StateColors {
-                text: self.state_waiting,
-                fill: self.state_waiting_fill,
-            },
-            AgentState::Yours => StateColors {
-                text: self.state_yours,
-                fill: self.state_yours_fill,
-            },
-            AgentState::Idle => StateColors {
-                text: self.state_idle,
-                fill: self.state_idle_fill,
-            },
-        }
-    }
 }
 
 /// The two colours of one agent state.

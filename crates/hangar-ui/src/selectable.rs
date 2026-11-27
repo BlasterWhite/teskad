@@ -5,7 +5,7 @@
 //! use hangar_ui::selectable::{Doc, block, selectable};
 //!
 //! // Once, in the view's state; `begin` again at the start of each view.
-//! let doc = Doc::new(t.colors.selection);
+//! let doc = Doc::new(t.palette.selection_bg);
 //! doc.begin();
 //! let page = column![
 //!     doc.block(spans_of_a_paragraph).size(13.5),

@@ -145,6 +145,11 @@ pub enum Msg {
     /// Up or Down in the list.
     Step(Step),
     Change(Change),
+    /// An arrow pressed on the theme card `.0`: the choice moves to the card
+    /// that way, as in a radio group.
+    ThemeArrow(&'static str, theme_grid::Arrow),
+    /// The choice lands on the theme card `.0`, and the keyboard with it.
+    ThemeGo(&'static str),
     /// A button that does something other than set a field.
     Act(Act),
     Arm(String),
@@ -417,6 +422,11 @@ pub fn update(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Me
             Task::none()
         }
         Msg::Change(change) => apply_change(m, change),
+        Msg::ThemeArrow(from, arrow) => theme_grid::arrow(from, arrow),
+        Msg::ThemeGo(id) => Task::batch([
+            apply_change(m, Change::text(Target::Theme, id)),
+            theme_grid::focus_card(id),
+        ]),
         Msg::Act(act) => {
             st.armed = None;
             match act {

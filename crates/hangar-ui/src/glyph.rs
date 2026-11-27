@@ -85,16 +85,18 @@ pub struct Tint {
 
 impl Tint {
     pub fn of(t: &Theme, state: GlyphState) -> Tint {
-        let c = &t.colors;
         let fill = match state {
-            GlyphState::Working => c.state_working_fill,
-            GlyphState::Waiting => c.state_waiting_fill,
-            GlyphState::Yours => c.state_yours_fill,
-            GlyphState::Idle | GlyphState::Exited | GlyphState::Starting => c.state_idle_fill,
-            GlyphState::Completed => c.success,
-            GlyphState::Failed => c.danger,
+            GlyphState::Working => t.inks.running.fill,
+            GlyphState::Waiting => t.inks.waiting.fill,
+            GlyphState::Yours => t.inks.yours.fill,
+            GlyphState::Idle | GlyphState::Exited | GlyphState::Starting => t.inks.idle.fill,
+            GlyphState::Completed => t.inks.success(),
+            GlyphState::Failed => t.inks.danger(),
         };
-        Tint { fill, ink: c.bg }
+        Tint {
+            fill,
+            ink: t.palette.bg,
+        }
     }
 }
 
@@ -540,15 +542,14 @@ impl Gauge<'_> {
 
 impl<'a, M: 'a> From<Gauge<'a>> for Element<'a, M> {
     fn from(g: Gauge<'a>) -> Self {
-        let c = &g.theme.colors;
         let (ink, ring) = match gauge_level(g.pct) {
-            GaugeLevel::Ok => (c.fg_muted, c.fg_muted),
-            GaugeLevel::Warn => (c.warning, c.warning),
-            GaugeLevel::Hot => (c.danger, c.danger),
+            GaugeLevel::Ok => (g.theme.inks.text.muted, g.theme.inks.text.muted),
+            GaugeLevel::Warn => (g.theme.inks.warning(), g.theme.inks.warning()),
+            GaugeLevel::Hot => (g.theme.inks.danger(), g.theme.inks.danger()),
         };
         let ring = canvas(Ring {
             pct: g.pct,
-            track: c.line_strong,
+            track: g.theme.palette.border_strong,
             value: ring,
         })
         .width(12.0)

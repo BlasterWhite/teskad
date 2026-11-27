@@ -320,7 +320,7 @@ fn overlays(g: &Gallery) -> Element<'_, Message> {
 
     let area = container(
         column![
-            icon(Icon::Folder, 20.0).color(t.colors.fg_muted),
+            icon(Icon::Folder, 20.0).color(t.inks.text.muted),
             typography::label(t, "Right-click anywhere on this card"),
         ]
         .spacing(space::MD)
@@ -748,10 +748,10 @@ fn icons(g: &Gallery) -> Element<'_, Message> {
             .collect(),
     );
     let tints = wrap(vec![
-        icon(Icon::Alert, 20.0).color(t.colors.warning).into(),
-        icon(Icon::Check, 20.0).color(t.colors.success).into(),
-        icon(Icon::Close, 20.0).color(t.colors.danger).into(),
-        icon(Icon::Info, 20.0).color(t.colors.accent_hi).into(),
+        icon(Icon::Alert, 20.0).color(t.inks.warning()).into(),
+        icon(Icon::Check, 20.0).color(t.inks.success()).into(),
+        icon(Icon::Close, 20.0).color(t.inks.danger()).into(),
+        icon(Icon::Info, 20.0).color(t.inks.accent_text).into(),
         icon(Icon::ChevronDown, 20.0)
             .rotate(std::f32::consts::FRAC_PI_2)
             .into(),

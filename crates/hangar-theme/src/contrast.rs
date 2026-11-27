@@ -3,7 +3,7 @@
 //!
 //! Everything works on [`Rgb`], an opaque colour of 8-bit channels, because
 //! the TypeScript works on `#rrggbb` strings and rounds to 8 bits after every
-//! step. Keeping that rounding is what makes [`crate::derive_colors`] give the
+//! step. Keeping that rounding is what makes [`crate::derive_palette`] give the
 //! same tokens as `deriveChromeTokens` rather than ones a unit off.
 
 use iced::Color;

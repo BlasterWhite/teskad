@@ -2,7 +2,7 @@
 //! of the Teskad brand pack (`docs/teskad-brand`), with iced colours.
 //!
 //! This is the one set of colours a theme defines for the interface. Every
-//! other colour the app draws with ([`crate::Colors`]) is computed from it,
+//! other colour the app draws with ([`crate::Inks`]) is computed from it,
 //! and nothing outside this crate writes a colour of its own.
 
 use iced::Color;

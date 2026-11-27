@@ -116,8 +116,11 @@ impl<'a, M> MenuSelect<'a, M> {
 impl<'a, M: Clone + 'a> From<MenuSelect<'a, M>> for Element<'a, M> {
     fn from(s: MenuSelect<'a, M>) -> Self {
         let t = s.theme;
-        let c = &t.colors;
-        let ink = if s.placeholder { c.fg_subtle } else { c.fg };
+        let ink = if s.placeholder {
+            t.inks.text.muted
+        } else {
+            t.inks.text.primary
+        };
         let mut line = row![].spacing(space::MD).align_y(Alignment::Center);
         if let Some(lead) = s.lead {
             line = line.push(icon(lead, size::ICON).color(ink));
@@ -130,21 +133,19 @@ impl<'a, M: Clone + 'a> From<MenuSelect<'a, M>> for Element<'a, M> {
                     .width(Length::Fill)
                     .wrapping(text::Wrapping::None),
             )
-            .push(icon(Icon::ChevronDown, 10.0).color(c.fg_muted));
+            .push(icon(Icon::ChevronDown, 10.0).color(t.inks.text.muted));
 
         let open = s.open;
-        let look = move |_: &iced::Theme, status: button::Status| {
-            let c = &t.colors;
+        // The edge is the same at rest and under the pointer.
+        let look = move |_: &iced::Theme, _: button::Status| {
             let edge = if open {
-                c.accent
-            } else if matches!(status, button::Status::Hovered | button::Status::Pressed) {
-                c.border_strong
+                t.palette.accent
             } else {
-                c.line_strong
+                t.palette.border_strong
             };
             button::Style {
-                background: Some(Background::Color(c.bg)),
-                text_color: c.fg,
+                background: Some(Background::Color(t.palette.bg)),
+                text_color: t.inks.text.primary,
                 border: Border {
                     color: edge,
                     width: 1.0,

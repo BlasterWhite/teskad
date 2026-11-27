@@ -110,12 +110,11 @@ impl<'a, M: Clone + 'a> Section<'a, M> {
 impl<'a, M: Clone + 'a> From<Section<'a, M>> for Element<'a, M> {
     fn from(s: Section<'a, M>) -> Self {
         let t = s.theme;
-        let c = &t.colors;
 
         // The chevron points down while the block is open and turns a quarter
         // to point at the title when it is folded.
         let chevron = icon(Icon::ChevronDown, 10.0)
-            .color(c.fg_subtle)
+            .color(t.inks.text.muted)
             .rotate(if s.collapsed { -FRAC_PI_2 } else { 0.0 });
         let mut title = row![
             chevron,
