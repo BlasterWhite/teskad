@@ -1141,7 +1141,7 @@ impl Default for Settings {
             discord_show_agents: true,
             discord_app_id: String::new(),
             board_dock_open: false,
-            board_dock_width: 420.0,
+            board_dock_width: 330.0,
             model_panel_width: 440.0,
             navigator_open: true,
             inspector_open: true,
