@@ -19,15 +19,17 @@
 //! Pressed and disabled states come from the style, not from the view: a
 //! button without a message is drawn at 45 % and does nothing.
 //!
-//! Gap: iced 0.14's buttons take no keyboard focus, so there is no focus ring
-//! to draw; a button is reached by the pointer or by the shortcut that does
-//! the same thing.
+//! Keyboard: iced 0.14's buttons take no keyboard focus, so each one here is
+//! wrapped in a [`focus::ring`]: it answers `widget::focus_next`, shows the
+//! palette's `focus_ring` (2 px, 2 px off) while it has the focus, and Space
+//! and Enter press it.
 
-use hangar_theme::tokens::{font_size, size, space};
+use hangar_theme::tokens::{font_size, radius, scale, size, space};
 use hangar_theme::{Theme, fonts, style};
 use iced::widget::{Space, button, container, row, text};
 use iced::{Alignment, Element, Length, Padding, alignment};
 
+use crate::focus;
 use crate::icon::{Icon, icon};
 use crate::tip;
 
@@ -43,7 +45,8 @@ pub enum Kind {
     /// The ordinary button: raised, with a hairline.
     #[default]
     Secondary,
-    /// Nothing around it until it is pointed at: cancel, close.
+    /// Nothing around it until it is pointed at: cancel, close. The brand's
+    /// text button.
     Ghost,
     /// What destroys something.
     Danger,
@@ -57,6 +60,9 @@ pub enum Size {
     Medium,
     /// 22 px (`.btn--tiny`): a row of actions inside a list item.
     Small,
+    /// 32 px, the brand's `controlMd`: the buttons of a settings page and
+    /// of a dialog's foot.
+    Large,
 }
 
 impl Size {
@@ -64,6 +70,7 @@ impl Size {
         match self {
             Size::Medium => size::CONTROL_HEIGHT,
             Size::Small => size::CONTROL_HEIGHT_SM,
+            Size::Large => scale::size::CONTROL_MD,
         }
     }
 
@@ -71,12 +78,13 @@ impl Size {
         match self {
             Size::Medium => 11.0,
             Size::Small => 9.0,
+            Size::Large => 14.0,
         }
     }
 
     const fn text(self) -> f32 {
         match self {
-            Size::Medium => font_size::BODY,
+            Size::Medium | Size::Large => font_size::BODY,
             Size::Small => font_size::CAPTION_LG,
         }
     }
@@ -94,6 +102,8 @@ pub struct Btn<'a, M> {
     on_press: Option<M>,
     width: Length,
     tip: Option<String>,
+    shown_as: Option<button::Status>,
+    ring_shown: bool,
 }
 
 impl<'a, M: Clone + 'a> Btn<'a, M> {
@@ -108,7 +118,18 @@ impl<'a, M: Clone + 'a> Btn<'a, M> {
             on_press: None,
             width: Length::Shrink,
             tip: None,
+            shown_as: None,
+            ring_shown: false,
         }
+    }
+
+    /// Draws the button in this state whatever the pointer does, and with the
+    /// keyboard's ring if `ring`: for the component sheet, which shows every
+    /// state at once.
+    pub fn shown_as(mut self, status: button::Status, ring: bool) -> Self {
+        self.shown_as = Some(status);
+        self.ring_shown = ring;
+        self
     }
 
     /// An icon before the label.
@@ -192,20 +213,26 @@ impl<'a, M: Clone + 'a> From<Btn<'a, M>> for Element<'a, M> {
             centred = centred.center_x(Length::Fill);
         }
         let kind = b.kind;
+        let forced = b.shown_as;
         let look = move |theme: &iced::Theme, status| match kind {
-            Kind::Primary => style::button::primary(t)(theme, status),
-            Kind::Secondary => style::button::secondary(t)(theme, status),
-            Kind::Ghost => style::button::ghost(t)(theme, status),
-            Kind::Danger => style::button::danger(t)(theme, status),
+            Kind::Primary => style::button::primary(t)(theme, forced.unwrap_or(status)),
+            Kind::Secondary => style::button::secondary(t)(theme, forced.unwrap_or(status)),
+            Kind::Ghost => style::button::ghost(t)(theme, forced.unwrap_or(status)),
+            Kind::Danger => style::button::danger(t)(theme, forced.unwrap_or(status)),
         };
         let built = button(centred)
             .padding(Padding::from([PADDING_Y, b.size.padding_x()]))
             .width(b.width)
             .style(look)
-            .on_press_maybe(b.on_press);
+            .on_press_maybe(b.on_press.clone());
+        let built = focus::ring(t, built)
+            .radius(radius::MD)
+            .on_activate_maybe(b.on_press)
+            .shown(b.ring_shown);
+        let built = Element::from(built);
         match b.tip {
             Some(words) => tip::bottom(t, built, words),
-            None => built.into(),
+            None => built,
         }
     }
 }
@@ -222,6 +249,11 @@ pub fn secondary<'a, M: Clone + 'a>(t: &'a Theme, label: impl Into<String>) -> B
 
 /// A button with nothing around it until it is pointed at.
 pub fn ghost<'a, M: Clone + 'a>(t: &'a Theme, label: impl Into<String>) -> Btn<'a, M> {
+    Btn::new(t, Kind::Ghost, label)
+}
+
+/// The text button: no box until it is pointed at (the same as [`ghost`]).
+pub fn text_button<'a, M: Clone + 'a>(t: &'a Theme, label: impl Into<String>) -> Btn<'a, M> {
     Btn::new(t, Kind::Ghost, label)
 }
 
@@ -246,6 +278,27 @@ pub struct IconBtn<'a, M> {
     toggled: Option<bool>,
     danger: bool,
     rotation: f32,
+    shown_as: Option<button::Status>,
+    ring_shown: bool,
+}
+
+/// The sides an icon-only button comes in (`maquettes 01 and 03`): 26 in a
+/// pane's header, 28 in the bars, 32 in a dialog or a settings page.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Side {
+    Xs,
+    Sm,
+    Md,
+}
+
+impl Side {
+    pub const fn pixels(self) -> f32 {
+        match self {
+            Side::Xs => scale::size::ICON_BUTTON_XS,
+            Side::Sm => scale::size::CONTROL_SM,
+            Side::Md => scale::size::CONTROL_MD,
+        }
+    }
 }
 
 impl<'a, M: Clone + 'a> IconBtn<'a, M> {
@@ -261,7 +314,22 @@ impl<'a, M: Clone + 'a> IconBtn<'a, M> {
             toggled: None,
             danger: false,
             rotation: 0.0,
+            shown_as: None,
+            ring_shown: false,
         }
+    }
+
+    /// One of the brand's three sides: 26, 28 or 32 px.
+    pub fn sized(mut self, side: Side) -> Self {
+        self.side = side.pixels();
+        self
+    }
+
+    /// See [`Btn::shown_as`].
+    pub fn shown_as(mut self, status: button::Status, ring: bool) -> Self {
+        self.shown_as = Some(status);
+        self.ring_shown = ring;
+        self
     }
 
     pub fn on_press(mut self, message: M) -> Self {
@@ -328,7 +396,9 @@ impl<'a, M: Clone + 'a> From<IconBtn<'a, M>> for Element<'a, M> {
         let glyph = icon(b.which, b.icon_size).rotate(b.rotation);
         let toggled = b.toggled;
         let destructive = b.danger;
+        let forced = b.shown_as;
         let look = move |theme: &iced::Theme, status| {
+            let status = forced.unwrap_or(status);
             if let Some(on) = toggled {
                 return style::button::toggle(t, on)(theme, status);
             }
@@ -344,11 +414,17 @@ impl<'a, M: Clone + 'a> From<IconBtn<'a, M>> for Element<'a, M> {
             .width(b.side)
             .height(b.side)
             .style(look)
-            .on_press_maybe(b.on_press);
+            .on_press_maybe(b.on_press.clone());
+        let built = Element::from(
+            focus::ring(t, built)
+                .radius(radius::MD)
+                .on_activate_maybe(b.on_press)
+                .shown(b.ring_shown),
+        );
         match (b.tip, b.keys) {
             (Some(words), Some(keys)) => tip::keys(t, built, words, &keys),
             (Some(words), None) => tip::bottom(t, built, words),
-            (None, _) => built.into(),
+            (None, _) => built,
         }
     }
 }
@@ -426,13 +502,18 @@ pub fn link<'a, M: Clone + 'a>(
     label: impl Into<String>,
     on_press: M,
 ) -> Element<'a, M> {
-    button(
-        text(label.into())
-            .size(font_size::UI)
-            .font(fonts::ui_medium()),
+    focus::ring(
+        t,
+        button(
+            text(label.into())
+                .size(font_size::UI)
+                .font(fonts::ui_medium()),
+        )
+        .padding(0)
+        .style(style::button::link(t))
+        .on_press(on_press.clone()),
     )
-    .padding(0)
-    .style(style::button::link(t))
-    .on_press(on_press)
+    .radius(radius::XS)
+    .on_activate(on_press)
     .into()
 }

@@ -33,7 +33,7 @@ pub fn sep_see_through(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 /// A hairline inside a surface (`--line`): under a dialog's title, above its
 /// buttons.
 pub fn hairline(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| line(t.colors.line)
+    move |_| line(t.palette.border)
 }
 
 /// A stronger hairline (`--line-strong`): between a menu's groups.

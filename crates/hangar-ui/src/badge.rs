@@ -134,6 +134,85 @@ pub fn tag<'a, M: 'a>(t: &'a Theme, label: impl Into<String>) -> Element<'a, M> 
     .into()
 }
 
+/// What a pane or a workspace's agent is in a team.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Role {
+    /// The one that orchestrates: a filled pill, with the Fork symbol.
+    Orchestrator,
+    /// The others: an outlined pill.
+    Worker,
+}
+
+/// A role badge: the one pill of the interface, 20 px tall. The orchestrator
+/// carries the Fork symbol and a fill, the worker an outline, so the two
+/// differ by more than their colour.
+pub fn role<'a, M: 'a>(t: &'a Theme, role: Role, label: impl Into<String>) -> Element<'a, M> {
+    let orchestrator = role == Role::Orchestrator;
+    let ink = if orchestrator {
+        t.palette.status.active
+    } else {
+        t.palette.text_secondary
+    };
+    let mut content = row![].spacing(5.0).align_y(Alignment::Center);
+    if orchestrator {
+        content = content.push(icon(Icon::Orchestrator, 11.0).color(ink));
+    }
+    content = content.push(
+        text(label.into())
+            .size(font_size::MICRO - 0.5)
+            .font(fonts::ui_medium())
+            .wrapping(Wrapping::None)
+            .color(ink),
+    );
+    container(content)
+        .height(20.0)
+        .padding(Padding::from([0.0, space::MD]))
+        .align_y(Alignment::Center)
+        .style(style::container::role_pill(t, orchestrator))
+        .into()
+}
+
+/// The badge of a Claude account: a bolt and the account's name, 18 px tall,
+/// 4 px corners. `selected` is the one on a selected row. It is the Claude
+/// Code account, not a branch.
+pub fn account<'a, M: 'a>(t: &'a Theme, name: impl Into<String>, selected: bool) -> Element<'a, M> {
+    let ink = t.palette.status.active;
+    container(
+        row![
+            icon(Icon::Bolt, 11.0).color(ink),
+            text(name.into())
+                .size(font_size::MICRO - 0.5)
+                .font(fonts::ui_medium())
+                .wrapping(Wrapping::None)
+                .color(ink),
+        ]
+        .spacing(3.0)
+        .align_y(Alignment::Center),
+    )
+    .height(18.0)
+    .padding(Padding::from([0.0, space::SM]))
+    .align_y(Alignment::Center)
+    .style(style::container::account_badge(t, selected))
+    .into()
+}
+
+/// The BETA badge, set after the name of a feature that is not finished:
+/// mono 10, outlined.
+pub fn beta<'a, M: 'a>(t: &'a Theme, label: impl Into<String>) -> Element<'a, M> {
+    container(
+        text(label.into())
+            .size(10.0)
+            .font(fonts::mono())
+            .wrapping(Wrapping::None)
+            .color(t.palette.status.active),
+    )
+    .height(18.0)
+    .padding(Padding::from([0.0, space::SM]))
+    .align_y(Alignment::Center)
+    .style(style::container::beta(t))
+    .into()
+}
+
 #[cfg(test)]
 mod tests {
     use hangar_theme::default_theme;

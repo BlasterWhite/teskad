@@ -119,3 +119,36 @@ pub(crate) fn drop_shadow(color: Color, y: f32, blur: f32) -> Shadow {
         blur_radius: blur,
     }
 }
+
+/// `base` with the palette's `hover_overlay` laid over it `times` times: the
+/// colour of a surface under the pointer (once) or pressed (twice).
+pub(crate) fn lit(base: Color, overlay: Color, times: u32) -> Color {
+    let mut rgb = crate::Rgb::from(base);
+    for _ in 0..times {
+        rgb = crate::over(overlay, rgb);
+    }
+    Color {
+        a: base.a,
+        ..rgb.to_color()
+    }
+}
+
+/// The overlay alone, `times` over: what a control with no fill of its own
+/// shows under the pointer (once) or pressed (twice).
+pub(crate) fn stacked(overlay: Color, times: u32) -> Color {
+    let kept = (1.0 - overlay.a).powi(times as i32);
+    Color {
+        a: 1.0 - kept,
+        ..overlay
+    }
+}
+
+/// The ring of a control that has the keyboard: 2 px of the palette's
+/// `focus_ring` around it.
+pub fn focus_border(t: &crate::Theme, radius: f32) -> Border {
+    Border {
+        color: t.palette.focus_ring,
+        width: crate::tokens::FOCUS_RING_WIDTH,
+        radius: radius.into(),
+    }
+}

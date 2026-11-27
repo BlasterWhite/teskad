@@ -144,12 +144,13 @@ pub fn segmented_track(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     }
 }
 
-/// The track of a segmented control in a form (`.seg`): recessed, with a
-/// hairline around it; its chosen segment is a [`super::button::tab`].
+/// The track of a segmented control: recessed (`surface_sunken`), a hairline
+/// around it, corners of a field (8); its chosen segment is a
+/// [`super::button::tab`].
 pub fn segmented(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
-        border: hairline(t.colors.line_strong, radius::MD),
-        ..fill(t.colors.seg_track, t.colors.fg)
+        border: hairline(t.palette.border, radius::LG),
+        ..fill(t.palette.surface_sunken, t.palette.text)
     }
 }
 
@@ -234,22 +235,23 @@ pub fn accent_soft(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     }
 }
 
-/// A key of a keyboard shortcut (`.kbd-seq kbd`): a little cap with a
-/// hairline under it, in the mono face.
+/// A key of a keyboard shortcut (`kbd`): a 4 px cap with a `border_strong`
+/// hairline, nothing inside, in `text_muted`.
 pub fn kbd(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
-        border: hairline(t.colors.line_strong, radius::XS),
-        shadow: drop_shadow(t.colors.line_strong, 1.0, 0.0),
-        ..fill(t.colors.surface_active, t.colors.fg)
+        border: hairline(t.palette.border_strong, radius::XS),
+        text_color: Some(t.palette.text_muted),
+        ..Style::default()
     }
 }
 
-/// A key of a shortcut another command answers to as well.
+/// A key of a shortcut another command answers to as well: the failure
+/// colour on the edge and the text.
 pub fn kbd_conflict(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
-        border: hairline(t.colors.danger, radius::XS),
-        shadow: drop_shadow(t.colors.line_strong, 1.0, 0.0),
-        ..fill(t.colors.surface_active, t.colors.danger)
+        border: hairline(t.palette.status.failed, radius::XS),
+        text_color: Some(t.palette.status.failed),
+        ..Style::default()
     }
 }
 
@@ -361,7 +363,7 @@ fn tone_colors(t: &Theme, tone: Tone) -> (Color, Color) {
 /// A group of rows with a hairline around it and nothing between them but the
 /// rows' own separators (`.set-group`).
 pub fn group(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    card(t)
+    settings_block(t)
 }
 
 /// A row of a form or a list drawn under the pointer without being a button
@@ -380,5 +382,67 @@ pub fn row_conflict(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
         background: Some(Background::Color(with_alpha(t.colors.danger, 0.08))),
         border: rounded(radius::NONE),
         ..Style::default()
+    }
+}
+
+/// A role badge, a pill (the one pill of the interface): the orchestrator is
+/// `selection_bg` with `status.active` text, a worker a `border_strong`
+/// outline in `text_secondary`. The words and the Fork symbol tell them apart
+/// as much as the colours do.
+pub fn role_pill(t: &Theme, orchestrator: bool) -> impl Fn(&iced::Theme) -> Style + '_ {
+    move |_| {
+        let p = &t.palette;
+        if orchestrator {
+            Style {
+                background: Some(Background::Color(p.selection_bg)),
+                text_color: Some(p.status.active),
+                border: rounded(radius::FULL),
+                ..Style::default()
+            }
+        } else {
+            Style {
+                text_color: Some(p.text_secondary),
+                border: hairline(p.border_strong, radius::FULL),
+                ..Style::default()
+            }
+        }
+    }
+}
+
+/// The badge of the Claude account of a workspace or a pane (a bolt and the
+/// account's name): 4 px corners, `surface_raised`, `status.active` text.
+/// `selected` is the badge on a selected row, which sits on `selection_bg`.
+pub fn account_badge(t: &Theme, selected: bool) -> impl Fn(&iced::Theme) -> Style + '_ {
+    move |_| {
+        let p = &t.palette;
+        Style {
+            background: Some(Background::Color(if selected {
+                super::lit(p.selection_bg, p.status.active.scale_alpha(0.18), 1)
+            } else {
+                p.surface_raised
+            })),
+            text_color: Some(p.status.active),
+            border: rounded(radius::XS),
+            ..Style::default()
+        }
+    }
+}
+
+/// The BETA badge: a `border_strong` outline, 4 px corners, `status.active`
+/// text.
+pub fn beta(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
+    move |_| Style {
+        text_color: Some(t.palette.status.active),
+        border: hairline(t.palette.border_strong, radius::XS),
+        ..Style::default()
+    }
+}
+
+/// A block of settings: `surface`, a `border` hairline, corners of 12. Its
+/// rows are separated by a [`super::rule::sep`] hairline.
+pub fn settings_block(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
+    move |_| Style {
+        border: hairline(t.palette.border, radius::XL),
+        ..fill(t.palette.surface, t.palette.text)
     }
 }

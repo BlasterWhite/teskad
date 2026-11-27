@@ -8,7 +8,7 @@
 use iced::widget::button::{Status, Style};
 use iced::{Background, Border, Color, Shadow};
 
-use super::{brightness, drop_shadow, faded, faded_border, hairline, rounded, with_alpha};
+use super::{brightness, faded, faded_border, hairline, lit, rounded, stacked, with_alpha};
 use crate::Theme;
 use crate::tokens::radius;
 
@@ -63,7 +63,7 @@ pub fn primary(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
             background: Some(background),
             text: p.on_accent,
             border: rounded(radius::MD),
-            shadow: drop_shadow(Color::from_rgba(0.0, 0.0, 0.0, 0.3), 1.0, 2.0),
+            shadow: Shadow::default(),
         };
         by_status(
             status,
@@ -74,68 +74,66 @@ pub fn primary(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
     }
 }
 
-/// The ordinary button (`.btn`): raised, with a stronger hairline.
+/// The ordinary button: `surface_raised` with the strong hairline, a step
+/// brighter under the pointer (`hover_overlay`) and two when pressed.
 pub fn secondary(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
     move |_, status| {
-        let c = &t.colors;
-        let look = |background: Color, border: Color| Look {
-            background: Some(background),
-            text: c.fg,
-            border: hairline(border, radius::MD),
+        let p = &t.palette;
+        let look = |times: u32| Look {
+            background: Some(lit(p.surface_raised, p.hover_overlay, times)),
+            text: p.text,
+            border: hairline(p.border_strong, radius::MD),
             shadow: Shadow::default(),
         };
-        by_status(
-            status,
-            look(c.raised, c.line_strong),
-            look(c.surface_hover, c.border_strong),
-            look(c.surface_active, c.border_strong),
-        )
+        by_status(status, look(0), look(1), look(2))
     }
 }
 
-/// A button with nothing around it until it is pointed at (`.btn--ghost`).
+/// The text button: nothing around it until it is pointed at, then the
+/// palette's `hover_overlay`.
 pub fn ghost(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
     move |_, status| {
-        let c = &t.colors;
+        let p = &t.palette;
         let look = |background: Option<Color>| Look {
             background,
-            text: c.fg,
+            text: p.text,
             border: rounded(radius::MD),
             shadow: Shadow::default(),
         };
         by_status(
             status,
             look(None),
-            look(Some(c.surface_hover)),
-            look(Some(c.surface_active)),
+            look(Some(stacked(p.hover_overlay, 1))),
+            look(Some(stacked(p.hover_overlay, 2))),
         )
     }
 }
 
-/// A destructive action (`.btn--danger`): the danger colour in the text and
-/// the outline, and a tint of it under the pointer.
+/// A destructive action: the failure colour in the text and the outline
+/// (never the brand's magenta), and a tint of it under the pointer.
 pub fn danger(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
     move |_, status| {
-        let c = &t.colors;
+        let p = &t.palette;
         let look = |background: Color| Look {
             background: Some(background),
-            text: c.danger,
-            border: hairline(with_alpha(c.danger, 0.4), radius::MD),
+            text: p.status.failed,
+            border: hairline(with_alpha(p.status.failed, 0.4), radius::MD),
             shadow: Shadow::default(),
         };
         by_status(
             status,
-            look(c.raised),
-            look(c.danger_soft),
-            look(with_alpha(c.danger, 0.24)),
+            look(p.surface_raised),
+            look(lit(p.surface_raised, with_alpha(p.status.failed, 0.12), 1)),
+            look(lit(p.surface_raised, with_alpha(p.status.failed, 0.12), 2)),
         )
     }
 }
 
-/// An icon button with no border, the navigator's only kind (`.nav-tb`).
+/// An icon-only button with no border: `text_muted`, `text` and the overlay
+/// under the pointer. Its radius is a control's (6).
 pub fn icon(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
     move |_, status| {
-        let c = &t.colors;
+        let p = &t.palette;
         let look = |background: Option<Color>, text: Color| Look {
             background,
             text,
@@ -144,37 +142,49 @@ pub fn icon(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
         };
         by_status(
             status,
-            look(None, c.fg_muted),
-            look(Some(c.surface_hover), c.fg),
-            look(Some(c.surface_active), c.fg),
+            look(None, p.text_muted),
+            look(Some(stacked(p.hover_overlay, 1)), p.text),
+            look(Some(stacked(p.hover_overlay, 2)), p.text),
         )
     }
 }
 
-/// A segment of a segmented control (`.segmented__btn`). The chosen one is
-/// raised out of the track: lighter on a dark theme, white on a light one.
+/// A segment of a segmented control. The chosen one is raised out of the
+/// track by its fill and its medium weight: `border` on a dark theme, the
+/// surface on a light one, in `text`; the others are `text_muted`, and
+/// `text` under the pointer.
 pub fn tab(t: &Theme, active: bool) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
     move |_, status| {
-        let c = &t.colors;
+        let p = &t.palette;
         if active {
+            let thumb = if t.appearance.is_dark() {
+                p.border
+            } else {
+                p.surface
+            };
             let look = Look {
-                background: Some(c.seg_thumb),
-                text: c.fg,
-                border: hairline(c.line, radius::SM),
-                shadow: drop_shadow(c.shadow, 1.0, 2.0),
+                background: Some(thumb),
+                text: p.text,
+                border: rounded(radius::SM),
+                shadow: Shadow::default(),
             };
             return match status {
                 Status::Disabled => look.disabled(),
                 _ => look.style(),
             };
         }
-        let look = |text: Color| Look {
-            background: None,
+        let look = |text: Color, background: Option<Color>| Look {
+            background,
             text,
             border: rounded(radius::SM),
             shadow: Shadow::default(),
         };
-        by_status(status, look(c.fg_secondary), look(c.fg), look(c.fg))
+        by_status(
+            status,
+            look(p.text_muted, None),
+            look(p.text, Some(stacked(p.hover_overlay, 1))),
+            look(p.text, Some(stacked(p.hover_overlay, 2))),
+        )
     }
 }
 
@@ -236,12 +246,12 @@ pub fn row(t: &Theme, selected: bool) -> impl Fn(&iced::Theme, Status) -> Style 
 /// A button that reads as a link: the accent as text, no box.
 pub fn link(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
     move |_, status| {
-        let c = &t.colors;
+        let link = t.palette.accent_text;
         let text = match status {
-            Status::Active => c.accent_hi,
-            Status::Hovered => brightness(c.accent_hi, 1.12),
-            Status::Pressed => brightness(c.accent_hi, 0.9),
-            Status::Disabled => faded(c.accent_hi),
+            Status::Active => link,
+            Status::Hovered => brightness(link, 1.12),
+            Status::Pressed => brightness(link, 0.9),
+            Status::Disabled => faded(link),
         };
         Style {
             background: None,

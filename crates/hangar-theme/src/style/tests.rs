@@ -107,21 +107,19 @@ fn the_chosen_tab_is_raised_and_the_others_are_not() {
     let t = default_theme();
     let chosen = button_style::tab(t, true)(&iced::Theme::Dark, Status::Active);
     let other = button_style::tab(t, false)(&iced::Theme::Dark, Status::Active);
-    assert_eq!(
-        chosen.background,
-        Some(Background::Color(t.colors.seg_thumb))
-    );
+    assert_eq!(chosen.background, Some(Background::Color(t.palette.border)));
     assert_eq!(other.background, None);
 }
 
 #[test]
-fn a_focused_field_takes_the_accent_for_its_edge() {
+fn a_focused_field_takes_the_focus_ring_for_its_edge() {
     let t = default_theme();
     let focused = text_input_style::field(t)(
         &iced::Theme::Dark,
         text_input::Status::Focused { is_hovered: false },
     );
-    assert_eq!(focused.border.color, t.colors.accent);
+    assert_eq!(focused.border.color, t.palette.focus_ring);
+    assert_eq!(focused.border.width, crate::tokens::FOCUS_RING_WIDTH);
 }
 
 #[test]
@@ -161,18 +159,21 @@ fn the_palette_row_is_the_accent_only_when_chosen() {
 }
 
 #[test]
-fn the_slider_knob_is_white_in_every_theme() {
+fn the_slider_knob_stands_out_from_its_track_in_every_theme() {
     for theme in themes() {
         let look = slider_style::default(theme)(&iced::Theme::Dark, slider::Status::Active);
-        assert_eq!(
-            look.handle.background,
-            Background::Color(Color::WHITE),
-            "{}",
+        let Background::Color(knob) = look.handle.background else {
+            panic!("a colour")
+        };
+        let track = Rgb::from(theme.palette.border);
+        assert!(
+            contrast_ratio(Rgb::from(knob), track) >= 1.5,
+            "{}: the knob is lost on the track",
             theme.id
         );
         assert_eq!(
             look.rail.backgrounds.0,
-            Background::Color(theme.colors.accent)
+            Background::Color(theme.palette.accent)
         );
     }
 }

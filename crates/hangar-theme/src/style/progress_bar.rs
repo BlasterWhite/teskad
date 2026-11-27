@@ -11,7 +11,7 @@ use crate::tokens::radius;
 
 fn bar(t: &Theme, fill: Color) -> Style {
     Style {
-        background: Background::Color(t.colors.border),
+        background: Background::Color(t.palette.border),
         bar: Background::Color(fill),
         border: rounded(radius::FULL),
     }
@@ -35,4 +35,16 @@ pub fn warning(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 /// A limit exceeded.
 pub fn danger(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| bar(t, t.colors.danger)
+}
+
+/// A gauge at its resting level (a plan's use, a context window): the
+/// palette's `active` state colour over the `border` track. The levels past
+/// it are [`warning`] and [`danger`]; a gauge always writes its figure too.
+pub fn gauge(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
+    move |_| bar(t, t.palette.status.active)
+}
+
+/// A gauge past its limit: the failure colour.
+pub fn gauge_danger(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
+    move |_| bar(t, t.palette.status.failed)
 }

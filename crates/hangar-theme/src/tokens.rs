@@ -162,9 +162,9 @@ pub mod size {
     /// A scrollbar, rail and thumb.
     pub const SCROLLBAR: f32 = 9.0;
     /// A switch: its track, and its knob.
-    pub const SWITCH_WIDTH: f32 = 30.0;
-    pub const SWITCH_HEIGHT: f32 = 18.0;
-    pub const SWITCH_KNOB: f32 = 14.0;
+    pub const SWITCH_WIDTH: f32 = 36.0;
+    pub const SWITCH_HEIGHT: f32 = 20.0;
+    pub const SWITCH_KNOB: f32 = 16.0;
     /// A dialog's width, and a wider list dialog's.
     pub const DIALOG_WIDTH: f32 = 520.0;
     pub const DIALOG_LIST_WIDTH: f32 = 560.0;
@@ -173,6 +173,112 @@ pub mod size {
     /// A context menu's bounds.
     pub const MENU_MIN_WIDTH: f32 = 200.0;
     pub const MENU_MAX_WIDTH: f32 = 280.0;
+}
+
+/// The brand pack's scales, as `docs/teskad-brand/tokens/tokens.json` (and its
+/// generated `theme.rs`) has them, under the pack's own names. They do not
+/// depend on the theme: a theme changes colours and nothing else. A test
+/// reads `tokens.json` and fails when one of these drifts from it.
+///
+/// The older modules above keep the names the window was built with; a new
+/// component takes its sizes from here.
+pub mod scale {
+    /// `space`: the 4 px grid.
+    pub mod space {
+        pub const S0: f32 = 0.0;
+        pub const S1: f32 = 4.0;
+        pub const S2: f32 = 8.0;
+        pub const S3: f32 = 12.0;
+        pub const S4: f32 = 16.0;
+        pub const S5: f32 = 20.0;
+        pub const S6: f32 = 24.0;
+        pub const S8: f32 = 32.0;
+        pub const S10: f32 = 40.0;
+        pub const S12: f32 = 48.0;
+    }
+
+    /// `radius`: 4 for badges and keys, 6 for buttons, menu items and tabs,
+    /// 8 for fields, cards and menus, 12 for panels, modals and blocks of
+    /// settings, a pill for role badges only.
+    pub mod radius {
+        pub const XS: f32 = 4.0;
+        pub const SM: f32 = 6.0;
+        pub const MD: f32 = 8.0;
+        pub const LG: f32 = 12.0;
+        pub const XL: f32 = 16.0;
+        pub const PILL: f32 = 999.0;
+    }
+
+    /// `size`: the heights of controls and icons, and of the big bars.
+    pub mod size {
+        pub const CONTROL_SM: f32 = 28.0;
+        pub const CONTROL_MD: f32 = 32.0;
+        pub const CONTROL_LG: f32 = 40.0;
+        pub const ICON_SM: f32 = 14.0;
+        pub const ICON_MD: f32 = 16.0;
+        pub const ICON_LG: f32 = 20.0;
+        pub const TITLE_BAR: f32 = 44.0;
+        pub const SIDEBAR: f32 = 248.0;
+        /// The smallest icon-only button of the mockups (a pane header's).
+        pub const ICON_BUTTON_XS: f32 = 26.0;
+    }
+
+    /// A step of the type scale: size, line height, weight.
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub struct TypeStep {
+        pub size: f32,
+        pub line_height: f32,
+        pub weight: u16,
+    }
+
+    const fn step(size: f32, line_height: f32, weight: u16) -> TypeStep {
+        TypeStep {
+            size,
+            line_height,
+            weight,
+        }
+    }
+
+    impl TypeStep {
+        /// The line height as the multiple of the size iced's
+        /// `LineHeight::Relative` takes.
+        pub fn relative_line_height(self) -> f32 {
+            self.line_height / self.size
+        }
+    }
+
+    /// `type`: the typographic scale. Sizes are in logical pixels, like all
+    /// the others.
+    pub mod type_scale {
+        use super::{TypeStep, step};
+
+        pub const CAPTION: TypeStep = step(12.0, 16.0, 500);
+        pub const SMALL: TypeStep = step(13.0, 18.0, 400);
+        pub const BODY: TypeStep = step(14.0, 20.0, 400);
+        pub const BODY_STRONG: TypeStep = step(14.0, 20.0, 600);
+        pub const SUBTITLE: TypeStep = step(16.0, 22.0, 600);
+        pub const TITLE: TypeStep = step(20.0, 26.0, 600);
+        pub const HEADLINE: TypeStep = step(28.0, 34.0, 600);
+        pub const CODE: TypeStep = step(13.0, 20.0, 400);
+        pub const LABEL: TypeStep = step(11.0, 14.0, 500);
+    }
+
+    /// `borderWidth`.
+    pub const BORDER_DEFAULT: f32 = 1.0;
+    pub const BORDER_FOCUS: f32 = 2.0;
+
+    /// How far from the control the focus ring is drawn (`charte §6`: 2 px).
+    pub const FOCUS_OFFSET: f32 = 2.0;
+
+    /// `font.fallback`: what a platform without one of the three faces
+    /// reads in. iced hands text to cosmic-text, which falls back to the
+    /// system's fonts by itself; these are kept so the window and the kits
+    /// name the same ones.
+    pub mod fallback {
+        pub const DISPLAY: &str = "Inter, system-ui, sans-serif";
+        pub const UI: &str = "system-ui, -apple-system, 'Segoe UI', sans-serif";
+        pub const MONO: &str = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
+    }
 }
 
 /// The focus ring: a 2 px outline in `accent_ring`, in the web app drawn
@@ -241,5 +347,81 @@ mod tests {
             font_size::DISPLAY,
         ];
         assert!(steps.windows(2).all(|pair| pair[0] < pair[1]));
+    }
+    /// The scales are the pack's: read `tokens.json` and compare.
+    #[test]
+    fn the_scales_are_the_brand_packs_tokens_json() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../docs/teskad-brand/tokens/tokens.json"
+        );
+        let json: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(path).expect("the pack's tokens"))
+                .expect("valid JSON");
+        let num = |value: &serde_json::Value| value.as_f64().expect("a number") as f32;
+
+        let space = &json["space"];
+        for (key, ours) in [
+            ("0", scale::space::S0),
+            ("1", scale::space::S1),
+            ("2", scale::space::S2),
+            ("3", scale::space::S3),
+            ("4", scale::space::S4),
+            ("5", scale::space::S5),
+            ("6", scale::space::S6),
+            ("8", scale::space::S8),
+            ("10", scale::space::S10),
+            ("12", scale::space::S12),
+        ] {
+            assert_eq!(num(&space[key]), ours, "space {key}");
+        }
+        let radius = &json["radius"];
+        for (key, ours) in [
+            ("xs", scale::radius::XS),
+            ("sm", scale::radius::SM),
+            ("md", scale::radius::MD),
+            ("lg", scale::radius::LG),
+            ("xl", scale::radius::XL),
+            ("pill", scale::radius::PILL),
+        ] {
+            assert_eq!(num(&radius[key]), ours, "radius {key}");
+        }
+        let sizes = &json["size"];
+        for (key, ours) in [
+            ("controlSm", scale::size::CONTROL_SM),
+            ("controlMd", scale::size::CONTROL_MD),
+            ("controlLg", scale::size::CONTROL_LG),
+            ("iconSm", scale::size::ICON_SM),
+            ("iconMd", scale::size::ICON_MD),
+            ("iconLg", scale::size::ICON_LG),
+            ("titleBar", scale::size::TITLE_BAR),
+            ("sidebar", scale::size::SIDEBAR),
+        ] {
+            assert_eq!(num(&sizes[key]), ours, "size {key}");
+        }
+        let types = &json["type"];
+        for (key, ours) in [
+            ("caption", scale::type_scale::CAPTION),
+            ("small", scale::type_scale::SMALL),
+            ("body", scale::type_scale::BODY),
+            ("bodyStrong", scale::type_scale::BODY_STRONG),
+            ("subtitle", scale::type_scale::SUBTITLE),
+            ("title", scale::type_scale::TITLE),
+            ("headline", scale::type_scale::HEADLINE),
+            ("code", scale::type_scale::CODE),
+            ("label", scale::type_scale::LABEL),
+        ] {
+            let theirs = &types[key];
+            assert_eq!(num(&theirs["size"]), ours.size, "type {key} size");
+            assert_eq!(num(&theirs["lineHeight"]), ours.line_height, "type {key}");
+            assert_eq!(theirs["weight"].as_u64(), Some(u64::from(ours.weight)));
+        }
+        assert_eq!(num(&json["borderWidth"]["default"]), scale::BORDER_DEFAULT);
+        assert_eq!(num(&json["borderWidth"]["focus"]), scale::BORDER_FOCUS);
+        assert_eq!(num(&json["borderWidth"]["focus"]), FOCUS_RING_WIDTH);
+        let fallback = &json["font"]["fallback"];
+        assert_eq!(fallback["display"], scale::fallback::DISPLAY);
+        assert_eq!(fallback["ui"], scale::fallback::UI);
+        assert_eq!(fallback["mono"], scale::fallback::MONO);
     }
 }

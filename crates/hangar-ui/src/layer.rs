@@ -541,7 +541,10 @@ impl<M: Clone> LayerOverlay<'_, '_, M> {
             return;
         }
         let target = match (step, count.focused) {
-            (FocusStep::First, _) | (FocusStep::Next, None) => 0,
+            // A dialog opens on its first field, not on the close button that
+            // comes before it in the tree.
+            (FocusStep::First, _) => count.first_text.unwrap_or(0),
+            (FocusStep::Next, None) => 0,
             (FocusStep::Previous, None) => count.total - 1,
             (FocusStep::Next, Some(at)) => (at + 1) % count.total,
             (FocusStep::Previous, Some(at)) => (at + count.total - 1) % count.total,
@@ -620,11 +623,14 @@ enum FocusStep {
     Previous,
 }
 
-/// Counts the fields that can take the keyboard and finds the one that has it.
+/// Counts what can take the keyboard (fields, and the controls wrapped in a
+/// [`crate::focus::ring`]) and finds the one that has it, and the first field
+/// that takes text.
 #[derive(Debug, Default)]
 struct Counter {
     total: usize,
     focused: Option<usize>,
+    first_text: Option<usize>,
 }
 
 impl Operation for Counter {
@@ -642,6 +648,19 @@ impl Operation for Counter {
             self.focused = Some(self.total);
         }
         self.total += 1;
+    }
+
+    fn text_input(
+        &mut self,
+        _id: Option<&widget::Id>,
+        _bounds: Rectangle,
+        _state: &mut dyn iced::advanced::widget::operation::TextInput,
+    ) {
+        // iced calls this just before the field's `focusable`, which is
+        // what counts it: the field is the one at `total`.
+        if self.first_text.is_none() {
+            self.first_text = Some(self.total);
+        }
     }
 }
 
