@@ -133,7 +133,7 @@ pub fn spawn_options() -> Result<SpawnOptions, StartError> {
                 .arg("--manifest-path")
                 .arg(manifest)
                 .arg("-p")
-                .arg("teskad-webview")
+                .arg("hangar-webview")
                 .arg("--features")
                 .arg("engine")
                 .arg("--"));

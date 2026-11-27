@@ -186,7 +186,7 @@ and what reaches its nodes.
 
 ## Step 3: the node runs its own workspaces
 
-`teskad-node serve` hosts the engine (`teskad-node/src/own.rs`): an
+`teskad-node serve` hosts the engine (`hangar-node/src/own.rs`): an
 `EngineHost` whose state is `~/.local/state/teskad-node/state.json` and
 whose terminals are the node's own panes (`NodeTerminals` over `Panes`),
 each with a screen. Their history and streams are the node's, so a desktop
@@ -278,7 +278,7 @@ streams them as any pane of the node.
   desktop drove there (« Move to {machine} » in the navigator), are handed
   over with the adopt above (nodes.md, same section).
 
-Tested on the binary itself (`teskad-node/tests/node.rs`): a workspace
+Tested on the binary itself (`hangar-node/tests/node.rs`): a workspace
 made through the API, its orchestrator's shell started and a Claude Code
 typed in it (a script standing in for it) whose request through Hangar's
 MCP server the node answers with no desktop, the state kept across a

@@ -72,7 +72,7 @@ xterm.js (frontend, ~100k lines of TS/TSX including tests, ~18k lines of CSS).
               ┌─────────────┘      │      │      │      └──────────────┐
               ▼                    ▼      ▼      ▼                     ▼
        ┌────────────┐   ┌──────────┐ ┌─────────┐ ┌───────────────┐ ┌────────────────┐
-       │ hangar-core│   │hangar-ui │ │hangar-  │ │hangar-kit-host│ │ teskad-webview │
+       │ hangar-core│   │hangar-ui │ │hangar-  │ │hangar-kit-host│ │ hangar-webview │
        │ no GUI:    │   │widgets   │ │term     │ │wasmtime +     │ │ separate proc: │
        │ board, git,│   │on iced   │ │alacritty│ │renders kit-ui │ │ tao + wry, for │
        │ MCP, PTYs, │   └────┬─────┘ │_terminal│ └──────┬────────┘ │ HTML kit tabs, │
@@ -85,7 +85,7 @@ xterm.js (frontend, ~100k lines of TS/TSX including tests, ~18k lines of CSS).
 ```
 
 One process draws everything with iced (wgpu, falling back to tiny-skia). The
-only browser engine is in `teskad-webview`, a different executable, started on
+only browser engine is in `hangar-webview`, a different executable, started on
 demand. The main executable does not link a webview library at all.
 
 ### 3.1 Crates
@@ -99,7 +99,7 @@ demand. The main executable does not link a webview library at all.
 | `hangar-kit-ui` | lib | The native interface library of kits: the widget tree and events, as serde data. Compiles to wasm32. A public contract. | serde |
 | `hangar-kit-sdk` | lib | What a kit author links: `Kit` trait, export macro, typed host calls, view builders. Compiles to wasm32. | hangar-kit-ui |
 | `hangar-kit-host` | lib | Runs kit tabs in wasmtime with limits and declared permissions; renders `hangar-kit-ui` trees with iced; `KitApi` trait the app implements. | wasmtime, iced, hangar-kit-ui (then hangar-theme, hangar-ui) |
-| `teskad-webview` | lib + bin | Lib: protocol + client the app uses (serde only). Bin (feature `engine`): tao + wry window(s), custom-scheme requests answered by the parent, `window.hangar` bridge for HTML kits. | serde; wry, tao behind `engine` |
+| `hangar-webview` | lib + bin | Lib: protocol + client the app uses (serde only). Bin (feature `engine`): tao + wry window(s), custom-scheme requests answered by the parent, `window.hangar` bridge for HTML kits. | serde; wry, tao behind `engine` |
 | `hangar-i18n` | lib | The interface strings, English and French, generated from `dict/en.json` and `dict/fr.json` (first written from the old `src/i18n.ts` and `src/strings/*`, with the same keys); plurals, placeholders, French typography. | none |
 | `hangar-model3d` | lib | The 3D model preview replacing three.js: glTF/GLB, OBJ, STL, PLY loaded off the UI thread, drawn with wgpu in an iced `shader` widget, orbit camera, framing, grid, PNG capture. | iced (its wgpu) |
 | `hangar-update` | lib | The self-updater replacing `tauri-plugin-updater`: same `latest.json`, same minisign key, per-platform install and relaunch. | ureq |
@@ -123,7 +123,7 @@ People already use Hangar; switching to the native build must not lose anything.
 - **`state.json` format**: read the same file, write it back so the old app could still read it (until the old app is gone, people may go back and forth).
 - **Executable name `hangar-ai`**: MCP configs written into agents' settings (`install.rs`) point at it; `hangar-ai --mcp` must keep working at the same path after an update.
 - **The endpoint file and the bridge plugin**: agents and the Claude Code mod find the running app the same way.
-- **Kits**: every existing kit keeps working. HTML tabs open in `teskad-webview` with the same `window.hangar` API and the same permissions; native tabs are an addition (manifest schema rules in kits-native.md).
+- **Kits**: every existing kit keeps working. HTML tabs open in `hangar-webview` with the same `window.hangar` API and the same permissions; native tabs are an addition (manifest schema rules in kits-native.md).
 - **Hangar Mobile** keeps serving the same phone web app (`mobile/`, built to `dist-mobile/`, embedded by `hangar-core/src/remote/assets.rs`). It is a web app because a phone browser shows it; it is not a webview inside Hangar and is out of scope for "no webview".
 
 ## 4. Decisions and their reasons
@@ -168,7 +168,7 @@ worktree and branch, merged into `feat/native-rust` by the coordinator.
 | W1.term | `hangar-term` | Terminal widget + `examples/shell.rs`. |
 | W1.theme | `hangar-theme` | 33 themes, tokens, iced styles, fonts. |
 | W1.kits | `hangar-kit-ui`, `hangar-kit-sdk`, `hangar-kit-host`, `examples/kits/hello-native` | Native kit tabs end to end; `kits-native.md`. |
-| W1.webview | `teskad-webview` | Helper process, protocol, client, kit bridge, PDF finding. |
+| W1.webview | `hangar-webview` | Helper process, protocol, client, kit bridge, PDF finding. |
 | W1.inventory | `docs/native/inventory-frontend.md` | The porting map and wave 3's packages. |
 | W1.i18n | `hangar-i18n` | Strings generated from the TS dictionaries, translate API, ported tests. |
 | W1.update | `hangar-update` | Updater compatible with the releases' `latest.json`. |
@@ -229,7 +229,7 @@ scripts/native-dev.sh                            # the native Hangar, on its own
 cargo run -p hangar-term --example shell         # the terminal alone
 ```
 
-Linux build dependencies: `libwebkit2gtk-4.1-dev` only for `teskad-webview --features
+Linux build dependencies: `libwebkit2gtk-4.1-dev` only for `hangar-webview --features
 engine`; `libasound2-dev` for voice; `libclang-dev`, a C/C++ toolchain and `cmake` for
 whisper.cpp; `libssl-dev` (the list `ci.yml` installs).
 

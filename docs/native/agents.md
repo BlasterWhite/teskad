@@ -960,7 +960,7 @@ installed and Claude Code absent:
 | Place (Appendix A) | Today | After |
 |---|---|---|
 | Setup sheet (`shell/setup/*`) | blocks until `claude` is installed | satisfied by Codex (D17) |
-| New workspace (`workspace_dialog/folder.rs`), `workspace_create` (`host/mod.rs:550`), node workspaces (`teskad-node/src/own.rs`), Discord `/workspace` | a Claude Code pane | the default orchestrator agent (D20) |
+| New workspace (`workspace_dialog/folder.rs`), `workspace_create` (`host/mod.rs:550`), node workspaces (`hangar-node/src/own.rs`), Discord `/workspace` | a Claude Code pane | the default orchestrator agent (D20) |
 | Pin as orchestrator, project manager (`state/roles.rs`, `orchestration_ui/actions.rs`) | Claude Code panes only | any kind with the capabilities |
 | Workers (`orchestration/worker.rs`) | Claude Code, refused when the Claude bridge is off | either kind (D13) |
 | Brief texts (`brief_text.rs`) | "this Claude Code session" | the kind's label |
@@ -976,7 +976,7 @@ installed and Claude Code absent:
 | Context gauge, plan limits | Claude only | the attached client, rollouts otherwise (D5, D10) |
 | Hibernation (`hibernate.rs`) | resumable = Claude | `sessions.resume` |
 | PATH repair (`path_env.rs`) | `~/.local/bin` | also npm's global bin and Homebrew's, where `codex` lands |
-| Node info (`teskad-node/src/api.rs`) | `claude` on PATH | both |
+| Node info (`hangar-node/src/api.rs`) | `claude` on PATH | both |
 
 What does **not** work with Codex alone, said where it shows:
 - Claude Code plugin *commands*, *agents* and *output styles* of a kit (no
@@ -1098,7 +1098,7 @@ mechanical.
 | **T26** | Chat view, needs-you, inspector and navigator plan by capability; generated images inline | `hangar-app/src/{chat_view,needs_you,inspector}/`, `navigator/plan.rs` | **Rex landed**, T18, T10 | 400 | T27, T28 |
 | **T27** ✓ | Kits per kind: what loads in Claude Code and in Codex, « Add to Codex » for a kit's skills (§6.4) | `hangar-app/src/kits/`, `kit_tabs/api.rs`, `hangar-kit-host/src/{api,gate}.rs` | **Cleo landed**, T7 | 300 | T26 |
 | **T28** ✓ | Statistics page by agent | `hangar-app/src/stats/` | **Cleo landed**, T19 | 200 | T26, T27 |
-| **T29** | Nodes run Codex: `/node/info` both agents, node transcript routes take the kind, node workspaces use the default agent, node panes spawn their Codex server | `teskad-node/src/{api,own,panes,transcripts}.rs`, `hangar-app/src/nodes/` | **Cleo landed** (for the app part), T13, T4b, T4c, c48c7086 | 400 | Wave C |
+| **T29** | Nodes run Codex: `/node/info` both agents, node transcript routes take the kind, node workspaces use the default agent, node panes spawn their Codex server | `hangar-node/src/{api,own,panes,transcripts}.rs`, `hangar-app/src/nodes/` | **Cleo landed** (for the app part), T13, T4b, T4c, c48c7086 | 400 | Wave C |
 | **T30** ✓ | Discord follows either kind, `/workspace` uses the default agent, images attached to turn cards | `hangar-discord/src/{bot,follow,cards,hangar}.rs` | T13, T10 | 250 | Wave C |
 | **T31** ✓ | README, guide and `docs/kits.md` per D21, the capability table generated from `AgentInfo`, Codex marked beta with a link to the Codex bug template (T12) | `README.md`, `docs/guide/`, `docs/kits.md` | the features (last) | 300 | — |
 
@@ -1198,7 +1198,7 @@ the places that today stop a Codex-only machine.
 | `hangar-app/src/workspace_dialog/{folder,view,mod}.rs` | `Start::Orchestrator => [AgentId::Claude]`, the agent picker offers Claude Code or a shell — **must work without Claude** |
 | `hangar-app/src/settings/{schema,change,discord}.rs` | one launch command row (Claude's), the bridge switch, the Claude setup row; the Rich Presence counts Claude Code panes |
 | `hangar-app/src/pane_menu/`, `toolbar/{menus,per_window}.rs`, `session_picker/`, `navigator/{menu,interaction}.rs` | "Claude Code" entries, pin-as-orchestrator only on a Claude Code pane |
-| `teskad-node/src/api.rs` (`/node/info` reports `claude` on PATH), `teskad-node/src/own.rs` (a node workspace starts one Claude Code) | — **must work without Claude** |
+| `hangar-node/src/api.rs` (`/node/info` reports `claude` on PATH), `hangar-node/src/own.rs` (a node workspace starts one Claude Code) | — **must work without Claude** |
 | `hangar-discord/src/{bot,hangar}.rs` | `/workspace` opens one Claude Code pane; the bot follows "the first Claude Code pane" — **must work without Claude** |
 
 ### A.2 Turn state, event delivery, steering (cap.: `turns`, `inject`, `briefing`)
@@ -1221,7 +1221,7 @@ the places that today stop a Codex-only machine.
 | `hangar-core/src/sessions.rs` | `claude_installed`, Claude's `~/.claude/projects/<slug>/*.jsonl` only (Samuel's task brings Codex rollouts back) |
 | `hangar-engine/src/panes/session_watch.rs` | the session hunt: diff of Claude's transcript folder |
 | `hangar-engine/src/panes/{hibernate,hibernation}.rs` | resumable agent = Claude Code; "at rest" read from the mod |
-| `hangar-app/src/session_picker/`, `panes/waves.rs`, `panes_logic/remote_transcripts.rs`, `nodes/chat.rs`, `teskad-node/src/transcripts.rs` | Claude transcripts, local and on a node |
+| `hangar-app/src/session_picker/`, `panes/waves.rs`, `panes_logic/remote_transcripts.rs`, `nodes/chat.rs`, `hangar-node/src/transcripts.rs` | Claude transcripts, local and on a node |
 
 ### A.4 Context gauge, plan limits (cap.: `usage`)
 
