@@ -29,7 +29,7 @@
 //!   the first field has the keyboard when it opens.
 //! - Nothing under the veil can be reached with the pointer or the keys.
 
-use hangar_theme::tokens::{font_size, size, space};
+use hangar_theme::tokens::{BORDER_WIDTH, font_size, size, space};
 use hangar_theme::{Theme, style};
 use iced::widget::{Id, column, container, row, rule, scrollable, space as iced_space};
 use iced::{Alignment, Element, Length, Padding};
@@ -217,17 +217,28 @@ impl<'a, M: Clone + 'a> From<Dialog<'a, M>> for Element<'a, M> {
 /// body. [`Dialog`] has its own; a window with a layout of its own puts its
 /// buttons in this one.
 pub fn foot<'a, M: 'a>(t: &'a Theme, content: impl Into<Element<'a, M>>) -> Element<'a, M> {
-    container(content)
+    let bar = container(content)
         .padding(Padding {
             top: space::LG,
             right: 14.0,
             bottom: space::LG,
             left: 18.0,
         })
-        .height(FOOT_HEIGHT)
+        .height(Length::Fill)
         .width(Length::Fill)
         .align_y(Alignment::Center)
-        .style(style::container::modal_foot(t))
+        .style(style::container::modal_foot(t));
+    // iced draws a container's border inside its bounds and its children over
+    // it: the bar keeps off the window's hairline itself.
+    container(bar)
+        .padding(Padding {
+            top: 0.0,
+            right: BORDER_WIDTH,
+            bottom: BORDER_WIDTH,
+            left: BORDER_WIDTH,
+        })
+        .height(FOOT_HEIGHT)
+        .width(Length::Fill)
         .into()
 }
 

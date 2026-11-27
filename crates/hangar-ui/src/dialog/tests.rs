@@ -206,6 +206,52 @@ mod buttons {
     }
 }
 
+/// The footer's bar is filled: it must leave the dialog's hairline showing
+/// down its sides and along its bottom.
+#[test]
+fn the_footer_does_not_paint_over_the_dialogs_edge() {
+    const WINDOW: iced::Size = iced::Size::new(size::DIALOG_WIDTH, 300.0);
+    for id in ["teskad-dark", "teskad-light"] {
+        let t = hangar_theme::by_id(id).expect("a bundled theme");
+        let shown: Dialog<'_, Msg> =
+            dialog(t, "Edge", column![]).action(button::primary(t, "Save"));
+        let mut ui = Simulator::with_size(iced::Settings::default(), WINDOW, Element::from(shown));
+        let save = ui.find("Save").expect("the Save button is shown").bounds();
+        let snapshot = ui.snapshot(&hangar_theme::to_iced(t)).expect("a snapshot");
+        let dir = crate::testdir::scratch("dialog-edge");
+        snapshot.matches_image(dir.join(id)).expect("written");
+        let file = std::fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .next()
+            .expect("the png")
+            .path();
+        let mut reader =
+            png::Decoder::new(std::io::BufReader::new(std::fs::File::open(file).unwrap()))
+                .read_info()
+                .unwrap();
+        let mut bytes = vec![0; reader.output_buffer_size().unwrap()];
+        let info = reader.next_frame(&mut bytes).unwrap();
+        let width = info.width as usize;
+        let channels = bytes.len() / (width * info.height as usize);
+        let scale = info.width as f32 / WINDOW.width;
+        // The pixel under a point of the window.
+        let at = |x: f32, y: f32| {
+            let from = ((y * scale) as usize * width + (x * scale) as usize) * channels;
+            bytes[from..from + 3].to_vec()
+        };
+        // The foot is centred on its button.
+        let middle = save.center_y();
+        let bottom = middle + FOOT_HEIGHT / 2.0 - 0.5;
+        // The edge beside the head, where nothing covers it.
+        let edge = at(0.5, 24.0);
+        assert_ne!(edge, at(4.0, middle), "{id}: the bar differs from the edge");
+        assert_eq!(at(0.5, middle), edge, "{id}: left");
+        assert_eq!(at(WINDOW.width - 0.5, middle), edge, "{id}: right");
+        assert_eq!(at(WINDOW.width / 2.0, bottom), edge, "{id}: bottom");
+    }
+}
+
 #[test]
 fn a_dialog_without_a_close_message_cannot_be_dismissed_from_inside() {
     let t = default_theme();
