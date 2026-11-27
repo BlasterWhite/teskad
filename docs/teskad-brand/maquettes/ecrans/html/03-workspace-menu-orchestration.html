@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Teskad — workspace menu and Orchestration</title>
+<style>
+@font-face{font-family:'Inter';src:url('../../../fonts/Inter-VariableFont_opsz,wght.ttf') format('truetype');font-weight:100 900}
+@font-face{font-family:'Space Grotesk';src:url('../../../fonts/SpaceGrotesk-VariableFont_wght.ttf') format('truetype');font-weight:300 700}
+@font-face{font-family:'JetBrains Mono';src:url('../../../fonts/JetBrainsMono-VariableFont_wght.ttf') format('truetype');font-weight:100 800}
+</style>
+<style>
+body{margin:0}
+a{color:#A97BFF}a:hover{color:#C9B6FF}
+button{font:inherit;color:inherit;cursor:pointer}
+</style>
+</head>
+<body>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; display: flex; align-items: flex-start; gap: 56px; padding: 64px 72px; background: #08060C; font-family: Inter, sans-serif; font-size: 13px; color: #F2EEF7">
+<svg width="0" height="0" style="position: absolute" aria-hidden="true"><defs><linearGradient id="tk-o" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8A4DFF"></stop><stop offset="1" stop-color="#E040B0"></stop></linearGradient></defs></svg>
+
+<!-- Workspace context menu -->
+<div role="menu" aria-label="Teskad(hangar-ai)" style="width: 248px; flex-shrink: 0; margin-top: 40px; padding: 6px; border-radius: 12px; background: #1F1828; border: 1px solid #3A2F47; box-shadow: 0 8px 24px rgba(0,0,0,0.45); display: flex; flex-direction: column">
+<span style="padding: 6px 8px 4px; font-size: 11px; color: #A79DB5">Go to</span>
+<button role="menuitem" style="height: 30px; display: flex; align-items: center; gap: 10px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; text-align: left"><svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="#3A2F47" stroke-width="2.5"></circle><path d="M8 2a6 6 0 0 1 6 6" fill="none" stroke="#A97BFF" stroke-width="2.5" stroke-linecap="round"></path></svg><span style="flex: 1">Nora</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #A79DB5">Worker</span></button>
+<span style="height: 1px; margin: 6px 4px; background: #2A2135"></span>
+<button role="menuitem" style="height: 30px; display: flex; align-items: center; gap: 10px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: #C8BFD4; text-align: left"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 2.5l3 3L6 13H3v-3z"></path></svg>Rename</button>
+<button role="menuitem" style="height: 30px; display: flex; align-items: center; gap: 10px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: #C8BFD4; text-align: left"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M9 2.5h4.5V7M13.5 2.5 8 8M11.5 9.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3"></path></svg>Open with VS Code</button>
+<button role="menuitem" style="height: 30px; display: flex; align-items: center; gap: 10px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: #C8BFD4; text-align: left"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"></circle><circle cx="4.5" cy="12.5" r="1.5"></circle><circle cx="11.5" cy="5.5" r="1.5"></circle><path d="M4.5 5v6M11.5 7c0 3-7 2-7 4"></path></svg>Git worktrees</button>
+<button role="menuitem" style="height: 30px; display: flex; align-items: center; gap: 10px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: #C8BFD4; text-align: left"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M6 1.5v3M10 1.5v3M4 4.5h8v3a4 4 0 0 1-8 0zM8 11.5v3"></path></svg>MCP servers…</button>
+<button role="menuitem" style="height: 30px; display: flex; align-items: center; gap: 10px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: #C8BFD4; text-align: left"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1"></rect><rect x="9" y="2" width="5" height="5" rx="1"></rect><rect x="2" y="9" width="5" height="5" rx="1"></rect><rect x="9" y="9" width="5" height="5" rx="1"></rect></svg>Kits…</button>
+<button role="menuitem" style="height: 30px; display: flex; align-items: center; gap: 10px; padding: 0 7px; border: 1px solid #8A4DFF; border-radius: 6px; background: #2C1F40; color: #F2EEF7; text-align: left; font-weight: 500"><svg width="14" height="14" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke-width="7" stroke-linecap="round"><path d="M54 14C36 14 34 32 18 32" stroke="#C9B6FF"></path><path d="M54 32H18" stroke="#8A4DFF"></path><path d="M54 50C36 50 34 32 18 32" stroke="#E040B0"></path></g><circle cx="54" cy="14" r="6.5" fill="#C9B6FF"></circle><circle cx="54" cy="32" r="6.5" fill="#8A4DFF"></circle><circle cx="54" cy="50" r="6.5" fill="#E040B0"></circle><circle cx="12" cy="32" r="11" fill="url(#tk-o)"></circle></svg>Orchestration…</button>
+<span style="height: 1px; margin: 6px 4px; background: #2A2135"></span>
+<span style="padding: 4px 8px; font-size: 11px; color: #A79DB5">Claude Code account</span>
+<button role="menuitemradio" aria-checked="false" style="height: 30px; display: flex; align-items: center; gap: 10px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: #C8BFD4; text-align: left"><span style="width: 14px"></span>Default (Personal)</button>
+<button role="menuitemradio" aria-checked="true" style="height: 30px; display: flex; align-items: center; gap: 10px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: #F2EEF7; text-align: left"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#A97BFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"></path></svg>Main</button>
+<button role="menuitemradio" aria-checked="false" style="height: 30px; display: flex; align-items: center; gap: 10px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: #C8BFD4; text-align: left"><span style="width: 14px"></span>Personal</button>
+<span style="height: 1px; margin: 6px 4px; background: #2A2135"></span>
+<span style="padding: 4px 8px; font-size: 11px; color: #A79DB5">Move to folder</span>
+<button role="menuitem" style="height: 30px; display: flex; align-items: center; gap: 10px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: #C8BFD4; text-align: left"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 5.5A1.5 1.5 0 0 1 3.5 4H6l1.5 1.5h5A1.5 1.5 0 0 1 14 7v4.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z"></path><path d="M8 7.5v3M6.5 9h3"></path></svg>New folder</button>
+<span style="height: 1px; margin: 6px 4px; background: #2A2135"></span>
+<button role="menuitem" aria-disabled="true" style="height: 30px; display: flex; align-items: center; gap: 10px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: #7D7290; text-align: left; cursor: default"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M12.5 9.5A5 5 0 1 1 6.5 3.5a4 4 0 0 0 6 6z"></path></svg>Put to sleep</button>
+<button role="menuitem" style="height: 30px; display: flex; align-items: center; gap: 10px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: #FF6A55; text-align: left"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M2.5 4.5h11M6 4.5V3h4v1.5M4 4.5l.7 8.6a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9l.7-8.6"></path></svg>Delete workspace…</button>
+</div>
+
+<!-- Orchestration dialog -->
+<div role="dialog" aria-label="Orchestration" style="flex: 1; min-width: 0; max-width: 780px; display: flex; flex-direction: column; border-radius: 12px; background: #17121E; border: 1px solid #3A2F47; box-shadow: 0 24px 64px rgba(0,0,0,0.55); overflow: hidden">
+<div style="display: flex; align-items: flex-start; gap: 14px; padding: 20px 16px 18px 24px; border-bottom: 1px solid #2A2135">
+<svg width="36" height="36" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke-width="4.5" stroke-linecap="round"><path d="M54 14C36 14 34 32 18 32" stroke="#C9B6FF"></path><path d="M54 32H18" stroke="#8A4DFF"></path><path d="M54 50C36 50 34 32 18 32" stroke="#E040B0"></path></g><circle cx="54" cy="14" r="5" fill="#C9B6FF"></circle><circle cx="54" cy="32" r="5" fill="#8A4DFF"></circle><circle cx="54" cy="50" r="5" fill="#E040B0"></circle><circle cx="13" cy="32" r="9" fill="url(#tk-o)"></circle></svg>
+<div style="flex: 1; display: flex; flex-direction: column; gap: 4px">
+<h2 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600; letter-spacing: -0.01em">Orchestration</h2>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #A79DB5">Teskad(hangar-ai) · /home/m/Documents/dev/hangar-ai</span>
+</div>
+<button aria-label="Close" style="width: 32px; height: 32px; border: 0; border-radius: 8px; background: transparent; color: #A79DB5; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"></path></svg></button>
+</div>
+
+<div style="padding: 20px 24px; display: flex; flex-direction: column; gap: 14px">
+<div><h3 style="margin: 0; font-size: 14px; font-weight: 600">Models</h3><p style="margin: 4px 0 0; font-size: 12px; color: #A79DB5">An alias or a full model id. The orchestrator's model applies the next time it starts.</p></div>
+
+<div style="border-radius: 12px; border: 1px solid #2A2135; background: #1A1521">
+<div style="display: flex; align-items: center; gap: 16px; padding: 14px 16px; border-bottom: 1px solid #2A2135">
+<span style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 8px; background: linear-gradient(135deg, #8A4DFF, #E040B0); display: flex; align-items: center; justify-content: center"><span style="width: 10px; height: 10px; border-radius: 4px; background: #FFFFFF"></span></span>
+<div style="width: 150px"><div style="font-weight: 500">Orchestrator</div><div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #A79DB5">default: opus</div></div>
+<div role="radiogroup" aria-label="Orchestrator model" style="display: flex; gap: 2px; padding: 3px; border-radius: 8px; background: #0B0A0E; border: 1px solid #2A2135">
+<button role="radio" aria-checked="true" style="height: 26px; padding: 0 12px; border: 0; border-radius: 6px; background: #8A4DFF; color: #FFFFFF; font-size: 12px; font-weight: 600">opus</button>
+<button role="radio" aria-checked="false" style="height: 26px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; color: #A79DB5; font-size: 12px">sonnet</button>
+<button role="radio" aria-checked="false" style="height: 26px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; color: #A79DB5; font-size: 12px">haiku</button>
+</div>
+<input aria-label="Orchestrator model id" value="opus" style="flex: 1; min-width: 0; height: 32px; box-sizing: border-box; padding: 0 10px; border-radius: 8px; border: 1px solid #3A2F47; background: #0B0A0E; color: #F2EEF7; font-family: 'JetBrains Mono', monospace; font-size: 12px; outline: 0">
+</div>
+<div style="display: flex; align-items: center; gap: 16px; padding: 14px 16px; border-bottom: 1px solid #2A2135">
+<span style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 8px; background: #241A33; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke-width="7" stroke-linecap="round"><path d="M54 14C36 14 34 32 18 32" stroke="#C9B6FF"></path><path d="M54 32H18" stroke="#8A4DFF"></path><path d="M54 50C36 50 34 32 18 32" stroke="#E040B0"></path></g><circle cx="54" cy="14" r="6.5" fill="#C9B6FF"></circle><circle cx="54" cy="32" r="6.5" fill="#8A4DFF"></circle><circle cx="54" cy="50" r="6.5" fill="#E040B0"></circle></svg></span>
+<div style="width: 150px"><div style="font-weight: 500">Workers</div><div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #A79DB5">default: sonnet</div></div>
+<div role="radiogroup" aria-label="Workers model" style="display: flex; gap: 2px; padding: 3px; border-radius: 8px; background: #0B0A0E; border: 1px solid #2A2135">
+<button role="radio" aria-checked="false" style="height: 26px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; color: #A79DB5; font-size: 12px">opus</button>
+<button role="radio" aria-checked="true" style="height: 26px; padding: 0 12px; border: 0; border-radius: 6px; background: #8A4DFF; color: #FFFFFF; font-size: 12px; font-weight: 600">sonnet</button>
+<button role="radio" aria-checked="false" style="height: 26px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; color: #A79DB5; font-size: 12px">haiku</button>
+</div>
+<input aria-label="Workers model id" value="sonnet" style="flex: 1; min-width: 0; height: 32px; box-sizing: border-box; padding: 0 10px; border-radius: 8px; border: 1px solid #3A2F47; background: #0B0A0E; color: #F2EEF7; font-family: 'JetBrains Mono', monospace; font-size: 12px; outline: 0">
+</div>
+<div style="display: flex; align-items: center; gap: 16px; padding: 14px 16px">
+<span style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 8px; background: #241A33; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#4FD8A4" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"></path><circle cx="8" cy="8" r="2"></circle></svg></span>
+<div style="width: 150px"><div style="font-weight: 500">Reviewer</div><div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #A79DB5">default: sonnet</div></div>
+<div role="radiogroup" aria-label="Reviewer model" style="display: flex; gap: 2px; padding: 3px; border-radius: 8px; background: #0B0A0E; border: 1px solid #2A2135">
+<button role="radio" aria-checked="false" style="height: 26px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; color: #A79DB5; font-size: 12px">opus</button>
+<button role="radio" aria-checked="true" style="height: 26px; padding: 0 12px; border: 0; border-radius: 6px; background: #8A4DFF; color: #FFFFFF; font-size: 12px; font-weight: 600">sonnet</button>
+<button role="radio" aria-checked="false" style="height: 26px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; color: #A79DB5; font-size: 12px">haiku</button>
+</div>
+<input aria-label="Reviewer model id" value="sonnet" style="flex: 1; min-width: 0; height: 32px; box-sizing: border-box; padding: 0 10px; border-radius: 8px; border: 1px solid #3A2F47; background: #0B0A0E; color: #F2EEF7; font-family: 'JetBrains Mono', monospace; font-size: 12px; outline: 0">
+</div>
+</div>
+
+<details open style="border-radius: 12px; border: 1px solid #2A2135; background: #1A1521">
+<summary style="display: flex; align-items: center; gap: 8px; padding: 12px 16px; cursor: pointer; font-weight: 500; list-style: none"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m4 6 4 4 4-4"></path></svg>Codex models<span style="height: 18px; display: flex; align-items: center; padding: 0 6px; border-radius: 4px; border: 1px solid #3A2F47; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #C9B6FF">BETA</span><span style="margin-left: auto; font-size: 12px; font-weight: 400; color: #A79DB5">Used when a role runs on Codex</span></summary>
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 4px 16px 16px">
+<p style="margin: 0; font-size: 12px; color: #A79DB5">A Codex model id. Empty: the model Codex picks itself.</p>
+<label style="display: flex; align-items: center; gap: 16px"><span style="width: 120px; color: #C8BFD4">Orchestrator</span><input placeholder="Codex's own default" style="flex: 1; height: 32px; box-sizing: border-box; padding: 0 10px; border-radius: 8px; border: 1px solid #3A2F47; background: #0B0A0E; color: #F2EEF7; font-family: 'JetBrains Mono', monospace; font-size: 12px; outline: 0"></label>
+<label style="display: flex; align-items: center; gap: 16px"><span style="width: 120px; color: #C8BFD4">Workers</span><input placeholder="Codex's own default" style="flex: 1; height: 32px; box-sizing: border-box; padding: 0 10px; border-radius: 8px; border: 1px solid #3A2F47; background: #0B0A0E; color: #F2EEF7; font-family: 'JetBrains Mono', monospace; font-size: 12px; outline: 0"></label>
+<label style="display: flex; align-items: center; gap: 16px"><span style="width: 120px; color: #C8BFD4">Reviewer</span><input placeholder="Codex's own default" style="flex: 1; height: 32px; box-sizing: border-box; padding: 0 10px; border-radius: 8px; border: 1px solid #3A2F47; background: #0B0A0E; color: #F2EEF7; font-family: 'JetBrains Mono', monospace; font-size: 12px; outline: 0"></label>
+</div>
+</details>
+</div>
+
+<div style="display: flex; align-items: center; gap: 8px; padding: 14px 16px 14px 24px; border-top: 1px solid #2A2135; background: #120F17">
+<span style="flex: 1; font-size: 12px; color: #A79DB5">Applies to the next worker started and the next delivery.</span>
+<button style="height: 32px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: #C8BFD4; font-size: 13px">Restore defaults</button>
+<button style="height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid #3A2F47; background: #1F1828; color: #F2EEF7; font-size: 13px">Cancel</button>
+<button style="height: 32px; padding: 0 16px; border: 0; border-radius: 8px; background: #8A4DFF; color: #FFFFFF; font-size: 13px; font-weight: 600">Save</button>
+</div>
+</div>
+</div>
+
+</body>
+</html>
