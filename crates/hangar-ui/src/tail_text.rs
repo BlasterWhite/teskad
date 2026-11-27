@@ -8,7 +8,7 @@
 //! tail_text("/home/ada/dev/clients/storefront/packages/ui")
 //!     .size(10.5)
 //!     .font(fonts::mono())
-//!     .color(t.colors.fg_muted)
+//!     .color(t.palette.text_muted)
 //! ```
 //!
 //! A path in a cell too narrow for it loses its first folders: the last ones

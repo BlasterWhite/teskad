@@ -532,9 +532,9 @@ fn reports_view<'a>(ctx: Ctx<'a>, reports: &'a [Report]) -> Element<'a, Message>
     let mut list = column![].spacing(tokens::space::SM);
     for report in reports {
         let (glyph, tint) = if report.ok {
-            (Icon::Check, t.colors.success)
+            (Icon::Check, t.palette.status.completed)
         } else {
-            (Icon::Alert, t.colors.danger)
+            (Icon::Alert, t.palette.status.failed)
         };
         list = list.push(
             row![

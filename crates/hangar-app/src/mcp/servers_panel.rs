@@ -559,7 +559,7 @@ fn list_group<'a>(
             if mcp.mode == McpMode::Custom {
                 group = group.push(
                     row![
-                        icon(Icon::Info, tokens::size::ICON).color(t.colors.fg_secondary),
+                        icon(Icon::Info, tokens::size::ICON).color(t.palette.text_secondary),
                         typography::hint(t, ctx.t(Key::McpScopeStrictNote)).width(Length::Fill),
                     ]
                     .spacing(tokens::space::SM),
@@ -583,7 +583,7 @@ fn alert<'a>(ctx: Ctx<'a>, words: String) -> Element<'a, Message> {
     let t = ctx.theme;
     container(
         row![
-            icon(Icon::Alert, tokens::size::ICON).color(t.colors.danger),
+            icon(Icon::Alert, tokens::size::ICON).color(t.palette.status.failed),
             text(words)
                 .size(tokens::font_size::CAPTION_LG)
                 .width(Length::Fill),

@@ -1119,7 +1119,7 @@ impl<M> overlay::Overlay<M, iced::Theme, iced::Renderer> for ReasonTip<'_> {
             &self.reason,
             font_size::CAPTION_LG,
             fonts::ui(),
-            self.theme.colors.fg,
+            self.theme.palette.text,
             Line {
                 anchor: Point::new(bounds.x + 8.0, bounds.center_y()),
                 align: alignment::Horizontal::Left,

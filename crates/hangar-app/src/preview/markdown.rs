@@ -805,7 +805,7 @@ impl<'a> markdown::Viewer<'a, Msg, iced::Theme, iced::Renderer> for Page<'a> {
                     words
                 };
                 rich_text([span(label)
-                    .color(self.t.colors.accent_hi)
+                    .color(self.t.palette.accent_text)
                     .underline(true)
                     .link(address.clone())])
                 .size(settings.text_size)
@@ -938,7 +938,7 @@ impl<'a> markdown::Viewer<'a, Msg, iced::Theme, iced::Renderer> for Page<'a> {
                         .block::<Uri, Msg>(line.spans(settings.style))
                         .font(mono)
                         .size(settings.code_size)
-                        .color(t.colors.fg)
+                        .color(t.palette.text)
                         .on_link_click(Msg::Link)
                         .into();
                     row
@@ -956,9 +956,9 @@ impl<'a> markdown::Viewer<'a, Msg, iced::Theme, iced::Renderer> for Page<'a> {
         )
         .width(Length::Fill)
         .style(move |_| iced::widget::container::Style {
-            background: Some(iced::Background::Color(t.colors.bg_sunken)),
+            background: Some(iced::Background::Color(t.palette.surface_sunken)),
             border: iced::Border {
-                color: t.colors.line,
+                color: t.palette.border,
                 width: 1.0,
                 radius: tokens::radius::MD.into(),
             },
@@ -999,8 +999,8 @@ pub fn view<'a>(
         })
         .width(Length::Fill)
         .style(move |_| iced::widget::container::Style {
-            background: Some(iced::Background::Color(t.colors.bg)),
-            text_color: Some(t.colors.fg),
+            background: Some(iced::Background::Color(t.palette.bg)),
+            text_color: Some(t.palette.text),
             ..Default::default()
         });
     iced::widget::scrollable(

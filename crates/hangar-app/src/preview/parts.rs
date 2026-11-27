@@ -70,8 +70,8 @@ pub fn stage_message<'a, M: Clone + 'a>(
     action: Option<(String, M)>,
 ) -> Element<'a, M> {
     let colour = match feel {
-        Feel::Calm => t.colors.fg_subtle,
-        Feel::Danger => t.colors.danger,
+        Feel::Calm => t.palette.text_muted,
+        Feel::Danger => t.palette.status.failed,
         Feel::Warning => t.colors.warning,
     };
     let mark: Element<'a, M> = match mark {
@@ -123,7 +123,7 @@ pub fn banner<'a, M: Clone + 'a>(
     action: Option<(String, M)>,
 ) -> Element<'a, M> {
     let tone = match feel {
-        Feel::Danger => t.colors.danger,
+        Feel::Danger => t.palette.status.failed,
         _ => t.colors.warning,
     };
     let mut words = column![
@@ -209,9 +209,9 @@ pub fn glyph_tool<'a, M: Clone + 'a>(
     on_press: Option<M>,
 ) -> Element<'a, M> {
     let colour = if pressed == Some(true) {
-        t.colors.accent_hi
+        t.palette.accent_text
     } else {
-        t.colors.fg_muted
+        t.palette.text_muted
     };
     tool(
         t,
@@ -266,7 +266,7 @@ pub fn notice_text<'a, M: 'a>(t: &'a Theme, notice: &'a Notice) -> Element<'a, M
         row![words.style(style::text::danger(t))].into()
     } else {
         row![
-            icon(Icon::Check, 12.0).color(t.colors.success),
+            icon(Icon::Check, 12.0).color(t.palette.status.completed),
             words.style(style::text::muted(t))
         ]
         .spacing(5)
@@ -290,7 +290,7 @@ pub fn chip<'a, M: 'a>(t: &'a Theme, label: impl Into<String>, quiet: bool) -> E
             .padding([1.0, 6.0])
             .style(move |_| iced::widget::container::Style {
                 border: iced::Border {
-                    color: t.colors.line_strong,
+                    color: t.palette.border_strong,
                     width: 1.0,
                     radius: tokens::radius::XS.into(),
                 },
@@ -305,14 +305,14 @@ pub fn chip<'a, M: 'a>(t: &'a Theme, label: impl Into<String>, quiet: bool) -> E
 /// cannot do.
 pub fn note<'a, M: 'a>(t: &'a Theme, words: impl Into<String>, quiet: bool) -> Element<'a, M> {
     let background = if quiet {
-        t.colors.chrome
+        t.palette.surface
     } else {
         warning_wash(t)
     };
     let tone = if quiet {
-        t.colors.fg_muted
+        t.palette.text_muted
     } else {
-        t.colors.fg_secondary
+        t.palette.text_secondary
     };
     container(
         text(words.into())
@@ -331,7 +331,7 @@ pub fn note<'a, M: 'a>(t: &'a Theme, words: impl Into<String>, quiet: bool) -> E
 
 /// The warning colour over the chrome, at 9 % (`color-mix`).
 fn warning_wash(t: &Theme) -> Color {
-    let (wash, base) = (t.colors.warning, t.colors.chrome);
+    let (wash, base) = (t.colors.warning, t.palette.surface);
     let mix = |a: f32, b: f32| b + (a - b) * 0.09;
     Color::from_rgb(
         mix(wash.r, base.r),
@@ -380,7 +380,7 @@ pub fn loading<'a, M: 'a>(ctx: Ctx<'a>, title: &'a str, phase: Option<String>) -
     // A bar that runs, which says the file has not been forgotten: it asks
     // for its own frames, only while it is on screen.
     let bar: Element<'a, M> =
-        super::travelling::Travelling::new(t.colors.line_strong, t.colors.accent).into();
+        super::travelling::Travelling::new(t.palette.border_strong, t.palette.accent).into();
     container(
         column![
             text(title)

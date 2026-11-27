@@ -85,7 +85,7 @@ impl<'a, M: 'a> From<Header<'a, M>> for Element<'a, M> {
             line = line.push(leading);
         }
         if let Some(which) = h.icon {
-            line = line.push(icon(which, 13.0).color(t.colors.fg_muted));
+            line = line.push(icon(which, 13.0).color(t.palette.text_muted));
         }
         line = line.push(
             text(h.title)

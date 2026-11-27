@@ -547,7 +547,7 @@ fn info<'a>(ctx: Ctx<'a>, entry: &'a Entry, kind: FileKind) -> Element<'a, Messa
                 .width(Length::Shrink)
                 .size(tokens::font_size::LABEL)
                 .font(hangar_theme::fonts::mono())
-                .color(t.colors.fg_subtle),
+                .color(t.palette.text_muted),
         );
     }
     column![

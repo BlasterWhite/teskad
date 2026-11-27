@@ -118,7 +118,7 @@ fn theme_preview<'a>(theme: &'static Theme) -> Element<'a, Message> {
 fn theme_card<'a>(ctx: Ctx<'a>, theme: &'static Theme, active: bool) -> Element<'a, Message> {
     let t = ctx.theme;
     let ring = if active {
-        t.colors.accent
+        t.palette.accent
     } else {
         Color::TRANSPARENT
     };
@@ -136,9 +136,9 @@ fn theme_card<'a>(ctx: Ctx<'a>, theme: &'static Theme, active: bool) -> Element<
     let name = text(theme.name)
         .size(font_size::CAPTION_LG)
         .color(if active {
-            t.colors.fg
+            t.palette.text
         } else {
-            t.colors.fg_muted
+            t.palette.text_muted
         });
     let name = if active {
         name.font(fonts::ui_semibold())

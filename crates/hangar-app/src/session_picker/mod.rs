@@ -372,7 +372,7 @@ pub fn view<'a>(
         |at: usize, id: Option<String>, label: Element<'a, Message>, meta: Element<'a, Message>| {
             let current = picker.current == id;
             let check: Element<'a, Message> = if current {
-                icon(Icon::Check, 13.0).color(t.colors.accent_hi).into()
+                icon(Icon::Check, 13.0).color(t.palette.accent_text).into()
             } else {
                 Space::new().width(13.0).into()
             };

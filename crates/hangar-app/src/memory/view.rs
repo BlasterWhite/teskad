@@ -491,21 +491,22 @@ fn skeleton<'a>(t: &'a Theme) -> Element<'a, Message> {
 fn no_results<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
     let t = ctx.theme;
     container(
-        column![
-            text(
-                ctx.i18n
-                    .t_with(K::MemoryNoResults, &args!("q" => st.query.trim()))
-                    .into_owned()
-            )
-            .size(tokens::font_size::UI)
-            .color(t.palette.text_muted),
-            btn::ghost(t, ctx.t(K::MemoryClearSearch)).on_press(msg(Msg::ClearQuery)),
-        ]
-        .spacing(tokens::space::MD)
-        .align_x(Alignment::Center),
+        empty::empty(
+            t,
+            Icon::Search,
+            ctx.i18n
+                .t_with(K::MemoryNoResults, &args!("q" => st.query.trim()))
+                .into_owned(),
+        )
+        .description(ctx.t(K::MemoryNoResultsBody))
+        .action(
+            btn::secondary(t, ctx.t(K::MemoryClearSearch))
+                .icon(Icon::Close)
+                .on_press(msg(Msg::ClearQuery)),
+        )
+        .inline(),
     )
-    .center_x(Length::Fill)
-    .padding(Padding::from([48.0, tokens::space::XL]))
+    .padding(Padding::from([tokens::space::XXXL, 0.0]))
     .into()
 }
 
@@ -731,13 +732,69 @@ fn reading<'a>(
         .spacing(tokens::space::XL)
         .align_y(Alignment::Center);
     if open || actions_shown {
-        line = line.push(actions(st, ctx, entry));
+        line = line.push(actions(ctx, entry));
     }
-    main.push(line).into()
+    let main = main.push(line);
+    if st.armed.as_deref() == Some(entry.id.as_str()) {
+        main.push(delete_alert(ctx, entry)).into()
+    } else {
+        main.into()
+    }
+}
+
+/// The small alert under an entry whose Delete was pressed: what is lost, and
+/// the two ways out (Cancel, Delete). The second step of deleting.
+fn delete_alert<'a>(ctx: Ctx<'a>, entry: &'a MemoryEntry) -> Element<'a, Message> {
+    let t = ctx.theme;
+    let p = &t.palette;
+    let (surface, border) = (p.surface_raised, p.border_strong);
+    let card = container(
+        column![
+            text(
+                ctx.i18n
+                    .t_with(
+                        K::MemoryDeleteTitle,
+                        &args!("title" => entry.title.as_str())
+                    )
+                    .into_owned()
+            )
+            .size(tokens::font_size::BODY)
+            .font(fonts::ui_semibold())
+            .color(p.text),
+            text(ctx.t(K::MemoryDeleteBody).to_string())
+                .size(tokens::font_size::LABEL)
+                .color(p.text_muted),
+            row![
+                btn::secondary(t, ctx.t(K::CreateCancel)).on_press(msg(Msg::Disarm)),
+                btn::danger(t, ctx.t(K::MemoryDeleteConfirm))
+                    .icon(Icon::Trash)
+                    .on_press(msg(Msg::Delete(entry.id.clone()))),
+            ]
+            .spacing(tokens::space::MD),
+        ]
+        .spacing(tokens::space::MD),
+    )
+    .padding(tokens::space::XXL)
+    .max_width(420.0)
+    .style(move |_: &iced::Theme| container::Style {
+        background: Some(Background::Color(surface)),
+        border: Border {
+            color: border,
+            width: BORDER_WIDTH,
+            radius: scale::radius::LG.into(),
+        },
+        ..container::Style::default()
+    });
+    container(card)
+        .padding(Padding {
+            top: tokens::space::MD,
+            ..Padding::ZERO
+        })
+        .into()
 }
 
 /// What can be done to an entry: edit it, delete it (asking twice).
-fn actions<'a>(st: &'a State, ctx: Ctx<'a>, entry: &'a MemoryEntry) -> Element<'a, Message> {
+fn actions<'a>(ctx: Ctx<'a>, entry: &'a MemoryEntry) -> Element<'a, Message> {
     let t = ctx.theme;
     let mut line = row![
         btn::secondary(t, ctx.t(K::MemoryEdit))
@@ -747,52 +804,38 @@ fn actions<'a>(st: &'a State, ctx: Ctx<'a>, entry: &'a MemoryEntry) -> Element<'
     ]
     .spacing(tokens::space::SM)
     .align_y(Alignment::Center);
-    if st.armed.as_deref() == Some(entry.id.as_str()) {
-        line = line
-            .push(
-                btn::ghost(t, ctx.t(K::CreateCancel))
-                    .small()
-                    .on_press(msg(Msg::Disarm)),
-            )
-            .push(
-                btn::danger(t, ctx.t(K::MemoryDeleteConfirm))
-                    .small()
-                    .on_press(msg(Msg::Delete(entry.id.clone()))),
-            );
-    } else {
-        let failed = t.palette.status.failed;
-        let face = button(
-            row![
-                icon(Icon::Trash, tokens::size::ICON).color(failed),
-                text(ctx.t(K::MemoryDelete).to_string())
-                    .size(tokens::font_size::UI)
-                    .font(fonts::ui_medium())
-                    .color(failed),
-            ]
-            .spacing(tokens::space::SM)
-            .align_y(Alignment::Center),
-        )
-        .height(scale::size::CONTROL_SM)
-        .padding(Padding::from([0.0, tokens::space::LG]))
-        .style(move |_: &iced::Theme, status| {
-            let pointed = matches!(status, button::Status::Hovered | button::Status::Pressed);
-            button::Style {
-                background: pointed.then_some(Background::Color(t.palette.hover_overlay)),
-                text_color: failed,
-                border: Border {
-                    radius: scale::radius::SM.into(),
-                    ..Border::default()
-                },
-                ..button::Style::default()
-            }
-        })
-        .on_press(msg(Msg::Arm(entry.id.clone())));
-        line = line.push(
-            focus::ring(t, face)
-                .radius(scale::radius::SM)
-                .on_activate(msg(Msg::Arm(entry.id.clone()))),
-        );
-    }
+    let failed = t.palette.status.failed;
+    let face = button(
+        row![
+            icon(Icon::Trash, tokens::size::ICON).color(failed),
+            text(ctx.t(K::MemoryDelete).to_string())
+                .size(tokens::font_size::UI)
+                .font(fonts::ui_medium())
+                .color(failed),
+        ]
+        .spacing(tokens::space::SM)
+        .align_y(Alignment::Center),
+    )
+    .height(scale::size::CONTROL_SM)
+    .padding(Padding::from([0.0, tokens::space::LG]))
+    .style(move |_: &iced::Theme, status| {
+        let pointed = matches!(status, button::Status::Hovered | button::Status::Pressed);
+        button::Style {
+            background: pointed.then_some(Background::Color(t.palette.hover_overlay)),
+            text_color: failed,
+            border: Border {
+                radius: scale::radius::SM.into(),
+                ..Border::default()
+            },
+            ..button::Style::default()
+        }
+    })
+    .on_press(msg(Msg::Arm(entry.id.clone())));
+    line = line.push(
+        focus::ring(t, face)
+            .radius(scale::radius::SM)
+            .on_activate(msg(Msg::Arm(entry.id.clone()))),
+    );
     line.into()
 }
 

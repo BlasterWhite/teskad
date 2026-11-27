@@ -56,17 +56,17 @@ impl Class {
 /// The tone of a class in the window's theme, `None` for plain text, which
 /// takes the colour of the text around it.
 pub fn colour(theme: &Theme, class: Class) -> Option<Color> {
-    let colors = &theme.colors;
+    let palette = &theme.palette;
     Some(match class {
         Class::Plain => return None,
-        Class::Comment => colors.fg_subtle,
-        Class::Keyword => colors.accent_hi,
-        Class::String => colors.success,
-        Class::Number => colors.warning,
-        Class::Title => colors.state_yours,
-        Class::Attr => colors.fg_secondary,
-        Class::Meta => colors.fg_muted,
-        Class::Deletion => colors.danger,
+        Class::Comment => palette.text_muted,
+        Class::Keyword => palette.accent_text,
+        Class::String => palette.status.completed,
+        Class::Number => theme.colors.warning,
+        Class::Title => palette.status.active,
+        Class::Attr => palette.text_secondary,
+        Class::Meta => palette.text_muted,
+        Class::Deletion => palette.status.failed,
     })
 }
 

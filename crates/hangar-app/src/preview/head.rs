@@ -118,7 +118,7 @@ pub fn aside(ctx: Ctx<'_>, ws: &str, entry: &Entry) -> Option<String> {
 fn spinner<'a, M: 'a>(t: &'a hangar_theme::Theme, spin: usize) -> Element<'a, M> {
     let angle = spin as f32 * TAU / 8.0;
     icon(Icon::Restart, 12.0)
-        .color(t.colors.fg_muted)
+        .color(t.palette.text_muted)
         .rotate(Radians(angle))
         .into()
 }
@@ -129,13 +129,17 @@ fn badge_glyph<'a, M: 'a>(ctx: Ctx<'a>, badge: &KitBadge, spin: usize) -> Elemen
     let t = ctx.theme;
     match badge.state {
         KitBadgeState::Running => spinner(t, spin),
-        KitBadgeState::Failure => icon(Icon::Alert, 12.0).color(t.colors.danger).into(),
-        KitBadgeState::Success => icon(Icon::Check, 12.0).color(t.colors.success).into(),
+        KitBadgeState::Failure => icon(Icon::Alert, 12.0)
+            .color(t.palette.status.failed)
+            .into(),
+        KitBadgeState::Success => icon(Icon::Check, 12.0)
+            .color(t.palette.status.completed)
+            .into(),
         KitBadgeState::Neutral => container(Space::new())
             .width(6.0)
             .height(6.0)
             .style(move |_| container::Style {
-                background: Some(iced::Background::Color(t.colors.fg_subtle)),
+                background: Some(iced::Background::Color(t.palette.text_muted)),
                 border: iced::Border {
                     radius: tokens::radius::FULL.into(),
                     ..Default::default()
@@ -153,15 +157,17 @@ pub fn mark<'a, M: 'a>(ctx: Ctx<'a>, entry: &'a Entry, strong: bool) -> Element<
     let t = ctx.theme;
     let spin = ctx.pkg.preview.spin;
     let quiet = if strong {
-        t.colors.fg_muted
+        t.palette.text_secondary
     } else {
-        t.colors.fg_subtle
+        t.palette.text_muted
     };
     if entry.status == Status::Loading {
         return spinner(t, spin);
     }
     if entry.status == Status::Error {
-        return icon(Icon::Alert, 12.0).color(t.colors.danger).into();
+        return icon(Icon::Alert, 12.0)
+            .color(t.palette.status.failed)
+            .into();
     }
     if entry.is_model() {
         return icon(Icon::Cube, 12.0).color(quiet).into();

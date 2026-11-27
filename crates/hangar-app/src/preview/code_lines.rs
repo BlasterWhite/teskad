@@ -161,12 +161,12 @@ pub fn view<'a, M: Clone + 'a>(
             } else {
                 Wrapping::None
             })
-            .color(t.colors.fg);
+            .color(t.palette.text);
         let number = iced::widget::text(format!("{}", at + 1))
             .size(SIZE)
             .font(mono)
             .line_height(line_height)
-            .color(t.colors.fg_subtle)
+            .color(t.palette.text_muted)
             .align_x(iced::alignment::Horizontal::Right)
             .width(gutter - 12.0);
         let row = row![number, Space::new().width(12.0), code].align_y(Alignment::Start);
@@ -198,8 +198,8 @@ pub fn view<'a, M: Clone + 'a>(
         .padding([PAD, 0.0])
         .width(if wrap { Length::Fill } else { Length::Shrink })
         .style(move |_| iced::widget::container::Style {
-            background: Some(iced::Background::Color(t.colors.bg)),
-            text_color: Some(t.colors.fg),
+            background: Some(iced::Background::Color(t.palette.bg)),
+            text_color: Some(t.palette.text),
             ..Default::default()
         });
     let body = selectable(&doc, body)
@@ -232,7 +232,7 @@ pub fn view<'a, M: Clone + 'a>(
     .width(Length::Fill)
     .height(Length::Fill)
     .style(move |_| iced::widget::container::Style {
-        background: Some(iced::Background::Color(t.colors.bg)),
+        background: Some(iced::Background::Color(t.palette.bg)),
         ..Default::default()
     })
     .into()

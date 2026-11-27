@@ -46,7 +46,7 @@ fn chip<'a>(
         account_style::of(ctx, kind, id),
         name,
         tokens::font_size::MICRO,
-        Some(ctx.theme.colors.fg_secondary),
+        Some(ctx.theme.palette.text_secondary),
     ))
     .max_width(MAX_WIDTH);
     Some(tip::over(ctx.theme, label, title))

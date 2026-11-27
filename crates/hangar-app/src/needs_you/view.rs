@@ -57,7 +57,7 @@ pub fn entry<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
             text(tr.t(Key::NeedsYouTitle).into_owned())
                 .size(font_size::UI)
                 .font(fonts::ui_medium())
-                .color(t.colors.fg),
+                .color(t.palette.text),
         );
     }
     face = face.push(
@@ -80,16 +80,16 @@ pub fn entry<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
             let lit = open || matches!(status, button::Status::Hovered | button::Status::Pressed);
             button::Style {
                 background: Some(Background::Color(if lit {
-                    t.colors.line_strong
+                    t.palette.border_strong
                 } else {
-                    t.colors.line
+                    t.palette.border
                 })),
                 text_color: t.colors.state_waiting,
                 border: skin::border(
                     if lit {
                         t.colors.state_waiting_fill
                     } else {
-                        t.colors.line
+                        t.palette.border
                     },
                     radius::MD,
                 ),
@@ -156,11 +156,11 @@ fn panel<'a>(st: &'a State, ctx: Ctx<'a>, items: &[NeedsYouItem]) -> Element<'a,
                 text(tr.t(heading).to_uppercase())
                     .size(font_size::LABEL)
                     .font(fonts::ui_semibold())
-                    .color(t.colors.fg_secondary),
+                    .color(t.palette.text_secondary),
                 text(group.len().to_string())
                     .size(font_size::LABEL)
                     .font(fonts::mono())
-                    .color(t.colors.fg_secondary),
+                    .color(t.palette.text_secondary),
             ]
             .spacing(space::SM)
             .padding([6.0, 8.0]),
@@ -190,7 +190,7 @@ fn rule<'a>(t: &'a Theme) -> Element<'a, Message> {
         .width(Length::Fill)
         .height(1)
         .style(move |_: &iced::Theme| container::Style {
-            background: Some(Background::Color(t.colors.line)),
+            background: Some(Background::Color(t.palette.border)),
             ..container::Style::default()
         })
         .into()
@@ -215,13 +215,13 @@ fn item_row<'a>(st: &'a State, ctx: Ctx<'a>, item: &NeedsYouItem) -> Element<'a,
         text(words.to_string())
             .size(font_size::BODY)
             .font(fonts::ui_medium())
-            .color(t.colors.fg)
+            .color(t.palette.text)
             .wrapping(text::Wrapping::None)
     };
     let meta = |words: String| {
         text(words)
             .size(font_size::CAPTION)
-            .color(t.colors.fg_secondary)
+            .color(t.palette.text_secondary)
             .wrapping(text::Wrapping::None)
     };
 
@@ -322,13 +322,13 @@ fn item_row<'a>(st: &'a State, ctx: Ctx<'a>, item: &NeedsYouItem) -> Element<'a,
             if let Some(error) = st.failure(&base.key) {
                 lines = lines.push(
                     row![
-                        icon(Icon::Alert, 11.0).color(t.colors.danger),
+                        icon(Icon::Alert, 11.0).color(t.palette.status.failed),
                         text(
                             tr.t_with(Key::NeedsYouLandFailed, &args!("error" => error))
                                 .into_owned()
                         )
                         .size(font_size::CAPTION)
-                        .color(t.colors.danger),
+                        .color(t.palette.status.failed),
                     ]
                     .spacing(5)
                     .align_y(Alignment::Start),
@@ -387,7 +387,7 @@ fn note_line<'a>(t: &'a Theme, note: String) -> Element<'a, Message> {
     container(
         text(note)
             .size(font_size::CAPTION_LG)
-            .color(t.colors.fg_secondary),
+            .color(t.palette.text_secondary),
     )
     .max_height(LINE * 2.0)
     .clip(true)

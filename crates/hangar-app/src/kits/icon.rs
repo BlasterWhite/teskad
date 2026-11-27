@@ -188,7 +188,12 @@ impl Icons {
 /// The kit's icon at `side` pixels, in the colour of the text around it
 /// (`color`), or the plug when it has none or it does not load.
 pub fn kit_icon<'a>(ctx: Ctx<'a>, kit: &KitInfo, side: f32) -> Element<'a, Message> {
-    kit_icon_in(&ctx.model.live.kits.icons, kit, side, ctx.theme.colors.fg)
+    kit_icon_in(
+        &ctx.model.live.kits.icons,
+        kit,
+        side,
+        ctx.theme.palette.text,
+    )
 }
 
 fn kit_icon_in<'a>(icons: &Icons, kit: &KitInfo, side: f32, color: Color) -> Element<'a, Message> {
