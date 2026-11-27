@@ -760,10 +760,10 @@ fn delete_alert<'a>(ctx: Ctx<'a>, entry: &'a MemoryEntry) -> Element<'a, Message
             )
             .size(tokens::font_size::BODY)
             .font(fonts::ui_semibold())
-            .color(p.text),
+            .color(t.inks.text.primary),
             text(ctx.t(K::MemoryDeleteBody).to_string())
                 .size(tokens::font_size::LABEL)
-                .color(p.text_muted),
+                .color(t.inks.text.muted),
             row![
                 btn::secondary(t, ctx.t(K::CreateCancel)).on_press(msg(Msg::Disarm)),
                 btn::danger(t, ctx.t(K::MemoryDeleteConfirm))

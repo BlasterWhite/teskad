@@ -666,7 +666,7 @@ fn mine<'a>(
                 width: tokens::BORDER_WIDTH,
                 radius: tokens::scale::radius::LG.into(),
             },
-            text_color: Some(t.palette.text),
+            text_color: Some(t.inks.text.primary),
             ..container::Style::default()
         });
     row![Space::new().width(Length::Fill), bubble].into()

@@ -62,13 +62,12 @@ pub(super) struct View<'a> {
     pub panes: HashMap<&'a str, Option<AssigneePane>>,
     /// The time the frame is drawn at, for the clocks of cards in progress.
     pub now: i64,
-    pub dock: bool,
     /// The task of this board whose sheet is open: its card is selected.
     pub selected: Option<&'a str>,
 }
 
 impl<'a> View<'a> {
-    pub fn new(st: &'a State, ctx: Ctx<'a>, cwd: &'a str, dock: bool) -> View<'a> {
+    pub fn new(st: &'a State, ctx: Ctx<'a>, cwd: &'a str) -> View<'a> {
         let tasks = ctx.model.live.board.tasks(cwd);
         let all: &'a [Task] = tasks.unwrap_or(&[]);
         let shown = select::shown(all, &st.filters);
@@ -92,7 +91,6 @@ impl<'a> View<'a> {
             shown,
             panes,
             now: now_ms() as i64,
-            dock,
             selected: st.open_task(cwd),
         }
     }
@@ -131,7 +129,7 @@ pub(super) fn board<'a>(
     dock_room: Option<(f32, f32)>,
 ) -> Element<'a, Message> {
     let in_dock = dock_room.is_some();
-    let v = View::new(st, ctx, cwd, in_dock);
+    let v = View::new(st, ctx, cwd);
     let t = v.t();
     let body: Element<'a, Message> = if let Some((width, _)) = dock_room {
         dock_body(v, width)
@@ -154,7 +152,7 @@ pub(super) fn board<'a>(
 fn full_body<'a>(v: &View<'a>, width: f32) -> Element<'a, Message> {
     let t = v.t();
     let content: Element<'a, Message> = if !v.loaded {
-        skeleton(v)
+        loading(v)
     } else if v.all.is_empty() && !v.st.composing.contains(v.cwd) {
         empty(v)
     } else {
@@ -368,7 +366,7 @@ fn dock_body<'a>(v: View<'a>, width: f32) -> Element<'a, Message> {
     }
 
     let content: Element<'a, Message> = if !v.loaded {
-        skeleton(&v)
+        loading(&v)
     } else if v.all.is_empty() && !v.st.composing.contains(v.cwd) {
         empty(&v)
     } else {
@@ -615,103 +613,35 @@ fn add_field<'a>(
     Some(line.into())
 }
 
-// ---- Empty, skeleton, toast --------------------------------------------------------------------
+// ---- Empty, loading, toast ---------------------------------------------------------------------
 
-/// No task yet: what the board is for, and the two ways to fill it.
+/// No task yet: what the board is for, and the two ways to fill it, in the
+/// shared empty format (§11).
 fn empty<'a>(v: &View<'a>) -> Element<'a, Message> {
     let t = v.t();
     let tr = v.ctx.i18n;
-    let dock = v.dock;
-    let glyph = container(icon(Icon::Board, if dock { 18.0 } else { 22.0 }))
-        .center(look::EMPTY_ICON_BOX)
-        .style(look::empty_icon(t));
-    let title = text(tr.t(Key::BoardEmptyTitle))
-        .size(if dock {
-            font_size::BODY
-        } else {
-            font_size::TITLE
-        })
-        .font(fonts::ui_semibold());
-    let body = text(tr.t(Key::BoardEmptyBody))
-        .size(if dock {
-            font_size::UI
-        } else {
-            font_size::UI_LG
-        })
-        .style(style::text::muted(t))
-        .align_x(Horizontal::Center)
-        .width(Length::Fill);
-    let actions = row![
-        button::primary(t, tr.t(Key::BoardEmptyAdd))
-            .icon(Icon::Plus)
-            .small()
-            .on_press(Message::Board(Msg::StartAdding(
-                v.cwd.to_owned(),
-                Column::Todo
-            ))),
-        button::secondary(t, tr.t(Key::BoardEmptyMcp))
-            .icon(Icon::Plug)
-            .small()
-            .on_press(Message::Board(Msg::OpenMcp)),
-    ]
-    .spacing(space::MD);
-    let content = column![
-        glyph,
-        title,
-        container(body).max_width(look::EMPTY_TEXT_WIDTH),
-        container(actions).padding(Padding {
-            top: space::XL,
-            ..Padding::ZERO
-        })
-    ]
-    .spacing(space::MD)
-    .align_x(Alignment::Center);
-    let page = container(content)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .padding([36.0, 24.0])
-        .center_x(Length::Fill);
-    if dock {
-        page.align_y(Vertical::Top).into()
-    } else {
-        page.center_y(Length::Fill).into()
-    }
+    let add = button::primary(t, tr.t(Key::BoardEmptyAdd).into_owned())
+        .icon(Icon::Plus)
+        .small()
+        .on_press(Message::Board(Msg::StartAdding(
+            v.cwd.to_owned(),
+            Column::Todo,
+        )));
+    let mcp = button::secondary(t, tr.t(Key::BoardEmptyMcp).into_owned())
+        .icon(Icon::Plug)
+        .small()
+        .on_press(Message::Board(Msg::OpenMcp));
+    hangar_ui::empty::empty(t, Icon::Board, tr.t(Key::BoardEmptyTitle).into_owned())
+        .description(tr.t(Key::BoardEmptyBody).into_owned())
+        .action(add)
+        .secondary(mcp)
+        .into()
 }
 
-/// The columns' outline while the first read is out.
-fn skeleton<'a>(v: &View<'a>) -> Element<'a, Message> {
-    let t = v.t();
-    let shape: &[usize] = if v.dock { &[2, 1] } else { &[3, 2, 1, 2] };
-    let columns = shape.iter().map(|cards| {
-        let label = container(Space::new())
-            .width(look::SKELETON_LABEL.0)
-            .height(look::SKELETON_LABEL.1)
-            .style(look::skeleton(t));
-        let cards = (0..*cards).map(|n| {
-            container(Space::new())
-                .width(Length::Fill)
-                .height(if n % 2 == 1 {
-                    look::SKELETON_CARD_SHORT
-                } else {
-                    look::SKELETON_CARD
-                })
-                .style(look::skeleton(t))
-                .into()
-        });
-        container(
-            column![
-                container(label).center_y(look::COLUMN_HEAD),
-                column(cards).spacing(6.0)
-            ]
-            .padding([0.0, space::LG]),
-        )
-        .width(Length::FillPortion(1))
-        .into()
-    });
-    container(row(columns))
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into()
+/// The first read is out: the turning arc and a sentence, in the shared
+/// format (§11).
+fn loading<'a>(v: &View<'a>) -> Element<'a, Message> {
+    hangar_ui::empty::loading(v.t(), v.ctx.i18n.t(Key::BoardLoading).into_owned()).into()
 }
 
 /// Why a move was refused, for a few seconds, at the foot of the board.
