@@ -60,7 +60,7 @@ const DIFF_BYTES: usize = 200 * 1024;
 /// moved while it was being tested.
 const LANDING_TRIES: usize = 3;
 
-const SCRATCH_PREFIX: &str = "hangar-delivery-";
+const SCRATCH_PREFIX: &str = "teskad-delivery-";
 /// Where a delivery that passed but did not land keeps its tested merge: out
 /// of the branch namespace, and safe from `git gc` until it lands.
 const TESTED_REFS: &str = "refs/hangar/deliveries";
@@ -269,7 +269,7 @@ fn prepare(command: &mut Command) {
 /// are killed, and the answer says so.
 fn run(mut command: Command, spawn: Spawn) -> std::io::Result<Finished> {
     if spawn.cancellable && CANCELLED.load(Ordering::SeqCst) {
-        return Err(std::io::Error::other("Hangar is closing"));
+        return Err(std::io::Error::other("Teskad is closing"));
     }
     command.stdin(if spawn.input.is_some() {
         Stdio::piped()
@@ -420,7 +420,7 @@ fn git_run(dir: &Path, args: &[&str], cancellable: bool) -> Result<Finished, Str
             args.join(" "),
             GIT_TIMEOUT.as_secs() / 60
         )),
-        Ended::Cancelled => Err("Hangar is closing".to_string()),
+        Ended::Cancelled => Err("Teskad is closing".to_string()),
     }
 }
 
@@ -586,7 +586,7 @@ fn listing(files: &[String]) -> String {
 /// Where the delivery worktrees of the old versions went: one new folder per
 /// delivery, in a folder of the system's own. Only the startup sweep reads it.
 fn legacy_root() -> PathBuf {
-    std::env::temp_dir().join("hangar-deliveries")
+    std::env::temp_dir().join("teskad-deliveries")
 }
 
 /// The folder every check of a workspace runs in: short and stable, because
@@ -1217,7 +1217,7 @@ fn run_check(request: &Delivery, dir: &Path, line: &str, limit: Duration) -> Res
     )
     .map_err(|err| format!("could not start {} to run the check: {err}", shell.program))?;
     if finished.ended == Ended::Cancelled {
-        return Err("Hangar closed while the check was running".to_string());
+        return Err("Teskad closed while the check was running".to_string());
     }
     Ok(Check {
         command: line.to_string(),
@@ -1446,7 +1446,7 @@ impl Reviewer for Claude {
         )
         .map_err(|err| format!("could not start {}: {err}", program.display()))?;
         match finished.ended {
-            Ended::Cancelled => Err("Hangar closed while the review was running".to_string()),
+            Ended::Cancelled => Err("Teskad closed while the review was running".to_string()),
             Ended::TimedOut => Err(format!(
                 "the review did not finish within {} minutes and was stopped",
                 self.limit.as_secs() / 60
@@ -1521,7 +1521,7 @@ fn review_prompt(
     let task = &request.task;
     let mut prompt = format!(
         "You are reviewing a delivery before it lands on the branch `{target}`. A worker agent did the task \
-below on its own branch, `{branch}`. Hangar merged that branch onto the current `{target}` in this folder, \
+below on its own branch, `{branch}`. Teskad merged that branch onto the current `{target}` in this folder, \
 which holds the merged result. You did not write this code, and nothing else checks it before it lands.\n\n",
         target = request.target,
         branch = request.branch,
@@ -2253,9 +2253,9 @@ fn merge_branch(dir: &Path, request: &Delivery, tip: &str) -> Merged {
     if anonymous {
         merge_args.extend([
             "-c",
-            "user.name=HangarAI",
+            "user.name=Teskad",
             "-c",
-            "user.email=hangar@localhost",
+            "user.email=teskad@localhost",
         ]);
     }
     // Hooks are the person's checkout's business: this merge is a test bench,
@@ -2342,7 +2342,7 @@ fn check_failed(request: &Delivery, line: &str, check: &Check, limits: &Limits) 
     };
     format!(
         "The check `{line}` {how} on {branch} merged onto {target}. It runs in a checkout of that \
-merge that Hangar keeps for this workspace and resets to each merge: untracked files are removed, files git \
+merge that Teskad keeps for this workspace and resets to each merge: untracked files are removed, files git \
 ignores stay, and the build output is shared and outside it. It has to install what it needs itself. The end of its output:\n```\n{}\n```\nFix it on your branch, run the check yourself, \
 commit, then call delivery_submit again.",
         check.tail
@@ -2398,7 +2398,7 @@ fn in_the_way(request: &Delivery, place: &str, files: &[String], reason: &str) -
     format!(
         "{branch} passed {}its review, but {target} is checked out in {place}, which has local changes \
 landing would overwrite{}. Nothing there was touched (git said: {reason}). It waits for the person: once \
-those changes are committed or set aside, they land it from Hangar. There is nothing more for you to do: stop here.",
+those changes are committed or set aside, they land it from Teskad. There is nothing more for you to do: stop here.",
         if request.check_command.is_some() {
             "its check and "
         } else {
@@ -2462,7 +2462,7 @@ fn land(repo: &Path, target: &str, base: &str, merge: &str) -> Landing {
             &[
                 "update-ref",
                 "-m",
-                "hangar: land a delivery",
+                "teskad: land a delivery",
                 &reference,
                 merge,
                 base,

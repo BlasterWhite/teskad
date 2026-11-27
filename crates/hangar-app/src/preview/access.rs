@@ -582,7 +582,7 @@ impl Disk {
         // The tabs stay open if the disk refuses; only a restart loses them.
         if let Err(err) = write_atomically(&self.path, text) {
             eprintln!(
-                "hangar: the kit tabs could not be saved to {}: {err}",
+                "teskad: the kit tabs could not be saved to {}: {err}",
                 self.path.display()
             );
         }

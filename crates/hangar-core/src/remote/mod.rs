@@ -1,4 +1,4 @@
-//! Hangar Mobile, the PC's side: the phone's web app and its API, served on
+//! Teskad Mobile, the PC's side: the phone's web app and its API, served on
 //! 127.0.0.1 for Tailscale Serve to publish on the person's tailnet.
 //!
 //! Off until the person turns it on. The phone reaches the PC at
@@ -17,7 +17,7 @@
 //!   what the phone reads as "Since your last visit".
 //! - apps.rs: the apps the agents build, opened on the phone, each on a
 //!   slot of its own: a port of the tailnet address, 8443 to 8448.
-//! - awake.rs: keeping the PC from sleeping while Hangar Mobile is on.
+//! - awake.rs: keeping the PC from sleeping while Teskad Mobile is on.
 //! - calls.rs: the phone's calls that change something, made at most once
 //!   whatever its retries.
 //! - files.rs: the files that go both ways, shared by an agent or uploaded
@@ -191,7 +191,7 @@ pub struct RemoteStatus {
 #[derive(Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Options {
-    /// Keep the PC from sleeping while Hangar Mobile is on.
+    /// Keep the PC from sleeping while Teskad Mobile is on.
     pub keep_awake: bool,
     /// False where it cannot work (Linux): the settings say so.
     pub keep_awake_supported: bool,
@@ -274,7 +274,7 @@ impl Remote {
     pub async fn resume(self: &Arc<Self>) {
         if self.store.read().enabled {
             if let Err(err) = self.start().await {
-                eprintln!("Hangar Mobile could not start: {err}");
+                eprintln!("Teskad Mobile could not start: {err}");
             }
         }
     }
@@ -326,11 +326,11 @@ impl Remote {
         Ok(self.status().await)
     }
 
-    /// Hangar Mobile listening or not, for the PC to be kept awake accordingly.
-    /// A PC that cannot be held awake does not stop Hangar Mobile.
+    /// Teskad Mobile listening or not, for the PC to be kept awake accordingly.
+    /// A PC that cannot be held awake does not stop Teskad Mobile.
     fn hold_awake(&self, on: bool) {
         if let Err(err) = self.awake.lock().unwrap().set_mobile_on(on) {
-            eprintln!("Hangar could not keep the PC awake: {err}");
+            eprintln!("Teskad could not keep the PC awake: {err}");
         }
     }
 
@@ -342,7 +342,7 @@ impl Remote {
         }
     }
 
-    /// The option, in effect now if Hangar Mobile is on, and kept for the
+    /// The option, in effect now if Teskad Mobile is on, and kept for the
     /// next launch. Either both happen or neither.
     pub fn set_keep_awake(&self, enabled: bool) -> Result<(), String> {
         let mut awake = self.awake.lock().unwrap();
@@ -393,7 +393,7 @@ impl Remote {
     /// the QR code sends the phone.
     pub async fn pair_start(&self) -> Result<PairStart, String> {
         if self.listening.lock().await.running.is_none() {
-            return Err("Hangar Mobile is off: turn it on first.".to_string());
+            return Err("Teskad Mobile is off: turn it on first.".to_string());
         }
         let tailscale = tailscale::status(self.store.read().port).await;
         match tailscale.dns_name {
@@ -458,17 +458,17 @@ impl Remote {
     }
 
     /// An agent's `phone_share`: the file copied in and announced. Refused,
-    /// with words the agent can pass on, while Hangar Mobile is off or no
+    /// with words the agent can pass on, while Teskad Mobile is off or no
     /// phone is paired to see it.
     pub async fn share(&self, new: NewShare) -> Result<Share, String> {
         if self.listening.lock().await.running.is_none() {
             return Err(
-                "Hangar Mobile is off: the person can turn it on in Settings › Mobile".to_string(),
+                "Teskad Mobile is off: the person can turn it on in Settings › Mobile".to_string(),
             );
         }
         if self.store.read().devices.is_empty() {
             return Err(
-                "No phone is paired with Hangar Mobile: the person can pair one in Settings › Mobile"
+                "No phone is paired with Teskad Mobile: the person can pair one in Settings › Mobile"
                     .to_string(),
             );
         }
@@ -562,7 +562,7 @@ impl Remote {
         Ok(())
     }
 
-    /// How many phones take notifications: none while Hangar Mobile is off,
+    /// How many phones take notifications: none while Teskad Mobile is off,
     /// which is when the window has no reason to watch for them.
     pub async fn push_subscribers(&self) -> usize {
         if self.listening.lock().await.running.is_none() {
@@ -617,7 +617,7 @@ impl Remote {
                 Delivery::Gone => gone.push(endpoint),
                 Delivery::Failed(err) => {
                     outcome.failed += 1;
-                    eprintln!("Hangar Mobile could not push to a phone: {err}");
+                    eprintln!("Teskad Mobile could not push to a phone: {err}");
                 }
             }
         }
@@ -686,7 +686,7 @@ fn os_name() -> Option<String> {
 }
 
 // ---------------------------------------------------------------------------
-// The settings' commands (Settings → Hangar Mobile)
+// The settings' commands (Settings → Teskad Mobile)
 // ---------------------------------------------------------------------------
 
 pub async fn remote_status(remote: Arc<Remote>) -> Result<RemoteStatus, String> {
@@ -1067,7 +1067,7 @@ pub(super) mod tests {
         let refused = remote.share(new_share(a_file("off"))).await.unwrap_err();
         assert_eq!(
             refused,
-            "Hangar Mobile is off: the person can turn it on in Settings › Mobile"
+            "Teskad Mobile is off: the person can turn it on in Settings › Mobile"
         );
         assert!(remote.shares.list(0).is_empty());
     }
@@ -1179,7 +1179,7 @@ pub(super) mod tests {
         (format!("http://{addr}"), received)
     }
 
-    /// Hangar Mobile on, on a port of its own, with two phones paired.
+    /// Teskad Mobile on, on a port of its own, with two phones paired.
     async fn two_phones(window: Fake, port: u16) -> (Arc<Remote>, String, String) {
         let remote = remote_with(window, assets::tests::no_app);
         remote.store.update(|saved| saved.port = port).unwrap();

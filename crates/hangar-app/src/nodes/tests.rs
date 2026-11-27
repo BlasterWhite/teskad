@@ -33,7 +33,7 @@ fn line(cmd: &Cmd) -> String {
         .join(" | ")
 }
 
-const OWN: &str = "/run/user/1000/hangar-ssh/42-ab";
+const OWN: &str = "/run/user/1000/teskad-ssh/42-ab";
 
 fn own() -> Mux {
     Mux::Own(OWN.into())
@@ -237,7 +237,7 @@ fn with_sharing_the_tunnel_is_the_master_and_the_rest_its_sessions() {
 
 #[test]
 fn the_control_socket_is_this_process_s_and_short() {
-    let dir = Path::new("/run/user/1000/hangar-ssh");
+    let dir = Path::new("/run/user/1000/teskad-ssh");
     let path = connect::control_path(dir, "5f0c3f5e-9c7a-4a43-a2b5-3e8f9f1e2d11");
     assert_eq!(path.parent(), Some(dir));
     let name = path.file_name().unwrap().to_str().unwrap();

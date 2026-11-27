@@ -147,7 +147,7 @@ async fn connect(
             "d": {
                 "token": token,
                 "intents": intents,
-                "properties": { "os": std::env::consts::OS, "browser": "hangar", "device": "hangar" },
+                "properties": { "os": std::env::consts::OS, "browser": "teskad", "device": "teskad" },
             },
         }),
     };

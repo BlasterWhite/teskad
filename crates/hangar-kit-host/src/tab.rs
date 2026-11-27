@@ -684,7 +684,7 @@ impl KitTab {
             Some(Err(why)) => {
                 self.fail(Failure::new(
                     FailureKind::Message,
-                    format!("Hangar could not write its message: {why}"),
+                    format!("Teskad could not write its message: {why}"),
                 ));
                 return None;
             }
@@ -747,7 +747,7 @@ impl KitTab {
                 };
                 self.fail(Failure::new(
                     FailureKind::Message,
-                    format!("it sent {what} Hangar cannot read: {why}"),
+                    format!("it sent {what} Teskad cannot read: {why}"),
                 ));
                 None
             }
@@ -961,7 +961,7 @@ impl KitTab {
             .ok_or_else(|| {
                 KitError::new(
                     KitError::UNSUPPORTED,
-                    "not a raster image Hangar reads: PNG, JPEG, GIF, WebP or BMP",
+                    "not a raster image Teskad reads: PNG, JPEG, GIF, WebP or BMP",
                 )
             })?;
         Ok(json!({ "width": width, "height": height }))
@@ -1165,7 +1165,7 @@ fn invoke(
             let input = input.unwrap_or(b"{}");
             if input.len() > MAX_MESSAGE_BYTES {
                 return Err(Fault::Message(
-                    "Hangar's message to it was larger than 4 MB".into(),
+                    "Teskad's message to it was larger than 4 MB".into(),
                 ));
             }
             let len = input.len() as u32;
@@ -1176,7 +1176,7 @@ fn invoke(
             guest
                 .memory
                 .write(&mut guest.store, ptr as usize, input)
-                .map_err(|_| Fault::Message("it gave Hangar a buffer outside its memory".into()))?;
+                .map_err(|_| Fault::Message("it gave Teskad a buffer outside its memory".into()))?;
             let function = if entry == Entry::Init {
                 &guest.init
             } else {

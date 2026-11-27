@@ -36,7 +36,7 @@ pub async fn control(
     let Some(ws) = caller_workspace(state, caller) else {
         return Err(match &caller.pane_id {
             Some(pane) => format!(
-                "The pane \"{pane}\" is in no workspace of Hangar, so there is nowhere to open a tab."
+                "The pane \"{pane}\" is in no workspace of Teskad, so there is nowhere to open a tab."
             ),
             None => "Could not tell which workspace you are in, so there is nowhere to open a tab."
                 .into(),
@@ -68,7 +68,7 @@ pub async fn control(
 
 /// Said while P16's catalog is not installed: no tab can be read.
 fn unavailable() -> String {
-    "Kit tabs are not available in this Hangar window.".into()
+    "Kit tabs are not available in this Teskad window.".into()
 }
 
 /// The `kit` and `tab` of a request; both are needed.

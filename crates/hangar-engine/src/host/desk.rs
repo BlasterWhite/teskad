@@ -36,7 +36,7 @@ impl HostSources {
     }
 }
 
-const GONE: &str = "Hangar is stopping.";
+const GONE: &str = "Teskad is stopping.";
 
 impl Sources for HostSources {
     fn projects(&self) -> BoxFuture<Vec<ProjectSummary>> {
@@ -72,7 +72,7 @@ impl Sources for HostSources {
 
     fn usage(&self) -> BoxFuture<Result<Arc<UsageStats>, String>> {
         Box::pin(std::future::ready(Err(
-            "The usage statistics are not read on this Hangar.".to_string(),
+            "The usage statistics are not read on this Teskad.".to_string(),
         )))
     }
 

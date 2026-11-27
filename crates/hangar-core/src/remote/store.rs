@@ -1,4 +1,4 @@
-//! What Hangar Mobile keeps on disk, in `remote.json` beside state.json:
+//! What Teskad Mobile keeps on disk, in `remote.json` beside state.json:
 //! whether it is on, the port Tailscale Serve proxies to, whether the PC is
 //! kept awake while it is, and the phones paired with this PC.
 //!
@@ -33,7 +33,7 @@ pub struct Saved {
     /// Off until the person turns it on; at launch, on again if they left it on.
     pub enabled: bool,
     pub port: u16,
-    /// Opt-in: the PC is kept from sleeping while Hangar Mobile is on (awake.rs).
+    /// Opt-in: the PC is kept from sleeping while Teskad Mobile is on (awake.rs).
     pub keep_awake: bool,
     pub devices: Vec<Device>,
 }
@@ -160,7 +160,7 @@ fn load(file: &Path) -> Saved {
         Err(err) => {
             // Moved aside, the way state.json is: the next save would
             // otherwise write over it. Starting again from the defaults turns
-            // Hangar Mobile off and forgets the phones, which pair again —
+            // Teskad Mobile off and forgets the phones, which pair again —
             // never the other way round, a damaged file letting one in.
             match crate::store::quarantine(file) {
                 Some(kept) => eprintln!(

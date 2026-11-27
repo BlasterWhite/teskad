@@ -424,7 +424,7 @@ fn write_marketplace(root: &Path) -> Result<(), String> {
         .collect();
     let file = json!({
         "name": MARKETPLACE,
-        "interface": { "displayName": "Hangar kits" },
+        "interface": { "displayName": "Teskad kits" },
         "plugins": plugins,
     });
     write_atomic(
@@ -753,7 +753,7 @@ mod tests {
             market,
             json!({
                 "name": "hangar-kits",
-                "interface": { "displayName": "Hangar kits" },
+                "interface": { "displayName": "Teskad kits" },
                 "plugins": [{ "name": "studio", "source": { "source": "local", "path": "./plugins/studio" } }]
             })
         );

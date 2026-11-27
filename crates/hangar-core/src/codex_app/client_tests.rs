@@ -460,7 +460,7 @@ async fn a_thread_and_a_turn_come_in_the_order_codex_sends_them() {
     );
     assert_eq!(
         text,
-        "Hangar runs coding agents in real terminals, side by side."
+        "Teskad runs coding agents in real terminals, side by side."
     );
     let usage = usage.expect("the turn's usage");
     assert_eq!(usage.total.total_tokens, 5251);
@@ -607,10 +607,10 @@ async fn what_hangar_cannot_read_is_dropped_reported_once_and_never_stops_the_st
 
     let reports = reports.all();
     let expected = [
-        "Codex 0.170.0 sends `thread/name/updated`, a notification Hangar does not read: ignored",
+        "Codex 0.170.0 sends `thread/name/updated`, a notification Teskad does not read: ignored",
         "could not read a `turn/completed` notification from Codex 0.170.0: dropped",
         "dropped a message from Codex 0.170.0 that is not a JSON-RPC object: not JSON at all",
-        "Codex 0.170.0 asks `item/tool/call`, a request Hangar does not handle: refused",
+        "Codex 0.170.0 asks `item/tool/call`, a request Teskad does not handle: refused",
         "could not read a `item/commandExecution/requestApproval` request from Codex 0.170.0: refused",
     ];
     assert_eq!(reports, expected, "each once, in order");
@@ -648,7 +648,7 @@ async fn beside_the_tui_hangar_leaves_what_it_does_not_answer_to_it() {
     assert_eq!(
         reports.all(),
         [
-            "Codex 0.170.0 asks `item/tool/call`, a request Hangar does not handle: left to the other client",
+            "Codex 0.170.0 asks `item/tool/call`, a request Teskad does not handle: left to the other client",
             "could not read a `item/fileChange/requestApproval` request from Codex 0.170.0: left to the other client",
         ]
     );
@@ -818,7 +818,7 @@ async fn a_request_hangar_drops_is_refused_rather_than_left_waiting() {
             "id": 0,
             "error": {
                 "code": -32603,
-                "message": "Hangar dropped `item/commandExecution/requestApproval` without an answer"
+                "message": "Teskad dropped `item/commandExecution/requestApproval` without an answer"
             }
         })
     );
@@ -892,7 +892,7 @@ async fn a_newer_codex_is_spoken_to_and_said_once() {
     assert_eq!(
         reports.all(),
         [
-            "Codex 0.175.2 is newer than 0.170.0, the release Hangar's protocol types come from: \
+            "Codex 0.175.2 is newer than 0.170.0, the release Teskad's protocol types come from: \
           what changed is read leniently"
         ]
     );

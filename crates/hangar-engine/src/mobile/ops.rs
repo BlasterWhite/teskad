@@ -84,7 +84,7 @@ pub fn find_pane(state: &AppState, wanted: Option<&Value>) -> Result<(Workspace,
     };
     found(&|pane| pane.id == wanted)
         .or_else(|| found(&|pane| same(&pane.name, wanted)))
-        .ok_or_else(|| format!("No pane \"{wanted}\" in Hangar."))
+        .ok_or_else(|| format!("No pane \"{wanted}\" in Teskad."))
 }
 
 /// A project by id or by name (`findWorkspace`).
@@ -102,7 +102,7 @@ pub fn find_workspace(state: &AppState, wanted: Option<&Value>) -> Result<Worksp
         .find(|ws| ws.id == wanted)
         .or_else(|| state.workspaces.iter().find(|ws| same(&ws.name, wanted)))
         .cloned()
-        .ok_or_else(|| format!("No project \"{wanted}\" in Hangar."))
+        .ok_or_else(|| format!("No project \"{wanted}\" in Teskad."))
 }
 
 fn activity(snapshot: &Snapshot, pane: &str) -> Option<AgentActivity> {
@@ -357,7 +357,7 @@ pub struct SideChannelSetting {
 
 /// The side channel of the pane's agent: the teskad-bridge mod for Claude
 /// Code (Settings › Agents), Hangar attached to the pane's own Codex server
-/// (« Attach Hangar to Codex », D5), which delivers the queue too (D9). Whether
+/// (« Attach Teskad to Codex », D5), which delivers the queue too (D9). Whether
 /// it is on is a setting kept once per kind, read here as `state::types` reads
 /// its other fields kept per kind; the rest of this file reads only this.
 /// None for a shell.
@@ -369,7 +369,7 @@ pub fn side_channel(settings: &Settings, pane: &Pane) -> Option<SideChannelSetti
         },
         AgentKind::Codex => SideChannelSetting {
             on: settings.codex_attach,
-            off: "Hangar is not attached to Codex (« Attach Hangar to Codex » is off)",
+            off: "Teskad is not attached to Codex (« Attach Teskad to Codex » is off)",
         },
     })
 }
@@ -1045,7 +1045,7 @@ pub fn remote_workspace(port: &Port, args: &Value) -> Result<RemoteWorkspace, St
         } else {
             format!("with id \"{id}\"")
         };
-        return Err(format!("No workspace {which} in Hangar."));
+        return Err(format!("No workspace {which} in Teskad."));
     };
     Ok(RemoteWorkspace {
         id: ws.id.clone(),

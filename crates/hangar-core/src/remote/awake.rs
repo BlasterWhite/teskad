@@ -1,9 +1,9 @@
-//! Keeping the PC awake while Hangar Mobile is on, so the phone can reach it
+//! Keeping the PC awake while Teskad Mobile is on, so the phone can reach it
 //! during a week away.
 //!
 //! The system is kept from sleeping, never the display: the screen goes off
 //! as it always did. Opt-in, in the Mobile settings. Held only while both the
-//! option and Hangar Mobile are on; released the moment either goes off, and
+//! option and Teskad Mobile are on; released the moment either goes off, and
 //! when Hangar quits (the held request dies with the process, and on macOS
 //! `caffeinate` is told to follow Hangar's pid).
 //!
@@ -19,7 +19,7 @@ pub trait Holder: Send {
     fn release(&mut self);
 }
 
-/// When to hold: the option wanted, Hangar Mobile on.
+/// When to hold: the option wanted, Teskad Mobile on.
 pub struct KeepAwake {
     holder: Box<dyn Holder>,
     wanted: bool,
@@ -59,7 +59,7 @@ impl KeepAwake {
         self.apply().inspect_err(|_| self.wanted = before)
     }
 
-    /// Hangar Mobile started or stopped listening.
+    /// Teskad Mobile started or stopped listening.
     pub fn set_mobile_on(&mut self, on: bool) -> Result<(), String> {
         self.mobile_on = on;
         self.apply()

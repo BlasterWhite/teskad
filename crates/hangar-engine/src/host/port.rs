@@ -375,7 +375,7 @@ impl DeliveryDeps for HostDelivery {
     ) -> BoxFuture<Result<String, String>> {
         let _ = (workspace, worktree, landing);
         Box::pin(std::future::ready(Err(format!(
-            "This Hangar does not drive node {node}: the branch cannot be brought back from it."
+            "This Teskad does not drive node {node}: the branch cannot be brought back from it."
         ))))
     }
 
@@ -387,7 +387,7 @@ impl DeliveryDeps for HostDelivery {
     ) -> BoxFuture<Result<Cleanup, String>> {
         let _ = (worktree, branch);
         Box::pin(std::future::ready(Err(format!(
-            "This Hangar does not drive node {node}."
+            "This Teskad does not drive node {node}."
         ))))
     }
 }

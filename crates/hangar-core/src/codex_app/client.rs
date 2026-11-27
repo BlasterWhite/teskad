@@ -138,7 +138,7 @@ pub struct Options {
 impl Default for Options {
     fn default() -> Options {
         Options {
-            client_name: "Hangar".into(),
+            client_name: "Teskad".into(),
             client_version: env!("CARGO_PKG_VERSION").into(),
             request_timeout: Duration::from_secs(60),
             initialize_timeout: Duration::from_secs(30),
@@ -221,7 +221,7 @@ impl fmt::Display for Closed {
         match &self.cause {
             Cause::ServerClosed => f.write_str("Codex's app-server closed the connection")?,
             Cause::Io(error) => write!(f, "the connection to Codex's app-server failed: {error}")?,
-            Cause::Shutdown => f.write_str("Hangar closed the connection to Codex's app-server")?,
+            Cause::Shutdown => f.write_str("Teskad closed the connection to Codex's app-server")?,
         }
         if !self.stderr.is_empty() {
             write!(f, " (it said: {})", self.stderr.join(" / "))?;
@@ -466,7 +466,7 @@ impl Drop for Reply {
                     &self.id,
                     Err(RpcError {
                         code: INTERNAL_ERROR,
-                        message: format!("Hangar dropped `{}` without an answer", self.method),
+                        message: format!("Teskad dropped `{}` without an answer", self.method),
                         data: None,
                     }),
                 );
@@ -864,7 +864,7 @@ impl Shared {
                             )
                         } else {
                             format!(
-                                "Codex {} sends `{method}`, a notification Hangar does not read: \
+                                "Codex {} sends `{method}`, a notification Teskad does not read: \
                              ignored",
                                 self.version_text()
                             )
@@ -926,7 +926,7 @@ impl Shared {
                 )
             } else {
                 format!(
-                    "Codex {} asks `{method}`, a request Hangar does not handle",
+                    "Codex {} asks `{method}`, a request Teskad does not handle",
                     self.version_text()
                 )
             };
@@ -940,13 +940,13 @@ impl Shared {
             let error = if known {
                 RpcError {
                     code: INVALID_PARAMS,
-                    message: format!("Hangar could not read this `{method}` request"),
+                    message: format!("Teskad could not read this `{method}` request"),
                     data: None,
                 }
             } else {
                 RpcError {
                     code: METHOD_NOT_FOUND,
-                    message: format!("Hangar does not handle `{method}`"),
+                    message: format!("Teskad does not handle `{method}`"),
                     data: None,
                 }
             };
@@ -1160,7 +1160,7 @@ async fn handshake(shared: &Shared) -> Result<Server, Error> {
         Verdict::Supported(_) => {}
         Verdict::Newer(version) => shared.report_once("newer".into(), || {
             format!(
-                "Codex {version} is newer than {}, the release Hangar's protocol types come \
+                "Codex {version} is newer than {}, the release Teskad's protocol types come \
                  from: what changed is read leniently",
                 gate::CODEX_PINNED
             )

@@ -48,9 +48,9 @@ use crate::codex_app::{
 
 /// The child's role, as developer instructions: what it is for, and that nobody watches it.
 const ROLE: &str = "You are working on a sub-task another agent handed over to you through \
-Hangar. Nobody watches this session while it runs: do the task on your own, then end with your \
+Teskad. Nobody watches this session while it runs: do the task on your own, then end with your \
 final answer, which is all the other agent reads of your work. Say in it what you did and what \
-you changed. What you need the person to allow, ask for as you would anyway: Hangar shows it to \
+you changed. What you need the person to allow, ask for as you would anyway: Teskad shows it to \
 them.";
 /// Added to [`ROLE`] for a child in a worktree of its own.
 const WORKTREE_ROLE: &str = "You work in a git worktree of your own, on its branch, made from \
@@ -142,7 +142,7 @@ fn server_spec(
         ..LaunchRequest::default()
     };
     let server = launch::server(&launch)
-        .ok_or_else(|| "Hangar could not make the launch of Codex's app-server".to_string())?;
+        .ok_or_else(|| "Teskad could not make the launch of Codex's app-server".to_string())?;
     let mut args = server.args;
     let at = args
         .iter()

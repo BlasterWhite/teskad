@@ -100,14 +100,14 @@ impl fmt::Display for LoadError {
             }
             LoadError::Invalid(why) => write!(
                 f,
-                "the tab's file is not a WebAssembly module Hangar can run: {why}"
+                "the tab's file is not a WebAssembly module Teskad can run: {why}"
             ),
             LoadError::Import { module, name }
                 if module == "wasi_snapshot_preview1" || module.starts_with("wasi") =>
             {
                 write!(
                     f,
-                    "the tab imports {module}::{name}: it was built for WASI. Build it for wasm32-unknown-unknown, where Hangar gives what a tab needs"
+                    "the tab imports {module}::{name}: it was built for WASI. Build it for wasm32-unknown-unknown, where Teskad gives what a tab needs"
                 )
             }
             LoadError::Import { module, name }
@@ -121,28 +121,28 @@ impl fmt::Display for LoadError {
             LoadError::Import { module, name } => {
                 write!(
                     f,
-                    "the tab imports {module}::{name}, which Hangar does not give: only hangar::log and hangar::now"
+                    "the tab imports {module}::{name}, which Teskad does not give: only hangar::log and hangar::now"
                 )
             }
             LoadError::Export { name, why } => {
                 write!(
                     f,
-                    "the tab does not export {name} as Hangar calls it ({why}): was it built with hangar_kit_sdk::export_kit!?"
+                    "the tab does not export {name} as Teskad calls it ({why}): was it built with hangar_kit_sdk::export_kit!?"
                 )
             }
             LoadError::Abi { module, host } if module > host => {
                 write!(
                     f,
-                    "the tab speaks the ABI {module} and this Hangar reads {host}: it needs a newer Hangar"
+                    "the tab speaks the ABI {module} and this Teskad reads {host}: it needs a newer Teskad"
                 )
             }
             LoadError::Abi { module, host } => {
                 write!(
                     f,
-                    "the tab speaks the ABI {module}, which this Hangar no longer reads ({host}): it needs a newer SDK"
+                    "the tab speaks the ABI {module}, which this Teskad no longer reads ({host}): it needs a newer SDK"
                 )
             }
-            LoadError::Engine(why) => write!(f, "Hangar could not start WebAssembly: {why}"),
+            LoadError::Engine(why) => write!(f, "Teskad could not start WebAssembly: {why}"),
         }
     }
 }

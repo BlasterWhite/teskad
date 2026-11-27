@@ -343,7 +343,7 @@ fn about_shows_the_name_the_version_and_a_two_step_reset() {
     assert_eq!(
         table(&built, SettingsCategory::About),
         [
-            r#"appName: text "hangar-ai""#,
+            r#"appName: text "teskad""#,
             r#"version: text "1.12.1""#,
             "reset: action ResetSettings (confirm) (danger)",
         ]

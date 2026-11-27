@@ -409,7 +409,7 @@ fn is_worker_on_task(pane: &Pane) -> bool {
 
 fn require(port: &Port) -> Result<std::sync::Arc<dyn DeliveryDeps>, String> {
     port.delivery()
-        .ok_or_else(|| "Deliveries are not available in this Hangar window.".into())
+        .ok_or_else(|| "Deliveries are not available in this Teskad window.".into())
 }
 
 /// A pane's worktree: its folder, read from the workspace's.
@@ -541,10 +541,10 @@ async fn submit(
     };
     if let Err(busy) = hold(port, &task_id, entry).await {
         return Err(if busy.landing {
-            "Your delivery is being landed right now. Wait for Hangar's message; do not submit again."
+            "Your delivery is being landed right now. Wait for Teskad's message; do not submit again."
                 .into()
         } else {
-            "Your delivery is already being merged, checked and reviewed. Wait for Hangar's message with \
+            "Your delivery is already being merged, checked and reviewed. Wait for Teskad's message with \
              the outcome; do not submit again meanwhile."
                 .into()
         });
@@ -686,8 +686,8 @@ async fn submitted(
         "target": plan.target,
         "commits": plan.ahead,
         "next": format!(
-            "Hangar now merges {} onto {} in a separate worktree, {check}and has a reviewer read the change. \
-             The outcome comes to you as a message from Hangar, usually within minutes. End your turn now \
+            "Teskad now merges {} onto {} in a separate worktree, {check}and has a reviewer read the change. \
+             The outcome comes to you as a message from Teskad, usually within minutes. End your turn now \
              and wait; do not change {} meanwhile.",
             plan.branch, plan.target, plan.branch
         ),
@@ -727,7 +727,7 @@ async fn done_in_folder(
         )
         .await?;
     let mut comment = format!(
-        "Done by {} in the workspace's folder. It is not a git repository, so Hangar merged, checked and \
+        "Done by {} in the workspace's folder. It is not a git repository, so Teskad merged, checked and \
          reviewed nothing: the changes are in place as the worker left them.",
         pane.name
     );
@@ -775,7 +775,7 @@ async fn done_in_folder(
         "done": true,
         "task": task.title,
         "next": "Your task is done: the workspace is not a git repository, so there is nothing to merge, and the \
-                 orchestrator has been told. End your turn now; Hangar closes your pane in a moment.",
+                 orchestrator has been told. End your turn now; Teskad closes your pane in a moment.",
     }))
 }
 

@@ -280,7 +280,7 @@ impl Search {
             return Err(TabError::new(
                 TabError::FAILED,
                 format!(
-                    "{name} is {}, a batch file: cmd.exe would parse its arguments, so Hangar does not run it",
+                    "{name} is {}, a batch file: cmd.exe would parse its arguments, so Teskad does not run it",
                     found.display()
                 ),
             ));

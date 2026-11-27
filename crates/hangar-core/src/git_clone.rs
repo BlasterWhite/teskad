@@ -752,7 +752,7 @@ fn parent_problem(parent: &Path) -> Option<String> {
         .any(|root| is_under(&real, &resolved(root)))
     {
         return Some(format!(
-            "{} is where Hangar keeps its own data: nothing is cloned there, pick another folder",
+            "{} is where Teskad keeps its own data: nothing is cloned there, pick another folder",
             parent.display()
         ));
     }
@@ -1114,7 +1114,7 @@ fn discard_clone(path: &str, window: Duration) -> DiscardOutcome {
     let Some(made) = made else {
         return discard_refused(
             "notMade",
-            "Hangar did not make this folder in this run, or it was reused: it is left alone",
+            "Teskad did not make this folder in this run, or it was reused: it is left alone",
         );
     };
     if made.made_at.elapsed() > window {

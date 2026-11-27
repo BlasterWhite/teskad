@@ -88,7 +88,7 @@ fn project_for(port: &Port, reference: Option<&Value>) -> Result<Workspace, Stri
 async fn summaries(port: &Port) -> Result<Projects, String> {
     match port.orchestration() {
         Some(engine) => engine.projects(port.clone()).await,
-        None => Err("The projects cannot be read in this Hangar window.".into()),
+        None => Err("The projects cannot be read in this Teskad window.".into()),
     }
 }
 

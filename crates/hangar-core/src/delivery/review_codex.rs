@@ -64,7 +64,7 @@ impl Files {
     fn new() -> std::io::Result<Files> {
         static NEXT: AtomicU64 = AtomicU64::new(0);
         let dir = std::env::temp_dir().join(format!(
-            "hangar-review-{}-{}",
+            "teskad-review-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
@@ -329,7 +329,7 @@ impl Reviewer for Codex {
         )
         .map_err(|err| format!("could not start {}: {err}", self.program.display()))?;
         match finished.ended {
-            Ended::Cancelled => Err("Hangar closed while the review was running".to_string()),
+            Ended::Cancelled => Err("Teskad closed while the review was running".to_string()),
             Ended::TimedOut => Err(format!(
                 "the review did not finish within {} minutes and was stopped",
                 self.limit.as_secs() / 60

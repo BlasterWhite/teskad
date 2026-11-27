@@ -1619,7 +1619,7 @@ mod tests {
 
         for (why, manifest) in [
             (
-                "needs Hangar",
+                "needs Teskad",
                 json!({ "schema": 1, "id": "studio", "name": "studio", "version": "1.1.0",
                         "description": "d", "hangar": ">=99.0.0" }),
             ),

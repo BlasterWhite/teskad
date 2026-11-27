@@ -555,7 +555,7 @@ async fn hands_worker_ops_to_the_orchestration_engine_and_says_so_without_one() 
     let fake = Fake::setup();
     assert_eq!(
         refusal("worker_list", from_ava(), &fake).await,
-        "Workers cannot be started from this Hangar window."
+        "Workers cannot be started from this Teskad window."
     );
 }
 

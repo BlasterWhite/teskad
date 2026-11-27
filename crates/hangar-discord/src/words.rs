@@ -1,5 +1,5 @@
 //! What the bot says, in the person's language (the settings' `locale`):
-//! French or English, as Hangar speaks.
+//! French or English, as Teskad speaks.
 
 use hangar_i18n::Locale;
 
@@ -141,8 +141,8 @@ impl Words {
     /// A file shared that Discord does not take.
     pub fn on_the_phone(&self) -> &'static str {
         self.pick(
-            "trop lourd pour Discord : il est sur le téléphone, dans Hangar Mobile.",
-            "too large for Discord: it is on the phone, in Hangar Mobile.",
+            "trop lourd pour Discord : il est sur le téléphone, dans Teskad Mobile.",
+            "too large for Discord: it is on the phone, in Teskad Mobile.",
         )
     }
     /// A file's size, as the person reads it: `1,5 Mo`, `1.5 MB`.
@@ -218,20 +218,20 @@ impl Words {
     }
     pub fn only_owner(&self) -> &'static str {
         self.pick(
-            "Seul la personne qui a appairé Hangar peut répondre ici.",
-            "Only the person who paired Hangar can answer here.",
+            "Seul la personne qui a appairé Teskad peut répondre ici.",
+            "Only the person who paired Teskad can answer here.",
         )
     }
     pub fn paired(&self) -> &'static str {
         self.pick(
-            "Appairé : Hangar n'écoute plus que vous sur ce serveur.",
-            "Paired: Hangar listens to you alone on this server now.",
+            "Appairé : Teskad n'écoute plus que vous sur ce serveur.",
+            "Paired: Teskad listens to you alone on this server now.",
         )
     }
     pub fn not_paired(&self) -> &'static str {
         self.pick(
-            "Hangar n'est pas appairé : envoyez `pair <code>` avec le code que donne `teskad-node discord status` sur le serveur.",
-            "Hangar is not paired: send `pair <code>` with the code `teskad-node discord status` gives on the server.",
+            "Teskad n'est pas appairé : envoyez `pair <code>` avec le code que donne `teskad-node discord status` sur le serveur.",
+            "Teskad is not paired: send `pair <code>` with the code `teskad-node discord status` gives on the server.",
         )
     }
     pub fn wrong_code(&self) -> &'static str {
@@ -242,8 +242,8 @@ impl Words {
     }
     pub fn pairing_closed(&self) -> &'static str {
         self.pick(
-            "Trop de codes faux : l'appairage est fermé. Relancez la connexion Discord de Hangar pour appairer.",
-            "Too many wrong codes: pairing is closed. Restart Hangar's Discord connection to pair.",
+            "Trop de codes faux : l'appairage est fermé. Relancez la connexion Discord de Teskad pour appairer.",
+            "Too many wrong codes: pairing is closed. Restart Teskad's Discord connection to pair.",
         )
     }
     /// The agent `name` waits on an answer: what is written to it would be
@@ -306,6 +306,21 @@ impl Words {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The bot speaks of the app by its name, Teskad: no text of this file says
+    /// Hangar, the name it had before. Reads the file's own source, tests left out.
+    #[test]
+    fn no_text_says_hangar() {
+        let source = include_str!("words.rs");
+        let texts = source.split("#[cfg(test)]").next().unwrap();
+        for (number, line) in texts.lines().enumerate() {
+            assert!(
+                !line.to_lowercase().contains("hangar") || line.trim_start().starts_with("use "),
+                "words.rs:{} still says Hangar: {line}",
+                number + 1
+            );
+        }
+    }
 
     #[test]
     fn speaks_the_settings_language() {

@@ -97,7 +97,7 @@ fn shop_host(server: ServerState) -> (EngineHost, Arc<Launches>) {
             ],
             ..Workspace::default()
         }],
-        // « Attach Hangar to Codex » on, as by default (D5).
+        // « Attach Teskad to Codex » on, as by default (D5).
         ..AppState::default()
     };
     write_state_file(&file, &serde_json::to_value(&state).unwrap()).unwrap();
@@ -185,7 +185,7 @@ async fn a_codex_pane_created_with_a_prompt_starts_through_cores_builder_and_say
     // Its server did not listen: the floor (D6), and the pane says why.
     assert_eq!(server_of(&host, &id).await, floor);
     let note = host.status_note(&id).expect("a status note");
-    contains(&note, "Codex runs without Hangar attached");
+    contains(&note, "Codex runs without Teskad attached");
     // The prompt waits in Hangar's queue for the session, from Ava.
     assert_eq!(
         queued(&id),

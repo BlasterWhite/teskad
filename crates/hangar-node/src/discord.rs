@@ -299,7 +299,7 @@ pub async fn share(State(node): State<Shared>, Json(body): Json<SharedBody>) -> 
     if settings.ready() && mark(&settings.token) != mark(&body.token) {
         return crate::api::error(
             StatusCode::CONFLICT,
-            "this node serves another Hangar's Discord bot (teskad-node discord off frees it)",
+            "this node serves another Teskad's Discord bot (teskad-node discord off frees it)",
         );
     }
     node.discord
@@ -520,7 +520,7 @@ pub fn off() -> Result<(), String> {
     if lent {
         // Said, rather than left to surprise: the bot was not the node's.
         println!(
-            "That bot was lent by a desktop Hangar: one that has its Discord connection on hands it again when it next looks at this node. Disconnect Discord there to keep it off."
+            "That bot was lent by a desktop Teskad: one that has its Discord connection on hands it again when it next looks at this node. Disconnect Discord there to keep it off."
         );
     }
     Ok(())

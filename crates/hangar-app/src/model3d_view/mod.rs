@@ -481,7 +481,7 @@ fn captured(st: &mut State, m: &Model, id: &str, result: Result<Done, String>) -
         Ok(Done::Copied) => Notice::info(hangar_i18n::t(locale, Key::ModelCopied)),
         Ok(Done::Saved(path)) => {
             if dev::capture_folder().is_some() {
-                eprintln!("hangar: 3D capture written to {}", path.display());
+                eprintln!("teskad: 3D capture written to {}", path.display());
             }
             Notice::info(hangar_i18n::t(locale, Key::ModelSaved))
         }

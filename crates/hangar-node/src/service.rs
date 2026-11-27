@@ -14,7 +14,7 @@ use std::process::Command;
 pub fn unit(exe: &Path) -> String {
     format!(
         "[Unit]\n\
-Description=Hangar node: its workspaces and the Discord connector\n\
+Description=Teskad node: its workspaces and the Discord connector\n\
 \n\
 [Service]\n\
 ExecStart=\"{}\" serve --supervised\n\

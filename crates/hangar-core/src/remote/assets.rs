@@ -35,7 +35,7 @@ const PLACEHOLDER: &str = r#"<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hangar Mobile</title>
+<title>Teskad Mobile</title>
 <style>
 body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #0f1115; color: #e6e6e6; font: 16px/1.5 system-ui, sans-serif; }
 main { max-width: 28rem; padding: 24px; }
@@ -45,8 +45,8 @@ code { background: #1d2027; padding: 2px 6px; border-radius: 4px; }
 </head>
 <body>
 <main>
-<h1>Hangar Mobile is not in this build</h1>
-<p>This copy of Hangar was built without its mobile app. Build it with <code>pnpm mobile:build</code>, then build Hangar again.</p>
+<h1>Teskad Mobile is not in this build</h1>
+<p>This copy of Teskad was built without its mobile app. Build it with <code>pnpm mobile:build</code>, then build Teskad again.</p>
 </main>
 </body>
 </html>
@@ -169,7 +169,7 @@ pub(super) mod tests {
     /// A built app of three files.
     pub fn small_app(path: &str) -> Option<Cow<'static, [u8]>> {
         let body: &'static [u8] = match path {
-            "index.html" => b"<!doctype html><title>Hangar</title>",
+            "index.html" => b"<!doctype html><title>Teskad</title>",
             "assets/app-3f2a.js" => b"console.log('hangar')",
             "manifest.webmanifest" => b"{}",
             _ => return None,
@@ -199,7 +199,7 @@ pub(super) mod tests {
             );
             assert!(text(response)
                 .await
-                .contains("Hangar Mobile is not in this build"));
+                .contains("Teskad Mobile is not in this build"));
         }
         assert_eq!(
             respond(no_app, "/assets/app.js").status(),
@@ -215,7 +215,7 @@ pub(super) mod tests {
             "text/html; charset=utf-8"
         );
         assert_eq!(header_of(&index, header::CACHE_CONTROL), "no-cache");
-        assert!(text(index).await.contains("<title>Hangar</title>"));
+        assert!(text(index).await.contains("<title>Teskad</title>"));
 
         let script = respond(small_app, "/assets/app-3f2a.js");
         assert_eq!(
@@ -238,7 +238,7 @@ pub(super) mod tests {
     async fn a_page_of_the_app_s_routing_gets_its_index() {
         let page = respond(small_app, "/panes/Ava");
         assert_eq!(page.status(), StatusCode::OK);
-        assert!(text(page).await.contains("<title>Hangar</title>"));
+        assert!(text(page).await.contains("<title>Teskad</title>"));
         assert_eq!(
             respond(small_app, "/missing.png").status(),
             StatusCode::NOT_FOUND

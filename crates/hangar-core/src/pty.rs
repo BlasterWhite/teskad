@@ -2087,7 +2087,7 @@ mod tests {
     }
 
     /// With `pane-scopes` on and a user manager to ask, the pane's shell is
-    /// in a `hangar-pane-*.scope` of its own, and closing the pane still
+    /// in a `teskad-pane-*.scope` of its own, and closing the pane still
     /// kills it. Skipped where no systemd user manager answers.
     #[cfg(target_os = "linux")]
     #[test]
@@ -2127,7 +2127,7 @@ mod tests {
             .get(&id)
             .and_then(|session| session.child.process_id())
             .expect("a pid") as libc::pid_t;
-        let wanted = "hangar-pane-scope-test-ptyscope-";
+        let wanted = "teskad-pane-scope-test-ptyscope-";
         let mut cgroup = String::new();
         for _ in 0..100 {
             cgroup = std::fs::read_to_string(format!("/proc/{pid}/cgroup")).unwrap_or_default();

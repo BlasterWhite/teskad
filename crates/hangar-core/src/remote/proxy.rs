@@ -2,7 +2,7 @@
 //! ports 8443–8448, relayed to the dev server the slot shows.
 //!
 //! - Nothing goes through without a paired phone's cookie: anything else
-//!   gets a page saying to open the app from Hangar Mobile.
+//!   gets a page saying to open the app from Teskad Mobile.
 //! - A request reaches the dev server as one made on the PC: to
 //!   127.0.0.1:<port> (or [::1]), with that for its Host, which Vite and
 //!   Next check. The phone's cookie and `X-Hangar` are taken out of it: the
@@ -103,8 +103,8 @@ async fn relay(State(slot): State<Slot>, request: Request) -> Response {
     if slot.remote.device(request.headers()).is_none() {
         return page(
             StatusCode::UNAUTHORIZED,
-            "Open it from Hangar Mobile",
-            "This is an app an agent is building on this PC. It opens from Hangar Mobile, \
+            "Open it from Teskad Mobile",
+            "This is an app an agent is building on this PC. It opens from Teskad Mobile, \
              on a phone paired with the PC: tap the app there.",
         );
     }
@@ -113,7 +113,7 @@ async fn relay(State(slot): State<Slot>, request: Request) -> Response {
             StatusCode::NOT_FOUND,
             "This app is closed",
             "It went unused for a while, or another app took its place. \
-             Open it again from Hangar Mobile.",
+             Open it again from Teskad Mobile.",
         );
     };
     forward(route, request).await
@@ -407,7 +407,7 @@ mod tests {
     use super::super::tests::{remote_on, test_port};
     use super::*;
 
-    /// Hangar Mobile with a phone paired and the stand-in dev server open on
+    /// Teskad Mobile with a phone paired and the stand-in dev server open on
     /// the slot: the Remote, the phone's token, the dev server's port and
     /// what it receives.
     async fn opened() -> (Arc<Remote>, String, u16, apps::tests::DevServer) {
@@ -658,7 +658,7 @@ mod tests {
                         "text/html; charset=utf-8"
                     );
                     assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
-                    assert!(text(response).await.contains("Hangar Mobile"));
+                    assert!(text(response).await.contains("Teskad Mobile"));
                 }
             }
             assert!(dev.seen.lock().unwrap().is_empty());
@@ -685,7 +685,7 @@ mod tests {
             assert_eq!(response.status(), StatusCode::NOT_FOUND);
             assert!(text(response)
                 .await
-                .contains("Open it again from Hangar Mobile"));
+                .contains("Open it again from Teskad Mobile"));
         }
     }
 

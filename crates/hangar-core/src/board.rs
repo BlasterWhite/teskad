@@ -1187,7 +1187,7 @@ pub fn unblock_task(board: &mut Board, id: &str, request: UnblockRequest) -> Res
     if blocked.human_only && !request.person {
         return Err(format!(
             "\"{}\" is blocked for a person to lift ({}). A person must unblock it, from the board; \
-             Hangar cannot tell a person from an agent over MCP, so no agent can. Tell the orchestrator, \
+             Teskad cannot tell a person from an agent over MCP, so no agent can. Tell the orchestrator, \
              or comment on the task, and carry on with another one.",
             task.title, blocked.reason
         ));

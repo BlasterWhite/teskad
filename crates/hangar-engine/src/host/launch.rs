@@ -25,7 +25,7 @@
 //!
 //! A Claude Code pane gets the teskad-bridge mod too (the settings'
 //! `claude_bridge`). A Codex pane runs attached to a server of its own when
-//! « Attach Hangar to Codex » is on and the server starts (D5), Codex's plain
+//! « Attach Teskad to Codex » is on and the server starts (D5), Codex's plain
 //! TUI otherwise (the floor, D6), with its settings in the shell's
 //! `TESKAD_CODEX_*` variables; the host keeps which, and why
 //! (`EngineHost::agent_server`), and so does the pane's machine
@@ -124,7 +124,7 @@ fn hangar_executable(pane: &Pane) -> Option<String> {
         Ok(path) => Some(path.to_string_lossy().into_owned()),
         Err(error) => {
             eprintln!(
-                "pane {}: Hangar's executable could not be found ({error}); it starts without Hangar's tools",
+                "pane {}: Teskad's executable could not be found ({error}); it starts without Teskad's tools",
                 pane.id
             );
             None
@@ -384,7 +384,7 @@ fn request(
 }
 
 /// The pane's agent launch: its [`request`], run attached to a server of its
-/// own when « Attach Hangar to Codex » is on (`settings.codex_attach`, D5) —
+/// own when « Attach Teskad to Codex » is on (`settings.codex_attach`, D5) —
 /// for a kind that has one; the spawn falls back to the floor when the
 /// server cannot start, and says why.
 fn agent_launch(
@@ -403,7 +403,7 @@ fn agent_launch(
 /// (`live::SideChannel`). A kind Hangar reaches through a server of its own
 /// (`headless.app_server`: Codex, D5) is attached to the `server` its
 /// launch started, or on the floor and why — and on the floor when none was
-/// asked (« Attach Hangar to Codex » off) or these terminals start none.
+/// asked (« Attach Teskad to Codex » off) or these terminals start none.
 /// Any other has the teskad-bridge mod within reach while the settings'
 /// bridge is on.
 fn side_channel(kind: AgentKind, server: Option<&ServerState>, settings: &Settings) -> SideChannel {
@@ -564,7 +564,7 @@ mod tests {
         )
     }
 
-    /// A Codex pane asks to run attached exactly when « Attach Hangar to
+    /// A Codex pane asks to run attached exactly when « Attach Teskad to
     /// Codex » is on, with everything its server and its line need: Codex's
     /// own command, Hangar's executable and its tools let through, the
     /// policy, the roots, the model, its session.
@@ -842,10 +842,10 @@ mod tests {
             panic!("a floor with its reason");
         };
         assert!(
-            reason.starts_with("Codex runs without Hangar attached"),
+            reason.starts_with("Codex runs without Teskad attached"),
             "{reason}"
         );
-        // « Attach Hangar to Codex » off: no server asked, the floor.
+        // « Attach Teskad to Codex » off: no server asked, the floor.
         assert_eq!(
             side_channel(AgentKind::Codex, None, &on),
             SideChannel::Floor { reason: None }

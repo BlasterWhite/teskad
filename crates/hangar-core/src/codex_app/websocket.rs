@@ -245,7 +245,7 @@ fn whole(opcode: u8, bytes: Vec<u8>) -> Received {
     if opcode == TEXT {
         Received::Text(bytes)
     } else {
-        Received::Skipped("a binary message (Hangar asks for no compression)".into())
+        Received::Skipped("a binary message (Teskad asks for no compression)".into())
     }
 }
 
@@ -370,7 +370,7 @@ mod tests {
             vec![
                 Received::Ping(b"hi".to_vec()),
                 Received::Text(b"{\"method\":\"warning\"}".to_vec()),
-                Received::Skipped("a binary message (Hangar asks for no compression)".into()),
+                Received::Skipped("a binary message (Teskad asks for no compression)".into()),
                 Received::Text(b"{}".to_vec()),
                 Received::Closed,
             ]

@@ -978,7 +978,7 @@ mod tests {
             .body
             .as_str()
             .unwrap()
-            .contains("Hangar Mobile is not in this build"));
+            .contains("Teskad Mobile is not in this build"));
     }
 
     #[tokio::test]
@@ -990,7 +990,7 @@ mod tests {
             .body
             .as_str()
             .unwrap()
-            .contains("<title>Hangar</title>"));
+            .contains("<title>Teskad</title>"));
         let script = ask(&remote, get_from("/assets/app-3f2a.js", None)).await;
         assert_eq!(script.status, StatusCode::OK);
     }
@@ -1332,7 +1332,7 @@ mod tests {
         // The agents' API is not here at all: its paths are only pages of the
         // web app, which has none by those names.
         let agents = ask(&remote, get_from("/api/board?cwd=/", Some(&token))).await;
-        assert!(agents.body.as_str().unwrap().contains("Hangar Mobile"));
+        assert!(agents.body.as_str().unwrap().contains("Teskad Mobile"));
         assert!(window.asked.lock().unwrap().is_empty());
     }
 
@@ -1583,9 +1583,9 @@ mod tests {
     async fn a_window_that_refuses_or_does_not_answer_opens_nothing() {
         for (window, status, body) in [
             (
-                Fake::refusing("Hangar Mobile cannot see that workspace"),
+                Fake::refusing("Teskad Mobile cannot see that workspace"),
                 StatusCode::BAD_REQUEST,
-                json!({ "error": "refused", "message": "Hangar Mobile cannot see that workspace" }),
+                json!({ "error": "refused", "message": "Teskad Mobile cannot see that workspace" }),
             ),
             (
                 Fake::silent(),

@@ -1165,7 +1165,7 @@ fn a_codex_workspace_of_the_node_s_own_runs_codex_on_its_own_server() {
             .strip_prefix("unix://")
             .unwrap_or_else(|| panic!("a socket's address: {args:?}")),
     );
-    assert!(socket.starts_with(run.join("hangar")), "{socket:?}");
+    assert!(socket.starts_with(run.join("teskad")), "{socket:?}");
     assert!(
         std::os::unix::net::UnixStream::connect(&socket).is_ok(),
         "its server listens on {socket:?}"

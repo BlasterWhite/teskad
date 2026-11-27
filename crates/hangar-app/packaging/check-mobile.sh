@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Hangar Mobile has to be in the release.
+# Teskad Mobile has to be in the release.
 #
 #   packaging/check-mobile.sh              before cargo builds: dist-mobile/ is complete
 #   packaging/check-mobile.sh <binary>...  after: those executables embed it
@@ -14,7 +14,7 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 dist="$repo/dist-mobile"
 
 if ! grep -q '<div id="root"></div>' "$dist/index.html" 2> /dev/null || [ ! -f "$dist/sw.js" ]; then
-  echo "::error::dist-mobile/ is missing or incomplete: the installers would serve the placeholder instead of Hangar Mobile (run: pnpm install && pnpm mobile:build)"
+  echo "::error::dist-mobile/ is missing or incomplete: the installers would serve the placeholder instead of Teskad Mobile (run: pnpm install && pnpm mobile:build)"
   exit 1
 fi
 
@@ -29,8 +29,8 @@ fi
 
 for binary in "$@"; do
   if ! grep -aqF "$script" "$binary"; then
-    echo "::error::$binary does not contain Hangar Mobile ($script): it was built before dist-mobile/ or without it"
+    echo "::error::$binary does not contain Teskad Mobile ($script): it was built before dist-mobile/ or without it"
     exit 1
   fi
-  echo "$binary embeds Hangar Mobile ($script)"
+  echo "$binary embeds Teskad Mobile ($script)"
 done

@@ -229,11 +229,11 @@ async fn refuses_a_project_it_does_not_know_the_hq_included() {
     let r = rig(vec![hq(), shop()], &[3000], vec![]);
     assert_eq!(
         r.apps(json!({"workspace": "w-nope"})).await,
-        Err("No project \"w-nope\" in Hangar.".into())
+        Err("No project \"w-nope\" in Teskad.".into())
     );
     assert_eq!(
         r.apps(json!({"workspace": "hq"})).await,
-        Err("No project \"hq\" in Hangar.".into())
+        Err("No project \"hq\" in Teskad.".into())
     );
     assert!(
         r.apps(json!({"workspace": ""}))

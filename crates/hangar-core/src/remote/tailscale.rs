@@ -1,4 +1,4 @@
-//! Tailscale, as Hangar Mobile needs it: is it installed, is it connected,
+//! Tailscale, as Teskad Mobile needs it: is it installed, is it connected,
 //! what is this PC called on the tailnet, and does Tailscale Serve already
 //! publish the mobile server. And the one command that changes anything,
 //! `tailscale serve`, which only ever runs from the person's click: in the

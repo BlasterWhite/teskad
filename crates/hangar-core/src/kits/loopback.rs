@@ -100,7 +100,7 @@ fn agent() -> &'static ureq::Agent {
             .max_redirects(0)
             // A system proxy has no business with 127.0.0.1.
             .proxy(None)
-            .user_agent("Hangar")
+            .user_agent("Teskad")
             .timeout_connect(Some(CONNECT_TIMEOUT))
             // A connection each: nothing stays open on a server between polls.
             .max_idle_connections(0)

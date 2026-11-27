@@ -26,7 +26,7 @@
   var ipc = window.ipc;
   if (window.__hangarHost) return;
   if (!ipc || typeof ipc.postMessage !== "function") {
-    console.error("Hangar: the kit bridge needs window.ipc, which this webview did not give the page");
+    console.error("Teskad: the kit bridge needs window.ipc, which this webview did not give the page");
     return;
   }
   // Kept now, so that a page replacing window.ipc later does not cut itself off.
@@ -45,7 +45,7 @@
   try {
     Object.defineProperty(window, "parent", { value: host, configurable: true, enumerable: true });
   } catch (error) {
-    console.error("Hangar: the kit bridge could not stand in for window.parent", error);
+    console.error("Teskad: the kit bridge could not stand in for window.parent", error);
     return;
   }
 

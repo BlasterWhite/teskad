@@ -454,15 +454,15 @@ impl EngineHost {
     /// it (docs/native/agents.md D5): `Attached { socket }`, the socket
     /// Hangar's own client of the server follows, or `Floor { reason }`, why
     /// the pane runs Codex's plain TUI instead (D6). `None` for a pane whose
-    /// launch asked for no server — Claude Code, a shell, « Attach Hangar to
+    /// launch asked for no server — Claude Code, a shell, « Attach Teskad to
     /// Codex » off — or that is not up.
     pub fn agent_server(&self, pane: &str) -> Option<ServerState> {
         locked(&self.0.model).servers.get(pane).cloned()
     }
 
     /// What pane `pane`'s status says of its agent beside its activity: why
-    /// it runs without Hangar attached (`FloorReason`'s text, « Codex runs
-    /// without Hangar attached: … »). `None` when there is nothing to say.
+    /// it runs without Teskad attached (`FloorReason`'s text, « Codex runs
+    /// without Teskad attached: … »). `None` when there is nothing to say.
     pub fn status_note(&self, pane: &str) -> Option<String> {
         match self.agent_server(pane)? {
             ServerState::Floor { reason } => Some(reason.to_string()),
@@ -1602,7 +1602,7 @@ mod agent_tests {
         assert_eq!(host.agent_server("p1"), Some(floor));
         let note = host.status_note("p1").expect("a note");
         assert!(
-            note.starts_with("Codex runs without Hangar attached"),
+            note.starts_with("Codex runs without Teskad attached"),
             "{note}"
         );
         eventually("Ada typed", || !typed_into(&terminals, "p2").is_empty()).await;
@@ -1630,7 +1630,7 @@ mod agent_tests {
         assert_eq!(host.status_note("p1"), None);
         host.shutdown().await;
 
-        // « Attach Hangar to Codex » off: no server asked, none kept.
+        // « Attach Teskad to Codex » off: no server asked, none kept.
         let (host, terminals) = launching(
             ServerState::Attached {
                 socket: "/never".into(),

@@ -375,7 +375,7 @@ async fn refuses_a_pane_no_workspace_has_without_guessing_one() {
     let hook = json!({"caller": {"paneId": "p-gone"}, "kit": "ci-kit", "tab": "run"});
     contains(
         &refusal("kit_tab_open", hook, &fake).await,
-        "The pane \"p-gone\" is in no workspace of Hangar",
+        "The pane \"p-gone\" is in no workspace of Teskad",
     );
     assert!(fake.preview.tabs("w1").is_empty());
 }

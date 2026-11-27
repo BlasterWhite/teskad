@@ -911,9 +911,9 @@ async fn a_desktop_and_its_node_share_one_bot() {
         .filter(|c| c.body["type"] == 4)
         .map(|c| c.body["name"].as_str().unwrap_or_default().to_string())
         .collect();
-    assert!(categories.contains(&"Hangar".to_string()), "{categories:?}");
+    assert!(categories.contains(&"Teskad".to_string()), "{categories:?}");
     assert!(
-        categories.contains(&"Hangar · vps".to_string()),
+        categories.contains(&"Teskad · vps".to_string()),
         "{categories:?}"
     );
 

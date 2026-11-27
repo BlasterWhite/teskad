@@ -161,10 +161,10 @@ fn a_question_reads_with_its_options() {
 
 #[test]
 fn the_handshake_hangar_sends_is_the_design_s() {
-    // docs/native/agents.md §4.3: initialize {clientInfo: {name: "Hangar"}, capabilities: {experimentalApi: false}}.
+    // docs/native/agents.md §4.3: initialize {clientInfo: {name: "Teskad"}, capabilities: {experimentalApi: false}}.
     let params = InitializeParams {
         client_info: ClientInfo {
-            name: "Hangar".into(),
+            name: "Teskad".into(),
             title: None,
             version: "2.4.3".into(),
         },
@@ -176,7 +176,7 @@ fn the_handshake_hangar_sends_is_the_design_s() {
     assert_eq!(
         write(&params),
         json!({
-            "clientInfo": { "name": "Hangar", "version": "2.4.3" },
+            "clientInfo": { "name": "Teskad", "version": "2.4.3" },
             "capabilities": { "experimentalApi": false },
         })
     );

@@ -320,7 +320,7 @@ impl fmt::Display for LaunchError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             LaunchError::Unsupported(kind) => {
-                write!(f, "Hangar cannot start {} yet", kind.info().label)
+                write!(f, "Teskad cannot start {} yet", kind.info().label)
             }
         }
     }
@@ -444,7 +444,7 @@ mod tests {
         }
         assert_eq!(
             LaunchError::Unsupported(AgentKind::Codex).to_string(),
-            "Hangar cannot start Codex yet"
+            "Teskad cannot start Codex yet"
         );
     }
 

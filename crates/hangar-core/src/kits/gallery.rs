@@ -31,9 +31,9 @@ pub const INDEX_URL: &str =
     "https://raw.githubusercontent.com/BlasterWhite/catalog/main/index.json";
 /// The only schema read. An older or a newer file lists nothing here.
 const SCHEMA: u64 = 2;
-/// Hangar reviews what this owner publishes, and nobody else's: the catalog's word
+/// This app reviews what this owner publishes, and nobody else's: the catalog's word
 /// on any other repository is not enough for the badge.
-const VERIFIED_OWNER: &str = "hangar-ai";
+const VERIFIED_OWNER: &str = "BlasterWhite";
 /// Past this, the answer is not the index.
 pub const MAX_INDEX_BYTES: u64 = 256 * 1024;
 const MAX_KITS: usize = 200;
@@ -55,7 +55,7 @@ pub struct GalleryKit {
     /// What the kit will ask to run, in a sentence; the activation shows the truth.
     pub permissions_summary: String,
     pub tags: Vec<String>,
-    /// The catalog says so and the repository is `hangar-ai`'s. Anything else is a
+    /// The catalog says so and the repository is `BlasterWhite`'s. Anything else is a
     /// community kit.
     pub verified: bool,
     /// The agents the catalog says the kit is for, as its manifest's `agents`
@@ -145,7 +145,7 @@ fn tag_ok(tag: &str) -> bool {
     source::check_ref(tag).is_ok() && tag != "HEAD" && !tag.starts_with("refs/")
 }
 
-/// Checked here, whatever the catalog says: the owner has to be `hangar-ai`.
+/// Checked here, whatever the catalog says: the owner has to be `BlasterWhite`.
 fn verified(repo: &str, says: Option<&Value>) -> bool {
     says.and_then(Value::as_bool) == Some(true)
         && repo.split_once('/').map(|(owner, _)| owner) == Some(VERIFIED_OWNER)
@@ -232,7 +232,7 @@ fn agent() -> &'static ureq::Agent {
         ureq::Agent::config_builder()
             .https_only(true)
             .max_redirects(0)
-            .user_agent("Hangar")
+            .user_agent("Teskad")
             .timeout_connect(Some(Duration::from_secs(5)))
             .timeout_global(Some(Duration::from_secs(10)))
             .max_idle_connections(0)
@@ -365,7 +365,7 @@ mod tests {
             "id": id,
             "name": format!("Kit {id}"),
             "description": "d",
-            "repo": format!("hangar-ai/{id}"),
+            "repo": format!("BlasterWhite/{id}"),
             "tag": format!("v{version}"),
             "version": version,
             "permissionsSummary": "runs gh",
@@ -412,7 +412,7 @@ mod tests {
                 id: "ci-status".into(),
                 name: "Kit ci-status".into(),
                 description: "d".into(),
-                repo: "hangar-ai/ci-status".into(),
+                repo: "BlasterWhite/ci-status".into(),
                 tag: "v0.1.0".into(),
                 version: "0.1.0".into(),
                 permissions_summary: "runs gh".into(),
@@ -497,8 +497,8 @@ mod tests {
     #[test]
     fn a_repo_is_owner_slash_name_and_nothing_else() {
         for good in [
-            "hangar-ai/ci-status",
-            "hangar-ai/hangar",
+            "BlasterWhite/ci-status",
+            "BlasterWhite/teskad",
             "a/b",
             "o/my.kit_2",
             "0wner/1",
@@ -509,7 +509,7 @@ mod tests {
         let long_name = format!("o/{}", "n".repeat(101));
         for bad in [
             "",
-            "hangar-ai",
+            "BlasterWhite",
             "/x",
             "x/",
             "/",
@@ -540,7 +540,7 @@ mod tests {
     }
 
     #[test]
-    fn verified_takes_the_catalogs_word_and_the_owner_hangar_ai() {
+    fn verified_takes_the_catalogs_word_and_the_owner_blasterwhite() {
         let badge = |repo: &str, says: Value| {
             let entry = with(
                 with(entry_of("kit", "1.0.0"), "repo", json!(repo)),
@@ -549,20 +549,20 @@ mod tests {
             );
             parse(&index(&[entry])).unwrap()[0].verified
         };
-        assert!(badge("hangar-ai/kit", json!(true)));
+        assert!(badge("BlasterWhite/kit", json!(true)));
 
         // The catalog does not say so, or not as a boolean.
-        assert!(!badge("hangar-ai/kit", json!(false)));
-        assert!(!badge("hangar-ai/kit", Value::Null));
-        assert!(!badge("hangar-ai/kit", json!("true")));
-        assert!(!badge("hangar-ai/kit", json!(1)));
+        assert!(!badge("BlasterWhite/kit", json!(false)));
+        assert!(!badge("BlasterWhite/kit", Value::Null));
+        assert!(!badge("BlasterWhite/kit", json!("true")));
+        assert!(!badge("BlasterWhite/kit", json!(1)));
 
         // The catalog says so of somebody else's repository.
         assert!(!badge("someone/kit", json!(true)));
-        assert!(!badge("someone/hangar-ai", json!(true)));
-        assert!(!badge("hangar-ai-kits/kit", json!(true)));
-        assert!(!badge("not-hangar-ai/kit", json!(true)));
-        assert!(!badge("Hangar-AI/kit", json!(true)));
+        assert!(!badge("someone/BlasterWhite", json!(true)));
+        assert!(!badge("BlasterWhite-kits/kit", json!(true)));
+        assert!(!badge("not-BlasterWhite/kit", json!(true)));
+        assert!(!badge("blasterwhite/kit", json!(true)));
     }
 
     #[test]
@@ -687,11 +687,16 @@ mod tests {
             with(entry_of("other", "3.0.0"), "repo", json!("someone/other")),
         ]))
         .unwrap();
-        let at = "https://github.com/hangar-ai/ci-status";
+        let at = "https://github.com/BlasterWhite/ci-status";
         assert_eq!(tag_for(&kits, "ci-status", at).as_deref(), Some("v0.2.0"));
         // GitHub reads names whatever their case.
         assert_eq!(
-            tag_for(&kits, "ci-status", "https://github.com/Hangar-AI/CI-status").as_deref(),
+            tag_for(
+                &kits,
+                "ci-status",
+                "https://github.com/blasterwhite/CI-status"
+            )
+            .as_deref(),
             Some("v0.2.0")
         );
         assert_eq!(tag_for(&kits, "gone", at), None);

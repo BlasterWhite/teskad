@@ -116,7 +116,7 @@ fn find_project<'a>(workspaces: &'a [Workspace], wanted: &Value) -> Result<&'a W
     projects()
         .find(|ws| ws.id == wanted)
         .or_else(|| projects().find(|ws| ws.name.trim().to_lowercase() == wanted.to_lowercase()))
-        .ok_or_else(|| format!("No project \"{wanted}\" in Hangar."))
+        .ok_or_else(|| format!("No project \"{wanted}\" in Teskad."))
 }
 
 /// The titles of these tasks, from the boards of the workspaces that hold

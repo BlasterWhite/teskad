@@ -83,7 +83,7 @@ pub unsafe fn init<K: Kit>(runtime: &RefCell<Runtime<K>>, ptr: u32, len: u32) ->
     hook_panics();
     let output = match read::<Start>(ptr, len, "the start") {
         Some(start) => runtime.borrow_mut().init(start),
-        None => panic!("Hangar's start did not read: this SDK is older than the Hangar it runs in"),
+        None => panic!("Teskad's start did not read: this SDK is older than the Teskad it runs in"),
     };
     answer(&output)
 }

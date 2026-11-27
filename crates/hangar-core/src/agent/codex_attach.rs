@@ -1446,7 +1446,7 @@ pub(crate) fn absolute(cwd: &str, path: &str) -> String {
 fn overlap_note(name: &str, file: &str, ago_ms: u64) -> String {
     let minutes = (ago_ms as f64 / 60_000.0).round().max(1.0) as u64;
     format!(
-        "Hangar: the agent in pane \"{name}\" also edited {file} {minutes} min ago. Your change \
+        "Teskad: the agent in pane \"{name}\" also edited {file} {minutes} min ago. Your change \
          went through. Read the file again before changing it further, keep their changes, and if \
          you are both working on the same part, agree on it with @{name} first."
     )
@@ -2136,7 +2136,7 @@ mod tests {
     /// From the source (initialize_processor.rs): the first client's name is the originator for
     /// good — the TUI's — and the user agent's last part names the latest client, Hangar.
     const USER_AGENT: &str =
-        "codex-tui/0.170.0 (Ubuntu 24.4.0; x86_64) xterm-256color (Hangar; test)";
+        "codex-tui/0.170.0 (Ubuntu 24.4.0; x86_64) xterm-256color (Teskad; test)";
 
     /// The server's side of one connection, one JSON message per line.
     struct Fake {
@@ -2208,7 +2208,7 @@ mod tests {
         let handshake = async {
             let init = fake.expect("initialize").await;
             assert_eq!(
-                init["params"]["clientInfo"]["name"], "Hangar",
+                init["params"]["clientInfo"]["name"], "Teskad",
                 "never another client's name"
             );
             let opted = &init["params"]["capabilities"]["optOutNotificationMethods"];
@@ -3133,7 +3133,7 @@ mod tests {
         let said = steer["params"]["input"][0]["text"].as_str().unwrap();
         assert!(
             said.starts_with(&format!(
-                "[Teskad] Event — not typed by the person.\n\nHangar: the agent in pane \"Zoe\" also edited {}",
+                "[Teskad] Event — not typed by the person.\n\nTeskad: the agent in pane \"Zoe\" also edited {}",
                 joined.to_string_lossy()
             )),
             "{said}"

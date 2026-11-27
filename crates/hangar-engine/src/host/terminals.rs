@@ -356,7 +356,7 @@ while True:
         let codex = scratch("engine-fake-codex").join("codex");
         let script = format!(
             "#!/bin/sh\n\
-             # A fake codex, for Hangar's tests: never OpenAI's program.\n\
+             # A fake codex, for Teskad's tests: never OpenAI's program.\n\
              [ \"$1\" = probe ] && exit 0\n\
              exec python3 -I -c '{FAKE_SERVER}' \"$@\"\n"
         );
@@ -425,7 +425,7 @@ while True:
     fn variable(name: &str) -> String {
         let shell = hangar_core::shells::default_shell().expect("a shell");
         ShellSyntax::of(&shell)
-            .expect("a shell Hangar types for")
+            .expect("a shell Teskad types for")
             .variable(name)
     }
 
@@ -472,7 +472,7 @@ while True:
         ptys.kill("claude-1").unwrap();
     }
 
-    /// « Attach Hangar to Codex » off: the floor, its settings in the
+    /// « Attach Teskad to Codex » off: the floor, its settings in the
     /// shell's variables, which its line names; its session resumed.
     #[test]
     fn a_floor_codex_pane_s_shell_holds_the_settings_its_line_names() {
@@ -575,7 +575,7 @@ while True:
         assert!(
             reason
                 .to_string()
-                .starts_with("Codex runs without Hangar attached"),
+                .starts_with("Codex runs without Teskad attached"),
             "{reason}"
         );
         assert_eq!(

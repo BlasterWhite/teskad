@@ -14,7 +14,7 @@
 //! the pane runs, and how `kill_group`/`kill_all` reach it, does not change.
 //! What the shell forks afterwards is born in the new scope.
 //!
-//! The unit is named after the pane (`hangar-pane-<name>-<id>-<n>.scope`)
+//! The unit is named after the pane (`teskad-pane-<name>-<id>-<n>.scope`)
 //! with its name in the description, so `systemctl --user status` says which
 //! pane is which. No limit is set on it: it only gives oomd a smaller target.
 //! A scope that cannot be made leaves the pane where it was, as without the
@@ -58,17 +58,17 @@ pub(crate) fn unit_name(id: &str, name: Option<&str>, n: u64) -> String {
     let short: String = id.chars().filter(|c| unit_char(*c)).take(8).collect();
     let short = if short.is_empty() { "pane" } else { &short };
     if slug.is_empty() {
-        format!("hangar-pane-{short}-{n}.scope")
+        format!("teskad-pane-{short}-{n}.scope")
     } else {
-        format!("hangar-pane-{slug}-{short}-{n}.scope")
+        format!("teskad-pane-{slug}-{short}-{n}.scope")
     }
 }
 
 /// The scope's description, what `systemctl --user status` shows beside it.
 pub(crate) fn description(id: &str, name: Option<&str>) -> String {
     match name.map(str::trim).filter(|name| !name.is_empty()) {
-        Some(name) => format!("Hangar pane \"{name}\" ({id})"),
-        None => format!("Hangar pane {id}"),
+        Some(name) => format!("Teskad pane \"{name}\" ({id})"),
+        None => format!("Teskad pane {id}"),
     }
 }
 
@@ -113,7 +113,7 @@ pub(crate) fn place(
         Err(err) => {
             if !WARNED.swap(true, Ordering::Relaxed) {
                 warn(&format!(
-                    "pane scopes: the panes stay in Hangar's own scope ({err})"
+                    "pane scopes: the panes stay in Teskad's own scope ({err})"
                 ));
             }
             Placed::Fallback(err)
@@ -164,18 +164,18 @@ mod tests {
     fn the_unit_is_named_after_the_pane_and_its_id() {
         assert_eq!(
             unit_name("3f2a9c1e-77aa-4bb0", Some("Sam"), 0),
-            "hangar-pane-sam-3f2a9c1e-0.scope"
+            "teskad-pane-sam-3f2a9c1e-0.scope"
         );
         assert_eq!(
             unit_name("abc", Some("  Leo / build (rust) "), 7),
-            "hangar-pane-leo-build-rust-abc-7.scope"
+            "teskad-pane-leo-build-rust-abc-7.scope"
         );
     }
 
     #[test]
     fn a_unit_name_holds_only_what_systemd_accepts() {
         let unit = unit_name("é/ü", Some("Été 🚀 x\\y"), 3);
-        assert_eq!(unit, "hangar-pane-t-x-y-pane-3.scope");
+        assert_eq!(unit, "teskad-pane-t-x-y-pane-3.scope");
         let long = "a".repeat(300);
         let unit = unit_name(&long, Some(&long), 1);
         assert!(unit.len() < 100, "{unit}");
@@ -187,10 +187,10 @@ mod tests {
 
     #[test]
     fn a_pane_without_a_name_is_named_by_its_id() {
-        assert_eq!(unit_name("p1", None, 2), "hangar-pane-p1-2.scope");
-        assert_eq!(unit_name("p1", Some(" -- "), 2), "hangar-pane-p1-2.scope");
-        assert_eq!(description("p1", Some(" ")), "Hangar pane p1");
-        assert_eq!(description("p1", Some("Leo")), "Hangar pane \"Leo\" (p1)");
+        assert_eq!(unit_name("p1", None, 2), "teskad-pane-p1-2.scope");
+        assert_eq!(unit_name("p1", Some(" -- "), 2), "teskad-pane-p1-2.scope");
+        assert_eq!(description("p1", Some(" ")), "Teskad pane p1");
+        assert_eq!(description("p1", Some("Leo")), "Teskad pane \"Leo\" (p1)");
     }
 
     #[test]
@@ -220,15 +220,15 @@ mod tests {
             "p9",
             Some("Sam"),
             |unit, description, pid| {
-                assert!(unit.starts_with("hangar-pane-sam-p9-"), "{unit}");
+                assert!(unit.starts_with("teskad-pane-sam-p9-"), "{unit}");
                 assert!(unit.ends_with(".scope"));
-                assert_eq!(description, "Hangar pane \"Sam\" (p9)");
+                assert_eq!(description, "Teskad pane \"Sam\" (p9)");
                 assert_eq!(pid, 42);
                 Ok(())
             },
             |_| panic!("nothing to warn about"),
         );
-        assert!(matches!(placed, Placed::Scoped(unit) if unit.starts_with("hangar-pane-sam-p9-")));
+        assert!(matches!(placed, Placed::Scoped(unit) if unit.starts_with("teskad-pane-sam-p9-")));
     }
 
     #[cfg(target_os = "linux")]

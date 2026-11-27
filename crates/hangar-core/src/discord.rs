@@ -590,9 +590,9 @@ mod tests {
         Presence {
             app_id: "123".into(),
             details: "Working".into(),
-            state: "on hangar".into(),
+            state: "on teskad".into(),
             large_image: "logo".into(),
-            large_text: "Hangar".into(),
+            large_text: "Teskad".into(),
             large_url: None,
             small_image: None,
             small_text: None,

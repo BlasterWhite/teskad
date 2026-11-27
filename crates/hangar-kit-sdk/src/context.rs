@@ -213,7 +213,7 @@ fn decode<R: Request>(answer: Result<Value, KitError>) -> Result<R::Output, KitE
     serde_json::from_value(value).map_err(|error| {
         KitError::new(
             KitError::FAILED,
-            format!("Hangar's answer to {} did not read: {error}", R::METHOD),
+            format!("Teskad's answer to {} did not read: {error}", R::METHOD),
         )
     })
 }

@@ -72,12 +72,12 @@ impl fmt::Display for Refusal {
         match self {
             Refusal::TooOld { found, min } => write!(
                 f,
-                "Codex {found} is too old for Hangar to attach to: it needs Codex {min} or newer \
+                "Codex {found} is too old for Teskad to attach to: it needs Codex {min} or newer \
                  (npm install -g @openai/codex)"
             ),
             Refusal::Broken { found } => write!(
                 f,
-                "Codex {found} is known not to work with Hangar: update Codex, or use another \
+                "Codex {found} is known not to work with Teskad: update Codex, or use another \
                  release"
             ),
         }
@@ -201,7 +201,7 @@ mod tests {
     fn the_server_version_is_read_from_its_user_agent() {
         let cases = [
             (
-                "Hangar/0.170.0 (Ubuntu 24.4.0; x86_64) xterm-256color (Hangar; 2.4.4)",
+                "Teskad/0.170.0 (Ubuntu 24.4.0; x86_64) xterm-256color (Teskad; 2.4.4)",
                 Some("0.170.0"),
             ),
             (
@@ -214,7 +214,7 @@ mod tests {
             ),
             ("codex_cli_rs/0.170.0 (Linux; x86_64) dumb", Some("0.170.0")),
             ("codex_cli_rs/0.170.0", Some("0.170.0")),
-            ("Hangar", None),
+            ("Teskad", None),
             ("", None),
             ("codex/next (Linux; x86_64)", None),
         ];

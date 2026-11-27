@@ -266,7 +266,7 @@ struct Found {
 
 fn require(port: &Port) -> Result<Arc<dyn DeliveryDeps>, String> {
     port.delivery()
-        .ok_or_else(|| "Deliveries are not available in this Hangar window.".into())
+        .ok_or_else(|| "Deliveries are not available in this Teskad window.".into())
 }
 
 fn task_ref(args: &Value) -> Result<String, String> {

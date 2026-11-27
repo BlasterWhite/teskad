@@ -146,7 +146,7 @@ pub struct NoListener;
 
 impl std::fmt::Display for NoListener {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("nothing is listening to Hangar's events")
+        f.write_str("nothing is listening to Teskad's events")
     }
 }
 

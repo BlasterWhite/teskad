@@ -198,7 +198,7 @@ pub(crate) fn isolation_refusal(what: &str) -> Option<String> {
 fn refusal_for(root: Option<std::ffi::OsString>, what: &str) -> Option<String> {
     root.filter(|root| !root.is_empty()).map(|root| {
         format!(
-            "This run keeps off the installed Hangar's files (TESKAD_DATA_ROOT is {}), \
+            "This run keeps off the installed Teskad's files (TESKAD_DATA_ROOT is {}), \
              so it does not write {what}: that would point them at this build.",
             Path::new(&root).display()
         )

@@ -232,7 +232,7 @@ fn as_pane(caller: &Caller, pane: &str) -> Result<(), ApiError> {
         )),
         Caller::Outside => Err(bad(
             StatusCode::FORBIDDEN,
-            "this route is for the panes Hangar runs, with the token in their environment",
+            "this route is for the panes Teskad runs, with the token in their environment",
         )),
     }
 }
@@ -910,7 +910,7 @@ async fn kit_tab_open(
         return Err(bad(
             StatusCode::NOT_FOUND,
             format!(
-                "no pane {pane:?} is running in Hangar: pass ?pane=$TESKAD_PANE_ID, from the pane the hook runs in",
+                "no pane {pane:?} is running in Teskad: pass ?pane=$TESKAD_PANE_ID, from the pane the hook runs in",
             ),
         ));
     }
@@ -966,7 +966,7 @@ async fn share_with_phones(state: &ApiState, body: PhoneShareBody, workspace: St
     let remote = state.remote.as_ref().ok_or_else(|| {
         bad(
             StatusCode::SERVICE_UNAVAILABLE,
-            "Hangar Mobile is unavailable",
+            "Teskad Mobile is unavailable",
         )
     })?;
     let share = remote
@@ -987,7 +987,7 @@ async fn share_with_phones(state: &ApiState, body: PhoneShareBody, workspace: St
 async fn share_with_phones(_: &ApiState, _: PhoneShareBody, _: String) -> ApiResult {
     Err(bad(
         StatusCode::SERVICE_UNAVAILABLE,
-        "Hangar Mobile is not part of this build",
+        "Teskad Mobile is not part of this build",
     ))
 }
 

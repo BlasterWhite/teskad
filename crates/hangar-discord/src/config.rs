@@ -25,7 +25,7 @@ pub struct Settings {
     /// shared with it: the desktop's settings follow, and its pairing.
     pub shared: bool,
     /// What this Hangar's categories are told apart by when it shares the
-    /// bot (the node's name): `Hangar · vps`.
+    /// bot (the node's name): `Teskad · vps`.
     pub label: Option<String>,
 }
 

@@ -58,9 +58,9 @@ use crate::host::Host;
 
 /// The child's role, at the end of its system prompt: what it is for, and that nobody watches it.
 const ROLE: &str = "You are working on a sub-task another agent handed over to you through \
-Hangar. Nobody watches this session while it runs: do the task on your own, then end with your \
+Teskad. Nobody watches this session while it runs: do the task on your own, then end with your \
 final answer, which is all the other agent reads of your work. Say in it what you did and what \
-you changed. What you need the person to allow, ask for as you would anyway: Hangar shows it to \
+you changed. What you need the person to allow, ask for as you would anyway: Teskad shows it to \
 them.";
 /// Added to [`ROLE`] for a child in a worktree of its own.
 const WORKTREE_ROLE: &str = "You work in a git worktree of your own, on its branch, made from \
@@ -95,7 +95,7 @@ const STDERR_LINE_CHARS: usize = 2_000;
 const INPUT_TEXT: usize = 4_096;
 const PLAN_TEXT: usize = 65_536;
 /// A no without words, as the mod words it.
-const DECLINED: &str = "The person declined this from Hangar.";
+const DECLINED: &str = "The person declined this from Teskad.";
 /// The tools whose call, once it succeeded, changed a file, and the input that names the file.
 const FILE_TOOLS: [(&str, &str); 4] = [
     ("Edit", "file_path"),
@@ -159,7 +159,7 @@ fn run_spec(
 ) -> Result<Spawn, String> {
     if request.kind != AgentKind::Claude {
         return Err(format!(
-            "Hangar runs one-shot children of Claude Code only, not of {}",
+            "Teskad runs one-shot children of Claude Code only, not of {}",
             request.kind.info().label
         ));
     }
@@ -587,7 +587,7 @@ impl Run {
             Some("can_use_tool") => self.hold(request, body),
             other => {
                 let why = format!(
-                    "Hangar does not answer {} for a delegated run",
+                    "Teskad does not answer {} for a delegated run",
                     other.unwrap_or("this request")
                 );
                 self.send(&refusal(request, &why)).await;

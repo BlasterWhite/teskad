@@ -188,7 +188,7 @@ pub async fn pane_create(
         && let Some(holder) = state.workspaces.iter().find(|entry| has_pane(entry, name))
     {
         return Err(format!(
-            "A pane is already named \"{name}\" (in \"{}\"); pane names are unique across Hangar.",
+            "A pane is already named \"{name}\" (in \"{}\"); pane names are unique across Teskad.",
             holder.name
         ));
     }
@@ -520,7 +520,7 @@ pub async fn workspace_window(ws: &Workspace, args: &Value, port: &Port) -> Resu
     }
     if detach {
         if !port.can_detach() {
-            return Err("This Hangar cannot open other windows.".into());
+            return Err("This Teskad cannot open other windows.".into());
         }
         tell(port, ModelCmd::Detach(ws.id.clone())).await;
     } else {

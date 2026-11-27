@@ -174,7 +174,7 @@ fn starting() -> String {
 }
 
 /// The app's log file, in the system's log folder (`Paths::app_log_dir`).
-const LOG_FILE: &str = "hangar.log";
+const LOG_FILE: &str = "teskad.log";
 
 /// Adds `line` to the app's log file, dated: what a release build on Windows,
 /// which has no console, would otherwise lose. Best effort: a log that cannot

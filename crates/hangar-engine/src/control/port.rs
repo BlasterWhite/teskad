@@ -320,7 +320,7 @@ pub trait AppPort: Send + Sync + 'static {
     ) -> BoxFuture<Result<Value, String>> {
         let _ = (pane, name, cwd, method, path, body);
         Box::pin(std::future::ready(Err(
-            "The board of this Hangar cannot be reached from a node here.".to_string(),
+            "The board of this Teskad cannot be reached from a node here.".to_string(),
         )))
     }
 
@@ -628,7 +628,7 @@ pub trait DeliveryDeps: Send + Sync {
         author: &str,
         text: &str,
     ) -> BoxFuture<Result<Task, String>>;
-    /// Queues `text` for a pane as a message from Hangar, never as the
+    /// Queues `text` for a pane as a message from Teskad, never as the
     /// person's.
     fn tell(&self, pane: &PaneId, text: &str) -> BoxFuture<Result<(), String>>;
     /// The branch of a worker on node `node`, whose worktree there is
@@ -645,7 +645,7 @@ pub trait DeliveryDeps: Send + Sync {
     ) -> BoxFuture<Result<String, String>> {
         let _ = (workspace, node, worktree, landing);
         Box::pin(std::future::ready(Err(
-            "This Hangar does not deliver workers that run on a node.".to_string(),
+            "This Teskad does not deliver workers that run on a node.".to_string(),
         )))
     }
     /// After a landing: the worktree and branch of a worker on node `node`
@@ -658,7 +658,7 @@ pub trait DeliveryDeps: Send + Sync {
     ) -> BoxFuture<Result<Cleanup, String>> {
         let _ = (node, worktree, branch);
         Box::pin(std::future::ready(Err(
-            "This Hangar does not clean up after workers on a node.".to_string(),
+            "This Teskad does not clean up after workers on a node.".to_string(),
         )))
     }
 }

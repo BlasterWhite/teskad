@@ -111,12 +111,12 @@ pub enum FloorReason {
 
 impl fmt::Display for FloorReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let lead = "Codex runs without Hangar attached";
+        let lead = "Codex runs without Teskad attached";
         match self {
             FloorReason::Unsupported => {
                 write!(
                     f,
-                    "{lead}: Hangar does not attach to Codex on this system yet"
+                    "{lead}: Teskad does not attach to Codex on this system yet"
                 )
             }
             FloorReason::RuntimeFolder { detail } => {
@@ -242,10 +242,10 @@ mod unix {
                 .map(PathBuf::from)
                 .filter(|dir| dir.is_absolute() && dir.is_dir());
             if let Some(dir) = session {
-                return dir.join("hangar");
+                return dir.join("teskad");
             }
         }
-        std::env::temp_dir().join(format!("hangar-{}", unsafe { libc::geteuid() }))
+        std::env::temp_dir().join(format!("teskad-{}", unsafe { libc::geteuid() }))
     }
 
     /// The name of pane `id`'s socket in the runtime folder: the same for
@@ -749,14 +749,14 @@ mod tests {
         for reason in &reasons {
             let text = reason.to_string();
             assert!(
-                text.starts_with("Codex runs without Hangar attached: "),
+                text.starts_with("Codex runs without Teskad attached: "),
                 "{text}"
             );
             assert!(!text.contains('\n'), "{text}");
         }
         assert_eq!(
             reasons[4].to_string(),
-            "Codex runs without Hangar attached: its server ended before it listened \
+            "Codex runs without Teskad attached: its server ended before it listened \
              (exit 2): error: unrecognized subcommand"
         );
     }
@@ -853,7 +853,7 @@ mod tests {
         assert!(root.is_absolute(), "{}", root.display());
         let name = root.file_name().unwrap().to_string_lossy().into_owned();
         assert!(
-            name == "hangar" || name == format!("hangar-{}", unsafe { libc::geteuid() }),
+            name == "teskad" || name == format!("teskad-{}", unsafe { libc::geteuid() }),
             "{name}"
         );
         let socket = unix::socket_for("p-root").expect("the folder is usable");

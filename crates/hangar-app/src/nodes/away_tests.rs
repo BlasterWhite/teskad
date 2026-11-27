@@ -89,12 +89,12 @@ fn git_reaches_the_node_with_the_connection_s_ssh() {
 
 #[test]
 fn git_goes_through_the_connection_s_master_when_it_has_one() {
-    let own = Mux::Own("/run/user/1000/hangar-ssh/42-ab".into());
+    let own = Mux::Own("/run/user/1000/teskad-ssh/42-ab".into());
     assert_eq!(
         commands::git_ssh_command(&node(None), &own),
         "ssh -o BatchMode=yes -o ConnectTimeout=10 \
          -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o ControlMaster=no \
-         -o ControlPath=/run/user/1000/hangar-ssh/42-ab"
+         -o ControlPath=/run/user/1000/teskad-ssh/42-ab"
     );
     // The person's own sharing: their config applies, nothing is added.
     assert_eq!(

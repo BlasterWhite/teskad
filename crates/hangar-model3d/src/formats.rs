@@ -204,7 +204,7 @@ pub fn read_error(kind: ErrorKind, reason: &str) -> LoadError {
         .collect::<String>();
     LoadError::Read(match kind {
         ErrorKind::NotFound => format!("The file was not found ({reason})."),
-        ErrorKind::PermissionDenied => format!("Hangar may not read this file ({reason})."),
+        ErrorKind::PermissionDenied => format!("Teskad may not read this file ({reason})."),
         _ if reason.is_empty() => "The file could not be read.".to_string(),
         _ => format!("The file could not be read: {reason}."),
     })
@@ -298,7 +298,7 @@ mod tests {
                 "outside every allowed folder\n"
             )
             .to_string(),
-            "Hangar may not read this file (outside every allowed folder)."
+            "Teskad may not read this file (outside every allowed folder)."
         );
         assert_eq!(
             read_error(ErrorKind::NotFound, "No such file or directory").to_string(),

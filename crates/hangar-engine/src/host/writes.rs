@@ -14,7 +14,7 @@ use crate::state::{StoreAction, StoreOutcome};
 
 /// Said to an agent that asks for what only a window does.
 pub const NO_WINDOW: &str =
-    "This Hangar runs with no window (a server): there is nothing to show, detach or bring back.";
+    "This Teskad runs with no window (a server): there is nothing to show, detach or bring back.";
 
 pub(super) fn carry_out(
     model: &mut Model,

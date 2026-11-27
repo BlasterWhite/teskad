@@ -873,7 +873,7 @@ pub struct Settings {
     /// Read as `max(1, value)` minutes.
     pub hibernate_after_min: f64,
     pub claude_bridge: bool,
-    /// « Attach Hangar to Codex »: Hangar starts each Codex pane's
+    /// « Attach Teskad to Codex »: Hangar starts each Codex pane's
     /// app-server and follows it as a second client (D5, on by default, the
     /// person's decision); off, the pane runs Codex's plain TUI, read from
     /// its output and its files (D6). Written only when off, so a file from

@@ -254,7 +254,7 @@ pub(crate) fn render_png(
     let picture = match background {
         Some(bytes) => Some(
             image::load_from_memory(bytes)
-                .map_err(|why| format!("the background is not an image Hangar reads: {why}"))?
+                .map_err(|why| format!("the background is not an image Teskad reads: {why}"))?
                 .to_rgba8(),
         ),
         None => None,

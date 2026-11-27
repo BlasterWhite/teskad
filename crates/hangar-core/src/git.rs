@@ -1350,7 +1350,7 @@ pub fn sweep_orphan_worktrees(dir: &Path, held: &[String]) -> Result<OrphanSweep
     for item in merged_worktrees(Path::new(&main_path), &[]).map_err(String::from)? {
         let here = compare_key(&item.path);
         if !(here.starts_with(&home) && here.len() > home.len()) {
-            continue; // not Hangar's: not even worth a line
+            continue; // not Teskad's: not even worth a line
         }
         let used = held.iter().any(|folder| {
             let folder = compare_key(folder);

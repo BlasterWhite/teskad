@@ -184,7 +184,7 @@ async fn wait(
             "the window dropped the request".to_string(),
         )),
         Err(_) => Err(ControlError::Unavailable(
-            "Hangar's window did not answer in time — is it still open and responsive?".to_string(),
+            "Teskad's window did not answer in time — is it still open and responsive?".to_string(),
         )),
     }
 }

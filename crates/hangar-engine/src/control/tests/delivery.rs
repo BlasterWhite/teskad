@@ -76,7 +76,7 @@ async fn answers_at_once_and_runs_the_delivery_with_the_workspaces_settings() {
     );
     let next = answer["next"].as_str().unwrap();
     contains(next, "runs `pnpm test` there");
-    contains(next, "message from Hangar");
+    contains(next, "message from Teskad");
     contains(next, "End your turn");
     assert_eq!(
         s.fake.logged("preflight:")[0],
@@ -980,7 +980,7 @@ async fn needs_a_window_that_delivers() {
     *lock(&s.fake.delivery) = None;
     assert_eq!(
         s.submit(json!({})).await.unwrap_err(),
-        "Deliveries are not available in this Hangar window."
+        "Deliveries are not available in this Teskad window."
     );
 }
 

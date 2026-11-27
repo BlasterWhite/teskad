@@ -1448,7 +1448,7 @@ fn about(ctx: &Context, version: &str) -> Category {
         "appName",
         Some(APP_NAME.to_string()),
         Kind::Text {
-            value: "hangar-ai".to_string(),
+            value: "teskad".to_string(),
         },
     )];
     // Empty until the version is known: the row stays out meanwhile.

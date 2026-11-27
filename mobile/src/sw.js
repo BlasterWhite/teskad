@@ -13,6 +13,9 @@
  * is about when it is tapped.
  */
 
+/* The app's name for a notification that comes without a title: the same as APP_NAME of
+ * src/i18n.ts (this file is a worker of its own and imports nothing). */
+const APP_NAME = "Teskad";
 const SHELL = /*SHELL*/[];
 const VERSION = /*VERSION*/"dev";
 const CACHE = `hangar-shell-${VERSION}`;
@@ -88,7 +91,7 @@ self.addEventListener("push", (event) => {
   } catch {
     message = { body: event.data ? event.data.text() : "" };
   }
-  const title = typeof message.title === "string" && message.title ? message.title : "Hangar";
+  const title = typeof message.title === "string" && message.title ? message.title : APP_NAME;
   event.waitUntil(
     self.registration.showNotification(title, {
       body: typeof message.body === "string" ? message.body : "",

@@ -50,32 +50,32 @@ pub const OPERATIONS: [&str; 4] = [
 ];
 
 /// A request that comes from no pane: there is nowhere to send the result.
-pub const NO_PANE: &str = "delegate hands the result back to the pane that asked for it, and this call comes from no pane of Hangar's. Call it from an agent Hangar runs in a pane.";
+pub const NO_PANE: &str = "delegate hands the result back to the pane that asked for it, and this call comes from no pane of Teskad's. Call it from an agent Teskad runs in a pane.";
 
 /// A delegation with no brief.
 pub const NO_PROMPT: &str = "Give prompt: the sub-task's whole brief. The agent that takes it sees nothing else of your work.";
 
 /// A window that cannot run a child: a node's panes, asking the desktop.
-pub const NO_HOST: &str = "Delegations cannot be started from this Hangar window.";
+pub const NO_HOST: &str = "Delegations cannot be started from this Teskad window.";
 
 /// `delegation_status` or `delegation_cancel` without the delegation.
 pub const NO_ID: &str = "Give id: the delegation's, as delegate or delegation_list gave it (d-3).";
 
 /// What `delegate` adds to its answer: the child runs, and how it comes back.
-pub const STARTED: &str = "It runs with no terminal. When it ends, a message from Hangar brings you its result: carry on with your work, or call delegation_status with wait to wait for it here.";
+pub const STARTED: &str = "It runs with no terminal. When it ends, a message from Teskad brings you its result: carry on with your work, or call delegation_status with wait to wait for it here.";
 
 /// What `delegation_status` adds when the wait ran out.
-pub const STILL_RUNNING: &str = "Still running after the wait. Call delegation_status again with wait, or carry on: a message from Hangar reaches you when it ends.";
+pub const STILL_RUNNING: &str = "Still running after the wait. Call delegation_status again with wait, or carry on: a message from Teskad reaches you when it ends.";
 
 /// What `delegation_status` adds while its child waits on the person.
-pub const NEEDS_YOU: &str = "Its agent waits for the person: an approval or a question, which only the person answers, in Hangar. It carries on once they have.";
+pub const NEEDS_YOU: &str = "Its agent waits for the person: an approval or a question, which only the person answers, in Teskad. It carries on once they have.";
 
 /// What `delegation_cancel` adds for a delegation that had ended already.
 pub const ALREADY_OVER: &str = "It had already ended: nothing was stopped.";
 
 /// What `delegation_cancel` adds when its child is still stopping.
 pub const STILL_STOPPING: &str =
-    "It is still stopping: a message from Hangar reaches you once it has.";
+    "It is still stopping: a message from Teskad reaches you once it has.";
 
 /// One of the delegation operations, for the caller in workspace `ws`.
 pub async fn control(
@@ -171,7 +171,7 @@ fn kind_arg(value: Option<&Value>) -> Result<Option<AgentKind>, String> {
         )
     } else {
         format!(
-            "\"{wanted}\" is not an agent Hangar runs. Pass agent as one of: {}, or leave it out for your own.",
+            "\"{wanted}\" is not an agent Teskad runs. Pass agent as one of: {}, or leave it out for your own.",
             agent_ids()
         )
     })
@@ -191,7 +191,7 @@ pub fn takes_a_delegation(caps: &Capabilities) -> bool {
 pub fn child_refusal(label: &str, caps: &Capabilities, images: bool) -> Option<String> {
     if !takes_a_delegation(caps) {
         return Some(format!(
-            "Hangar cannot run a delegation on {label}: it runs one with no terminal, as a thread of the agent's own server or as a one-shot run of its prompt, and {label} offers neither. Agents that take one here: {}. Pass agent as one of them, or give the work to a worker.",
+            "Teskad cannot run a delegation on {label}: it runs one with no terminal, as a thread of the agent's own server or as a one-shot run of its prompt, and {label} offers neither. Agents that take one here: {}. Pass agent as one of them, or give the work to a worker.",
             able(takes_a_delegation)
         ));
     }
@@ -272,7 +272,7 @@ async fn account(
     let levels = AccountLevels::of_kind(state, ws, None, kind);
     let resolved = tokio::task::spawn_blocking(move || levels.launch_of(kind))
         .await
-        .map_err(|error| format!("Hangar could not read the accounts: {error}"))?;
+        .map_err(|error| format!("Teskad could not read the accounts: {error}"))?;
     Ok((resolved.id != MAIN_ACCOUNT).then_some(resolved.id))
 }
 
@@ -584,7 +584,7 @@ mod tests {
                 let refusal = asked.unwrap_err();
                 assert!(
                     refusal.starts_with(&format!(
-                        "Hangar cannot run a delegation on {}:",
+                        "Teskad cannot run a delegation on {}:",
                         kind.info().label
                     )),
                     "{refusal}"
@@ -629,7 +629,7 @@ mod tests {
         assert!(!takes_a_delegation(&caps));
         assert_eq!(
             child_refusal("Painter", &caps, false).unwrap(),
-            "Hangar cannot run a delegation on Painter: it runs one with no terminal, as a thread of the agent's own server or as a one-shot run of its prompt, and Painter offers neither. Agents that take one here: claude (Claude Code), codex (Codex). Pass agent as one of them, or give the work to a worker."
+            "Teskad cannot run a delegation on Painter: it runs one with no terminal, as a thread of the agent's own server or as a one-shot run of its prompt, and Painter offers neither. Agents that take one here: claude (Claude Code), codex (Codex). Pass agent as one of them, or give the work to a worker."
         );
         caps.headless.one_shot = true;
         assert!(takes_a_delegation(&caps));
@@ -691,11 +691,11 @@ mod tests {
         );
         assert_eq!(
             refused(json!({ "prompt": "x", "agent": "gemini" })),
-            "\"gemini\" is not an agent Hangar runs. Pass agent as one of: claude, codex, or leave it out for your own."
+            "\"gemini\" is not an agent Teskad runs. Pass agent as one of: claude, codex, or leave it out for your own."
         );
         assert_eq!(
             refused(json!({ "prompt": "x", "agent": "Codex" })),
-            "\"Codex\" is not an agent Hangar runs. Pass agent as one of: claude, codex, or leave it out for your own."
+            "\"Codex\" is not an agent Teskad runs. Pass agent as one of: claude, codex, or leave it out for your own."
         );
         assert_eq!(
             refused(json!({ "prompt": "x", "isolation": "container" })),

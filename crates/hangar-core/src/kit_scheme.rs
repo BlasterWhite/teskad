@@ -372,7 +372,7 @@ pub(crate) fn answer(
     if kit.modules.contains(&path) {
         return refuse(
             StatusCode::FORBIDDEN,
-            "this is a native tab's module, which Hangar runs itself and does not serve as a page"
+            "this is a native tab's module, which Teskad runs itself and does not serve as a page"
                 .into(),
         );
     }

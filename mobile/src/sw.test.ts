@@ -84,7 +84,7 @@ describe("the service worker's notifications", () => {
     const sw = worker();
     await sw.push(undefined);
     await sw.push("not json");
-    expect(sw.shown.map((n) => n.title)).toEqual(["Hangar", "Hangar"]);
+    expect(sw.shown.map((n) => n.title)).toEqual(["Teskad", "Teskad"]);
     expect(sw.shown[1].options.body).toBe("not json");
     expect(sw.shown[0].options.data).toEqual({ url: SCOPE + "#/" });
   });

@@ -410,7 +410,7 @@ fn webhook_name(name: &str) -> String {
         out = out.replace(word, "·");
     }
     if out.trim().is_empty() {
-        "Hangar".into()
+        "Teskad".into()
     } else {
         out
     }
@@ -881,7 +881,7 @@ impl Bot {
             .iter()
             .find(|f| f.id == folder)
             .map(|f| f.name.clone())
-            .unwrap_or_else(|| "Hangar".into());
+            .unwrap_or_else(|| "Teskad".into());
         // A node sharing the bot with its desktop: its categories say whose
         // they are.
         let name = match self.state().settings.label.clone() {
@@ -951,7 +951,7 @@ impl Bot {
             .call(
                 "POST",
                 &format!("/channels/{channel}/webhooks"),
-                Some(json!({ "name": "Hangar" })),
+                Some(json!({ "name": "Teskad" })),
             )
             .await?;
         hook["id"]
@@ -1210,7 +1210,7 @@ mod tests {
     fn a_webhook_never_says_discord_or_clyde() {
         assert_eq!(webhook_name("Discord bot"), "· bot");
         assert_eq!(webhook_name("clyde"), "·");
-        assert_eq!(webhook_name(""), "Hangar");
+        assert_eq!(webhook_name(""), "Teskad");
         assert_eq!(webhook_name("Leo"), "Leo");
     }
 }

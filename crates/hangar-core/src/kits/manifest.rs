@@ -500,7 +500,7 @@ pub fn compatible(manifest: &Manifest, hangar_version: &str) -> Result<(), Strin
         Ok(())
     } else {
         Err(format!(
-            "needs Hangar {requirement}, and this is Hangar {version}"
+            "needs Teskad {requirement}, and this is Teskad {version}"
         ))
     }
 }
@@ -610,7 +610,7 @@ impl Check<'_> {
             Some(Value::Number(number)) if number.as_u64().is_some_and(|n| n > SCHEMA) => {
                 self.problem(
                     "schema",
-                    format!("{number} needs a newer Hangar (this one reads {SCHEMA})"),
+                    format!("{number} needs a newer Teskad (this one reads {SCHEMA})"),
                 );
                 SCHEMA
             }
@@ -1124,7 +1124,7 @@ impl Check<'_> {
             if name == KIT_DIR {
                 self.problem(
                     &at,
-                    "is reserved: Hangar fills {kitDir} in with the kit's folder",
+                    "is reserved: Teskad fills {kitDir} in with the kit's folder",
                 );
                 ok = false;
                 continue;
@@ -1888,7 +1888,7 @@ mod tests {
             problems(kit.parse(&with(minimal(), json!({ "version": "1.0" })))).contains("semver")
         );
         assert!(
-            problems(kit.parse(&with(minimal(), json!({ "schema": 3 })))).contains("newer Hangar")
+            problems(kit.parse(&with(minimal(), json!({ "schema": 3 })))).contains("newer Teskad")
         );
         assert!(
             problems(kit.parse(&with(minimal(), json!({ "schema": 0 }))))
@@ -2177,7 +2177,7 @@ mod tests {
             }))));
             assert_eq!(
                 why,
-                "commands.view.args.kitDir: is reserved: Hangar fills {kitDir} in with the kit's folder"
+                "commands.view.args.kitDir: is reserved: Teskad fills {kitDir} in with the kit's folder"
             );
         }
         // Another spelling is any other name, held to the same rules.
@@ -2552,7 +2552,7 @@ mod tests {
         assert!(compatible(&manifest, "2.0.1").is_ok());
         assert_eq!(
             compatible(&manifest, "1.5.0").unwrap_err(),
-            "needs Hangar >=1.6.0, and this is Hangar 1.5.0"
+            "needs Teskad >=1.6.0, and this is Teskad 1.5.0"
         );
         assert!(compatible(&kit.parse(&minimal()).unwrap(), "0.1.0").is_ok());
         // A pre-release answers as its release, not below every requirement.

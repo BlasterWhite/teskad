@@ -191,7 +191,7 @@ impl<K: Kit> Runtime<K> {
             crate::sys::log(
                 LogLevel::Warn,
                 &format!(
-                    "{} timers asked for, of which Hangar runs {MAX_TIMERS}: the others never come",
+                    "{} timers asked for, of which Teskad runs {MAX_TIMERS}: the others never come",
                     subscriptions.timers.len()
                 ),
             );

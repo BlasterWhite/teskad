@@ -1552,13 +1552,13 @@ async fn refuses_an_agent_that_cannot_run_a_worker_here_and_starts_no_other() {
         ..Options::default()
     });
 
-    // « Attach Hangar to Codex » off: a Codex worker would never get its brief.
+    // « Attach Teskad to Codex » off: a Codex worker would never get its brief.
     app.state.lock().unwrap().settings.codex_attach = false;
     let refused = err(app
         .call("worker_spawn", json!({"task": "t1", "agent": "codex"}))
         .await);
     assert!(
-        refused.starts_with("A Codex worker would never receive its brief: « Attach Hangar to Codex » is turned off (Settings › Sessions)"),
+        refused.starts_with("A Codex worker would never receive its brief: « Attach Teskad to Codex » is turned off (Settings › Sessions)"),
         "{refused}"
     );
     assert!(

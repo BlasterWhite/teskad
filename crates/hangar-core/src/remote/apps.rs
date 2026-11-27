@@ -167,7 +167,7 @@ pub struct Route {
 
 struct Slot {
     ports: SlotPorts,
-    /// Started the first time the slot is used, until Hangar Mobile stops.
+    /// Started the first time the slot is used, until Teskad Mobile stops.
     listener: Option<proxy::Running>,
     showing: Option<Showing>,
 }
@@ -245,7 +245,7 @@ impl Apps {
         }
     }
 
-    /// Hangar Mobile stopped: every slot freed, every listener closed.
+    /// Teskad Mobile stopped: every slot freed, every listener closed.
     pub async fn close(&self) {
         let _one = self.opening.lock().await;
         for slot in self.slots.lock().unwrap().iter_mut() {
@@ -323,7 +323,7 @@ impl Apps {
                 }
                 Err(err) => {
                     eprintln!(
-                        "Hangar Mobile could not listen on 127.0.0.1:{} for an app: {err}",
+                        "Teskad Mobile could not listen on 127.0.0.1:{} for an app: {err}",
                         slot.ports.local
                     );
                     return None;
@@ -912,7 +912,7 @@ pub(super) mod tests {
             assert_eq!(open(&remote, "w1", port).await.unwrap(), opened);
             assert_eq!(tailnet.published().len(), 1);
 
-            // Hangar Mobile turned off: the slot closes with it.
+            // Teskad Mobile turned off: the slot closes with it.
             remote.apps.close().await;
             assert_eq!(remote.apps.slots().await[0].app, None);
         });

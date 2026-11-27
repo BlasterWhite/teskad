@@ -709,7 +709,7 @@ fn modules_that_break_the_abi_do_not_load() {
     let failure = tab.failure().expect("not started");
     assert_eq!(failure.kind, FailureKind::Load);
     assert!(
-        failure.reason.contains("needs a newer Hangar"),
+        failure.reason.contains("needs a newer Teskad"),
         "{}",
         failure.reason
     );

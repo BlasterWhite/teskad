@@ -150,10 +150,10 @@ impl RoleRefusal {
                 "it runs a plain shell, and a role is given to an agent".to_string()
             }
             RoleRefusal::Unable { label } => format!(
-                "Hangar cannot hand {label} a role: it could not brief it, message it or give it Hangar's tools"
+                "Teskad cannot hand {label} a role: it could not brief it, message it or give it Teskad's tools"
             ),
             RoleRefusal::SwitchedOff { label, switch } => format!(
-                "« {switch} » is turned off (Settings › Sessions), and that is how Hangar hands {label} its brief and its messages"
+                "« {switch} » is turned off (Settings › Sessions), and that is how Teskad hands {label} its brief and its messages"
             ),
         }
     }
@@ -204,7 +204,7 @@ pub fn lead_labels() -> String {
 }
 
 /// Whether the settings let the side channel of `kind`'s panes run: Hangar's
-/// client of the server a kind runs attached to (« Attach Hangar to Codex »,
+/// client of the server a kind runs attached to (« Attach Teskad to Codex »,
 /// `codex_attach`, D5) for a kind Hangar reaches through a server of its own
 /// (`headless.app_server`), the teskad-bridge mod (`claude_bridge`) for any
 /// other — the launch's own rule (`host/launch.rs`, `side_channel`).
@@ -217,12 +217,12 @@ pub fn side_channel_on(settings: &Settings, kind: AgentKind) -> bool {
 }
 
 /// The setting of « Settings › Sessions » that turns `kind`'s side channel
-/// on, as the person reads it: « Claude Code bridge », « Attach Hangar to
+/// on, as the person reads it: « Claude Code bridge », « Attach Teskad to
 /// Codex ».
 pub fn side_channel_switch(kind: AgentKind) -> String {
     let info = kind.info();
     if info.caps.headless.app_server {
-        format!("Attach Hangar to {}", info.label)
+        format!("Attach Teskad to {}", info.label)
     } else {
         format!("{} bridge", info.label)
     }
@@ -430,13 +430,13 @@ mod tests {
             refused,
             RoleRefusal::SwitchedOff {
                 label: "Codex",
-                switch: "Attach Hangar to Codex".into(),
+                switch: "Attach Teskad to Codex".into(),
             }
         );
         assert!(
             refused
                 .reason()
-                .starts_with("« Attach Hangar to Codex » is turned off (Settings › Sessions)"),
+                .starts_with("« Attach Teskad to Codex » is turned off (Settings › Sessions)"),
             "{}",
             refused.reason()
         );
@@ -449,7 +449,7 @@ mod tests {
         assert_eq!(side_channel_switch(AgentKind::Claude), "Claude Code bridge");
         assert_eq!(
             side_channel_switch(AgentKind::Codex),
-            "Attach Hangar to Codex"
+            "Attach Teskad to Codex"
         );
         let no_attach = Settings {
             codex_attach: false,

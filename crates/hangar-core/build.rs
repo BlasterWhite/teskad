@@ -12,7 +12,7 @@ fn main() {
         println!("cargo:rerun-if-changed=../../dist-mobile");
     } else if std::env::var("PROFILE").as_deref() == Ok("release") {
         println!(
-            "cargo:warning=dist-mobile/ is missing: this build serves a placeholder instead of Hangar Mobile (run `pnpm mobile:build` first)"
+            "cargo:warning=dist-mobile/ is missing: this build serves a placeholder instead of Teskad Mobile (run `pnpm mobile:build` first)"
         );
     }
     // Without a rerun-if line of its own, Cargo would rerun this script

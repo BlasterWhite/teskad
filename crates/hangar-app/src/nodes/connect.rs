@@ -208,8 +208,8 @@ pub fn control_dir() -> Option<PathBuf> {
     let dir = hangar_core::env::var_os("TESKAD_NODES_SSH_DIR")
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
-        .or_else(|| dirs::runtime_dir().map(|dir| dir.join("hangar-ssh")))
-        .or_else(|| dirs::cache_dir().map(|dir| dir.join("hangar-ssh")))?;
+        .or_else(|| dirs::runtime_dir().map(|dir| dir.join("teskad-ssh")))
+        .or_else(|| dirs::cache_dir().map(|dir| dir.join("teskad-ssh")))?;
     if dir.as_os_str().len() > 60 {
         return None;
     }

@@ -80,7 +80,7 @@ pub trait KitApi: Send + Sync + 'static {
         let _ = source;
         Err(KitError::new(
             KitError::UNSUPPORTED,
-            "this Hangar shows no image of a kit",
+            "this Teskad shows no image of a kit",
         ))
     }
 
@@ -91,7 +91,7 @@ pub trait KitApi: Send + Sync + 'static {
         let _ = request;
         Box::pin(std::future::ready(Err(KitError::new(
             KitError::UNSUPPORTED,
-            "this Hangar has no file chooser for a kit",
+            "this Teskad has no file chooser for a kit",
         ))))
     }
 
@@ -101,7 +101,7 @@ pub trait KitApi: Send + Sync + 'static {
     fn clipboard_image(&self) -> ClipboardFuture {
         Box::pin(std::future::ready(Err(KitError::new(
             KitError::UNSUPPORTED,
-            "this Hangar reads no picture from the clipboard for a kit",
+            "this Teskad reads no picture from the clipboard for a kit",
         ))))
     }
 }

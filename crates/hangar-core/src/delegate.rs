@@ -427,7 +427,7 @@ async fn begin(host: &Host, request: Request, child: Option<Child>) -> Result<De
     }
     let Some(runner) = runner_for(request.kind) else {
         return Err(format!(
-            "Hangar cannot run a delegation on {} without a terminal",
+            "Teskad cannot run a delegation on {} without a terminal",
             request.kind.info().label
         ));
     };

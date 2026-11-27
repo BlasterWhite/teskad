@@ -113,7 +113,7 @@ fn connector() -> (Connect, oneshot::Receiver<Fake>) {
             };
             let handshake = async {
                 let init = fake.expect("initialize").await;
-                assert_eq!(init["params"]["clientInfo"]["name"], "Hangar");
+                assert_eq!(init["params"]["clientInfo"]["name"], "Teskad");
                 let opted = &init["params"]["capabilities"]["optOutNotificationMethods"];
                 assert!(opted
                     .as_array()
@@ -121,7 +121,7 @@ fn connector() -> (Connect, oneshot::Receiver<Fake>) {
                 fake.reply(
                     &init,
                     json!({
-                        "userAgent": "Hangar/0.170.0 (Ubuntu 24.4.0; x86_64) xterm-256color (Hangar; test)",
+                        "userAgent": "Teskad/0.170.0 (Ubuntu 24.4.0; x86_64) xterm-256color (Teskad; test)",
                         "codexHome": "/home/ada/.codex",
                         "platformFamily": "unix",
                         "platformOs": "linux",

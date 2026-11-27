@@ -195,7 +195,7 @@ impl Compiled {
     pub fn lost(path: PathBuf) -> Compiled {
         Compiled {
             modified: modified(&path),
-            result: Err("Hangar could not compile the module".into()),
+            result: Err("Teskad could not compile the module".into()),
             path,
         }
     }

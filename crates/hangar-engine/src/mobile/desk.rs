@@ -49,7 +49,7 @@ pub type ChatView = RemoteChat;
 fn find(port: &Port, ws: &str, pane: &str) -> Result<(Workspace, Pane), String> {
     let snapshot = port.snapshot();
     let Some(workspace) = snapshot.state.workspaces.iter().find(|w| w.id == ws) else {
-        return Err(format!("No workspace with id \"{ws}\" in Hangar."));
+        return Err(format!("No workspace with id \"{ws}\" in Teskad."));
     };
     let Some(found) = workspace.panes.iter().find(|p| p.id == pane) else {
         return Err(format!("No pane \"{pane}\" in \"{}\".", workspace.name));
@@ -376,7 +376,7 @@ fn page_of(page: &Value) -> Result<ChatPage, String> {
     let items = page
         .get("items")
         .and_then(Value::as_array)
-        .ok_or("The node's chat page has no items: is it this version of Hangar?")?;
+        .ok_or("The node's chat page has no items: is it this version of Teskad?")?;
     Ok(ChatPage {
         items: items.iter().filter_map(item_of).collect(),
         older: page.get("older").and_then(Value::as_bool).unwrap_or(false),

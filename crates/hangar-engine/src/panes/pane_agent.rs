@@ -2280,7 +2280,7 @@ mod tests {
         fn a_floor_codex_pane_reads_its_turns_from_its_title() {
             let (mut live, info) = mounted(AgentId::Codex);
             let reason =
-                "Codex runs without Hangar attached: its server did not listen within 10 seconds";
+                "Codex runs without Teskad attached: its server did not listen within 10 seconds";
             live.set_side_channel(
                 "p1",
                 SideChannel::Floor {

@@ -59,7 +59,7 @@ pub async fn create(
     port: &Port,
 ) -> Result<Value, String> {
     let Some(flow) = port.git_flow() else {
-        return Err("This Hangar window cannot create a workspace from a repository.".into());
+        return Err("This Teskad window cannot create a workspace from a repository.".into());
     };
     string_arg(
         args,
