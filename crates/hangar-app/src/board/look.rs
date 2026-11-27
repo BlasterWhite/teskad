@@ -42,14 +42,6 @@ pub const GRIP_INSET: f32 = 1.0;
 /// The bars of a priority (`.prio__bars i`), their width and the tallest.
 pub const PRIO_BAR_WIDTH: f32 = 2.5;
 pub const PRIO_BAR_HEIGHT: f32 = 9.0;
-/// The skeleton's cards (`.skeleton--card`), and its label.
-pub const SKELETON_CARD: f32 = 76.0;
-pub const SKELETON_CARD_SHORT: f32 = 58.0;
-pub const SKELETON_LABEL: (f32, f32) = (72.0, 9.0);
-/// The empty board's icon box (`.board__empty-icon`).
-pub const EMPTY_ICON_BOX: f32 = 44.0;
-/// The widest the empty board's paragraph runs (`50ch`, at 12.5 px).
-pub const EMPTY_TEXT_WIDTH: f32 = 380.0;
 /// A task dialog (`.modal--task`), the fields in it, its thread's height.
 pub const DIALOG_WIDTH: f32 = 640.0;
 pub const FIELD_HEIGHT: f32 = 30.0;
@@ -179,7 +171,7 @@ pub fn card(t: &Theme, look: CardLook) -> impl Fn(&iced::Theme) -> container::St
             background: Some(Background::Color(alpha(fill, fill.a * fade))),
             border: hairline(alpha(line, line.a * fade), scale::radius::MD),
             shadow: Shadow::default(),
-            text_color: Some(alpha(p.text, fade)),
+            text_color: Some(alpha(t.inks.text.primary, fade)),
             ..container::Style::default()
         }
     }
@@ -190,7 +182,7 @@ pub fn chip(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
     move |_| container::Style {
         background: Some(Background::Color(t.palette.surface_raised)),
         border: hairline(t.palette.border, scale::radius::XS),
-        text_color: Some(t.palette.text_secondary),
+        text_color: Some(t.inks.text.secondary),
         ..container::Style::default()
     }
 }
@@ -352,25 +344,6 @@ pub fn add_field(t: &Theme) -> impl Fn(&iced::Theme, text_input::Status) -> text
             value: inks.text.primary,
             selection: inks.accent_ring,
         }
-    }
-}
-
-/// The outline of the first read (`.skeleton`).
-pub fn skeleton(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
-    move |_| container::Style {
-        background: Some(Background::Color(t.palette.border)),
-        border: rounded(radius::LG),
-        ..container::Style::default()
-    }
-}
-
-/// The icon in the empty board (`.board__empty-icon`).
-pub fn empty_icon(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
-    move |_| container::Style {
-        background: Some(Background::Color(t.palette.surface_raised)),
-        border: hairline(t.palette.border, radius::XL),
-        text_color: Some(t.inks.text.muted),
-        ..container::Style::default()
     }
 }
 

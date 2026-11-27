@@ -1,5 +1,24 @@
 //! A task's card, its priority and its assignee (`BoardView.tsx`'s
 //! `renderCard`, `BoardPriority.tsx`, `BoardAssignee.tsx`).
+//!
+//! Text on `surfaceRaised` reads through `inks.text.*`, which are held to
+//! 4.5:1 there, where `palette.text*` falls to 4.18–4.43:1 in 26 themes
+//! (ticket 12b). The places changed, all of them text drawn on a raised
+//! surface:
+//! - `board/card.rs`: the whole card (raised under the pointer);
+//! - `board/look.rs`: `card` (hover) and `chip`;
+//! - `navigator/view.rs`: the HQ button (raised when lit);
+//! - `memory/view.rs`: the delete alert;
+//! - `chat_view/conversation/view.rs`: the person's bubble; `rich.rs`: its
+//!   markdown (shared with plain surfaces, where the inks read as well).
+//!
+//! Elsewhere `palette.*` stays: the palette is conform (`themes.md`, contrast
+//! check on `bg` and `surface` only).
+//!
+//! CHANGELOG line, for ticket 13 to add: "The Board's empty and loading
+//! states use the shared format, and text on raised surfaces (a card under
+//! the pointer, a chip, the HQ button, the person's bubble) reads at 4.5:1
+//! in every theme."
 
 use hangar_i18n::{Key, args};
 use hangar_theme::tokens::scale::{radius, type_scale};
@@ -87,7 +106,7 @@ pub(super) fn card<'a>(v: &View<'a>, task: &'a Task, width: f32) -> Element<'a, 
         .size(type_scale::SMALL.size)
         .line_height(TITLE_LINE)
         .font(fonts::ui_medium())
-        .color(t.palette.text);
+        .color(t.inks.text.primary);
 
     let mut body = column![top, Element::from(title)].spacing(space::MD);
 
@@ -262,10 +281,10 @@ fn blocked_inset<'a>(v: &View<'a>, task: &'a Task) -> Element<'a, Message> {
     .spacing(space::MD);
     let note = |glyph: Icon, words: String| {
         row![
-            icon(glyph, STAT_ICON).color(t.palette.text_muted),
+            icon(glyph, STAT_ICON).color(t.inks.text.muted),
             text(words)
                 .size(type_scale::CAPTION.size)
-                .color(t.palette.text_muted)
+                .color(t.inks.text.muted)
                 .width(Length::Fill),
         ]
         .spacing(space::SM)
@@ -370,13 +389,13 @@ fn footer<'a>(
         Some(assignee) => assignee_view(v, assignee, done, program, false),
         None => text(tr.t(Key::BoardNobody))
             .size(type_scale::CAPTION.size)
-            .color(t.palette.text_muted)
+            .color(t.inks.text.muted)
             .wrapping(text::Wrapping::None)
             .into(),
     };
 
     let stat = |glyph: Icon, count: Option<String>, words: String| -> Element<'a, Message> {
-        let mut line = row![icon(glyph, STAT_ICON).color(t.palette.text_muted)]
+        let mut line = row![icon(glyph, STAT_ICON).color(t.inks.text.muted)]
             .spacing(STAT_GAP)
             .align_y(Alignment::Center);
         if let Some(count) = count {
@@ -439,7 +458,7 @@ fn mono_muted<'a>(t: &'a Theme, content: String) -> iced::widget::Text<'a> {
         .size(type_scale::LABEL.size)
         .font(fonts::mono())
         .wrapping(text::Wrapping::None)
-        .color(t.palette.text_muted)
+        .color(t.inks.text.muted)
 }
 
 /// A task's priority as three rising bars and a word (Low, Medium, High): the
@@ -475,7 +494,7 @@ pub(super) fn priority<'a>(v: &View<'a>, priority: u8) -> Element<'a, Message> {
             text(word)
                 .size(type_scale::LABEL.size)
                 .wrapping(text::Wrapping::None)
-                .color(t.palette.text_muted)
+                .color(t.inks.text.muted)
         ]
         .spacing(5.0)
         .align_y(Alignment::Center),
@@ -521,7 +540,7 @@ pub(super) fn assignee_view<'a>(
     let named = text(name.clone())
         .size(type_scale::CAPTION.size)
         .font(fonts::ui_medium())
-        .color(t.palette.text)
+        .color(t.inks.text.primary)
         .wrapping(text::Wrapping::None);
     let named: Element<'a, Message> = match pane {
         // A button to the pane: its click is its own, and opens no task.
@@ -557,7 +576,7 @@ pub(super) fn assignee_view<'a>(
         line = line.push(
             text(format!("· {}", pane.agent))
                 .size(type_scale::CAPTION.size)
-                .color(t.palette.text_muted)
+                .color(t.inks.text.muted)
                 .wrapping(text::Wrapping::None),
         );
     }

@@ -340,9 +340,9 @@ fn manager_door<'a>(f: &Frame<'a>) -> Element<'a, Message> {
             button::Style {
                 background: Some(Background::Color(fill)),
                 text_color: if current || lit {
-                    p.text
+                    t.inks.text.primary
                 } else {
-                    p.text_secondary
+                    t.inks.text.secondary
                 },
                 border: skin::border(edge, scale::radius::MD),
                 ..button::Style::default()

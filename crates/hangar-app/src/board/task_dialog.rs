@@ -724,7 +724,7 @@ pub fn view<'a>(
     else {
         return page.into();
     };
-    let v = View::new(st, ctx, cwd, false);
+    let v = View::new(st, ctx, cwd);
     let found = task.and_then(|id| v.all.iter().find(|candidate| candidate.id == id));
     match (task, found) {
         (Some(_), Some(found)) => {

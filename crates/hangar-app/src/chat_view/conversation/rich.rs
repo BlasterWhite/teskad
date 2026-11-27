@@ -75,7 +75,7 @@ fn settings(t: &Theme) -> Settings {
                 border: border::rounded(tokens::radius::XS),
             },
             inline_code_padding: padding::left(3).right(3),
-            inline_code_color: t.palette.text,
+            inline_code_color: t.inks.text.primary,
             inline_code_font: fonts::mono(),
             code_block_font: fonts::mono(),
             link_color: t.palette.accent_text,
@@ -129,7 +129,7 @@ impl<'a> markdown::Viewer<'a, Message, iced::Theme, iced::Renderer> for Bubble<'
 
     /// A paragraph, its bold words in the full text colour among the rest.
     fn paragraph(&self, settings: Settings, words: &markdown::Text) -> Element<'a, Message> {
-        let strong = self.t.palette.text;
+        let strong = self.t.inks.text.primary;
         let spans: Vec<text::Span<'static, Uri, Font>> = words
             .spans(settings.style)
             .iter()
@@ -158,7 +158,7 @@ impl<'a> markdown::Viewer<'a, Message, iced::Theme, iced::Renderer> for Bubble<'
         words: &'a markdown::Text,
         index: usize,
     ) -> Element<'a, Message> {
-        let colour = self.t.palette.text;
+        let colour = self.t.inks.text.primary;
         container(markdown::heading(settings, level, words, index, link))
             .style(move |_| container::Style {
                 text_color: Some(colour),
@@ -202,7 +202,7 @@ impl<'a> markdown::Viewer<'a, Message, iced::Theme, iced::Renderer> for Bubble<'
                     rich_text(line.spans(settings.style))
                         .font(mono)
                         .size(settings.code_size)
-                        .color(t.palette.text)
+                        .color(t.inks.text.primary)
                         .on_link_click(link)
                         .into()
                 })
@@ -238,7 +238,7 @@ pub fn view<'a>(
     content: &'a markdown::Content,
     code: &'a HashMap<u64, Arc<Lines>>,
 ) -> Element<'a, Message> {
-    let colour = t.palette.text_secondary;
+    let colour = t.inks.text.secondary;
     container(markdown::view_with(
         content.items(),
         settings(t),
