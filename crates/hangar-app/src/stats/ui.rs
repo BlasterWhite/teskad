@@ -2,8 +2,8 @@
 //! and the few styles that belong to the statistics page alone.
 
 use hangar_i18n::{AsKey, Locale, Translator};
-use hangar_theme::tokens::radius;
-use hangar_theme::{Theme, style};
+use hangar_theme::Theme;
+use hangar_theme::tokens::{BORDER_WIDTH, radius, scale};
 use iced::widget::{container, text};
 use iced::{Background, Border, Color};
 
@@ -49,18 +49,14 @@ pub fn measure_key(measure: Measure) -> hangar_i18n::Key {
 pub fn page(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
     move |_| container::Style {
         background: Some(Background::Color(page_color(t))),
-        text_color: Some(t.colors.fg),
+        text_color: Some(t.palette.text),
         ..container::Style::default()
     }
 }
 
-/// The colour of the page itself.
+/// The colour of the page itself: the window's, under the cards.
 fn page_color(t: &Theme) -> Color {
-    if t.is_dark() {
-        t.colors.bg
-    } else {
-        t.colors.chrome_bar
-    }
+    t.palette.bg
 }
 
 /// How much of the page shows through the content while it is stale
@@ -104,7 +100,16 @@ pub fn stale_veil<'a, M: 'a>(t: &Theme) -> iced::Element<'a, M> {
 
 /// A key figure or a card of the page.
 pub fn card(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
-    style::container::card(t)
+    move |_| container::Style {
+        background: Some(Background::Color(t.palette.surface)),
+        text_color: Some(t.palette.text),
+        border: Border {
+            color: t.palette.border,
+            width: BORDER_WIDTH,
+            radius: scale::radius::LG.into(),
+        },
+        ..container::Style::default()
+    }
 }
 
 /// A solid box of one colour with rounded corners: a legend swatch, the fill

@@ -1,20 +1,23 @@
-//! The memory view (`MemoryView.tsx`): a bar with the count, the search and
-//! the "New" button, then the facts one per row, what each says on the left
-//! and where it came from on the right.
+//! The memory view (`ecrans.md` §5, `05-memory` and `05b-memory-new-entry`):
+//! the tab's bar with the count, the search, the sort and "New entry", then
+//! the facts one per row (what each says on the left, where it came from on
+//! the right), and a window over the page to write or edit one.
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use iced::keyboard::{Key, key::Named};
+use iced::widget::markdown::{HeadingLevel, Highlight, Settings, Style as MarkdownStyle};
 use iced::widget::{
-    button, column, container, row, rule, scrollable, space, text, text_editor::Content,
+    button, column, container, markdown, mouse_area, row, rule, scrollable, space, text,
+    text_editor::Content,
 };
-use iced::{Alignment, Element, Length, Padding};
+use iced::{Alignment, Background, Border, Element, Length, Padding, border, padding};
 
 use hangar_core::memory::MemoryEntry;
 use hangar_i18n::{Key as K, args};
+use hangar_theme::tokens::{BORDER_WIDTH, scale};
 use hangar_theme::{Theme, fonts, style, tokens};
-use hangar_ui::badge::Tone;
-use hangar_ui::{Icon, button as btn, empty, icon, input, keys, text as typography, tip};
+use hangar_ui::{Icon, button as btn, dialog, empty, focus, icon, input, keys, tab_toolbar, tip};
 
 use super::format::{ShortDay, compact_path, full_date, short_day, signer_name, was_updated};
 use super::guards::{
@@ -25,15 +28,26 @@ use super::{Draft, Msg, State, composer_id, search_id};
 use crate::ctx::Ctx;
 use crate::message::Message;
 
-/// The width under which a row's origin folds under its text, and the hint
-/// loses its words: the stylesheet's `@container memory (max-width: 760px)`.
-const NARROW: f32 = 760.0;
+/// The width under which a row's origin folds under its text, on one line
+/// (`ecrans.md` §5, « Place qui manque »).
+const NARROW: f32 = 1100.0;
+/// The list is centred and no wider than this.
+const LIST_MAX_WIDTH: f32 = 1120.0;
 /// The width of the column that says where a fact came from.
-const ORIGIN_WIDTH: f32 = 200.0;
+const ORIGIN_WIDTH: f32 = 210.0;
+/// The chevron's column.
+const CHEVRON: f32 = 24.0;
 /// How long a path may be in that column.
 const PATH_CHARS: usize = 30;
-/// A collapsed entry shows two lines of its text (12 px on a 1.55 line).
-const CLAMP_HEIGHT: f32 = 2.0 * 12.0 * 1.55 + 1.0;
+/// The search field's width.
+const SEARCH_WIDTH: f32 = 300.0;
+/// A collapsed entry shows two lines of its text (13 px on 19).
+const EXCERPT_LINE: f32 = 19.0;
+const CLAMP_HEIGHT: f32 = 2.0 * EXCERPT_LINE + 1.0;
+/// The window that writes or edits an entry.
+const FORM_WIDTH: f32 = 640.0;
+/// The content field's height.
+const CONTENT_HEIGHT: f32 = 180.0;
 
 fn msg(msg: Msg) -> Message {
     Message::Memory(msg)
@@ -68,16 +82,26 @@ pub(super) fn view<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
             .map(|(entry, _)| entry),
         st.sort,
     );
-    let narrow = ctx.metrics.body_width < NARROW;
+    let width = ctx.metrics.body_width;
+    let narrow = width < NARROW;
 
-    let mut page = column![bar(st, ctx, &visible, all.len(), narrow)];
-    page = page.push(rule::horizontal(1).style(style::rule::sep(t)));
+    let mut page = column![bar(
+        st,
+        ctx,
+        &visible,
+        all.len(),
+        tab_toolbar::compact(width)
+    )];
 
     if let Some(error) = &st.error {
-        page = page.push(banner(
+        page = page.push(notice(
             t,
             Icon::Alert,
-            text(error.as_str()).size(tokens::font_size::UI).into(),
+            t.palette.status.failed,
+            text(error.as_str())
+                .size(tokens::font_size::UI)
+                .color(t.palette.text)
+                .into(),
         ));
     }
     if loaded && near_cap(all.len()) {
@@ -85,9 +109,6 @@ pub(super) fn view<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
     }
 
     let mut list = column![].width(Length::Fill);
-    if st.composing {
-        list = list.push(composer(st, ctx, all));
-    }
     if !loaded {
         list = list.push(skeleton(t));
     }
@@ -115,38 +136,51 @@ pub(super) fn view<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
         list = list.push(entry_row(st, ctx, entry, narrow));
     }
 
-    let body = scrollable(container(list).padding(Padding {
-        top: 6.0,
-        right: tokens::space::XXL,
-        bottom: 28.0,
-        left: tokens::space::XXL,
-    }))
+    let body = scrollable(
+        container(container(list).max_width(LIST_MAX_WIDTH))
+            .width(Length::Fill)
+            .center_x(Length::Fill)
+            .padding(Padding {
+                top: scale::space::S2,
+                right: scale::space::S6,
+                bottom: scale::space::S6,
+                left: scale::space::S6,
+            }),
+    )
     .width(Length::Fill)
     .height(Length::Fill)
     .style(style::scrollable::default(t));
 
-    container(page.push(body))
+    let page = container(page.push(body))
         .width(Length::Fill)
         .height(Length::Fill)
-        .style(style::container::window(t))
-        .into()
+        .style(move |_: &iced::Theme| container::Style {
+            background: Some(Background::Color(t.palette.bg)),
+            text_color: Some(t.palette.text),
+            ..container::Style::default()
+        });
+
+    dialog::over(t, page, form(st, ctx, all)).into()
 }
 
-/// The heading, the search, the hint that agents write here, and "New".
+/// The tab's bar: the count, the search, the sort; the note that agents write
+/// here, and "New entry".
 fn bar<'a>(
     st: &'a State,
     ctx: Ctx<'a>,
     visible: &[&MemoryEntry],
     total: usize,
-    narrow: bool,
+    compact: bool,
 ) -> Element<'a, Message> {
     let t = ctx.theme;
     let heading = if st.entries.is_none() {
-        ctx.t(K::MemoryTitle)
+        ctx.t(K::MemoryTitle).to_string()
     } else if !search_terms(&st.query).is_empty() {
-        ctx.i18n.tn(K::MemoryResults, visible.len(), &[])
+        ctx.i18n
+            .tn(K::MemoryResults, visible.len(), &[])
+            .to_string()
     } else {
-        ctx.i18n.tn(K::MemoryEntries, total, &[])
+        ctx.i18n.tn(K::MemoryEntries, total, &[]).to_string()
     };
 
     let search = input::search_field(t, &st.query, label(ctx, K::MemorySearch))
@@ -161,66 +195,64 @@ fn bar<'a>(
         Key::Named(Named::Escape) if escapes => Some(msg(Msg::ClearQuery)),
         _ => None,
     });
-    let search = container(search).width(320.0).max_width(320.0);
+    let search = container(search).width(SEARCH_WIDTH);
 
-    // One line, cut where it runs out of room: the button after it keeps its
-    // width, and the whole sentence is in the tip.
-    let mut hint = row![icon(Icon::Plug, tokens::size::ICON).color(t.colors.fg_subtle)]
-        .spacing(tokens::space::SM)
-        .align_y(Alignment::Center);
-    if !narrow {
-        hint = hint.push(
-            typography::subtle(t, ctx.t(K::MemoryHint))
-                .size(tokens::font_size::CAPTION_LG)
-                .wrapping(text::Wrapping::None),
-        );
-    }
-    let hint = container(tip::bottom(t, hint, ctx.t(K::MemoryHint)))
-        .width(Length::Fill)
-        .align_x(Alignment::End)
-        .clip(true);
+    let sort = input::segmented_labels(
+        t,
+        vec![
+            (MemorySort::Recent, ctx.t(K::MemorySegRecent).to_string()),
+            (MemorySort::Oldest, ctx.t(K::MemorySegOldest).to_string()),
+        ],
+        &st.sort,
+        |sort| msg(Msg::SetSort(sort)),
+    );
 
-    let new = btn::secondary(t, ctx.t(K::MemoryNew))
+    let new = btn::primary(t, ctx.t(K::MemoryNew))
         .icon(Icon::Plus)
-        .small()
+        .size(btn::Size::Bar)
         .on_press(msg(Msg::ToggleComposer));
 
-    container(
+    tab_toolbar::bar(
+        t,
+        row![tab_toolbar::count(t, heading), search, sort]
+            .spacing(tokens::space::XXL)
+            .align_y(Alignment::Center),
         row![
-            typography::body(t, heading).font(fonts::ui_semibold()),
-            search,
-            hint,
-            new,
+            tab_toolbar::note_plain(t, ctx.t(K::MemoryHint).to_string(), compact),
+            Element::from(new)
         ]
         .spacing(tokens::space::LG)
         .align_y(Alignment::Center),
     )
-    .padding(Padding {
-        top: 0.0,
-        right: tokens::space::XL,
-        bottom: 0.0,
-        left: tokens::space::XXL,
-    })
-    .height(tokens::size::TOOLBAR_HEIGHT)
-    .align_y(Alignment::Center)
-    .width(Length::Fill)
-    .style(style::container::pane_head(t, false))
-    .into()
 }
 
-/// A line that says something is wrong, over the list.
-fn banner<'a>(t: &'a Theme, glyph: Icon, content: Element<'a, Message>) -> Element<'a, Message> {
+/// A line that says something, over the list: a hairline of `accent` round a
+/// sunken ground, its glyph in the same colour.
+fn notice<'a>(
+    t: &'a Theme,
+    glyph: Icon,
+    accent: iced::Color,
+    content: Element<'a, Message>,
+) -> Element<'a, Message> {
     container(
         row![
-            icon(glyph, tokens::size::ICON).color(t.colors.danger),
+            icon(glyph, tokens::size::ICON).color(accent),
             container(content).width(Length::Fill),
         ]
         .spacing(tokens::space::MD)
         .align_y(Alignment::Center),
     )
-    .padding(Padding::from([tokens::space::MD, tokens::space::XXL]))
+    .padding(Padding::from([tokens::space::MD, scale::space::S6]))
     .width(Length::Fill)
-    .style(style::container::badge(t, Tone::Danger))
+    .style(move |_: &iced::Theme| container::Style {
+        background: Some(Background::Color(t.palette.surface_sunken)),
+        border: Border {
+            color: accent,
+            width: BORDER_WIDTH,
+            radius: scale::radius::MD.into(),
+        },
+        ..container::Style::default()
+    })
     .into()
 }
 
@@ -242,114 +274,184 @@ fn cap_note<'a>(st: &'a State, ctx: Ctx<'a>, count: usize) -> Element<'a, Messag
     .on_press(msg(Msg::FlipSort));
     container(
         row![
-            icon(Icon::Alert, tokens::size::ICON).color(t.colors.warning),
-            typography::subtle(t, words)
+            icon(Icon::Alert, tokens::size::ICON).color(t.palette.accent_text),
+            text(words.into_owned())
                 .size(tokens::font_size::UI)
+                .color(t.palette.text_muted)
                 .width(Length::Fill),
             toggle,
         ]
         .spacing(tokens::space::MD)
         .align_y(Alignment::Center),
     )
-    .padding(Padding::from([tokens::space::SM, tokens::space::XXL]))
+    .padding(Padding::from([tokens::space::SM, scale::space::S6]))
     .width(Length::Fill)
     .into()
 }
 
-/// A multi-line field of `rows` lines over a text editor's state.
+/// A field's name above it.
+fn field_label<'a>(ctx: Ctx<'a>, key: K) -> Element<'a, Message> {
+    text(ctx.t(key).to_string())
+        .size(tokens::font_size::UI)
+        .font(fonts::ui_semibold())
+        .color(ctx.theme.palette.text)
+        .into()
+}
+
+/// The content field: the Markdown source, in the mono face.
 fn editor<'a>(
     ctx: Ctx<'a>,
     content: &'a Content,
-    rows: u16,
     placeholder: &'static str,
     on_action: fn(iced::widget::text_editor::Action) -> Msg,
 ) -> Element<'a, Message> {
     let field = iced::widget::text_editor(content)
         .placeholder(placeholder)
         .on_action(move |action| msg(on_action(action)))
-        .size(tokens::font_size::BODY)
-        .padding(Padding::from([tokens::space::MD, tokens::space::LG]))
-        .height(f32::from(rows) * tokens::font_size::BODY * tokens::line_height::BODY + 20.0)
+        .font(fonts::mono())
+        .size(tokens::font_size::LABEL)
+        .padding(Padding::from([tokens::space::LG, tokens::space::XL]))
+        .height(CONTENT_HEIGHT)
         .style(style::text_editor::field(ctx.theme));
     crate::keymap::guard(ctx, field)
 }
 
-/// The new-fact form: a title, the text, the tags, and what creating means.
-fn composer<'a>(st: &'a State, ctx: Ctx<'a>, all: &'a [MemoryEntry]) -> Element<'a, Message> {
+/// The window over the page, while a fact is written (`05b`) or edited: a
+/// title, the text, the tags, and in the foot who writes it and where.
+fn form<'a>(
+    st: &'a State,
+    ctx: Ctx<'a>,
+    all: &'a [MemoryEntry],
+) -> Option<dialog::Dialog<'a, Message>> {
     let t = ctx.theme;
-    let draft: &Draft = &st.draft;
-    let clash = find_title_clash(all, &draft.title);
+    // The entry being edited comes before a half-written new one.
+    let (draft, editing): (&Draft, bool) = match &st.editing {
+        Some(editing) => (&editing.draft, true),
+        None if st.composing => (&st.draft, false),
+        None => return None,
+    };
+    let clash = (!editing)
+        .then(|| find_title_clash(all, &draft.title))
+        .flatten();
     let replacing = st.confirming_replace && clash.is_some();
 
-    let mut form = column![
-        crate::keymap::guard(
-            ctx,
-            input::text_field(t, &draft.title)
-                .placeholder(label(ctx, K::MemoryTitlePlaceholder))
-                .on_input(|title| msg(Msg::DraftTitle(title)))
-                .on_submit(msg(Msg::Create))
-                .id(composer_id()),
-        ),
-        editor(
-            ctx,
-            &draft.content,
-            5,
-            label(ctx, K::MemoryContentPlaceholder),
-            Msg::DraftContent
-        ),
-        crate::keymap::guard(
-            ctx,
-            input::text_field(t, &draft.tags)
-                .placeholder(label(ctx, K::MemoryTagsPlaceholder))
-                .on_input(|tags| msg(Msg::DraftTags(tags)))
-                .mono(),
-        ),
-    ]
-    .spacing(tokens::space::MD);
-
-    if let (true, Some(clash)) = (replacing, clash) {
-        form = form.push(banner(
-            t,
-            Icon::Alert,
-            text(
-                ctx.i18n
-                    .t_with(K::MemoryReplaceAsk, &args!("title" => clash.title.as_str())),
-            )
-            .size(tokens::font_size::UI)
-            .into(),
-        ));
-    }
-
-    let create = btn::primary(
-        t,
-        if replacing {
-            ctx.t(K::MemoryReplaceConfirm)
+    let title = {
+        let field = input::text_field(t, &draft.title)
+            .placeholder(label(ctx, K::MemoryTitlePlaceholder))
+            .on_input(move |title| {
+                msg(if editing {
+                    Msg::EditTitle(title)
+                } else {
+                    Msg::DraftTitle(title)
+                })
+            });
+        let field = if editing {
+            field
         } else {
-            ctx.t(K::MemoryCreate)
-        },
-    )
-    .on_press_maybe(draft.is_complete().then(|| msg(Msg::Create)));
-    form = form.push(
-        row![
-            typography::subtle(t, ctx.t(K::MemoryUpsertHint)).width(Length::Fill),
-            btn::ghost(t, ctx.t(K::CreateCancel)).on_press(msg(Msg::CancelCompose)),
-            create,
-        ]
-        .spacing(tokens::space::SM)
-        .align_y(Alignment::Center),
-    );
+            field.on_submit(msg(Msg::Create)).id(composer_id())
+        };
+        crate::keymap::guard(ctx, field)
+    };
 
-    container(
-        container(form)
-            .padding(tokens::space::XL)
-            .style(style::container::card(t)),
+    let mut fields = column![column![field_label(ctx, K::MemoryFieldTitle), title].spacing(6)]
+        .spacing(scale::space::S4);
+    if clash.is_some() {
+        fields = fields.push(
+            container(
+                row![
+                    icon(Icon::Alert, tokens::size::ICON).color(t.palette.accent_text),
+                    text(ctx.t(K::MemoryTitleTaken).to_string())
+                        .size(tokens::font_size::UI)
+                        .color(t.palette.text),
+                ]
+                .spacing(tokens::space::MD)
+                .align_y(Alignment::Center),
+            )
+            .padding(Padding::from([tokens::space::MD, tokens::space::XL]))
+            .width(Length::Fill)
+            .style(move |_: &iced::Theme| container::Style {
+                background: Some(Background::Color(t.palette.selection_bg)),
+                border: Border {
+                    radius: scale::radius::MD.into(),
+                    ..Border::default()
+                },
+                ..container::Style::default()
+            }),
+        );
+    }
+    let content_action: fn(_) -> Msg = if editing {
+        Msg::EditContent
+    } else {
+        Msg::DraftContent
+    };
+    let tags_message: fn(String) -> Msg = if editing {
+        Msg::EditTags
+    } else {
+        Msg::DraftTags
+    };
+    fields = fields
+        .push(
+            column![
+                field_label(ctx, K::MemoryFieldContent),
+                editor(
+                    ctx,
+                    &draft.content,
+                    label(ctx, K::MemoryContentPlaceholder),
+                    content_action
+                ),
+            ]
+            .spacing(6),
+        )
+        .push(
+            column![
+                field_label(ctx, K::MemoryFieldTags),
+                crate::keymap::guard(
+                    ctx,
+                    input::text_field(t, &draft.tags)
+                        .placeholder(label(ctx, K::MemoryTagsAdd))
+                        .on_input(move |tags| msg(tags_message(tags)))
+                        .hint(ctx.t(K::MemoryTagsHint).to_string())
+                        .mono(),
+                ),
+            ]
+            .spacing(6),
+        );
+
+    let (title_key, save_message, cancel_message) = if editing {
+        (K::MemoryEditTitle, Msg::SaveEdit, Msg::CancelEdit)
+    } else {
+        (K::MemoryNew, Msg::Create, Msg::CancelCompose)
+    };
+    let save_label = if editing {
+        ctx.t(K::MemorySave)
+    } else if replacing {
+        ctx.t(K::MemoryReplaceConfirm)
+    } else {
+        ctx.t(K::MemorySave)
+    };
+    let workspace = ctx
+        .model
+        .active_workspace()
+        .map(|ws| ws.name.clone())
+        .unwrap_or_default();
+    let by = ctx
+        .i18n
+        .t_with(K::MemoryWrittenByYouIn, &args!("workspace" => workspace))
+        .into_owned();
+
+    Some(
+        dialog::dialog(t, ctx.t(title_key).to_string(), fields)
+            .width(FORM_WIDTH)
+            .body_max_height(560.0)
+            .note(by)
+            .action(btn::secondary(t, ctx.t(K::CreateCancel)).on_press(msg(cancel_message.clone())))
+            .action(
+                btn::primary(t, save_label)
+                    .on_press_maybe(draft.is_complete().then(|| msg(save_message))),
+            )
+            .close_tip(ctx.t(K::ModalClose).to_string())
+            .on_close(msg(cancel_message)),
     )
-    .padding(Padding {
-        top: tokens::space::LG,
-        bottom: tokens::space::SM,
-        ..Padding::ZERO
-    })
-    .into()
 }
 
 /// Four ghost rows while the first read is out.
@@ -358,7 +460,14 @@ fn skeleton<'a>(t: &'a Theme) -> Element<'a, Message> {
         container(space::horizontal())
             .width(width)
             .height(height)
-            .style(style::container::chip(t))
+            .style(move |_: &iced::Theme| container::Style {
+                background: Some(Background::Color(t.palette.border)),
+                border: Border {
+                    radius: scale::radius::XS.into(),
+                    ..Border::default()
+                },
+                ..container::Style::default()
+            })
     };
     let mut rows = column![];
     for _ in 0..4 {
@@ -372,7 +481,7 @@ fn skeleton<'a>(t: &'a Theme) -> Element<'a, Message> {
                 ]
                 .spacing(24),
             )
-            .padding(Padding::from([tokens::space::XL, tokens::space::XS])),
+            .padding(Padding::from([14.0, 16.0])),
         );
     }
     rows.into()
@@ -383,11 +492,13 @@ fn no_results<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
     let t = ctx.theme;
     container(
         column![
-            typography::muted(
-                t,
+            text(
                 ctx.i18n
                     .t_with(K::MemoryNoResults, &args!("q" => st.query.trim()))
-            ),
+                    .into_owned()
+            )
+            .size(tokens::font_size::UI)
+            .color(t.palette.text_muted),
             btn::ghost(t, ctx.t(K::MemoryClearSearch)).on_press(msg(Msg::ClearQuery)),
         ]
         .spacing(tokens::space::MD)
@@ -398,8 +509,8 @@ fn no_results<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
     .into()
 }
 
-/// One fact: what it says, its tags and actions on the left, who wrote it,
-/// when and from where on the right.
+/// One fact: the chevron, what it says with its tags and actions, and who
+/// wrote it, when and from where on the right.
 fn entry_row<'a>(
     st: &'a State,
     ctx: Ctx<'a>,
@@ -408,113 +519,228 @@ fn entry_row<'a>(
 ) -> Element<'a, Message> {
     let t = ctx.theme;
     let open = st.open.contains(&entry.id);
-    let editing = st.editing.as_ref().filter(|editing| editing.id == entry.id);
+    let hovered = st.hover.as_deref() == Some(entry.id.as_str());
 
-    let main: Element<'a, Message> = match editing {
-        Some(editing) => editing_form(ctx, &editing.draft),
-        None => reading(st, ctx, entry, open),
+    let chevron = {
+        let face = button(
+            container(icon(
+                if open {
+                    Icon::ChevronDown
+                } else {
+                    Icon::ChevronRight
+                },
+                tokens::size::ICON,
+            ))
+            .center(Length::Fill),
+        )
+        .width(CHEVRON)
+        .height(CHEVRON)
+        .padding(0)
+        .style(style::button::plain(t))
+        .on_press(msg(Msg::Toggle(entry.id.clone())));
+        // Right opens, Left folds, Enter edits, Delete asks to delete.
+        let id = entry.id.clone();
+        let toggle = || msg(Msg::Toggle(entry.id.clone()));
+        let ring = focus::ring(
+            t,
+            tip::over(
+                t,
+                face,
+                if open {
+                    ctx.t(K::MemoryCollapse)
+                } else {
+                    ctx.t(K::MemoryExpand)
+                },
+            ),
+        )
+        .radius(scale::radius::SM)
+        .on_activate(msg(Msg::StartEdit(entry.id.clone())))
+        .on_arrows(open.then(toggle), (!open).then(toggle));
+        keys::on_field_key(ring, move |key, _| match key {
+            Key::Named(Named::Delete) => Some(msg(Msg::Arm(id.clone()))),
+            _ => None,
+        })
     };
+
+    let editing_this = st
+        .editing
+        .as_ref()
+        .is_some_and(|editing| editing.id == entry.id);
+    let main = reading(st, ctx, entry, open, hovered || editing_this);
     let origin = origin(ctx, entry, narrow);
 
     let line: Element<'a, Message> = if narrow {
-        column![main, origin].spacing(tokens::space::SM).into()
+        row![
+            container(chevron).width(CHEVRON),
+            column![main, origin]
+                .spacing(tokens::space::SM)
+                .width(Length::Fill),
+        ]
+        .spacing(tokens::space::XL)
+        .into()
     } else {
         row![
+            container(chevron).width(CHEVRON),
             container(main).width(Length::Fill),
             container(origin).width(ORIGIN_WIDTH),
         ]
-        .spacing(24)
+        .spacing(tokens::space::XL)
         .into()
     };
+    let shown = container(line)
+        .padding(Padding::from([14.0, 16.0]))
+        .width(Length::Fill)
+        .style(move |_: &iced::Theme| container::Style {
+            background: hovered.then_some(Background::Color(t.palette.hover_overlay)),
+            border: Border {
+                radius: scale::radius::MD.into(),
+                ..Border::default()
+            },
+            ..container::Style::default()
+        });
     column![
-        container(line)
-            .padding(Padding::from([tokens::space::XL, tokens::space::XS]))
-            .width(Length::Fill),
-        rule::horizontal(1).style(style::rule::hairline(t)),
+        mouse_area(shown)
+            .on_enter(msg(Msg::Hover(Some(entry.id.clone()))))
+            .on_exit(msg(Msg::Hover(None))),
+        rule::horizontal(1).style(move |theme: &iced::Theme| rule::Style {
+            color: t.palette.border,
+            ..style::rule::hairline(t)(theme)
+        }),
     ]
     .into()
 }
 
-/// An entry as it is read: the title that opens it, its text, its tags and,
-/// open, the actions.
+/// How an open entry's Markdown is drawn: the interface face at 13 px, headings
+/// a step larger, code in the mono face.
+fn markdown_settings(t: &Theme) -> Settings {
+    let size = tokens::font_size::UI;
+    let mut settings = Settings::with_text_size(
+        size,
+        MarkdownStyle {
+            font: fonts::ui(),
+            inline_code_highlight: Highlight {
+                background: Background::Color(t.palette.hover_overlay),
+                border: border::rounded(scale::radius::XS),
+            },
+            inline_code_padding: padding::left(3).right(3),
+            inline_code_color: t.palette.text,
+            inline_code_font: fonts::mono(),
+            code_block_font: fonts::mono(),
+            link_color: t.palette.accent_text,
+        },
+    );
+    let step = |level: HeadingLevel| {
+        size * match level {
+            HeadingLevel::H1 => 1.4,
+            HeadingLevel::H2 => 1.25,
+            HeadingLevel::H3 => 1.12,
+            _ => 1.0,
+        }
+    };
+    settings.h1_size = step(HeadingLevel::H1).into();
+    settings.h2_size = step(HeadingLevel::H2).into();
+    settings.h3_size = step(HeadingLevel::H3).into();
+    settings.h4_size = size.into();
+    settings.h5_size = size.into();
+    settings.h6_size = size.into();
+    settings.code_size = (size * 0.88).into();
+    settings
+}
+
+/// An entry as it is read: its title, its text (cut at two lines, or whole
+/// and in Markdown when open), its tags and, open or under the pointer, the
+/// actions.
 fn reading<'a>(
     st: &'a State,
     ctx: Ctx<'a>,
     entry: &'a MemoryEntry,
     open: bool,
+    actions_shown: bool,
 ) -> Element<'a, Message> {
     let t = ctx.theme;
-    let toggle = tip::over(
-        t,
-        button(
-            row![
-                icon(
-                    if open {
-                        Icon::ChevronDown
-                    } else {
-                        Icon::ChevronRight
-                    },
-                    10.0
-                )
-                .color(t.colors.fg_subtle),
-                text(entry.title.as_str())
-                    .size(tokens::font_size::UI_LG)
-                    .font(fonts::ui_semibold())
-                    .style(style::text::primary(t)),
-            ]
-            .spacing(tokens::space::SM)
-            .align_y(Alignment::Center),
+    let title = button(
+        text(entry.title.as_str())
+            .size(tokens::font_size::BODY)
+            .font(fonts::ui_semibold())
+            .color(t.palette.text),
+    )
+    .padding(0)
+    .style(style::button::plain(t))
+    .on_press(msg(Msg::Toggle(entry.id.clone())));
+
+    let mut main = column![title].spacing(6);
+    let rendered = open.then(|| st.rendered.get(&entry.id)).flatten();
+    let text_block: Element<'a, Message> = match rendered {
+        Some(content) => container(
+            markdown::view(content.items(), markdown_settings(t)).map(|_| msg(Msg::Ignore)),
         )
-        .padding(0)
-        .style(style::button::plain(t))
-        .on_press(msg(Msg::Toggle(entry.id.clone()))),
-        if open {
-            ctx.t(K::MemoryCollapse)
-        } else {
-            ctx.t(K::MemoryExpand)
-        },
-    );
-
-    let body = typography::muted(t, entry.content.as_str()).line_height(tokens::line_height::BODY);
-    let body: Element<'a, Message> = if open {
-        body.into()
-    } else {
-        // Collapsed entries keep the list scannable; the whole text is one
-        // click away. iced has no line clamp, so the text is cut at two lines.
-        container(body).max_height(CLAMP_HEIGHT).clip(true).into()
+        .padding(Padding::from([tokens::space::XL, tokens::space::XXL]))
+        .width(Length::Fill)
+        .style(move |_: &iced::Theme| container::Style {
+            background: Some(Background::Color(t.palette.surface_sunken)),
+            text_color: Some(t.palette.text_secondary),
+            border: Border {
+                color: t.palette.border,
+                width: BORDER_WIDTH,
+                radius: scale::radius::MD.into(),
+            },
+            ..container::Style::default()
+        })
+        .into(),
+        None => {
+            // Collapsed entries keep the list scannable; the whole text is
+            // one click away. iced has no line clamp, so the text is cut at
+            // two lines.
+            let excerpt: Element<'a, Message> = text(entry.content.as_str())
+                .size(tokens::font_size::UI)
+                .line_height(iced::widget::text::LineHeight::Absolute(
+                    EXCERPT_LINE.into(),
+                ))
+                .color(t.palette.text_secondary)
+                .into();
+            container(excerpt)
+                .max_height(CLAMP_HEIGHT)
+                .clip(true)
+                .into()
+        }
     };
+    main = main.push(text_block);
 
-    let mut main = column![toggle, body].spacing(5);
-    if !entry.tags.is_empty() {
-        let chips = entry.tags.iter().map(|tag| {
-            container(
-                text(tag.as_str())
-                    .size(tokens::font_size::LABEL)
-                    .font(fonts::mono()),
-            )
-            .padding(Padding::from([1.0, tokens::space::SM]))
-            .style(style::container::chip(t))
-            .into()
-        });
-        main = main.push(row(chips).spacing(tokens::space::XS).wrap());
+    let chips = row(entry.tags.iter().map(|tag| {
+        container(
+            text(tag.as_str())
+                .size(tokens::font_size::LABEL)
+                .font(fonts::mono())
+                .color(t.palette.text_secondary),
+        )
+        .padding(Padding::from([2.0, tokens::space::MD]))
+        .style(move |_: &iced::Theme| container::Style {
+            background: Some(Background::Color(t.palette.surface_sunken)),
+            border: Border {
+                color: t.palette.border,
+                width: BORDER_WIDTH,
+                radius: scale::radius::XS.into(),
+            },
+            ..container::Style::default()
+        })
+        .into()
+    }))
+    .spacing(tokens::space::SM)
+    .wrap();
+    let mut line = row![container(chips).width(Length::Fill)]
+        .spacing(tokens::space::XL)
+        .align_y(Alignment::Center);
+    if open || actions_shown {
+        line = line.push(actions(st, ctx, entry));
     }
-    if open {
-        main = main.push(actions(st, ctx, entry));
-    }
-    main.into()
+    main.push(line).into()
 }
 
-/// The row under an open entry: when it was written, edit, delete (twice).
+/// What can be done to an entry: edit it, delete it (asking twice).
 fn actions<'a>(st: &'a State, ctx: Ctx<'a>, entry: &'a MemoryEntry) -> Element<'a, Message> {
     let t = ctx.theme;
-    let locale = ctx.i18n.locale();
-    let created = ctx.i18n.t_with(
-        K::MemoryCreatedAt,
-        &args!("date" => full_date(entry.created_at, locale)),
-    );
     let mut line = row![
-        typography::subtle(t, created).width(Length::Fill),
-        btn::ghost(t, ctx.t(K::MemoryEdit))
+        btn::secondary(t, ctx.t(K::MemoryEdit))
             .icon(Icon::Pencil)
             .small()
             .on_press(msg(Msg::StartEdit(entry.id.clone()))),
@@ -534,101 +760,97 @@ fn actions<'a>(st: &'a State, ctx: Ctx<'a>, entry: &'a MemoryEntry) -> Element<'
                     .on_press(msg(Msg::Delete(entry.id.clone()))),
             );
     } else {
+        let failed = t.palette.status.failed;
+        let face = button(
+            row![
+                icon(Icon::Trash, tokens::size::ICON).color(failed),
+                text(ctx.t(K::MemoryDelete).to_string())
+                    .size(tokens::font_size::UI)
+                    .font(fonts::ui_medium())
+                    .color(failed),
+            ]
+            .spacing(tokens::space::SM)
+            .align_y(Alignment::Center),
+        )
+        .height(scale::size::CONTROL_SM)
+        .padding(Padding::from([0.0, tokens::space::LG]))
+        .style(move |_: &iced::Theme, status| {
+            let pointed = matches!(status, button::Status::Hovered | button::Status::Pressed);
+            button::Style {
+                background: pointed.then_some(Background::Color(t.palette.hover_overlay)),
+                text_color: failed,
+                border: Border {
+                    radius: scale::radius::SM.into(),
+                    ..Border::default()
+                },
+                ..button::Style::default()
+            }
+        })
+        .on_press(msg(Msg::Arm(entry.id.clone())));
         line = line.push(
-            btn::ghost(t, ctx.t(K::MemoryDelete))
-                .icon(Icon::Trash)
-                .small()
-                .on_press(msg(Msg::Arm(entry.id.clone()))),
+            focus::ring(t, face)
+                .radius(scale::radius::SM)
+                .on_activate(msg(Msg::Arm(entry.id.clone()))),
         );
     }
-    container(line)
-        .max_width(620.0)
-        .padding(Padding {
-            top: 6.0,
-            ..Padding::ZERO
-        })
-        .into()
+    line.into()
 }
 
-/// An entry being edited: its three fields, save and cancel.
-fn editing_form<'a>(ctx: Ctx<'a>, draft: &'a Draft) -> Element<'a, Message> {
-    let t = ctx.theme;
-    let save = btn::primary(t, ctx.t(K::MemorySave))
-        .on_press_maybe(draft.is_complete().then(|| msg(Msg::SaveEdit)));
-    column![
-        crate::keymap::guard(
-            ctx,
-            input::text_field(t, &draft.title)
-                .placeholder(label(ctx, K::MemoryTitlePlaceholder))
-                .on_input(|title| msg(Msg::EditTitle(title))),
-        ),
-        editor(
-            ctx,
-            &draft.content,
-            8,
-            label(ctx, K::MemoryContentPlaceholder),
-            Msg::EditContent
-        ),
-        crate::keymap::guard(
-            ctx,
-            input::text_field(t, &draft.tags)
-                .placeholder(label(ctx, K::MemoryTagsPlaceholder))
-                .on_input(|tags| msg(Msg::EditTags(tags)))
-                .mono(),
-        ),
-        row![
-            typography::subtle(t, ctx.t(K::MemoryTagsHint)).width(Length::Fill),
-            btn::ghost(t, ctx.t(K::CreateCancel)).on_press(msg(Msg::CancelEdit)),
-            save,
-        ]
-        .spacing(tokens::space::SM)
-        .align_y(Alignment::Center),
-    ]
-    .spacing(tokens::space::MD)
-    .into()
-}
-
-/// "Written by Ava", "Updated Oct 21", the folder: the right column.
+/// "Written by Ava", "Updated Oct 21", "Created Oct 3", the folder: the
+/// right column.
 fn origin<'a>(ctx: Ctx<'a>, entry: &'a MemoryEntry, narrow: bool) -> Element<'a, Message> {
     let t = ctx.theme;
     let locale = ctx.i18n.locale();
-    let updated = was_updated(entry.created_at, entry.updated_at);
-    let at = if updated {
-        entry.updated_at
-    } else {
-        entry.created_at
+    let line = |content: String| {
+        text(content)
+            .size(tokens::font_size::LABEL)
+            .color(t.palette.text_muted)
+            .wrapping(text::Wrapping::None)
     };
-    let dated = match short_day(at, now_ms(), locale) {
-        ShortDay::Today => ctx.t(if updated {
-            K::MemoryUpdatedToday
-        } else {
-            K::MemoryCreatedToday
-        }),
-        ShortDay::On(day) => ctx.i18n.t_with(
-            if updated {
-                K::MemoryUpdatedAt
-            } else {
-                K::MemoryCreatedAt
-            },
-            &args!("date" => day),
-        ),
+    let day = |at: u64, updated: bool| {
+        let when = match short_day(at, now_ms(), locale) {
+            ShortDay::Today => ctx
+                .t(if updated {
+                    K::MemoryUpdatedToday
+                } else {
+                    K::MemoryCreatedToday
+                })
+                .to_string(),
+            ShortDay::On(day) => ctx
+                .i18n
+                .t_with(
+                    if updated {
+                        K::MemoryUpdatedAt
+                    } else {
+                        K::MemoryCreatedAt
+                    },
+                    &args!("date" => day),
+                )
+                .into_owned(),
+        };
+        let full = ctx
+            .i18n
+            .t_with(
+                if updated {
+                    K::MemoryUpdatedAt
+                } else {
+                    K::MemoryCreatedAt
+                },
+                &args!("date" => full_date(at, locale)),
+            )
+            .into_owned();
+        tip::over(t, line(when), full)
     };
-    let full = ctx.i18n.t_with(
-        if updated {
-            K::MemoryUpdatedAt
-        } else {
-            K::MemoryCreatedAt
-        },
-        &args!("date" => full_date(at, locale)),
-    );
 
     let signer: Element<'a, Message> = match signer_name(&entry.agent) {
-        None => typography::subtle(t, ctx.t(K::MemoryByYou)).into(),
+        None => line(ctx.t(K::MemoryByYou).to_string()).into(),
         Some(name) => row![
-            typography::subtle(t, ctx.t(K::MemoryWrittenBy)),
-            typography::subtle(t, name)
+            line(ctx.t(K::MemoryWrittenBy).to_string()),
+            text(name)
+                .size(tokens::font_size::LABEL)
                 .font(fonts::ui_medium())
-                .style(style::text::muted(t)),
+                .color(t.palette.text)
+                .wrapping(text::Wrapping::None),
         ]
         .spacing(tokens::space::XS)
         .into(),
@@ -637,21 +859,29 @@ fn origin<'a>(ctx: Ctx<'a>, entry: &'a MemoryEntry, narrow: bool) -> Element<'a,
         t,
         signer,
         ctx.i18n
-            .t_with(K::MemoryByAgent, &args!("agent" => entry.agent.as_str())),
+            .t_with(K::MemoryByAgent, &args!("agent" => entry.agent.as_str()))
+            .into_owned(),
     );
-    let date = tip::over(t, typography::subtle(t, dated), full);
 
-    let mut lines = column![signer, date].spacing(1);
+    let mut lines = column![signer].spacing(1);
+    if was_updated(entry.created_at, entry.updated_at) {
+        lines = lines.push(day(entry.updated_at, true));
+    }
+    lines = lines.push(day(entry.created_at, false));
     if !entry.workspace.is_empty() {
         lines = lines.push(tip::over(
             t,
-            typography::subtle(t, compact_path(&entry.workspace, PATH_CHARS))
+            text(compact_path(&entry.workspace, PATH_CHARS))
                 .font(fonts::mono())
-                .size(tokens::font_size::LABEL),
-            ctx.i18n.t_with(
-                K::MemoryFromWorkspace,
-                &args!("path" => entry.workspace.as_str()),
-            ),
+                .size(tokens::font_size::MICRO - 0.5)
+                .color(t.palette.text_muted)
+                .wrapping(text::Wrapping::None),
+            ctx.i18n
+                .t_with(
+                    K::MemoryFromWorkspace,
+                    &args!("path" => entry.workspace.as_str()),
+                )
+                .into_owned(),
         ));
     }
     lines

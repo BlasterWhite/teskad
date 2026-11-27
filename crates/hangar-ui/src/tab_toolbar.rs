@@ -151,6 +151,29 @@ pub fn note<'a, M: Clone + 'a>(
     tip::bottom(t, face, hint)
 }
 
+/// The MCP note of a tab whose note is only information: the plug and
+/// `words`, or the plug alone when the bar is `compact`; the words are in a
+/// tooltip either way.
+pub fn note_plain<'a, M: 'a>(t: &'a Theme, words: String, compact: bool) -> Element<'a, M> {
+    let mut content = row![icon(Icon::Plug, 12.0).color(t.palette.text_muted)]
+        .spacing(space::SM)
+        .align_y(Alignment::Center);
+    if !compact {
+        content = content.push(
+            text(words.clone())
+                .size(12.0)
+                .color(t.palette.text_muted)
+                .wrapping(Wrapping::None),
+        );
+    }
+    let face = container(content)
+        .padding([0.0, space::SM])
+        .height(scale::size::CONTROL_SM)
+        .align_y(Alignment::Center)
+        .clip(true);
+    tip::bottom(t, face, words)
+}
+
 /// A filter's button: 28 px, `surface` in a `border` hairline; one that hides
 /// something takes the accent's hairline on the selection's fill.
 pub fn filter_style(

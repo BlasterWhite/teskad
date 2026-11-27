@@ -221,7 +221,7 @@ impl canvas::Program<Message> for Columns {
         _cursor: mouse::Cursor,
     ) -> Vec<canvas::Geometry> {
         let mut frame = canvas::Frame::new(renderer, bounds.size());
-        let colors = &self.theme.colors;
+        let palette = &self.theme.palette;
         let series = &self.summary.series;
         let layout = Layout::new(bounds.width, series.len());
         let max = self.max();
@@ -237,9 +237,9 @@ impl canvas::Program<Message> for Columns {
         for tick in &ticks {
             let y = crisp(floor - height_of(*tick));
             let color = if *tick == 0.0 {
-                colors.line_strong
+                palette.border_strong
             } else {
-                colors.line
+                palette.border
             };
             frame.stroke(
                 &Path::line(
@@ -251,7 +251,7 @@ impl canvas::Program<Message> for Columns {
             frame.fill_text(caption(
                 format::format_tick(*tick, self.measure, self.locale),
                 Point::new(GUTTER - 8.0, y),
-                colors.fg_subtle,
+                palette.text_muted,
                 TICK_SIZE,
                 alignment::Horizontal::Right,
                 alignment::Vertical::Center,
@@ -265,7 +265,7 @@ impl canvas::Program<Message> for Columns {
                     Size::new(layout.slot, PLOT_HEIGHT),
                     3.0.into(),
                 ),
-                colors.line,
+                palette.border,
             );
         }
 
@@ -335,7 +335,7 @@ impl canvas::Program<Message> for Columns {
             frame.fill_text(caption(
                 text,
                 Point::new(layout.center(index), floor + 16.0),
-                colors.fg_subtle,
+                palette.text_muted,
                 TICK_SIZE,
                 align,
                 alignment::Vertical::Center,
@@ -348,7 +348,7 @@ impl canvas::Program<Message> for Columns {
             frame.fill_text(caption(
                 self.empty.0.clone(),
                 Point::new(middle_x, middle_y - 9.0),
-                colors.fg_secondary,
+                palette.text_secondary,
                 13.0,
                 alignment::Horizontal::Center,
                 alignment::Vertical::Center,
@@ -356,7 +356,7 @@ impl canvas::Program<Message> for Columns {
             frame.fill_text(caption(
                 self.empty.1.clone(),
                 Point::new(middle_x, middle_y + 10.0),
-                colors.fg_subtle,
+                palette.text_muted,
                 12.0,
                 alignment::Horizontal::Center,
                 alignment::Vertical::Center,
@@ -371,7 +371,7 @@ impl canvas::Program<Message> for Columns {
                     6.0.into(),
                 ),
                 Stroke::default()
-                    .with_color(colors.accent_ring)
+                    .with_color(palette.focus_ring)
                     .with_width(2.0),
             );
         }

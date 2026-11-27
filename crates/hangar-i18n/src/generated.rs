@@ -2190,6 +2190,8 @@ pub enum Key {
     MemoryDeleteConfirm,
     /// `memory.edit`
     MemoryEdit,
+    /// `memory.editTitle`
+    MemoryEditTitle,
     /// `memory.empty`
     MemoryEmpty,
     /// `memory.emptyAction`
@@ -2200,6 +2202,12 @@ pub enum Key {
     MemoryEntries,
     /// `memory.expand`
     MemoryExpand,
+    /// `memory.fieldContent`
+    MemoryFieldContent,
+    /// `memory.fieldTags`
+    MemoryFieldTags,
+    /// `memory.fieldTitle`
+    MemoryFieldTitle,
     /// `memory.fromWorkspace`
     MemoryFromWorkspace,
     /// `memory.hint`
@@ -2222,10 +2230,16 @@ pub enum Key {
     MemorySave,
     /// `memory.search`
     MemorySearch,
+    /// `memory.segOldest`
+    MemorySegOldest,
+    /// `memory.segRecent`
+    MemorySegRecent,
     /// `memory.sortOldest`
     MemorySortOldest,
     /// `memory.sortRecent`
     MemorySortRecent,
+    /// `memory.tagsAdd`
+    MemoryTagsAdd,
     /// `memory.tagsHint`
     MemoryTagsHint,
     /// `memory.tagsPlaceholder`
@@ -2234,6 +2248,8 @@ pub enum Key {
     MemoryTitle,
     /// `memory.titlePlaceholder`
     MemoryTitlePlaceholder,
+    /// `memory.titleTaken`
+    MemoryTitleTaken,
     /// `memory.updatedAt`
     MemoryUpdatedAt,
     /// `memory.updatedToday`
@@ -2242,6 +2258,8 @@ pub enum Key {
     MemoryUpsertHint,
     /// `memory.writtenBy`
     MemoryWrittenBy,
+    /// `memory.writtenByYouIn`
+    MemoryWrittenByYouIn,
     /// `mobile.appPortAdd`
     MobileAppPortAdd,
     /// `mobile.appPortDuplicate`
@@ -5762,11 +5780,15 @@ impl Key {
         Key::MemoryDelete,
         Key::MemoryDeleteConfirm,
         Key::MemoryEdit,
+        Key::MemoryEditTitle,
         Key::MemoryEmpty,
         Key::MemoryEmptyAction,
         Key::MemoryEmptyBody,
         Key::MemoryEntries,
         Key::MemoryExpand,
+        Key::MemoryFieldContent,
+        Key::MemoryFieldTags,
+        Key::MemoryFieldTitle,
         Key::MemoryFromWorkspace,
         Key::MemoryHint,
         Key::MemoryLoading,
@@ -5778,16 +5800,21 @@ impl Key {
         Key::MemoryResults,
         Key::MemorySave,
         Key::MemorySearch,
+        Key::MemorySegOldest,
+        Key::MemorySegRecent,
         Key::MemorySortOldest,
         Key::MemorySortRecent,
+        Key::MemoryTagsAdd,
         Key::MemoryTagsHint,
         Key::MemoryTagsPlaceholder,
         Key::MemoryTitle,
         Key::MemoryTitlePlaceholder,
+        Key::MemoryTitleTaken,
         Key::MemoryUpdatedAt,
         Key::MemoryUpdatedToday,
         Key::MemoryUpsertHint,
         Key::MemoryWrittenBy,
+        Key::MemoryWrittenByYouIn,
         Key::MobileAppPortAdd,
         Key::MobileAppPortDuplicate,
         Key::MobileAppPortHangar,
@@ -8087,16 +8114,20 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "memory.collapse", en: Text::plain("Collapse the entry"), fr: Text::plain("Replier l'entrée") },
     Message { id: "memory.contentPlaceholder", en: Text::plain("What is worth remembering, and why…"), fr: Text::plain("Ce qui mérite d'être retenu, et pourquoi…") },
     Message { id: "memory.create", en: Text::plain("Remember"), fr: Text::plain("Mémoriser") },
-    Message { id: "memory.createdAt", en: Text::plain("Written {date}"), fr: Text::plain("Écrite le {date}") },
-    Message { id: "memory.createdToday", en: Text::plain("Written today"), fr: Text::plain("Écrite aujourd'hui") },
+    Message { id: "memory.createdAt", en: Text::plain("Created {date}"), fr: Text::plain("Créée le {date}") },
+    Message { id: "memory.createdToday", en: Text::plain("Created today"), fr: Text::plain("Créée aujourd'hui") },
     Message { id: "memory.delete", en: Text::plain("Delete"), fr: Text::plain("Supprimer") },
     Message { id: "memory.deleteConfirm", en: Text::plain("Confirm"), fr: Text::plain("Confirmer") },
     Message { id: "memory.edit", en: Text::plain("Edit"), fr: Text::plain("Modifier") },
+    Message { id: "memory.editTitle", en: Text::plain("Edit entry"), fr: Text::plain("Modifier l'entrée") },
     Message { id: "memory.empty", en: Text::plain("Memory is empty"), fr: Text::plain("Mémoire vide") },
     Message { id: "memory.emptyAction", en: Text::plain("Write the first entry"), fr: Text::plain("Écrire la première entrée") },
     Message { id: "memory.emptyBody", en: Text::plain("Agents fill this in over MCP with the memory_* tools: what is worth keeping across sessions — decisions, pitfalls, the conventions of a project. Everything written here is shared by every workspace, and you can add an entry yourself."), fr: Text::plain("Les agents la remplissent via MCP avec les outils memory_*\u{202f}: ce qui mérite de survivre à une session — décisions, pièges, conventions d'un projet. Tout ce qui est écrit ici est partagé par tous les workspaces, et tu peux ajouter une entrée toi-même.") },
     Message { id: "memory.entries", en: Text::plural("{n} entry", "{n} entries"), fr: Text::plural("{n} entrée", "{n} entrées") },
     Message { id: "memory.expand", en: Text::plain("Read the whole entry"), fr: Text::plain("Lire l'entrée en entier") },
+    Message { id: "memory.fieldContent", en: Text::plain("Content"), fr: Text::plain("Contenu") },
+    Message { id: "memory.fieldTags", en: Text::plain("Tags"), fr: Text::plain("Étiquettes") },
+    Message { id: "memory.fieldTitle", en: Text::plain("Title"), fr: Text::plain("Titre") },
     Message { id: "memory.fromWorkspace", en: Text::plain("From {path}"), fr: Text::plain("Depuis {path}") },
     Message { id: "memory.hint", en: Text::plain("Agents read and write this memory over MCP, from every workspace"), fr: Text::plain("Les agents lisent et écrivent cette mémoire via MCP, depuis tous les workspaces") },
     Message { id: "memory.loading", en: Text::plain("Reading the memory…"), fr: Text::plain("Lecture de la mémoire…") },
@@ -8108,16 +8139,21 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "memory.results", en: Text::plural("{n} result", "{n} results"), fr: Text::plural("{n} résultat", "{n} résultats") },
     Message { id: "memory.save", en: Text::plain("Save"), fr: Text::plain("Enregistrer") },
     Message { id: "memory.search", en: Text::plain("Search the memory…"), fr: Text::plain("Rechercher dans la mémoire…") },
+    Message { id: "memory.segOldest", en: Text::plain("Oldest"), fr: Text::plain("Anciennes") },
+    Message { id: "memory.segRecent", en: Text::plain("Recent"), fr: Text::plain("Récentes") },
     Message { id: "memory.sortOldest", en: Text::plain("Oldest updates first"), fr: Text::plain("Plus anciennes mises à jour d'abord") },
     Message { id: "memory.sortRecent", en: Text::plain("Latest updates first"), fr: Text::plain("Dernières mises à jour d'abord") },
+    Message { id: "memory.tagsAdd", en: Text::plain("Add a tag…"), fr: Text::plain("Ajouter une étiquette…") },
     Message { id: "memory.tagsHint", en: Text::plain("tags separated by commas"), fr: Text::plain("étiquettes séparées par des virgules") },
     Message { id: "memory.tagsPlaceholder", en: Text::plain("Tags, separated by commas"), fr: Text::plain("Étiquettes, séparées par des virgules") },
     Message { id: "memory.title", en: Text::plain("Memory"), fr: Text::plain("Mémoire") },
     Message { id: "memory.titlePlaceholder", en: Text::plain("Title — what this fact is about"), fr: Text::plain("Titre — de quoi parle ce fait") },
+    Message { id: "memory.titleTaken", en: Text::plain("An entry already has this title: saving updates it instead of creating a new one."), fr: Text::plain("Une entrée porte déjà ce titre\u{202f}: enregistrer la met à jour au lieu d'en créer une nouvelle.") },
     Message { id: "memory.updatedAt", en: Text::plain("Updated {date}"), fr: Text::plain("Mise à jour le {date}") },
     Message { id: "memory.updatedToday", en: Text::plain("Updated today"), fr: Text::plain("Mise à jour aujourd'hui") },
     Message { id: "memory.upsertHint", en: Text::plain("A title already in memory is updated, never duplicated."), fr: Text::plain("Un titre déjà en mémoire est mis à jour, jamais dupliqué.") },
     Message { id: "memory.writtenBy", en: Text::plain("Written by"), fr: Text::plain("Écrite par") },
+    Message { id: "memory.writtenByYouIn", en: Text::plain("Written by you · {workspace}"), fr: Text::plain("Écrite par vous · {workspace}") },
     Message { id: "mobile.appPortAdd", en: Text::plain("Add"), fr: Text::plain("Ajouter") },
     Message { id: "mobile.appPortDuplicate", en: Text::plain("Port {port} is already in the list."), fr: Text::plain("Le port {port} est déjà dans la liste.") },
     Message { id: "mobile.appPortHangar", en: Text::plain("Port {port} is {app}'s own: {app} Mobile listens on it."), fr: Text::plain("Le port {port} est celui de {app}\u{202f}: {app} Mobile l'écoute.") },
