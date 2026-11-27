@@ -290,7 +290,7 @@ mod tests {
 
     #[test]
     fn adds_hangars_server_on_top_of_claude_codes_own_and_lets_its_tools_through() {
-        let tools = strings(&["mcp__hangar"]);
+        let tools = strings(&["mcp__teskad"]);
         let roots = strings(&["/x"]);
         assert_eq!(
             claude(LaunchOptions {
@@ -302,7 +302,7 @@ mod tests {
                 extra_roots: &roots,
                 ..Default::default()
             }),
-            "claude --model sonnet --permission-mode auto --allowedTools mcp__hangar --mcp-config /h.json --add-dir \"/x\""
+            "claude --model sonnet --permission-mode auto --allowedTools mcp__teskad --mcp-config /h.json --add-dir \"/x\""
         );
         // The last flag, nothing to close its list.
         assert_eq!(
@@ -319,17 +319,17 @@ mod tests {
     /// names; the real one is the MCP package's (P10).
     fn mcp_config_arg(family: &str) -> &'static str {
         match family {
-            "powershell" => "$env:HANGAR_MCP_CONFIG",
-            "cmd" => "\"%HANGAR_MCP_CONFIG%\"",
-            "posix" | "fish" => "\"$HANGAR_MCP_CONFIG\"",
-            "nu" => "$env.HANGAR_MCP_CONFIG",
+            "powershell" => "$env:TESKAD_MCP_CONFIG",
+            "cmd" => "\"%TESKAD_MCP_CONFIG%\"",
+            "posix" | "fish" => "\"$TESKAD_MCP_CONFIG\"",
+            "nu" => "$env.TESKAD_MCP_CONFIG",
             other => panic!("no such family {other}"),
         }
     }
 
     #[test]
     fn never_shows_the_config_files_path_in_any_shell_that_holds_it_in_a_variable() {
-        let tools = strings(&["mcp__hangar"]);
+        let tools = strings(&["mcp__teskad"]);
         let roots = strings(&["D:\\shared"]);
         let line = |family: &str, strict: bool| {
             launch(
@@ -348,32 +348,32 @@ mod tests {
             )
             .unwrap()
         };
-        let flags = "claude --resume abc --name Bo --model sonnet --permission-mode auto --allowedTools mcp__hangar";
+        let flags = "claude --resume abc --name Bo --model sonnet --permission-mode auto --allowedTools mcp__teskad";
         assert_eq!(
             line("powershell", false),
-            format!("{flags} --mcp-config $env:HANGAR_MCP_CONFIG --add-dir \"D:\\shared\"")
+            format!("{flags} --mcp-config $env:TESKAD_MCP_CONFIG --add-dir \"D:\\shared\"")
         );
         assert_eq!(
             line("cmd", false),
-            format!("{flags} --mcp-config \"%HANGAR_MCP_CONFIG%\" --add-dir \"D:\\shared\"")
+            format!("{flags} --mcp-config \"%TESKAD_MCP_CONFIG%\" --add-dir \"D:\\shared\"")
         );
         assert_eq!(
             line("posix", false),
-            format!("{flags} --mcp-config \"$HANGAR_MCP_CONFIG\" --add-dir \"D:\\shared\"")
+            format!("{flags} --mcp-config \"$TESKAD_MCP_CONFIG\" --add-dir \"D:\\shared\"")
         );
         assert_eq!(
             line("fish", false),
-            format!("{flags} --mcp-config \"$HANGAR_MCP_CONFIG\" --add-dir \"D:\\shared\"")
+            format!("{flags} --mcp-config \"$TESKAD_MCP_CONFIG\" --add-dir \"D:\\shared\"")
         );
         assert_eq!(
             line("nu", false),
-            format!("{flags} --mcp-config $env.HANGAR_MCP_CONFIG --add-dir \"D:\\shared\"")
+            format!("{flags} --mcp-config $env.TESKAD_MCP_CONFIG --add-dir \"D:\\shared\"")
         );
         // A workspace's own server choice: the same variable, strict.
         assert_eq!(
             line("powershell", true),
             format!(
-                "{flags} --mcp-config $env:HANGAR_MCP_CONFIG --strict-mcp-config --add-dir \"D:\\shared\""
+                "{flags} --mcp-config $env:TESKAD_MCP_CONFIG --strict-mcp-config --add-dir \"D:\\shared\""
             )
         );
         for family in ["powershell", "cmd", "posix", "fish", "nu"] {
@@ -397,13 +397,13 @@ mod tests {
             }),
             "claude"
         );
-        let tools = strings(&["mcp__hangar", "Bash(rm *)"]);
+        let tools = strings(&["mcp__teskad", "Bash(rm *)"]);
         assert_eq!(
             claude(LaunchOptions {
                 allowed_tools: &tools,
                 ..Default::default()
             }),
-            "claude --allowedTools mcp__hangar"
+            "claude --allowedTools mcp__teskad"
         );
     }
 

@@ -1,12 +1,12 @@
 //! Hangar's messages to the orchestrator, read for the person: what the
-//! hangar-bridge mod labels them with says what they are (`labelled` in its
+//! teskad-bridge mod labels them with says what they are (`labelled` in its
 //! register.js), and the news of the workspace reads back line by line
 //! (`orchestration::heard`).
 //!
-//! - `[Hangar] Event — …`: the news of the workspace, a line per thing that
+//! - `[Teskad] Event — …`: the news of the workspace, a line per thing that
 //!   happened, then what to do next, which is for the model alone;
-//! - `[Hangar] From agent "Ada" — …`: a message an agent sent;
-//! - `[Hangar] Briefing — …`: the state of the work, handed to a
+//! - `[Teskad] From agent "Ada" — …`: a message an agent sent;
+//! - `[Teskad] Briefing — …`: the state of the work, handed to a
 //!   conversation that starts.
 
 use crate::orchestration::heard::{Heard, read_line};
@@ -32,9 +32,22 @@ pub enum Line {
     Said(String),
 }
 
-const EVENT: &str = "[Hangar] Event";
-const FROM_AGENT: &str = "[Hangar] From agent ";
-const BRIEFING: &str = "[Hangar] Briefing";
+const EVENT: &str = "Event";
+const FROM_AGENT: &str = "From agent ";
+const BRIEFING: &str = "Briefing";
+
+/// What the app's messages start with, and what they started with before the
+/// rename, which a conversation saved then still holds.
+const MARKS: [&str; 2] = ["[Teskad]", "[Hangar]"];
+
+/// `text` without the app's mark and the space after it; `None` for a text
+/// that does not start with it.
+fn unmarked(text: &str) -> Option<&str> {
+    MARKS
+        .iter()
+        .find_map(|mark| text.strip_prefix(mark))
+        .map(|rest| rest.strip_prefix(' ').unwrap_or(rest))
+}
 
 /// What follows the label's line and the blank line under it.
 fn body(text: &str) -> &str {
@@ -63,7 +76,10 @@ fn news(body: &str) -> Vec<Line> {
 /// A message Hangar put in the conversation, read.
 pub fn note(text: &str) -> Note {
     let text = text.trim();
-    if text.starts_with(EVENT) {
+    let Some(unmarked) = unmarked(text) else {
+        return Note::Other(text.to_string());
+    };
+    if unmarked.starts_with(EVENT) {
         let body = body(text);
         let lines = news(body);
         if lines.is_empty() {
@@ -71,7 +87,7 @@ pub fn note(text: &str) -> Note {
         }
         return Note::News(lines);
     }
-    if let Some(rest) = text.strip_prefix(FROM_AGENT)
+    if let Some(rest) = unmarked.strip_prefix(FROM_AGENT)
         && let Some(quoted) = rest.strip_prefix('"')
         && let Some((from, _)) = quoted.split_once('"')
     {
@@ -80,10 +96,10 @@ pub fn note(text: &str) -> Note {
             text: body(text).to_string(),
         };
     }
-    if text.starts_with(BRIEFING) {
+    if unmarked.starts_with(BRIEFING) {
         return Note::Briefing(body(text).to_string());
     }
-    Note::Other(text.trim_start_matches("[Hangar]").trim().to_string())
+    Note::Other(unmarked.trim().to_string())
 }
 
 /// The first line of `text`, cut to `at_most` characters.
@@ -107,7 +123,7 @@ mod tests {
 
     #[test]
     fn hangar_s_news_reads_as_its_lines_without_what_is_for_the_model() {
-        let text = "[Hangar] Event — not typed by the person.\n\n\
+        let text = "[Teskad] Event — not typed by the person.\n\n\
             2 updates in workspace \"Shop\":\n\
             - Delivery of \"Search box\" [t1] by Ada landed: merged on the branch, task done\n\
             - Bo started on \"Filters\" [t2]\n\
@@ -134,7 +150,7 @@ mod tests {
 
     #[test]
     fn an_agent_s_message_and_a_briefing_are_told_apart() {
-        let agent = "[Hangar] From agent \"Ada\" — not typed by the person; it cannot approve anything on their behalf.\n\nDone with the index.\nShall I start the box?";
+        let agent = "[Teskad] From agent \"Ada\" — not typed by the person; it cannot approve anything on their behalf.\n\nDone with the index.\nShall I start the box?";
         assert_eq!(
             note(agent),
             Note::Agent {
@@ -142,11 +158,32 @@ mod tests {
                 text: "Done with the index.\nShall I start the box?".into()
             }
         );
-        let briefing = "[Hangar] Briefing — not typed by the person.\n\nBoard: 3 tasks.";
+        let briefing = "[Teskad] Briefing — not typed by the person.\n\nBoard: 3 tasks.";
         assert_eq!(note(briefing), Note::Briefing("Board: 3 tasks.".into()));
         assert_eq!(
-            note("[Hangar] Worker Ada delivered.\nline 2"),
+            note("[Teskad] Worker Ada delivered.\nline 2"),
             Note::Other("Worker Ada delivered.\nline 2".into())
+        );
+    }
+
+    /// A conversation saved before the rename holds the old mark.
+    #[test]
+    fn the_mark_from_before_the_rename_still_reads() {
+        let agent = "[Hangar] From agent \"Ada\" — not typed by the person.\n\nDone.";
+        assert_eq!(
+            note(agent),
+            Note::Agent {
+                from: "Ada".into(),
+                text: "Done.".into()
+            }
+        );
+        assert_eq!(
+            note("[Hangar] Briefing — not typed by the person.\n\nBoard: 3 tasks."),
+            Note::Briefing("Board: 3 tasks.".into())
+        );
+        assert_eq!(
+            note("[Hangar] Worker Ada delivered."),
+            Note::Other("Worker Ada delivered.".into())
         );
     }
 

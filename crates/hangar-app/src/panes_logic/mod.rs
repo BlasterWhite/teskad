@@ -218,7 +218,7 @@ pub enum Msg {
     ///
     /// This is what dates the session and puts its line in the history for
     /// an agent that cannot say so itself: every agent but a Claude Code with
-    /// the hangar-bridge mod, whose hello does it with the id it really
+    /// the teskad-bridge mod, whose hello does it with the id it really
     /// landed on. So the terminal's package may send it for every launch;
     /// that one is ignored here.
     Launched {
@@ -1171,7 +1171,7 @@ fn launched(m: &mut Model, pane: &str, resumed: Option<&str>, now: EpochMs) {
 /// Whether the agent of pane `info` names its session itself as it starts,
 /// in the hello of its side channel: its kind's side channel reports the id
 /// (`caps.sessions.id`), the settings let that channel run (the
-/// hangar-bridge mod of a Claude Code, Hangar attached to a Codex:
+/// teskad-bridge mod of a Claude Code, Hangar attached to a Codex:
 /// `roles::side_channel_on`), and the pane's launch did not end on the
 /// floor (a Codex whose server could not start has no client of Hangar's to
 /// say it). Any other agent's session is dated here, when its command is

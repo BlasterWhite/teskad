@@ -1,12 +1,12 @@
 //! A way to see the preview in a running app, for whoever builds it without
-//! an agent to open files in it: with `HANGAR_DEV_PREVIEW=<file>,<file>…` a
+//! an agent to open files in it: with `TESKAD_DEV_PREVIEW=<file>,<file>…` a
 //! debug build shows those files in the active workspace's preview as soon as
 //! the state is loaded, as an agent's `preview_show` would. The paths are
 //! absolute, or relative to the workspace's folder, and must be inside it.
 //!
 //! ```text
-//! HANGAR_DEV_PREVIEW=/work/app/README.md,/work/app/shot.png \
-//!   HANGAR_DEV_SCREENSHOT=/tmp/preview.png scripts/native-dev.sh
+//! TESKAD_DEV_PREVIEW=/work/app/README.md,/work/app/shot.png \
+//!   TESKAD_DEV_SCREENSHOT=/tmp/preview.png scripts/native-dev.sh
 //! ```
 //!
 //! A release build ignores the variable.
@@ -26,7 +26,7 @@ pub fn requested() -> Vec<String> {
     if !cfg!(debug_assertions) {
         return Vec::new();
     }
-    parse(&std::env::var("HANGAR_DEV_PREVIEW").unwrap_or_default())
+    parse(&hangar_core::env::var("TESKAD_DEV_PREVIEW").unwrap_or_default())
 }
 
 fn parse(list: &str) -> Vec<String> {

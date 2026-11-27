@@ -34,7 +34,7 @@ pub const ORCHESTRATION_PERMISSION_MODES: [&str; 3] = ["auto", "acceptEdits", "b
 /// What an orchestration pane may use without asking, whatever its mode: the
 /// tools of Hangar's own server, each of which checks who calls it
 /// (`ORCHESTRATION_ALLOWED_TOOLS`).
-pub const ORCHESTRATION_ALLOWED_TOOLS: [&str; 1] = ["mcp__hangar"];
+pub const ORCHESTRATION_ALLOWED_TOOLS: [&str; 1] = ["mcp__teskad"];
 
 /// `ORCHESTRATION_DEFAULTS`: the `Default` of `OrchestrationSettings`.
 pub fn orchestration_defaults() -> OrchestrationSettings {
@@ -206,7 +206,7 @@ pub fn lead_labels() -> String {
 /// Whether the settings let the side channel of `kind`'s panes run: Hangar's
 /// client of the server a kind runs attached to (« Attach Hangar to Codex »,
 /// `codex_attach`, D5) for a kind Hangar reaches through a server of its own
-/// (`headless.app_server`), the hangar-bridge mod (`claude_bridge`) for any
+/// (`headless.app_server`), the teskad-bridge mod (`claude_bridge`) for any
 /// other — the launch's own rule (`host/launch.rs`, `side_channel`).
 pub fn side_channel_on(settings: &Settings, kind: AgentKind) -> bool {
     if kind.info().caps.headless.app_server {

@@ -56,7 +56,7 @@ release workflow runs them: see [docs/native/PACKAGING.md](../native/PACKAGING.m
 crates/hangar-app/       the app, `hangar-ai`: windows, views and state; packaging/ holds the installers
 crates/hangar-core/      everything that is not drawing: PTYs, board, memory, MCP server, git, deliveries,
                          stats, dictation, Teskad Mobile's server, the kits and their HTML SDK
-crates/hangar-core/claude-mod/hangar-bridge/
+crates/hangar-core/claude-mod/teskad-bridge/
                          the Claude Code mod that reports session state to Teskad
 crates/hangar-term/      the terminal widget, on alacritty_terminal
 crates/hangar-theme/     the 33 themes and the design tokens

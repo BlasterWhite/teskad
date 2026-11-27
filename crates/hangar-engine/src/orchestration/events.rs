@@ -1609,7 +1609,7 @@ impl OrchestratorEngine {
         self.board_timer = Some(self.timer(now + BOARD_SETTLE_MS));
     }
 
-    /// A report of a pane's hangar-bridge mod (`bridgeEvent`).
+    /// A report of a pane's teskad-bridge mod (`bridgeEvent`).
     pub fn bridge_event(
         &mut self,
         io: &dyn EngineIo,

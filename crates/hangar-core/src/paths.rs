@@ -101,28 +101,28 @@ impl Paths {
         }
     }
 
-    /// `HANGAR_DATA_ROOT`'s folders when it is set and not empty, the
+    /// `TESKAD_DATA_ROOT`'s folders when it is set and not empty, the
     /// system's otherwise.
     ///
     /// The native app is being written on machines where the released Hangar
     /// is installed and in use, and both read the same `state.json`: a build
     /// started to try something must not rewrite the person's workspaces. Set
-    /// it with `HANGAR_ENDPOINT_FILE` (endpoint.rs), which moves the endpoint,
+    /// it with `TESKAD_ENDPOINT_FILE` (endpoint.rs), which moves the endpoint,
     /// the mods, the kits and the accounts beside it, and nothing of the
     /// installed app is touched.
     pub fn from_env() -> Self {
-        match std::env::var_os("HANGAR_DATA_ROOT").filter(|value| !value.is_empty()) {
+        match crate::env::var_os("TESKAD_DATA_ROOT").filter(|value| !value.is_empty()) {
             Some(root) => Self::rooted(Path::new(&root)),
             None => Self::system(),
         }
     }
 
     /// Whether this run is one kept off the installed app's data
-    /// (`HANGAR_DATA_ROOT` set): what it must not write either, the files of
+    /// (`TESKAD_DATA_ROOT` set): what it must not write either, the files of
     /// other programs that the installed Hangar writes to, such as Claude
     /// Code's own config, it can ask here.
     pub fn isolated() -> bool {
-        std::env::var_os("HANGAR_DATA_ROOT").is_some_and(|value| !value.is_empty())
+        crate::env::var_os("TESKAD_DATA_ROOT").is_some_and(|value| !value.is_empty())
     }
 
     /// Every folder under `root`, each by its own name: for tests, and for a

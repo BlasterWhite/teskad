@@ -55,7 +55,7 @@ pub enum Event {
     /// `control:internal`: one of Hangar's own questions — an orchestrator's
     /// briefing, a phone's call (`remote_<op>`). Answered the same way.
     ControlInternal(crate::control::ControlRequest),
-    /// `bridge:event`: a report of a pane's hangar-bridge mod, as the mod
+    /// `bridge:event`: a report of a pane's teskad-bridge mod, as the mod
     /// sent it (bridge.rs); the window owns the meaning of each `kind`.
     BridgeEvent { pane_id: String, event: Value },
     /// `bridge:queue`: what is queued for a pane, after it changed.
@@ -172,7 +172,7 @@ impl Default for Host {
 
 impl Host {
     /// The installed app's folders, the ones Tauri used (paths.rs), unless
-    /// `HANGAR_DATA_ROOT` names another place (`Paths::from_env`).
+    /// `TESKAD_DATA_ROOT` names another place (`Paths::from_env`).
     pub fn new() -> Self {
         Self::with_paths(Paths::from_env())
     }

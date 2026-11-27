@@ -53,7 +53,7 @@ note in its bar, and is saved back as a shell. Around the terminals:
 - **orchestration**: one agent plans, workers run in git worktrees, deliveries are checked, reviewed by a separate agent and merged locally (`delivery.rs`, `orchestrator.rs`);
 - a **project manager** agent that follows every workspace (HQ);
 - an IDE-like window: navigator (left), pane grid, inspector (right), status bar, command palette, 33 themes, rebindable shortcuts, English and French;
-- the **Claude Code bridge**: a Claude Code plugin Hangar installs (`claude-mod/hangar-bridge`) that reports turns, permission prompts, context fill and plan usage;
+- the **Claude Code bridge**: a Claude Code plugin Hangar installs (`claude-mod/teskad-bridge`) that reports turns, permission prompts, context fill and plan usage;
 - **kits**: packages that bring a domain into Hangar (Claude Code plugin + tabs + setup commands), see `docs/kits.md`;
 - **Hangar Mobile**: a phone web app served by Hangar over the owner's Tailscale network (`remote/`, `mobile/`);
 - usage statistics, voice dictation (whisper.cpp), Discord presence, 3D model and file previews, an updater.
@@ -234,9 +234,9 @@ engine`; `libasound2-dev` for voice; `libclang-dev`, a C/C++ toolchain and `cmak
 whisper.cpp; `libssl-dev` (the list `ci.yml` installs).
 
 **Never run the native app on the installed Hangar's data** while porting: both
-read the same `state.json`. `scripts/native-dev.sh` sets `HANGAR_DATA_ROOT` and
-`HANGAR_ENDPOINT_FILE` so everything goes under `target/dev-home/` (or
-`HANGAR_DEV_HOME`); run examples that start `hangar_core::Core` the same way.
+read the same `state.json`. `scripts/native-dev.sh` sets `TESKAD_DATA_ROOT` and
+`TESKAD_ENDPOINT_FILE` so everything goes under `target/dev-home/` (or
+`TESKAD_DEV_HOME`); run examples that start `hangar_core::Core` the same way.
 
 Optional local cache, not committed (listed in `.git/info/exclude`):
 

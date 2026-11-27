@@ -3,11 +3,11 @@
 //! The simulator of `iced_test` lays a view out and draws it with whichever
 //! renderer the machine has, without a window. This is not a check (nothing is
 //! compared): it writes one PNG per screen, theme and language to the folder
-//! named by `HANGAR_KITS_SNAPSHOTS`, so that whoever changes these screens can
+//! named by `TESKAD_KITS_SNAPSHOTS`, so that whoever changes these screens can
 //! see them.
 //!
 //! ```text
-//! HANGAR_KITS_SNAPSHOTS=/tmp/kits cargo test -p hangar-app kits::views::snapshot -- --ignored
+//! TESKAD_KITS_SNAPSHOTS=/tmp/kits cargo test -p hangar-app kits::views::snapshot -- --ignored
 //! ```
 
 use std::borrow::Cow;
@@ -34,7 +34,7 @@ use crate::state::types::{AppState, Pane, Workspace};
 use crate::state::{Model, types::AgentId};
 
 fn out_dir() -> Option<PathBuf> {
-    std::env::var_os("HANGAR_KITS_SNAPSHOTS").map(PathBuf::from)
+    hangar_core::env::var_os("TESKAD_KITS_SNAPSHOTS").map(PathBuf::from)
 }
 
 const ICON: &[u8] = br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l3 3 7-7"/><circle cx="8" cy="8" r="6.2"/></svg>"##;
@@ -101,7 +101,7 @@ fn hooks() -> Vec<Hook> {
         Hook {
             event: "PostToolUse".into(),
             matcher: "Bash|PowerShell|Write|Edit|MultiEdit|NotebookEdit|Task".into(),
-            command: "echo \"edited\" >> \"$HANGAR_KITS_DATA/hello-kit/log\"".into(),
+            command: "echo \"edited\" >> \"$TESKAD_KITS_DATA/hello-kit/log\"".into(),
         },
         Hook {
             event: "SessionStart".into(),
@@ -227,10 +227,10 @@ fn write(
 }
 
 #[test]
-#[ignore = "writes pictures; run with HANGAR_KITS_SNAPSHOTS=<folder>"]
+#[ignore = "writes pictures; run with TESKAD_KITS_SNAPSHOTS=<folder>"]
 fn write_the_screens() {
     let Some(out) = out_dir() else {
-        eprintln!("HANGAR_KITS_SNAPSHOTS names no folder: nothing written");
+        eprintln!("TESKAD_KITS_SNAPSHOTS names no folder: nothing written");
         return;
     };
     std::fs::create_dir_all(&out).expect("the folder");

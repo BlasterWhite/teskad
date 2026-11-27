@@ -113,7 +113,7 @@ impl std::fmt::Debug for Helper {
     }
 }
 
-/// How to start the helper: next to the app in a package, `HANGAR_WEBVIEW`
+/// How to start the helper: next to the app in a package, `TESKAD_WEBVIEW`
 /// when set, and in a development build through cargo
 /// (`cargo run -p hangar-webview --features engine`), which builds it when it
 /// is not built yet.

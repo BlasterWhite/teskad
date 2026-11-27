@@ -862,8 +862,8 @@ mod tests {
             "apply_patch"
         );
         assert_eq!(
-            describe("mcp__hangar__board_list_tasks", &json!({})),
-            "mcp__hangar__board_list_tasks"
+            describe("mcp__teskad__board_list_tasks", &json!({})),
+            "mcp__teskad__board_list_tasks"
         );
     }
 }

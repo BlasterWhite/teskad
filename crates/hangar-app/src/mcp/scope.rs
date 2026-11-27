@@ -8,7 +8,7 @@
 //! the pane then starts Claude Code with `--mcp-config <file>
 //! --strict-mcp-config`, the file being written by the core at each launch
 //! from Claude Code's own configuration. The command typed names the file
-//! through the shell's `HANGAR_MCP_CONFIG` (`mcp_config_arg`).
+//! through the shell's `TESKAD_MCP_CONFIG` (`mcp_config_arg`).
 //!
 //! `--strict-mcp-config` also drops the servers of the plugins the session
 //! loads, so the file holds the workspace's kits' servers too (docs/kits.md).
@@ -180,7 +180,8 @@ pub fn needs_restart(
         .filter(|server| !server.hangar)
         .map(|server| server.name.as_str())
         .collect();
-    let mut expected: std::collections::HashSet<&str> = ["hangar"].into_iter().collect();
+    let mut expected: std::collections::HashSet<&str> =
+        [hangar_core::install::SERVER_KEY].into_iter().collect();
     expected.extend(
         mcp.enabled
             .iter()
@@ -280,7 +281,7 @@ pub fn quote_arg(value: &str, family: Option<ShellFamily>) -> Option<String> {
 
 /// Where the pane's shell holds the path of its `--mcp-config` file: pty.rs
 /// sets it when the shell starts, the file being written just before.
-pub const MCP_CONFIG_ENV: &str = "HANGAR_MCP_CONFIG";
+pub const MCP_CONFIG_ENV: &str = "TESKAD_MCP_CONFIG";
 
 /// The `--mcp-config` argument as the pane's shell is to read it: the variable
 /// that holds the file's path rather than the path, which lies in the app's
@@ -324,7 +325,7 @@ mod tests {
 
     fn servers() -> Vec<ServerInfo> {
         vec![
-            server("hangar", |s| {
+            server("teskad", |s| {
                 s.scope = Scope::Project;
                 s.hangar = true;
             }),
@@ -391,7 +392,7 @@ mod tests {
             .filter(|s| is_loaded(s, &none))
             .map(|s| s.name.clone())
             .collect();
-        assert_eq!(loaded, ["hangar"]);
+        assert_eq!(loaded, ["teskad"]);
     }
 
     #[test]
@@ -449,7 +450,7 @@ mod tests {
         assert!(!needs_restart(Some(&running_inherit()), &inherit(), &all));
         // A name nothing defines any more was never in the file to begin with.
         assert!(!needs_restart(
-            Some(&running(&["robloxstudio", "hangar"])),
+            Some(&running(&["robloxstudio", "teskad"])),
             &choice,
             &all
         ));
@@ -460,8 +461,8 @@ mod tests {
         let all = servers();
         let choice = custom(&["robloxstudio", "gone"]);
         assert!(needs_restart(Some(&running_inherit()), &choice, &all));
-        assert!(needs_restart(Some(&running(&["hangar"])), &choice, &all));
-        assert!(needs_restart(Some(&running(&["hangar"])), &inherit(), &all));
+        assert!(needs_restart(Some(&running(&["teskad"])), &choice, &all));
+        assert!(needs_restart(Some(&running(&["teskad"])), &inherit(), &all));
         assert!(needs_restart(None, &inherit(), &all));
     }
 
@@ -474,7 +475,7 @@ mod tests {
         assert_eq!(PaneMcp::from(&inherit), running_inherit());
         let custom = Launched {
             mode: PaneMcpMode::Custom {
-                servers: vec!["hangar".into(), "docs".into()],
+                servers: vec!["teskad".into(), "docs".into()],
             },
             hangar: Some(true),
         };
@@ -482,7 +483,7 @@ mod tests {
             PaneMcp::from(&custom),
             PaneMcp {
                 hangar: Some(true),
-                ..running(&["hangar", "docs"])
+                ..running(&["teskad", "docs"])
             }
         );
     }
@@ -578,26 +579,26 @@ mod tests {
     fn names_the_shells_variable_never_the_path_that_holds_the_users_name() {
         use ShellFamily::*;
         let path = "C:\\Users\\Ann Lee\\AppData\\Roaming\\com.simnjs.hangar\\mcp\\ws-1.json";
-        assert_eq!(MCP_CONFIG_ENV, "HANGAR_MCP_CONFIG");
+        assert_eq!(MCP_CONFIG_ENV, "TESKAD_MCP_CONFIG");
         assert_eq!(
             mcp_config_arg(path, Some(Powershell)).as_deref(),
-            Some("$env:HANGAR_MCP_CONFIG")
+            Some("$env:TESKAD_MCP_CONFIG")
         );
         assert_eq!(
             mcp_config_arg(path, Some(Cmd)).as_deref(),
-            Some("\"%HANGAR_MCP_CONFIG%\"")
+            Some("\"%TESKAD_MCP_CONFIG%\"")
         );
         assert_eq!(
             mcp_config_arg(path, Some(Posix)).as_deref(),
-            Some("\"$HANGAR_MCP_CONFIG\"")
+            Some("\"$TESKAD_MCP_CONFIG\"")
         );
         assert_eq!(
             mcp_config_arg("/home/ann/.local/share/mcp/ws.json", Some(Fish)).as_deref(),
-            Some("\"$HANGAR_MCP_CONFIG\"")
+            Some("\"$TESKAD_MCP_CONFIG\"")
         );
         assert_eq!(
             mcp_config_arg(path, Some(Nu)).as_deref(),
-            Some("$env.HANGAR_MCP_CONFIG")
+            Some("$env.TESKAD_MCP_CONFIG")
         );
     }
 
@@ -605,11 +606,11 @@ mod tests {
     fn takes_any_path_a_variable_can_hold_the_ones_quoting_had_to_refuse_included() {
         assert_eq!(
             mcp_config_arg("C:\\Users\\100%\\ws.json", Some(ShellFamily::Cmd)).as_deref(),
-            Some("\"%HANGAR_MCP_CONFIG%\"")
+            Some("\"%TESKAD_MCP_CONFIG%\"")
         );
         assert_eq!(
             mcp_config_arg("C:\\Users\\O'Neil\\ws.json", Some(ShellFamily::Nu)).as_deref(),
-            Some("$env.HANGAR_MCP_CONFIG")
+            Some("$env.TESKAD_MCP_CONFIG")
         );
     }
 

@@ -3,7 +3,7 @@
 //! toolbar's activity line and the palette show about the focused pane.
 //!
 //! The pane is the only writer (it is the one hearing from its side channel —
-//! the hangar-bridge mod, Hangar's client of a Codex server — and reading the
+//! the teskad-bridge mod, Hangar's client of a Codex server — and reading the
 //! transcripts) and anything else only reads.
 
 use std::collections::HashMap;

@@ -147,7 +147,7 @@ fn a_paginated_rollout_reads_as_the_chat_of_its_items() {
     assert_eq!((result, state), (None, CallState::Done));
 
     let (tool, title, detail, result, _) = action_of(&items[3]);
-    assert_eq!(tool, "mcp__hangar__board_report_progress");
+    assert_eq!(tool, "mcp__teskad__board_report_progress");
     assert_eq!(title, "Used board_report_progress");
     assert_eq!(
         serde_json::from_str::<Value>(detail.unwrap()).unwrap(),
@@ -418,14 +418,14 @@ fn legacy_tool_events_read_as_their_items() {
         record(
             4,
             json!({ "type": "mcp_tool_call_end", "call_id": "call_m1",
-            "invocation": { "server": "hangar", "tool": "board_list_tasks", "arguments": null },
+            "invocation": { "server": "teskad", "tool": "board_list_tasks", "arguments": null },
             "duration": { "secs": 0, "nanos": 5000000 },
             "result": { "Ok": { "content": [{ "type": "text", "text": "3 tasks" }], "isError": false } } }),
         ),
         record(
             5,
             json!({ "type": "mcp_tool_call_end", "call_id": "call_m2",
-            "invocation": { "server": "hangar", "tool": "board_claim_task", "arguments": { "id": "t1" } },
+            "invocation": { "server": "teskad", "tool": "board_claim_task", "arguments": { "id": "t1" } },
             "duration": { "secs": 0, "nanos": 0 }, "result": { "Err": "task t1 is taken" } }),
         ),
         record(
@@ -475,7 +475,7 @@ fn legacy_tool_events_read_as_their_items() {
     assert_eq!(
         (tool, title, detail),
         (
-            "mcp__hangar__board_list_tasks",
+            "mcp__teskad__board_list_tasks",
             "Used board_list_tasks",
             None
         )

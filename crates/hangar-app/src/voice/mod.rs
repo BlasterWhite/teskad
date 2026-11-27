@@ -110,7 +110,7 @@ pub struct State {
 }
 
 impl Default for State {
-    /// `HANGAR_DEV_VOICE=recording` or `transcribing` shows the pill in that
+    /// `TESKAD_DEV_VOICE=recording` or `transcribing` shows the pill in that
     /// phase, with a voice drawn on the meter, to see it in a theme and a
     /// language (debug builds only).
     fn default() -> Self {
@@ -123,7 +123,7 @@ impl Default for State {
             aborted: false,
         };
         let forced = if cfg!(debug_assertions) {
-            std::env::var("HANGAR_DEV_VOICE").ok()
+            hangar_core::env::var("TESKAD_DEV_VOICE").ok()
         } else {
             None
         };

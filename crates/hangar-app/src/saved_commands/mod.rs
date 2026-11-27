@@ -217,7 +217,7 @@ enum Delivery {
     /// Typed: with a CR when it runs itself, without when it waits on the
     /// prompt for the person to finish it.
     Type(String),
-    /// Handed to the pane's hangar-bridge mod, which submits it once its
+    /// Handed to the pane's teskad-bridge mod, which submits it once its
     /// Claude Code is free: typed into a permission dialog, the command
     /// would answer the dialog.
     Queue(String),

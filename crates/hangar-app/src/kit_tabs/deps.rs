@@ -495,7 +495,7 @@ async fn show_in_preview(
     shared.open_file(&request, &file).map(drop)
 }
 
-/// Queues `text` for the pane's hangar-bridge mod, unless the pane has gone
+/// Queues `text` for the pane's teskad-bridge mod, unless the pane has gone
 /// since the call was checked: a prompt queued for a pane that is no longer
 /// there would wait for a mod that never comes, and the tab would be told it
 /// was sent. `bridge_enqueue` itself cannot fail; this is the one way a send

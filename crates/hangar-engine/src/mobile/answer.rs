@@ -1,7 +1,7 @@
 //! Answering an agent's questions from the phone (`remote_answer`,
 //! lib/remoteAnswer.ts): Claude Code's AskUserQuestion, Codex's
 //! requestUserInput. A question the pane's side channel holds open — the
-//! hangar-bridge mod, Hangar's client of a Codex pane's server — takes the
+//! teskad-bridge mod, Hangar's client of a Codex pane's server — takes the
 //! answers as they are (`held`). Otherwise the window types into the
 //! question's dialog what the person would type at the PC, so the session
 //! gets the answer exactly as if it had been given there: each agent's own

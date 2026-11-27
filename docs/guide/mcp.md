@@ -15,7 +15,7 @@ first time it writes a file. To do it by hand instead, run
 `claude mcp add hangar --scope project -- "<path to hangar-ai>" --mcp` in the project.
 
 Codex has nothing to register: each Codex pane gets the server at every launch, as
-`-c mcp_servers.hangar…` on the command line of the pane's Codex server, along with the
+`-c mcp_servers.teskad…` on the command line of the pane's Codex server, along with the
 workspace's choice of servers and its kits' servers. Teskad never writes
 `~/.codex/config.toml`.
 

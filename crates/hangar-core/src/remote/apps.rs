@@ -811,7 +811,7 @@ pub(super) mod tests {
     #[test]
     fn the_ports_listening_are_those_that_take_a_connection() {
         on_ports(|| async {
-            // Without HANGAR_PORT_BASE the port is an ephemeral one, and the
+            // Without TESKAD_PORT_BASE the port is an ephemeral one, and the
             // other tests of this process (which do not take `on_ports`) bind
             // ephemeral ports too: a port freed by `drop` can be handed to one
             // of them at once, and then it really is listened on. So the port

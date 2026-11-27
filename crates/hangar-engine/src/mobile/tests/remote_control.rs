@@ -1014,14 +1014,14 @@ async fn chat_lists_the_calls_running_after_the_transcript_s_on_the_newest_page_
     started(
         &r,
         "toolu_m",
-        "mcp__hangar__board_list_tasks",
+        "mcp__teskad__board_list_tasks",
         json!({}),
         7000,
     );
     let newest = r.ok("remote_chat", json!({"pane": "Ben"})).await;
     let mut expected = items_json().as_array().unwrap().clone();
     expected.push(json!({"id": "toolu_r", "at": 6000, "kind": "action", "tool": "Read", "title": "Read src/x.ts", "state": "running"}));
-    expected.push(json!({"id": "toolu_m", "at": 7000, "kind": "action", "tool": "mcp__hangar__board_list_tasks", "title": "Used board_list_tasks", "state": "running"}));
+    expected.push(json!({"id": "toolu_m", "at": 7000, "kind": "action", "tool": "mcp__teskad__board_list_tasks", "title": "Used board_list_tasks", "state": "running"}));
     assert_equal(&newest["items"], Value::Array(expected));
     let older = r
         .ok("remote_chat", json!({"pane": "Ben", "before": "4096"}))

@@ -9,7 +9,7 @@
 //!
 //! `start` sets up, in this order:
 //!
-//! - the login shell's PATH (path_env.rs) and the hangar-bridge mod's folder
+//! - the login shell's PATH (path_env.rs) and the teskad-bridge mod's folder
 //!   (bridge.rs), warmed on threads of their own as `Core` does, so the first
 //!   pane does not wait on them;
 //! - the accounts and kits watchers (accounts.rs, kits.rs), which poll files
@@ -44,7 +44,7 @@ pub struct Headless {
 ///
 /// `endpoint_file` is where the API's port and outside token are published:
 /// `None` for the usual place (`~/.hangar/endpoint.json`, or
-/// `HANGAR_ENDPOINT_FILE`, endpoint.rs), a path to keep a node apart from a
+/// `TESKAD_ENDPOINT_FILE`, endpoint.rs), a path to keep a node apart from a
 /// desktop Hangar running for the same account.
 ///
 /// The API runs on `runtime`, which must outlive the node. This waits for it

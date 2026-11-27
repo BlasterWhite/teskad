@@ -412,7 +412,7 @@ impl Runtime {
         }
     }
 
-    /// A report of a pane's hangar-bridge mod.
+    /// A report of a pane's teskad-bridge mod.
     pub fn bridge(&self, pane: &str, event: &BridgeEvent) {
         self.mobile.note_bridge_event(pane, event, now_ms());
     }

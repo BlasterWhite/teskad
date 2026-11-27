@@ -23,11 +23,11 @@
 //! - for an orchestrator's or a worker's pane, the orchestration's permission
 //!   mode and Hangar's tools let through.
 //!
-//! A Claude Code pane gets the hangar-bridge mod too (the settings'
+//! A Claude Code pane gets the teskad-bridge mod too (the settings'
 //! `claude_bridge`). A Codex pane runs attached to a server of its own when
 //! « Attach Hangar to Codex » is on and the server starts (D5), Codex's plain
 //! TUI otherwise (the floor, D6), with its settings in the shell's
-//! `HANGAR_CODEX_*` variables; the host keeps which, and why
+//! `TESKAD_CODEX_*` variables; the host keeps which, and why
 //! (`EngineHost::agent_server`), and so does the pane's machine
 //! (`live::SideChannel`). Attached, Hangar's client follows the server
 //! (`agent::codex_attach`) and reports what the session does the way the mod
@@ -65,7 +65,7 @@ const POLL: Duration = Duration::from_millis(50);
 /// The variable a pane's shell holds its `--mcp-config` file in, as a POSIX
 /// shell reads it: the servers' folder holds the person's name, which the
 /// typed command never shows.
-const MCP_ARG: &str = "\"$HANGAR_MCP_CONFIG\"";
+const MCP_ARG: &str = "\"$TESKAD_MCP_CONFIG\"";
 
 /// The folder a pane's shell opens in: its own, else its workspace's.
 pub fn folder_of(ws: &Workspace, pane: &Pane) -> String {
@@ -404,7 +404,7 @@ fn agent_launch(
 /// (`headless.app_server`: Codex, D5) is attached to the `server` its
 /// launch started, or on the floor and why — and on the floor when none was
 /// asked (« Attach Hangar to Codex » off) or these terminals start none.
-/// Any other has the hangar-bridge mod within reach while the settings'
+/// Any other has the teskad-bridge mod within reach while the settings'
 /// bridge is on.
 fn side_channel(kind: AgentKind, server: Option<&ServerState>, settings: &Settings) -> SideChannel {
     match server {
@@ -515,7 +515,7 @@ mod tests {
         assert_eq!(
             line(&ws, &leo, &Settings::default(), &found).unwrap(),
             "claude --resume abc --name \"Leo (Shop)\" --model opus --permission-mode auto \
-             --allowedTools mcp__hangar --mcp-config \"$HANGAR_MCP_CONFIG\" --add-dir \"/srv/shared\""
+             --allowedTools mcp__teskad --mcp-config \"$TESKAD_MCP_CONFIG\" --add-dir \"/srv/shared\""
         );
         // The file the variable names, which the spawn hands the shell.
         let agent = agent_launch(&ws, &leo, &Settings::default(), &found).unwrap();
@@ -535,7 +535,7 @@ mod tests {
         settings.agent_commands.codex = Some("codex --oss".into());
         assert_eq!(
             line(&ws, &leo, &settings, &found(Some(true), None, None)).unwrap(),
-            "ccr code --name \"Leo (Shop)\" --mcp-config \"$HANGAR_MCP_CONFIG\" \
+            "ccr code --name \"Leo (Shop)\" --mcp-config \"$TESKAD_MCP_CONFIG\" \
              --strict-mcp-config --add-dir \"/srv/shared\""
         );
         // Without a file of Hangar's: its own servers.
@@ -583,7 +583,7 @@ mod tests {
         assert_eq!(request.command, None);
         assert_eq!(request.cwd, "/srv/shop");
         assert_eq!(request.hangar_mcp.as_deref(), Some(HANGAR));
-        assert_eq!(request.allowed_tools, ["mcp__hangar"]);
+        assert_eq!(request.allowed_tools, ["mcp__teskad"]);
         assert_eq!(request.mcp, None);
         assert_eq!(request.extra_roots, ["/srv/shared"]);
         assert_eq!(request.resume.as_deref(), Some(THREAD));
@@ -640,7 +640,7 @@ mod tests {
         let spec = launch::build(&floor).unwrap();
         let typed = spec.command_line();
         assert!(
-            typed.starts_with("codex -c \"$HANGAR_CODEX_MCP\""),
+            typed.starts_with("codex -c \"$TESKAD_CODEX_MCP\""),
             "{typed}"
         );
         assert!(typed.ends_with(&format!("resume {THREAD}")), "{typed}");
@@ -653,7 +653,7 @@ mod tests {
             .expect("Hangar's server in the shell's variable");
         assert!(
             held.to_string_lossy()
-                .starts_with(&format!("mcp_servers.hangar={{command='{HANGAR}'")),
+                .starts_with(&format!("mcp_servers.teskad={{command='{HANGAR}'")),
             "{held:?}"
         );
     }

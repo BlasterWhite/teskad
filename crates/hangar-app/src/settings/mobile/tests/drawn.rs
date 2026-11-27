@@ -17,10 +17,10 @@ fn lay_out(st: &State) {
 }
 
 /// Laid out, and drawn to `<folder>/<stem>-<locale>` when the folder is named
-/// by `HANGAR_SETTINGS_SNAPSHOTS`, to look at:
+/// by `TESKAD_SETTINGS_SNAPSHOTS`, to look at:
 ///
 /// ```text
-/// HANGAR_SETTINGS_SNAPSHOTS=/tmp/settings cargo test -p hangar-app settings::mobile
+/// TESKAD_SETTINGS_SNAPSHOTS=/tmp/settings cargo test -p hangar-app settings::mobile
 /// ```
 fn lay_out_as(st: &State, stem: Option<&str>) {
     // Several simulators drawing this page at once (one per test thread)
@@ -59,7 +59,9 @@ fn lay_out_as(st: &State, stem: Option<&str>) {
         };
         let element: iced::Element<'_, Message> = view(st, ctx);
         let mut ui = Simulator::with_size(window, Size::new(700.0, 1500.0), element);
-        if let (Some(stem), Some(folder)) = (stem, std::env::var_os("HANGAR_SETTINGS_SNAPSHOTS")) {
+        if let (Some(stem), Some(folder)) =
+            (stem, hangar_core::env::var_os("TESKAD_SETTINGS_SNAPSHOTS"))
+        {
             let folder = std::path::PathBuf::from(folder);
             std::fs::create_dir_all(&folder).expect("the folder");
             let picture = ui

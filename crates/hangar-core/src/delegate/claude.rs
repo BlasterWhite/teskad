@@ -18,7 +18,7 @@
 //!   behind goes with it, as a Codex child's goes with its server.
 //! - **What it asks** (a `control_request` `can_use_tool`) is held for the person as a pane's
 //!   asks are, under the delegation's id, and answered with the person's choice in the mod's
-//!   terms (hangar-bridge, `decisionOf`). Nothing here answers for the person: an ask is answered
+//!   terms (teskad-bridge, `decisionOf`). Nothing here answers for the person: an ask is answered
 //!   when they answer it, withdrawn when Claude Code withdraws it (`control_cancel_request`).
 //!   Any other request is refused, Hangar having declared no hooks and no SDK servers.
 //! - **Cancelled**, its turn is interrupted (a `control_request` `interrupt`), its input closed,
@@ -91,7 +91,7 @@ const STDERR_SETTLE: Duration = Duration::from_millis(500);
 const STDERR_LINES: usize = 20;
 const STDERR_LINE_CHARS: usize = 2_000;
 /// Past this, a text in a call's input is cut in what is reported: the mod's limits
-/// (hangar-bridge, `INPUT_TEXT`, `PLAN_TEXT`). The answer goes back with the input whole.
+/// (teskad-bridge, `INPUT_TEXT`, `PLAN_TEXT`). The answer goes back with the input whole.
 const INPUT_TEXT: usize = 4_096;
 const PLAN_TEXT: usize = 65_536;
 /// A no without words, as the mod words it.
@@ -1047,7 +1047,7 @@ mod spec_tests {
         assert!(spawn
             .env
             .iter()
-            .any(|(name, value)| name == "HANGAR_MCP_CONFIG" && value.is_none()));
+            .any(|(name, value)| name == "TESKAD_MCP_CONFIG" && value.is_none()));
     }
 
     #[test]
@@ -1138,7 +1138,7 @@ mod spec_tests {
                 && value.map(PathBuf::from).as_deref() == Some(home.as_path())));
         assert!(set
             .iter()
-            .any(|(name, value)| name.to_str() == Some("HANGAR_PANE_ID") && value.is_none()));
+            .any(|(name, value)| name.to_str() == Some("TESKAD_PANE_ID") && value.is_none()));
         let args: Vec<_> = command.as_std().get_args().collect();
         assert_eq!(args[0], "-p");
     }

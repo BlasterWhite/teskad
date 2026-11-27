@@ -82,7 +82,7 @@ const log = (items: ChatItem[], fields: Partial<ChatLog> = {}): ChatLog => ({
 
 describe("what an item shows as", () => {
   it("gives each tool its kind of icon, any other tool the generic one", () => {
-    expect(["Edit", "Write", "Bash", "Read", "Grep", "Glob", "WebSearch", "mcp__hangar__board_list_tasks", "Task"].map(actionKind)).toEqual([
+    expect(["Edit", "Write", "Bash", "Read", "Grep", "Glob", "WebSearch", "mcp__teskad__board_list_tasks", "Task"].map(actionKind)).toEqual([
       "edit",
       "edit",
       "command",
@@ -154,9 +154,9 @@ describe("what an item shows as", () => {
     expect(pathParts("src/")).toBeNull();
   });
 
-  it("shows Hangar's messages as notes, without their [Hangar]", () => {
-    expect(hangarText("[Hangar] Briefing — not typed by the person.")).toBe("Briefing — not typed by the person.");
-    const rows = chatRows([user("u1", "[Hangar] From Jack", T0, "hangar"), user("u2", "Ship it")], null);
+  it("shows Hangar's messages as notes, without their [Teskad]", () => {
+    expect(hangarText("[Teskad] Briefing — not typed by the person.")).toBe("Briefing — not typed by the person.");
+    const rows = chatRows([user("u1", "[Teskad] From Jack", T0, "hangar"), user("u2", "Ship it")], null);
     expect(rows.map((row) => row.type)).toEqual(["time", "hangar", "user"]);
     expect(rows[1]).toMatchObject({ type: "hangar", text: "From Jack" });
   });

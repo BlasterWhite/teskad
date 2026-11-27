@@ -15,7 +15,7 @@ use crate::state::types::{AgentId, PaneId, PaneRole};
 
 /// What a worker pane is created with, before its shell starts: its role,
 /// its task, its model and its ports, which its terminal needs from the first
-/// spawn (`HANGAR_PORT_BASE`). The TS patched the pane in the same tick as it
+/// spawn (`TESKAD_PORT_BASE`). The TS patched the pane in the same tick as it
 /// added it; here it rides in the add itself (`StoreAction::AddPane{init}`,
 /// inventory A6).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

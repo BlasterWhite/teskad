@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Build and start the test node: sshd on 127.0.0.1:<port>, user `hangar`, key auth.
 #   up.sh [--arm64] [--with-claude]
-# Port: HANGAR_NODE_TEST_PORT, else the first free one from 2222.
-# HANGAR_NODE_TEST_NET_ADMIN=1: the container may shape its own link
+# Port: TESKAD_NODE_TEST_PORT, else the first free one from 2222.
+# TESKAD_NODE_TEST_NET_ADMIN=1: the container may shape its own link
 # (`tc qdisc ... netem delay`, what bench.sh adds latency with).
 set -euo pipefail
 # shellcheck source=lib.sh
@@ -43,8 +43,8 @@ build=(docker build -q -t "$tag" --build-arg "WITH_CLAUDE=$with_claude")
 [ -n "$platform" ] && build+=(--platform "$platform")
 "${build[@]}" "$RIG_DIR" >/dev/null
 
-if [ -n "${HANGAR_NODE_TEST_PORT:-}" ]; then
-  port="$HANGAR_NODE_TEST_PORT"
+if [ -n "${TESKAD_NODE_TEST_PORT:-${HANGAR_NODE_TEST_PORT:-}}" ]; then
+  port="${TESKAD_NODE_TEST_PORT:-$HANGAR_NODE_TEST_PORT}"
   port_is_free "$port" || { echo "port $port is already in use" >&2; exit 1; }
 else
   port=2222
@@ -53,7 +53,7 @@ fi
 
 run=(docker run -d --name "$CONTAINER" -p "127.0.0.1:$port:22")
 [ -n "$platform" ] && run+=(--platform "$platform")
-[ "${HANGAR_NODE_TEST_NET_ADMIN:-}" = 1 ] && run+=(--cap-add NET_ADMIN)
+[ "${TESKAD_NODE_TEST_NET_ADMIN:-${HANGAR_NODE_TEST_NET_ADMIN:-}}" = 1 ] && run+=(--cap-add NET_ADMIN)
 "${run[@]}" "$tag" >/dev/null
 
 docker cp "$KEY.pub" "$CONTAINER:/home/hangar/.ssh/authorized_keys"

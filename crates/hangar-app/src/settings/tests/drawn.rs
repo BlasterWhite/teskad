@@ -117,9 +117,9 @@ fn sheet_of(
     };
     let mut ui = Simulator::with_size(window, size, view(&st, ctx, category));
     // Drawn to `<folder>/sheet-<category>-<locale>-<theme>` when
-    // `HANGAR_SETTINGS_SNAPSHOTS` names a folder, to look at:
-    //   HANGAR_SETTINGS_SNAPSHOTS=/tmp/settings cargo test -p hangar-app settings::tests::drawn
-    if let Some(folder) = std::env::var_os("HANGAR_SETTINGS_SNAPSHOTS") {
+    // `TESKAD_SETTINGS_SNAPSHOTS` names a folder, to look at:
+    //   TESKAD_SETTINGS_SNAPSHOTS=/tmp/settings cargo test -p hangar-app settings::tests::drawn
+    if let Some(folder) = hangar_core::env::var_os("TESKAD_SETTINGS_SNAPSHOTS") {
         let folder = std::path::PathBuf::from(folder);
         std::fs::create_dir_all(&folder).expect("the folder");
         let picture = ui

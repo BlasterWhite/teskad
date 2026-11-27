@@ -144,7 +144,7 @@ pub struct State {
     helper_starting: bool,
     /// The workspaces as of the last look, to see one go.
     known: Vec<WsId>,
-    /// `HANGAR_DEV_PREVIEW` has been looked at (dev.rs).
+    /// `TESKAD_DEV_PREVIEW` has been looked at (dev.rs).
     dev_done: bool,
     /// The hook for the control bus has been sent.
     hosted: bool,

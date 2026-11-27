@@ -29,7 +29,7 @@ pub struct PaneRest {
     pub busy: bool,
     /// When its agent last stopped working or waiting, or when it was mounted.
     pub resting_since: EpochMs,
-    /// Prompts held for it until its agent is free (the hangar-bridge queue).
+    /// Prompts held for it until its agent is free (the teskad-bridge queue).
     pub queued: usize,
     /// The agent quit back to its shell: what the pane runs now is anyone's
     /// guess.

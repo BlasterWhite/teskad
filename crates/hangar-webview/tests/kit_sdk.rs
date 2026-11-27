@@ -46,7 +46,7 @@ const PAGE: &str = r#"<!doctype html>
 "#;
 
 /// Installs a kit in a kits folder of the test's own, which hangar-core finds
-/// through `HANGAR_ENDPOINT_FILE`, and returns the folder to clean up.
+/// through `TESKAD_ENDPOINT_FILE`, and returns the folder to clean up.
 fn install(root: &Path) {
     let kit = root.join("source");
     std::fs::create_dir_all(kit.join("page")).unwrap();
@@ -69,7 +69,7 @@ fn install(root: &Path) {
     // has started a thread that reads the environment yet.
     unsafe {
         std::env::set_var(
-            "HANGAR_ENDPOINT_FILE",
+            "TESKAD_ENDPOINT_FILE",
             root.join("hangar").join("endpoint.json"),
         );
     }

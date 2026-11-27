@@ -20,8 +20,8 @@
 //! document, `CODEX_NON_INTERACTIVE=1` (scripts/install/install.sh and
 //! install.ps1 of openai/codex, rust-v0.170.0), which answers no to both.
 //!
-//! A debug build can be handed another command in `HANGAR_DEV_CLAUDE_INSTALLER`
-//! or `HANGAR_DEV_CODEX_INSTALLER` (run by `sh -c`, or PowerShell on Windows),
+//! A debug build can be handed another command in `TESKAD_DEV_CLAUDE_INSTALLER`
+//! or `TESKAD_DEV_CODEX_INSTALLER` (run by `sh -c`, or PowerShell on Windows),
 //! so the setup is tried end to end without installing anything on the
 //! machine of whoever tries it.
 
@@ -120,13 +120,13 @@ fn env_of(kind: AgentKind) -> &'static [(&'static str, &'static str)] {
 /// The variable a debug build reads a stand-in for `kind`'s installer from.
 fn fake_env(kind: AgentKind) -> &'static str {
     match kind {
-        AgentKind::Claude => "HANGAR_DEV_CLAUDE_INSTALLER",
-        AgentKind::Codex => "HANGAR_DEV_CODEX_INSTALLER",
+        AgentKind::Claude => "TESKAD_DEV_CLAUDE_INSTALLER",
+        AgentKind::Codex => "TESKAD_DEV_CODEX_INSTALLER",
     }
 }
 
 /// The installer of `kind` to run: the official one, or in a debug build the
-/// command its `HANGAR_DEV_*_INSTALLER` names.
+/// command its `TESKAD_DEV_*_INSTALLER` names.
 pub fn chosen(kind: AgentKind) -> Installer {
     let os = Os::current();
     match fake(std::env::var(fake_env(kind)).ok()) {

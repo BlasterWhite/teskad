@@ -214,12 +214,12 @@ mod tests {
             line(LaunchRequest {
                 model: some("sonnet"),
                 permission_mode: Some(PermissionMode::Auto),
-                allowed_tools: strings(&["mcp__hangar"]),
+                allowed_tools: strings(&["mcp__teskad"]),
                 mcp: mcp("/h.json", false),
                 extra_roots: strings(&["/x"]),
                 ..Default::default()
             }),
-            "claude --model sonnet --permission-mode auto --allowedTools mcp__hangar --mcp-config /h.json --add-dir \"/x\""
+            "claude --model sonnet --permission-mode auto --allowedTools mcp__teskad --mcp-config /h.json --add-dir \"/x\""
         );
         // The last flag, nothing to close its list.
         assert_eq!(
@@ -235,10 +235,10 @@ mod tests {
     /// names; the real one is the desktop's (`mcp::scope::mcp_config_arg`).
     fn mcp_config_arg(family: &str) -> &'static str {
         match family {
-            "powershell" => "$env:HANGAR_MCP_CONFIG",
-            "cmd" => "\"%HANGAR_MCP_CONFIG%\"",
-            "posix" | "fish" => "\"$HANGAR_MCP_CONFIG\"",
-            "nu" => "$env.HANGAR_MCP_CONFIG",
+            "powershell" => "$env:TESKAD_MCP_CONFIG",
+            "cmd" => "\"%TESKAD_MCP_CONFIG%\"",
+            "posix" | "fish" => "\"$TESKAD_MCP_CONFIG\"",
+            "nu" => "$env.TESKAD_MCP_CONFIG",
             other => panic!("no such family {other}"),
         }
     }
@@ -251,38 +251,38 @@ mod tests {
                 name: some("Bo"),
                 model: some("sonnet"),
                 permission_mode: Some(PermissionMode::Auto),
-                allowed_tools: strings(&["mcp__hangar"]),
+                allowed_tools: strings(&["mcp__teskad"]),
                 mcp: mcp(mcp_config_arg(family), strict),
                 extra_roots: strings(&["D:\\shared"]),
                 ..Default::default()
             })
         };
-        let flags = "claude --resume abc --name Bo --model sonnet --permission-mode auto --allowedTools mcp__hangar";
+        let flags = "claude --resume abc --name Bo --model sonnet --permission-mode auto --allowedTools mcp__teskad";
         assert_eq!(
             typed("powershell", false),
-            format!("{flags} --mcp-config $env:HANGAR_MCP_CONFIG --add-dir \"D:\\shared\"")
+            format!("{flags} --mcp-config $env:TESKAD_MCP_CONFIG --add-dir \"D:\\shared\"")
         );
         assert_eq!(
             typed("cmd", false),
-            format!("{flags} --mcp-config \"%HANGAR_MCP_CONFIG%\" --add-dir \"D:\\shared\"")
+            format!("{flags} --mcp-config \"%TESKAD_MCP_CONFIG%\" --add-dir \"D:\\shared\"")
         );
         assert_eq!(
             typed("posix", false),
-            format!("{flags} --mcp-config \"$HANGAR_MCP_CONFIG\" --add-dir \"D:\\shared\"")
+            format!("{flags} --mcp-config \"$TESKAD_MCP_CONFIG\" --add-dir \"D:\\shared\"")
         );
         assert_eq!(
             typed("fish", false),
-            format!("{flags} --mcp-config \"$HANGAR_MCP_CONFIG\" --add-dir \"D:\\shared\"")
+            format!("{flags} --mcp-config \"$TESKAD_MCP_CONFIG\" --add-dir \"D:\\shared\"")
         );
         assert_eq!(
             typed("nu", false),
-            format!("{flags} --mcp-config $env.HANGAR_MCP_CONFIG --add-dir \"D:\\shared\"")
+            format!("{flags} --mcp-config $env.TESKAD_MCP_CONFIG --add-dir \"D:\\shared\"")
         );
         // A workspace's own server choice: the same variable, strict.
         assert_eq!(
             typed("powershell", true),
             format!(
-                "{flags} --mcp-config $env:HANGAR_MCP_CONFIG --strict-mcp-config --add-dir \"D:\\shared\""
+                "{flags} --mcp-config $env:TESKAD_MCP_CONFIG --strict-mcp-config --add-dir \"D:\\shared\""
             )
         );
         for family in ["powershell", "cmd", "posix", "fish", "nu"] {
@@ -310,10 +310,10 @@ mod tests {
         );
         assert_eq!(
             line(LaunchRequest {
-                allowed_tools: strings(&["mcp__hangar", "Bash(rm *)"]),
+                allowed_tools: strings(&["mcp__teskad", "Bash(rm *)"]),
                 ..Default::default()
             }),
-            "claude --allowedTools mcp__hangar"
+            "claude --allowedTools mcp__teskad"
         );
     }
 
@@ -393,10 +393,10 @@ mod tests {
         assert_eq!(
             line(LaunchRequest {
                 permission_mode: Some(PermissionMode::AcceptEdits),
-                allowed_tools: strings(&["mcp__hangar"]),
+                allowed_tools: strings(&["mcp__teskad"]),
                 ..Default::default()
             }),
-            "claude --permission-mode acceptEdits --allowedTools mcp__hangar"
+            "claude --permission-mode acceptEdits --allowedTools mcp__teskad"
         );
     }
 
@@ -445,8 +445,8 @@ mod tests {
             name: some("Ava (My Work)"),
             model: some("opus[1m]"),
             permission_mode: Some(PermissionMode::BypassPermissions),
-            allowed_tools: strings(&["mcp__hangar", "Read"]),
-            mcp: mcp("\"$HANGAR_MCP_CONFIG\"", true),
+            allowed_tools: strings(&["mcp__teskad", "Read"]),
+            mcp: mcp("\"$TESKAD_MCP_CONFIG\"", true),
             extra_roots: strings(&["/a", "/b c"]),
             ..Default::default()
         })
@@ -464,10 +464,10 @@ mod tests {
                 "--permission-mode",
                 "bypassPermissions",
                 "--allowedTools",
-                "mcp__hangar",
+                "mcp__teskad",
                 "Read",
                 "--mcp-config",
-                "\"$HANGAR_MCP_CONFIG\"",
+                "\"$TESKAD_MCP_CONFIG\"",
                 "--strict-mcp-config",
                 "--add-dir",
                 "\"/a\"",
@@ -502,7 +502,7 @@ mod tests {
 
         let profile = PathBuf::from("/home/me/.hangar/accounts/work");
         let spec = build(&LaunchRequest {
-            mcp: mcp("\"$HANGAR_MCP_CONFIG\"", false),
+            mcp: mcp("\"$TESKAD_MCP_CONFIG\"", false),
             account_dir: Some(profile.clone()),
             ..Default::default()
         })
@@ -511,7 +511,7 @@ mod tests {
             spec.env,
             [
                 (
-                    "HANGAR_MCP_CONFIG".to_string(),
+                    "TESKAD_MCP_CONFIG".to_string(),
                     Some(OsString::from("/home/Ann Lee/.hangar/mcp/ws-1.json"))
                 ),
                 (

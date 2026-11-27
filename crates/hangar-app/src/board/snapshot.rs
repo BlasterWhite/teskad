@@ -1,7 +1,7 @@
 //! Pictures of the board without a window, for whoever builds it and cannot
 //! capture the screen, and a check that every state of it lays out.
 //!
-//! `HANGAR_BOARD_SNAPSHOTS=/some/folder cargo test -p hangar-app board::snapshot`
+//! `TESKAD_BOARD_SNAPSHOTS=/some/folder cargo test -p hangar-app board::snapshot`
 //! writes one PNG per scene, in each language and a dark and a light theme
 //! (the folder is cleared of the old ones first). Without the variable the
 //! scenes are drawn and thrown away, which is the check.
@@ -202,7 +202,7 @@ fn draw<'a>(
     let snapshot = ui
         .snapshot(&hangar_theme::to_iced(m.theme()))
         .expect("the board can be drawn");
-    let Some(folder) = std::env::var_os("HANGAR_BOARD_SNAPSHOTS") else {
+    let Some(folder) = hangar_core::env::var_os("TESKAD_BOARD_SNAPSHOTS") else {
         return;
     };
     let folder = std::path::PathBuf::from(folder);

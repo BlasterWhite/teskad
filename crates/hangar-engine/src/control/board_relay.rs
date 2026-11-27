@@ -1,6 +1,6 @@
 //! `board_relay`: the board calls of a worker a local workspace sent to a
 //! node (nodes/away.rs). Its MCP proxy runs on the node, whose board is not
-//! its task's: with `HANGAR_BOARD_RELAY` set in its shell, the proxy sends
+//! its task's: with `TESKAD_BOARD_RELAY` set in its shell, the proxy sends
 //! each board call as this operation instead (hangar-core's mcp.rs), the
 //! node relays it here like any control request, and it is made to this
 //! machine's own API as the worker's pane, on its workspace's board — the

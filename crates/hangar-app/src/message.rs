@@ -42,10 +42,10 @@ pub enum Message {
     Store(StoreAction),
     Tick(Instant),
     NoticeExpired(u64),
-    /// The main window is due for the picture `HANGAR_DEV_SCREENSHOT` asked
+    /// The main window is due for the picture `TESKAD_DEV_SCREENSHOT` asked
     /// for (debug builds).
     DevScreenshot(crate::shell::dev_screenshot::Due),
-    /// A capture asked for on demand (`HANGAR_DEV_CAPTURE_DIR`, debug
+    /// A capture asked for on demand (`TESKAD_DEV_CAPTURE_DIR`, debug
     /// builds): `None` when asked, then the main window's size once known.
     DevCapture(Option<Size>),
     /// What only the frame and the command table ask of the shell

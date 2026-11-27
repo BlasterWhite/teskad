@@ -468,7 +468,7 @@ fn call_icon(tool: &str) -> Icon {
         Kind::Task => Icon::Board,
         Kind::Memory => Icon::Bookmark,
         Kind::Message => Icon::Bubble,
-        Kind::Other if tool.starts_with("mcp__hangar__") => Icon::Orchestrator,
+        Kind::Other if super::titles::own_tool(tool).is_some() => Icon::Orchestrator,
         Kind::Other if tool.starts_with("mcp__") => Icon::Plug,
         Kind::Other => Icon::Bolt,
     }

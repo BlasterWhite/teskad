@@ -584,7 +584,7 @@ mod tests {
             "apply_patch",
             ".*",
             "^(Edit|MultiEdit)$",
-            "mcp__hangar__board_list_tasks",
+            "mcp__teskad__board_list_tasks",
             "mcp__github__.*",
         ] {
             assert_eq!(reach(runs), None, "{runs}");

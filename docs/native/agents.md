@@ -21,7 +21,7 @@ says so and the task that needs it starts by checking it.
   the TUI at it (`codex --remote`), and connects to it as a second client. It
   learns turns, approvals (held for the chat view, Mobile and Discord; the
   first answer wins), usage, limits and images from the protocol, and sends
-  Hangar's events with `turn/start` / `turn/steer` — what the hangar-bridge
+  Hangar's events with `turn/start` / `turn/steer` — what the teskad-bridge
   mod does for Claude Code. The plain TUI, read from its output and rollout
   files, is the floor when attaching is not possible.
 - **Headless where there is no pane.** The delivery reviewer (`codex exec`),
@@ -61,8 +61,8 @@ setup offering both agents and satisfied by either.
 Hangar 2.0 dropped Codex, Gemini CLI and OpenCode (9fe9d5b, 2026-11-03). What
 2.0 removed was shallow — launch `codex` or `codex resume <id>`, list its
 rollouts, read their token counts for the statistics and the gauge, write
-`[mcp_servers.hangar]` into `~/.codex/config.toml`. Everything Hangar built
-since is Claude-only: the hangar-bridge mod (turn state, event delivery,
+`[mcp_servers.teskad]` into `~/.codex/config.toml`. Everything Hangar built
+since is Claude-only: the teskad-bridge mod (turn state, event delivery,
 briefings, held approvals), the chat view, Mobile and Discord answers,
 accounts, orchestration and workers, the delivery reviewer, kits, the setup
 sheet. Appendix A lists every place, by feature.
@@ -76,9 +76,9 @@ environment apply. Around that command Hangar sets, per pane:
 
 | Channel | Claude Code today |
 |---|---|
-| Identity | `HANGAR_PANE_ID`, `HANGAR_PANE_NAME`, a per-pane API token (`pty.rs`) |
-| Hangar's MCP server | `--mcp-config $HANGAR_MCP_CONFIG [--strict-mcp-config]`, a file Hangar writes per launch (`mcp_scope.rs`) |
-| Side channel | the hangar-bridge mod, loaded through `CLAUDE_CODE_PLUGIN_DIRS`; it reports `hello`, `turn`, `permission`/`ask`, `settings`, `usage`, `edit`, `session`, `end` to `/api/bridge/{pane}/event`, pulls queued messages from `/next`, waits on `/ask/{id}` for the person's answer, reads `/briefing` |
+| Identity | `TESKAD_PANE_ID`, `TESKAD_PANE_NAME`, a per-pane API token (`pty.rs`) |
+| Hangar's MCP server | `--mcp-config $TESKAD_MCP_CONFIG [--strict-mcp-config]`, a file Hangar writes per launch (`mcp_scope.rs`) |
+| Side channel | the teskad-bridge mod, loaded through `CLAUDE_CODE_PLUGIN_DIRS`; it reports `hello`, `turn`, `permission`/`ask`, `settings`, `usage`, `edit`, `session`, `end` to `/api/bridge/{pane}/event`, pulls queued messages from `/next`, waits on `/ask/{id}` for the person's answer, reads `/briefing` |
 | Briefing | the role at the end of the system prompt (`prompt.compose`), the state as `additionalContext` at each session start |
 | Delivery of events | `bridge_enqueue`: submitted as a prompt when idle, appended to the running turn otherwise, labelled with who sent it |
 | Files | transcripts `~/.claude/projects/<slug>/<session>.jsonl`: sessions, context gauge, statistics, chat view, Mobile |
@@ -300,7 +300,7 @@ into the pane's shell. The person gets Codex's own TUI, unchanged; Hangar is
 a second client of the same threads. *Decided by the person, 2026-11-19:*
 the attached mode is on by default, the plain TUI (D6) is the fallback.
 
-*Why.* It gives Hangar, for Codex, everything the hangar-bridge mod gives it
+*Why.* It gives Hangar, for Codex, everything the teskad-bridge mod gives it
 for Claude Code — live turn state, held approvals answered from anywhere
 ("whichever answers first wins", the mod's own rule), messages into an idle
 session or a running turn without typing, exact token usage and plan limits,
@@ -310,7 +310,7 @@ app-server client in core serves panes, delegations and probes.
 
 - **Per pane, not one per account.** The server's process *is* the agent: the
   commands Codex runs are its children, with its environment. Started with
-  the pane's environment (`HANGAR_PANE_ID`, the pane's API token, the port
+  the pane's environment (`TESKAD_PANE_ID`, the pane's API token, the port
   range, `BOARD_RELAY`…), it gives each pane's commands and MCP servers the
   right identity without per-thread environment tricks, and it lives and dies
   with the pane (close, restart, hibernation, `worker_stop`). Memory is what
@@ -318,7 +318,7 @@ app-server client in core serves panes, delegations and probes.
   in-process or the daemon.
 - **Settings ride on the server's command line**, as arguments of a process
   Hangar spawns (never typed into a shell, never on screen): `-c
-  mcp_servers.hangar…`, `-c developer_instructions=…` for the role, the
+  mcp_servers.teskad…`, `-c developer_instructions=…` for the role, the
   permission mapping, `-c sandbox_workspace_write.writable_roots=[…]` for a
   multi-root workspace (the TUI's `--remote` refuses `--add-dir`). The
   daemon's `-c` exclusion (above) does not apply: the TUI is pointed at
@@ -406,7 +406,7 @@ are a different matter (§6.4).
 | `bypassPermissions` | `--permission-mode bypassPermissions` | `--dangerously-bypass-approvals-and-sandbox` |
 
 `allowedTools` (Claude rules let through without asking) maps to Codex only
-for Hangar's own MCP tools, through `mcp_servers.hangar.default_tools_approval_mode`
+for Hangar's own MCP tools, through `mcp_servers.teskad.default_tools_approval_mode`
 (the value that means "do not ask", as the pinned release spells it).
 
 #### 4.2.2 MCP injection
@@ -415,11 +415,11 @@ for Hangar's own MCP tools, through `mcp_servers.hangar.default_tools_approval_m
 pane's app-server, never through `~/.codex/config.toml`:
 
 ```text
--c mcp_servers.hangar.command="<hangar-ai executable>"
--c mcp_servers.hangar.args=["--mcp"]
--c mcp_servers.hangar.env_vars=["HANGAR_PANE_ID","HANGAR_PANE_NAME","HANGAR_API_URL",
-                                "HANGAR_API_TOKEN","HANGAR_WORKSPACE","BOARD_RELAY", …]
--c mcp_servers.hangar.tool_timeout_sec=120
+-c mcp_servers.teskad.command="<hangar-ai executable>"
+-c mcp_servers.teskad.args=["--mcp"]
+-c mcp_servers.teskad.env_vars=["TESKAD_PANE_ID","TESKAD_PANE_NAME","TESKAD_API_URL",
+                                "TESKAD_API_TOKEN","TESKAD_WORKSPACE","BOARD_RELAY", …]
+-c mcp_servers.teskad.tool_timeout_sec=120
 ```
 
 `env_vars` is required: Codex starts stdio servers from a cleared
@@ -428,7 +428,7 @@ these are arguments of a process Hangar spawns, no path or token is typed
 into a shell. In the floor mode the same keys are typed on the `codex`
 command line (quoted for the pane's shell, as dropped file paths already
 are), with the executable path through an environment variable the shell
-expands, as `$HANGAR_MCP_CONFIG` does for Claude Code.
+expands, as `$TESKAD_MCP_CONFIG` does for Claude Code.
 
 A workspace in « custom » MCP mode (`mcp_scope.rs`) gets the same effect as
 Claude's `--strict-mcp-config`: the servers it did not choose are turned off
@@ -453,7 +453,7 @@ the thread id, model and Codex version).
 Codex pane by Hangar's client instead of a mod:
 
 - **idle**: `turn/start` with the message as input text, labelled exactly as
-  the mod labels it ("[Hangar] From agent "Leo" — not typed by the person…");
+  the mod labels it ("[Teskad] From agent "Leo" — not typed by the person…");
   the TUI draws it like any turn (an assumption from the source, §4.0).
 - **running**: `turn/steer {expectedTurnId}` — the equivalent of the mod's
   `session.append`, read by the model at its next step; a steer refused
@@ -646,7 +646,7 @@ What a worker needs of its agent, read as capabilities, not kinds:
 | Need | Capability | Claude Code | Codex |
 |---|---|---|---|
 | Receive its brief | `briefing`, `inject` | role in the system prompt, brief submitted by the mod | role as developer instructions on its server, brief through the inbox as its first `turn/start` (§4.2.4, §4.2.5) |
-| Reach Hangar's tools (`delivery_submit`, `board_*`) | `mcp` | `--mcp-config` | `-c mcp_servers.hangar…` |
+| Reach Hangar's tools (`delivery_submit`, `board_*`) | `mcp` | `--mcp-config` | `-c mcp_servers.teskad…` |
 | Be seen working / done | `turns` | mod | attached client |
 | Keep a job running between turns | `background_jobs` | yes | yes |
 
@@ -659,7 +659,7 @@ the floor with its brief typed (§6.6) — and the refusal names the switch.
 
 The brief texts (`orchestration/brief_text.rs`) stop saying "this Claude Code
 session" and say "this {label} session"; the tool names they cite are
-Hangar's MCP tools, which both agents call as `mcp__hangar__…` (Claude) or
+Hangar's MCP tools, which both agents call as `mcp__teskad__…` (Claude) or
 `hangar.…` (Codex) — the text names the tool, not the prefix.
 
 *Why the orchestrator's agent by default.* A person who chose Codex as their
@@ -714,7 +714,7 @@ delegation_list   {}
   something to lay out in the grid.
 - **Coming back.** `wait` blocks up to `wait_s` and returns the state;
   `async` returns at once. In both cases, when the child ends, Hangar queues a
-  labelled event to the caller's pane through `inject` ("[Hangar] Delegation
+  labelled event to the caller's pane through `inject` ("[Teskad] Delegation
   d-3 (codex) finished: …"), exactly as worker events reach an orchestrator
   today. *Why ≤ 45 s:* Codex's MCP calls time out (`tool_timeout_sec`,
   60 s by default) and so may Claude Code's; 45 s leaves room.
@@ -917,7 +917,7 @@ per-pane and arrive by `briefing` (§4.2.5).
 ### 6.6 Settings
 
 - « Sessions »: the « Hangar bridge » switch becomes one switch per kind
-  (« Claude Code: hangar-bridge mod », « Codex: attach Hangar to Codex »).
+  (« Claude Code: teskad-bridge mod », « Codex: attach Hangar to Codex »).
 - « Agents »: one launch command per kind (`agentCommands.claude`,
   `agentCommands.codex`), default `claude` / `codex`.
 - « Workspaces »: default orchestrator agent for new workspaces (« Automatic
@@ -1191,7 +1191,7 @@ the places that today stop a Codex-only machine.
 | `hangar-engine/src/panes/agents.rs` | `DEFAULT_CLAUDE_COMMAND`, `launch_command` (Claude's flags: `--resume`, `--name`, `--model`, `--permission-mode`, `--allowedTools`, `--mcp-config`/`--strict-mcp-config`, `--add-dir`), `is_resumable`, `is_trust_prompt` (Claude's trust screen) |
 | `hangar-engine/src/host/{launch,mod,terminals}.rs` | the windowless launch: bridge, account, MCP scope for `AgentId::Claude` only; `workspace_create` makes one Claude Code pane (`host/mod.rs:550`) — **must work without Claude** |
 | `hangar-app/src/panes/{controller,launch,mod,header,look,waves}.rs` | the desktop launch (same decisions as `host/launch.rs`, a second copy), Shift+Enter mapping for Claude, resume waves sized for Claude |
-| `hangar-core/src/pty.rs` | scrubs `CLAUDE_CODE_*`/`CLAUDECODE`/`CLAUDE_PID` from panes, `HANGAR_MCP_CONFIG`, `CLAUDE_CODE_PLUGIN_DIRS`, `CLAUDE_CONFIG_DIR` per account |
+| `hangar-core/src/pty.rs` | scrubs `CLAUDE_CODE_*`/`CLAUDECODE`/`CLAUDE_PID` from panes, `TESKAD_MCP_CONFIG`, `CLAUDE_CODE_PLUGIN_DIRS`, `CLAUDE_CONFIG_DIR` per account |
 | `hangar-core/src/pty/jobs.rs` | "a job of its own between two turns": shells started by the agent (Claude's `bash -c`) |
 | `hangar-core/src/path_env.rs` | PATH repair for `~/.local/bin` (Claude's installer) |
 | `hangar-app/src/shell/setup/{mod,install,nixos,view}.rs`, `shell/overlay.rs` (`Overlay::ClaudeSetup`), `services/core.rs`, `app.rs` | the setup sheet that stands in the way until `claude` is installed; Anthropic's installer; nixpkgs; `shellsOnly` — **must work without Claude** |
@@ -1205,7 +1205,7 @@ the places that today stop a Codex-only machine.
 
 | Place | What it assumes today |
 |---|---|
-| `hangar-core/claude-mod/hangar-bridge/**` | the Claude Code mod: hooks module (`session.start`, `turn.*`, `prompt.compose`, `classic.*`), inbox poll every 1.5 s, `$.prompt.submit`, `$.session.append` mid-turn, briefing in the system prompt |
+| `hangar-core/claude-mod/teskad-bridge/**` | the Claude Code mod: hooks module (`session.start`, `turn.*`, `prompt.compose`, `classic.*`), inbox poll every 1.5 s, `$.prompt.submit`, `$.session.append` mid-turn, briefing in the system prompt |
 | `hangar-core/src/bridge.rs` | installs the mod under `~/.hangar/mods/`, `CLAUDE_CODE_PLUGIN_DIRS`, Claude's managed-settings sideloading policy, the inbox (`Queued`), held asks, edits |
 | `hangar-core/src/server.rs` | `/api/bridge/{pane}/{event,next,conflict,briefing,ask/{id}}` routes, called by the mod |
 | `hangar-engine/src/panes/{pane_agent,agent_state,bridge_events,activity,pane_insight}.rs`, `live.rs` | `bridged` = the mod said hello; guesses from output stand down then |

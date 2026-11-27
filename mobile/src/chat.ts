@@ -120,8 +120,8 @@ export function pathParts(subject: string): { dir: string; base: string } | null
   return { dir: subject.slice(0, at), base: subject.slice(at + 1) };
 }
 
-/** A message Hangar queued, without the "[Hangar]" it starts with. */
-export const hangarText = (text: string) => text.replace(/^\s*\[Hangar\]\s*/, "");
+/** A message Hangar queued, without the "[Teskad]" (or, before the rename, "[Hangar]") it starts with. */
+export const hangarText = (text: string) => text.replace(/^\s*\[(?:Teskad|Hangar)\]\s*/, "");
 
 /** A Hangar note this long opens folded, to its first lines. */
 export const NOTE_FOLDS_AT = 280;

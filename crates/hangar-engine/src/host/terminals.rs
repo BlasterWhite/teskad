@@ -30,11 +30,11 @@ pub struct Spawn {
     pub name: String,
     /// The pane's agent (`claude`, `codex`, `shell`).
     pub agent: String,
-    /// The hangar-bridge mod is loaded into its Claude Code.
+    /// The teskad-bridge mod is loaded into its Claude Code.
     pub bridge: bool,
     pub port_base: Option<u16>,
     pub build_env: Vec<(String, String)>,
-    /// The `--mcp-config` file, handed as `HANGAR_MCP_CONFIG`.
+    /// The `--mcp-config` file, handed as `TESKAD_MCP_CONFIG`.
     pub mcp_config: Option<String>,
     /// The account its agent runs on, of the agent's kind whatever the
     /// field's name (Claude Code's alone had one when it was named): the PTY
@@ -441,7 +441,7 @@ while True:
             name: Some("Ada".into()),
             mcp: Some(McpRequest {
                 file: "/srv/mcp/ws-1.json".into(),
-                arg: "\"$HANGAR_MCP_CONFIG\"".into(),
+                arg: "\"$TESKAD_MCP_CONFIG\"".into(),
                 strict: false,
             }),
             ..LaunchRequest::default()
@@ -459,14 +459,14 @@ while True:
         assert_eq!(
             started,
             AgentStart {
-                line: "claude --name Ada --mcp-config \"$HANGAR_MCP_CONFIG\"".into(),
+                line: "claude --name Ada --mcp-config \"$TESKAD_MCP_CONFIG\"".into(),
                 server: None,
             }
         );
         assert!(shell_holds(
             &ptys,
             "claude-1",
-            "HANGAR_MCP_CONFIG",
+            "TESKAD_MCP_CONFIG",
             "/srv/mcp/ws-1.json"
         ));
         ptys.kill("claude-1").unwrap();
@@ -500,7 +500,7 @@ while True:
             &ptys,
             "codex-floor",
             MCP_VAR,
-            &format!("mcp_servers.hangar={{command='{HANGAR}'")
+            &format!("mcp_servers.teskad={{command='{HANGAR}'")
         ));
         assert_eq!(pty::codex_socket(&manager, "codex-floor"), None);
         ptys.kill("codex-floor").unwrap();
@@ -590,7 +590,7 @@ while True:
             &ptys,
             "codex-missing",
             MCP_VAR,
-            &format!("mcp_servers.hangar={{command='{HANGAR}'")
+            &format!("mcp_servers.teskad={{command='{HANGAR}'")
         ));
         ptys.kill("codex-missing").unwrap();
     }

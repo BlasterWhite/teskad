@@ -7,7 +7,7 @@
 //! agents' pane control being turned off does not stop it.
 //!
 //! A permission the pane's side channel holds open — Claude Code's
-//! hangar-bridge mod, Hangar's client of a Codex pane's server — is answered
+//! teskad-bridge mod, Hangar's client of a Codex pane's server — is answered
 //! through it, as the decision itself (`held`). Otherwise the keys of the
 //! agent's own dialog. Claude Code's permission prompt takes one key: Enter
 //! accepts the highlighted "1. Yes", Escape is "No, and tell Claude what to
@@ -355,7 +355,7 @@ pub struct SideChannelSetting {
     pub off: &'static str,
 }
 
-/// The side channel of the pane's agent: the hangar-bridge mod for Claude
+/// The side channel of the pane's agent: the teskad-bridge mod for Claude
 /// Code (Settings › Agents), Hangar attached to the pane's own Codex server
 /// (« Attach Hangar to Codex », D5), which delivers the queue too (D9). Whether
 /// it is on is a setting kept once per kind, read here as `state::types` reads
@@ -365,7 +365,7 @@ pub fn side_channel(settings: &Settings, pane: &Pane) -> Option<SideChannelSetti
     Some(match pane.agent.kind()? {
         AgentKind::Claude => SideChannelSetting {
             on: settings.claude_bridge,
-            off: "The hangar-bridge mod is off",
+            off: "The teskad-bridge mod is off",
         },
         AgentKind::Codex => SideChannelSetting {
             on: settings.codex_attach,

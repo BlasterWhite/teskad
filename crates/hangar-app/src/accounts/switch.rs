@@ -87,7 +87,7 @@ pub fn running_count(panes: &[&SwitchPane]) -> usize {
     panes.iter().filter(|pane| pane.running).count()
 }
 
-/// One report of the hangar-bridge: a pane's rate limits at a moment.
+/// One report of the teskad-bridge: a pane's rate limits at a moment.
 #[derive(Debug, Clone, PartialEq)]
 pub struct UsageMeasure {
     pub pane_id: String,
@@ -255,7 +255,7 @@ pub fn merge_usage(known: &Usage, fresh: &Usage) -> Usage {
 /// being shared (core's accounts.rs: Claude's `projects/`, Codex's
 /// `sessions/`). A restart ends whatever the agent runs, so a pane moves
 /// only once Hangar knows it has nothing to lose: its turn over as its side
-/// channel reports it (the hangar-bridge mod, Hangar's client of an attached
+/// channel reports it (the teskad-bridge mod, Hangar's client of an attached
 /// Codex; never a guess read off the screen), nothing typed in its prompt,
 /// and no command of its own still running below it (a build, a watch on
 /// its CI: `hangar_core::pty::pane_job`). What is not known yet waits, and

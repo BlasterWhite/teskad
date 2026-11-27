@@ -1,7 +1,7 @@
 # from the protocol schema (Codex 0.170.0) — turn/steer, turn/interrupt — and, for the refusal, from the source at rust-v0.170.0: app-server/src/request_processors/turn_processor.rs (a steer that finds no active turn is an invalid request, "no active turn to steer"). Written by hand, not recorded.
 # Hangar steers a running turn, interrupts it, then steers again: Codex refuses, and the caller can fall back to turn/start (D9).
 # ">" is what Hangar sends, "<" what Codex sends, in order. Follows initialize.jsonl.
-> {"id":1,"method":"turn/steer","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10","expectedTurnId":"turn-1","input":[{"type":"text","text":"[Hangar] From agent \"Leo\": also run the linter."}]}}
+> {"id":1,"method":"turn/steer","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10","expectedTurnId":"turn-1","input":[{"type":"text","text":"[Teskad] From agent \"Leo\": also run the linter."}]}}
 < {"id":1,"result":{"turnId":"turn-1"}}
 > {"id":2,"method":"turn/interrupt","params":{"threadId":"019a7c2e-5b1d-7f43-9a61-3c8e2f4d6b10","turnId":"turn-1"}}
 < {"id":2,"result":{}}

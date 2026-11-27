@@ -120,7 +120,7 @@
      "content": [
       {
        "type": "text",
-       "text": "[Hangar] From agent \"Leo\": check the header on a phone too.",
+       "text": "[Teskad] From agent \"Leo\": check the header on a phone too.",
        "text_elements": []
       }
      ]
@@ -144,7 +144,7 @@
     "item": {
      "type": "mcpToolCall",
      "id": "call_Mcp9b0aRd7Pr0gr3ssQw2E",
-     "server": "hangar",
+     "server": "teskad",
      "tool": "board_report_progress",
      "arguments": {
       "id": "t-42",

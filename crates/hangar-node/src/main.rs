@@ -51,7 +51,7 @@ fn main() {
 #[cfg(target_os = "linux")]
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 #[cfg(target_os = "linux")]
-pub const TARGET: &str = env!("HANGAR_NODE_TARGET");
+pub const TARGET: &str = env!("TESKAD_NODE_TARGET");
 
 #[cfg(target_os = "linux")]
 const USAGE: &str =
@@ -122,15 +122,15 @@ fn report(outcome: Result<(), String>) -> i32 {
 /// The node publishes its agents' API to a file of its own
 /// (`~/.local/state/teskad-node/endpoint.json`), never the desktop's
 /// `~/.hangar/endpoint.json`, so a desktop Hangar on the same account keeps
-/// its agents. The proxy finds it through `HANGAR_ENDPOINT_FILE`, unless the
+/// its agents. The proxy finds it through `TESKAD_ENDPOINT_FILE`, unless the
 /// caller already names one.
 #[cfg(target_os = "linux")]
 fn mcp() {
-    let named = std::env::var_os("HANGAR_ENDPOINT_FILE").is_some_and(|v| !v.is_empty());
+    let named = std::env::var_os("TESKAD_ENDPOINT_FILE").is_some_and(|v| !v.is_empty());
     if !named {
         if let Ok(dir) = state::dir() {
             // Still single-threaded: nothing else reads the environment yet.
-            std::env::set_var("HANGAR_ENDPOINT_FILE", state::endpoint_file(&dir));
+            std::env::set_var("TESKAD_ENDPOINT_FILE", state::endpoint_file(&dir));
         }
     }
     hangar_core::run_mcp();

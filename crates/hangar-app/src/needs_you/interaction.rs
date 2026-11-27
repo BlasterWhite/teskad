@@ -195,7 +195,7 @@ fn a_merge_that_failed_says_why_on_its_row() {
 }
 
 /// A Codex pane that asks is listed as any agent that asks: Hangar attached
-/// to its server holds the ask and reports it as the hangar-bridge mod does,
+/// to its server holds the ask and reports it as the teskad-bridge mod does,
 /// and the row reads the pane's activity, never its agent.
 #[test]
 fn a_codex_pane_that_asks_is_listed_and_shown() {

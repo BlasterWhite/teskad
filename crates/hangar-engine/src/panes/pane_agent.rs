@@ -14,7 +14,7 @@
 //! (`Effect`).
 //!
 //! Guesses and reports. A pane's side channel reports what its agent does:
-//! the hangar-bridge mod from inside a Claude Code, Hangar's own client of a
+//! the teskad-bridge mod from inside a Claude Code, Hangar's own client of a
 //! Codex pane's server (`agent/codex_attach.rs`), both in the same reports
 //! (`BridgeEvent`), read here alike (`on_bridge`). The first report proves
 //! the side channel is there (`bridged`: it spoke), and from then on every
@@ -94,7 +94,7 @@ pub struct PaneAgent {
     /// Where the agent stands, even when nobody reads it (a plain shell
     /// reports nothing, but a bell in it still hands back).
     pub activity: AgentActivity,
-    /// The pane's side channel spoke (the hangar-bridge mod in its Claude
+    /// The pane's side channel spoke (the teskad-bridge mod in its Claude
     /// Code, Hangar's client of its Codex server): its turns, dialogs and
     /// usage are reported rather than guessed from the terminal.
     pub bridged: bool,

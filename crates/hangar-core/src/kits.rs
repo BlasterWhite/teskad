@@ -100,12 +100,12 @@ async fn off_thread<T: Send + 'static>(
 }
 
 /// What a manifest's `hangar` requirement is checked against.
-pub const HANGAR_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// `~/.teskad/kits/`, or beside the endpoint file a development build run
 /// next to an installed Hangar was given, as for the bridge's mod (bridge.rs).
 fn kits_root() -> Option<PathBuf> {
-    if let Some(file) = std::env::var_os("HANGAR_ENDPOINT_FILE").filter(|v| !v.is_empty()) {
+    if let Some(file) = std::env::var_os("TESKAD_ENDPOINT_FILE").filter(|v| !v.is_empty()) {
         return Some(PathBuf::from(file).parent()?.join("kits"));
     }
     Some(crate::paths::home_folder()?.join("kits"))
@@ -208,7 +208,7 @@ fn usable(store: &Store, ids: &[String]) -> (Vec<Loaded>, Vec<LaunchIssue>) {
 pub struct Launch {
     pub plugins: Vec<(String, PathBuf)>,
     pub issues: Vec<LaunchIssue>,
-    /// `HANGAR_KITS_DATA` in the pane's environment.
+    /// `TESKAD_KITS_DATA` in the pane's environment.
     pub data_root: Option<PathBuf>,
 }
 

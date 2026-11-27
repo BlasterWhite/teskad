@@ -16,7 +16,89 @@ use serde_json::{json, Map, Value};
 
 use crate::store::{write_atomic, Access};
 
-pub(crate) const SERVER_KEY: &str = "hangar";
+pub const SERVER_KEY: &str = "teskad";
+
+/// The name the upstream app, and this one before the rename, registered the
+/// server under. An entry under it that runs Teskad is ours and moves to
+/// [`SERVER_KEY`]; one that runs the official app is the official app's, and
+/// stays as it is ([`names_teskad`]).
+pub const UPSTREAM_SERVER_KEY: &str = "hangar";
+
+/// Whether a server entry starts Teskad: its program is Teskad's (`teskad`,
+/// `teskad.exe`, whatever the folder), it is the running executable, or its
+/// environment names an endpoint file in Teskad's own folder (`.teskad`).
+pub(crate) fn names_teskad(entry: &Value) -> bool {
+    let program_is_ours = entry
+        .get("command")
+        .and_then(Value::as_str)
+        .is_some_and(|command| {
+            let name = command.rsplit(['/', '\\']).next().unwrap_or(command);
+            let stem = name.strip_suffix(".exe").unwrap_or(name).to_lowercase();
+            stem.starts_with("teskad") || executable().is_ok_and(|exe| exe == command)
+        });
+    let endpoint_is_ours = ["TESKAD_ENDPOINT_FILE", "HANGAR_ENDPOINT_FILE"]
+        .iter()
+        .filter_map(|key| entry.get("env")?.get(*key)?.as_str())
+        .any(|file| {
+            file.split(['/', '\\'])
+                .any(|part| part == crate::paths::HOME_DIR_NAME)
+        });
+    program_is_ours || endpoint_is_ours
+}
+
+/// Moves the entry of `servers` that runs Teskad from [`UPSTREAM_SERVER_KEY`]
+/// to [`SERVER_KEY`], its `env` variables renamed `HANGAR_*` to `TESKAD_*`;
+/// whether anything changed. An entry under the upstream name that runs the
+/// official app is not touched, and an existing `teskad` entry is kept as it is
+/// (the old one is then only dropped).
+pub(crate) fn rename_upstream_entry(servers: &mut Map<String, Value>) -> bool {
+    if !servers.get(UPSTREAM_SERVER_KEY).is_some_and(names_teskad) {
+        return false;
+    }
+    let Some(mut entry) = servers.remove(UPSTREAM_SERVER_KEY) else {
+        return false;
+    };
+    rename_env(&mut entry);
+    servers.entry(SERVER_KEY.to_string()).or_insert(entry);
+    true
+}
+
+/// The `env` of a server entry with its `HANGAR_*` variables renamed
+/// `TESKAD_*` (`HANGAR_WORKSPACE`, which Teskad's MCP server reads).
+pub(crate) fn rename_env(entry: &mut Value) {
+    let Some(env) = entry.get_mut("env").and_then(Value::as_object_mut) else {
+        return;
+    };
+    *env = std::mem::take(env)
+        .into_iter()
+        .map(|(key, value)| match key.strip_prefix("HANGAR_") {
+            Some(rest) => (format!("TESKAD_{rest}"), value),
+            None => (key, value),
+        })
+        .collect();
+}
+
+/// The project's `.mcp.json`, when it holds an entry under the upstream name
+/// that runs Teskad: renamed in place (the file kept as `.mcp.json.hangar-bak`
+/// the first time, as an install does). A file that does not parse, or has no
+/// such entry, is left as it is. Whether the file was rewritten.
+pub fn migrate_project_config(workspace_cwd: &Path) -> bool {
+    let path = workspace_cwd.join(".mcp.json");
+    let Ok(mut root) = read_json(&path) else {
+        return false;
+    };
+    let Some(servers) = root.get_mut(SERVERS).and_then(Value::as_object_mut) else {
+        return false;
+    };
+    if !rename_upstream_entry(servers) {
+        return false;
+    }
+    backup(&path);
+    let Ok(body) = serde_json::to_string_pretty(&Value::Object(root)) else {
+        return false;
+    };
+    write_atomic(&path, body.as_bytes(), Access::AsBefore).is_ok()
+}
 
 /// Names this server has been registered under before, newest first.
 ///
@@ -98,7 +180,7 @@ fn detected(target: &Target) -> bool {
 /// Why this run must not write `what`, when it is one kept off the installed
 /// app's data.
 ///
-/// `HANGAR_DATA_ROOT` (paths.rs) moves the state, the endpoint, the mods, the
+/// `TESKAD_DATA_ROOT` (paths.rs) moves the state, the endpoint, the mods, the
 /// kits and the accounts of a development build away from the installed
 /// Hangar's. The agents' MCP configs and the login item cannot be moved that
 /// way: they live where the agents and the system look for them, and what
@@ -108,15 +190,15 @@ fn detected(target: &Target) -> bool {
 /// login. So a run kept off the data is kept off these too. The variable
 /// decides rather than the build profile, because `native-dev.sh --release`
 /// is such a run as well, and a debug build started with
-/// `HANGAR_DEV_USE_REAL_DATA` uses the real files on purpose (main.rs).
+/// `TESKAD_DEV_USE_REAL_DATA` uses the real files on purpose (main.rs).
 pub(crate) fn isolation_refusal(what: &str) -> Option<String> {
-    refusal_for(std::env::var_os("HANGAR_DATA_ROOT"), what)
+    refusal_for(crate::env::var_os("TESKAD_DATA_ROOT"), what)
 }
 
 fn refusal_for(root: Option<std::ffi::OsString>, what: &str) -> Option<String> {
     root.filter(|root| !root.is_empty()).map(|root| {
         format!(
-            "This run keeps off the installed Hangar's files (HANGAR_DATA_ROOT is {}), \
+            "This run keeps off the installed Hangar's files (TESKAD_DATA_ROOT is {}), \
              so it does not write {what}: that would point them at this build.",
             Path::new(&root).display()
         )
@@ -138,7 +220,7 @@ pub(crate) fn server_entry(workspace_cwd: &str) -> Result<Value, String> {
     Ok(json!({
         "command": executable()?,
         "args": ["--mcp"],
-        "env": { "HANGAR_WORKSPACE": workspace_cwd }
+        "env": { "TESKAD_WORKSPACE": workspace_cwd }
     }))
 }
 
@@ -209,6 +291,8 @@ fn install_json(path: &PathBuf, key: &str, workspace_cwd: &str) -> Result<(), St
     for legacy in LEGACY_SERVER_KEYS {
         servers.remove(*legacy);
     }
+    // Ours under the upstream's name goes; the official app's stays.
+    rename_upstream_entry(servers);
     servers.insert(SERVER_KEY.to_string(), server_entry(workspace_cwd)?);
 
     let body = serde_json::to_string_pretty(&Value::Object(root)).map_err(|e| e.to_string())?;
@@ -288,12 +372,20 @@ fn registration(path: &Path) -> Option<Registration> {
             command: command_of(entry),
         });
     }
-    LEGACY_SERVER_KEYS.iter().find_map(|key| {
-        servers.get(*key).map(|entry| Registration {
-            legacy: true,
-            command: command_of(entry),
+    [UPSTREAM_SERVER_KEY]
+        .into_iter()
+        .chain(LEGACY_SERVER_KEYS.iter().copied())
+        .find_map(|key| {
+            servers
+                .get(key)
+                // Under the upstream's name, only an entry that runs Teskad is
+                // ours: the official app's is its own.
+                .filter(|entry| key != UPSTREAM_SERVER_KEY || names_teskad(entry))
+                .map(|entry| Registration {
+                    legacy: true,
+                    command: command_of(entry),
+                })
         })
-    })
 }
 
 pub fn mcp_targets(workspace_cwd: String) -> Vec<TargetStatus> {
@@ -471,6 +563,53 @@ mod tests {
     }
 
     #[test]
+    fn installing_moves_teskad_s_entry_from_the_upstream_name_and_keeps_the_official_one() {
+        let path = temp_config("upstream");
+        let body = json!({ "mcpServers": {
+            "hangar": {
+                "command": "/home/a/.local/bin/teskad",
+                "args": ["--mcp"],
+                "env": { "HANGAR_WORKSPACE": "/w" }
+            }
+        }});
+        fs::write(&path, body.to_string()).unwrap();
+        install_json(&path, "mcpServers", "/w").expect("install");
+        let servers = read_json(&path).unwrap()["mcpServers"].clone();
+        assert!(servers.get("hangar").is_none());
+        assert!(servers.get(SERVER_KEY).is_some());
+
+        // The official app's own entry is none of ours.
+        let body = json!({ "mcpServers": {
+            "hangar": { "command": "/opt/hangar/hangar-ai", "args": ["--mcp"] }
+        }});
+        fs::write(&path, body.to_string()).unwrap();
+        install_json(&path, "mcpServers", "/w").expect("install");
+        let servers = read_json(&path).unwrap()["mcpServers"].clone();
+        assert_eq!(servers["hangar"]["command"], "/opt/hangar/hangar-ai");
+        assert!(servers.get(SERVER_KEY).is_some());
+        fs::remove_dir_all(path.parent().unwrap()).ok();
+    }
+
+    #[test]
+    fn an_entry_is_teskad_s_by_its_program_or_its_endpoint() {
+        for ours in [
+            json!({ "command": "/home/a/.local/bin/teskad" }),
+            json!({ "command": "C:\\Apps\\Teskad\\teskad.exe" }),
+            json!({ "command": "node", "env": { "HANGAR_ENDPOINT_FILE": "/home/a/.teskad/endpoint.json" } }),
+        ] {
+            assert!(names_teskad(&ours), "{ours}");
+        }
+        for theirs in [
+            json!({ "command": "/opt/hangar/hangar-ai" }),
+            json!({ "command": "C:\\Hangar\\hangar.exe" }),
+            json!({ "command": "node", "env": { "HANGAR_ENDPOINT_FILE": "/home/a/.hangar/endpoint.json" } }),
+            json!({ "url": "http://127.0.0.1:1/mcp" }),
+        ] {
+            assert!(!names_teskad(&theirs), "{theirs}");
+        }
+    }
+
+    #[test]
     fn an_entry_under_the_previous_name_reads_as_stale() {
         let path = temp_config("legacy-key");
         let exe = std::env::current_exe().unwrap();
@@ -485,6 +624,18 @@ mod tests {
 
     /// The failure this whole change exists for: the key is there, so the UI
     /// said "configured", while the binary it named had been renamed away.
+    #[test]
+    fn an_entry_under_the_upstream_name_is_ours_only_when_it_runs_teskad() {
+        let path = temp_config("upstream-key");
+        write_server(&path, "hangar", "/home/a/.local/bin/teskad");
+        let found = registration(&path).expect("ours, under the old name");
+        assert!(found.legacy && found.stale());
+
+        write_server(&path, "hangar", "/opt/hangar/hangar-ai");
+        assert!(registration(&path).is_none(), "the official app's");
+        fs::remove_dir_all(path.parent().unwrap()).ok();
+    }
+
     #[test]
     fn an_entry_naming_a_missing_executable_is_stale() {
         let path = temp_config("dead-path");
@@ -519,7 +670,7 @@ mod tests {
         let refusal = refusal_for(Some("/tmp/dev-home".into()), "the agents' MCP configs");
         assert!(refusal
             .as_deref()
-            .is_some_and(|why| why.contains("HANGAR_DATA_ROOT")));
+            .is_some_and(|why| why.contains("TESKAD_DATA_ROOT")));
 
         let reports = install_unless(
             refusal.clone(),

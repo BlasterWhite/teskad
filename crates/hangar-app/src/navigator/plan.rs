@@ -1,7 +1,7 @@
 //! The plan's rate-limit windows, as the last session to report saw them
 //! (`NavigatorPlan.tsx`): one account behind every pane, so one block for all
 //! of them. Nothing shows until a pane's side channel has reported: the
-//! hangar-bridge mod in a Claude Code, Hangar attached to a Codex — either
+//! teskad-bridge mod in a Claude Code, Hangar attached to a Codex — either
 //! agent's windows read the same (`five_hour`, `seven_day`, a gateway's).
 //! Whose they are is said by the agents that report them (`usage.limits`),
 //! never by a name written here; with several agents' accounts the per-account

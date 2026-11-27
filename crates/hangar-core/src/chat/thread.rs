@@ -23,9 +23,17 @@ const RESUMED: &str = "Session resumed";
 /// What Claude Code writes around a message a plugin sends between turns.
 const PLUGIN_HEAD: &str = "plugin sent a message:";
 const PLUGIN_TAIL: &str = "This is how Claude Code surfaces";
-/// Hangar's own plugin: what it sends is Hangar's, not the person's.
-const HANGAR_PLUGIN: &str = "hangar-bridge";
-pub(super) const HANGAR_MARK: &str = "[Hangar]";
+/// Teskad's own plugin, and the name it had before the rename (a transcript
+/// written then holds it): what it sends is the app's, not the person's.
+const BRIDGE_PLUGINS: [&str; 2] = ["teskad-bridge", "hangar-bridge"];
+/// What the app's messages to an agent start with, and what they started with
+/// before the rename: read in transcripts, only the first is ever written.
+const APP_MARKS: [&str; 2] = ["[Teskad]", "[Hangar]"];
+
+/// Whether `text` starts with the app's mark.
+pub(super) fn from_app(text: &str) -> bool {
+    APP_MARKS.iter().any(|mark| text.starts_with(mark))
+}
 
 /// Messages that open with one of these were written by Claude Code or a
 /// tool, not typed: command output, notifications, reminders.
@@ -283,7 +291,14 @@ impl Thread {
     ) {
         let hangar_plugin = match origin.kind.as_deref() {
             None | Some("human") => false,
-            Some("plugin") if origin.name.as_deref() == Some(HANGAR_PLUGIN) => true,
+            Some("plugin")
+                if origin
+                    .name
+                    .as_deref()
+                    .is_some_and(|name| BRIDGE_PLUGINS.contains(&name)) =>
+            {
+                true
+            }
             // Notifications, other sessions, other plugins, the coordinator.
             Some(_) => return,
         };
@@ -313,7 +328,7 @@ impl Thread {
         if text.is_empty() && images == 0 {
             return;
         }
-        let from = if hangar_plugin || text.starts_with(HANGAR_MARK) {
+        let from = if hangar_plugin || from_app(&text) {
             Sender::Hangar
         } else {
             Sender::Person

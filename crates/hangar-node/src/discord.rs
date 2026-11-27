@@ -4,7 +4,7 @@
 //! itself, started again when the settings change.
 //!
 //! - `teskad-node discord setup --guild <id>`: the bot's token read from
-//!   `HANGAR_DISCORD_TOKEN` or the first line of standard input (never an
+//!   `TESKAD_DISCORD_TOKEN` or the first line of standard input (never an
 //!   argument: it would stay in the shell's history), the server's id; a
 //!   pairing code made, the invite link printed;
 //! - `teskad-node discord status`: configured, paired, the code to pair;
@@ -181,8 +181,8 @@ impl Connector {
 async fn keep_running(hangar: Arc<NodeHangar>, dir: PathBuf) {
     let named = |var: &str| std::env::var(var).ok().filter(|v| !v.trim().is_empty());
     let options = hangar_discord::Options {
-        api: named("HANGAR_DISCORD_API").unwrap_or_else(|| hangar_discord::rest::API.into()),
-        gateway: named("HANGAR_DISCORD_GATEWAY"),
+        api: named("TESKAD_DISCORD_API").unwrap_or_else(|| hangar_discord::rest::API.into()),
+        gateway: named("TESKAD_DISCORD_GATEWAY"),
         dir,
     };
     hangar_discord::keep_running(hangar, options).await;
@@ -382,7 +382,7 @@ pub fn setup(args: &[&str]) -> Result<(), String> {
             "a server's id is digits: Discord › Server Settings › Widget, or Copy Server ID".into(),
         );
     }
-    let token = match std::env::var("HANGAR_DISCORD_TOKEN") {
+    let token = match hangar_core::env::var("TESKAD_DISCORD_TOKEN") {
         Ok(token) if !token.trim().is_empty() => token.trim().to_string(),
         _ => {
             eprintln!("The bot's token (Developer Portal › your application › Bot › Reset Token):");

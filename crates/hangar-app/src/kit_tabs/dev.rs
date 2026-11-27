@@ -1,13 +1,13 @@
 //! A development aid: a debug build opens kit tabs in the active workspace's
 //! preview once the state is read, so a tab can be looked at without a click
-//! or an agent. With `HANGAR_DEV_KIT_TABS=<kit>/<tab>,<kit>/<tab>…` the tabs
+//! or an agent. With `TESKAD_DEV_KIT_TABS=<kit>/<tab>,<kit>/<tab>…` the tabs
 //! open in that order, the last in front. A tab can be given params as an
 //! agent's `kit_tab_open` would, after a `?`: `editor/editor?path=.env&line=3`
 //! (a value cannot hold a `,` or a `&`):
 //!
 //! ```sh
-//! HANGAR_DEV_KIT_TABS=hello-native/hello \
-//!   HANGAR_DEV_SCREENSHOT=/tmp/kit.png scripts/native-dev.sh
+//! TESKAD_DEV_KIT_TABS=hello-native/hello \
+//!   TESKAD_DEV_SCREENSHOT=/tmp/kit.png scripts/native-dev.sh
 //! ```
 //!
 //! A release build never reads it.
@@ -27,7 +27,7 @@ pub fn requested() -> Vec<Asked> {
     if !cfg!(debug_assertions) {
         return Vec::new();
     }
-    parse(&std::env::var("HANGAR_DEV_KIT_TABS").unwrap_or_default())
+    parse(&hangar_core::env::var("TESKAD_DEV_KIT_TABS").unwrap_or_default())
 }
 
 fn parse(spec: &str) -> Vec<Asked> {

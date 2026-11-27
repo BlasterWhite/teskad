@@ -11,10 +11,10 @@ use super::wire::parse_frame;
 /// The token the fake node asks for.
 pub const TOKEN: &str = "test-token";
 
-/// A listener on a port of this worker's range (`HANGAR_PORT_BASE`, the
+/// A listener on a port of this worker's range (`TESKAD_PORT_BASE`, the
 /// first one free), or any when there is no range, and the client of it.
 pub async fn listen() -> (TcpListener, NodeClient) {
-    let base = std::env::var("HANGAR_PORT_BASE")
+    let base = hangar_core::env::var("TESKAD_PORT_BASE")
         .ok()
         .and_then(|base| base.parse::<u16>().ok());
     let mut listener = None;

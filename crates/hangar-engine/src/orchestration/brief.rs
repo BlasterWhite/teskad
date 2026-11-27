@@ -5,7 +5,7 @@
 //!
 //! Any agent whose capabilities let it hold a role is briefed
 //! (`roles::takes_a_role`, docs/native/agents.md §5.1), each where its kind
-//! takes it (`Capabilities::briefing`, §4.2.5): Claude Code's hangar-bridge
+//! takes it (`Capabilities::briefing`, §4.2.5): Claude Code's teskad-bridge
 //! mod asks through `GET /api/bridge/{pane}/briefing` and puts the role at
 //! the end of the system prompt, the state into the session; Hangar's client
 //! of a Codex pane's server asks the same and hands the state to each thread
@@ -577,7 +577,7 @@ fn worker_briefing(
             .map(|command| format!("Check: `{command}`.")),
         pane.port_base
             .filter(|base| *base != 0)
-            .map(|base| format!("Ports: {base} to {} (HANGAR_PORT_BASE).", base + 19)),
+            .map(|base| format!("Ports: {base} to {} (TESKAD_PORT_BASE).", base + 19)),
     ]
     .into_iter()
     .flatten()

@@ -121,7 +121,7 @@ pub fn info(kind: AgentKind) -> &'static AgentInfo {
     }
 }
 
-/// Claude Code with the hangar-bridge mod: what Hangar has run since 2.0.
+/// Claude Code with the teskad-bridge mod: what Hangar has run since 2.0.
 static CLAUDE: AgentInfo = AgentInfo {
     kind: AgentKind::Claude,
     label: "Claude Code",

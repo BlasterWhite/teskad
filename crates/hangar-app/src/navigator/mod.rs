@@ -135,16 +135,16 @@ impl Default for State {
 }
 
 impl State {
-    /// `HANGAR_DEV_NAV_MENU=<workspace id>` opens that row's menu,
-    /// `HANGAR_DEV_NAV_RENAME=<workspace id>` puts it in rename, and
-    /// `HANGAR_DEV_NAV_DRAG=<dragged id>:<over id>:<before|after>` holds a drag
+    /// `TESKAD_DEV_NAV_MENU=<workspace id>` opens that row's menu,
+    /// `TESKAD_DEV_NAV_RENAME=<workspace id>` puts it in rename, and
+    /// `TESKAD_DEV_NAV_DRAG=<dragged id>:<over id>:<before|after>` holds a drag
     /// of one workspace over another, to see them in a theme and a language
     /// without a pointer (debug builds only).
     fn with_dev_view(mut self) -> State {
         if !cfg!(debug_assertions) {
             return self;
         }
-        if let Ok(id) = std::env::var("HANGAR_DEV_NAV_MENU") {
+        if let Ok(id) = hangar_core::env::var("TESKAD_DEV_NAV_MENU") {
             self.cursor = Some(row_key(RowKind::Ws, &id));
             self.menu = Some(MenuState {
                 kind: RowKind::Ws,
@@ -153,14 +153,14 @@ impl State {
                 from_keyboard: true,
             });
         }
-        if let Ok(id) = std::env::var("HANGAR_DEV_NAV_RENAME") {
+        if let Ok(id) = hangar_core::env::var("TESKAD_DEV_NAV_RENAME") {
             self.rename = Some(Rename {
                 kind: RowKind::Ws,
                 draft: id.clone(),
                 id,
             });
         }
-        if let Ok(spec) = std::env::var("HANGAR_DEV_NAV_DRAG") {
+        if let Ok(spec) = hangar_core::env::var("TESKAD_DEV_NAV_DRAG") {
             let mut parts = spec.split(':');
             if let (Some(dragged), Some(over), Some(side)) =
                 (parts.next(), parts.next(), parts.next())

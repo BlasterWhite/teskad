@@ -1,6 +1,6 @@
 //! Readable one-line titles for Hangar's own MCP calls.
 //!
-//! The core's chat titles a `mcp__hangar__*` call by its tool's name ("Used
+//! The core's chat titles a `mcp__teskad__*` call by its tool's name ("Used
 //! board_create_task"), with the call's input as raw JSON for its detail.
 //! The orchestrator's conversation is mostly these, so the chat view reads
 //! the input and says what the call did ("Created task “…”", "Started worker
@@ -11,8 +11,17 @@
 use hangar_i18n::{Key, Translator, args};
 use serde_json::Value;
 
-/// The prefix of Hangar's own tools as Claude Code names them.
-const HANGAR: &str = "mcp__hangar__";
+/// The prefix of Teskad's own tools as Claude Code names them, and the one a
+/// transcript written before the rename holds (read, never written).
+const OWN_TOOLS: [&str; 2] = ["mcp__teskad__", "mcp__hangar__"];
+
+/// The name of an own tool without its server prefix, whichever name the
+/// server had when the call was made.
+pub fn own_tool(tool: &str) -> Option<&str> {
+    OWN_TOOLS
+        .iter()
+        .find_map(|prefix| tool.strip_prefix(prefix))
+}
 /// How much of a message to another agent its title shows.
 const SAID_WORDS: usize = 90;
 
@@ -35,7 +44,7 @@ fn readable(
     detail: Option<&str>,
     task_title: &dyn Fn(&str) -> Option<String>,
 ) -> Option<String> {
-    let name = tool.strip_prefix(HANGAR)?;
+    let name = own_tool(tool)?;
     // No input reads as an empty object: the tools that take none.
     let input: Value = match detail {
         Some(detail) => serde_json::from_str(detail).ok()?,
@@ -173,7 +182,7 @@ fn short_id(id: &str) -> String {
 /// A call's detail as the person reads it expanded: Hangar's input JSON
 /// pretty-printed, anything else as it is.
 pub fn detail(tool: &str, detail: &str) -> String {
-    if tool.starts_with(HANGAR)
+    if own_tool(tool).is_some()
         && let Ok(input) = serde_json::from_str::<Value>(detail)
         && let Ok(pretty) = serde_json::to_string_pretty(&input)
     {
@@ -200,24 +209,31 @@ mod tests {
     }
 
     #[test]
+    fn a_call_made_under_the_old_server_name_reads_alike() {
+        let old = of("mcp__hangar__board_list_tasks", None);
+        assert_eq!(old, of("mcp__teskad__board_list_tasks", None));
+        assert_eq!(old, "Read the board");
+    }
+
+    #[test]
     fn hangar_calls_read_as_what_they_did() {
         assert_eq!(
             of(
-                "mcp__hangar__board_create_task",
+                "mcp__teskad__board_create_task",
                 Some(r#"{"title":"Add a search box"}"#)
             ),
             "Created task “Add a search box”"
         );
         assert_eq!(
             of(
-                "mcp__hangar__worker_spawn",
+                "mcp__teskad__worker_spawn",
                 Some(r#"{"task":"af17e40a-12f7","name":"Ada"}"#)
             ),
             "Started worker Ada on “Chat view”"
         );
         assert_eq!(
             of(
-                "mcp__hangar__board_comment_task",
+                "mcp__teskad__board_comment_task",
                 Some(r#"{"id":"0123456789abcdef","text":"ok"}"#)
             ),
             "Commented on “01234567”",
@@ -225,12 +241,12 @@ mod tests {
         );
         assert_eq!(
             of(
-                "mcp__hangar__board_update_task",
+                "mcp__teskad__board_update_task",
                 Some(r#"{"id":"af17e40a-12f7","column":"review"}"#)
             ),
             "Moved “Chat view” to review"
         );
-        assert_eq!(of("mcp__hangar__board_list_tasks", None), "Read the board");
+        assert_eq!(of("mcp__teskad__board_list_tasks", None), "Read the board");
     }
 
     #[test]
@@ -238,7 +254,7 @@ mod tests {
         let fr = Translator::new(Locale::Fr);
         let words = title(
             fr,
-            "mcp__hangar__board_create_task",
+            "mcp__teskad__board_create_task",
             "Used board_create_task",
             Some(r#"{"title":"Recherche"}"#),
             &known,
@@ -256,30 +272,30 @@ mod tests {
         // Clipped by the core: no longer JSON.
         assert_eq!(
             of(
-                "mcp__hangar__board_create_task",
+                "mcp__teskad__board_create_task",
                 Some(r#"{"title":"Add a sea"#)
             ),
             "Used it"
         );
-        assert_eq!(of("mcp__hangar__board_create_task", Some("{}")), "Used it");
+        assert_eq!(of("mcp__teskad__board_create_task", Some("{}")), "Used it");
     }
 
     #[test]
     fn a_message_to_a_worker_is_titled_with_its_first_words() {
         assert_eq!(
             of(
-                "mcp__hangar__pane_send",
+                "mcp__teskad__pane_send",
                 Some(r#"{"pane":"Ada","text":"Rebase on main, then run the tests.\nThanks"}"#)
             ),
             "To Ada: “Rebase on main, then run the tests.”"
         );
         assert_eq!(
-            of("mcp__hangar__pane_send", Some(r#"{"pane":"Ada"}"#)),
+            of("mcp__teskad__pane_send", Some(r#"{"pane":"Ada"}"#)),
             "Sent a message to Ada"
         );
         assert_eq!(
             of(
-                "mcp__hangar__project_send",
+                "mcp__teskad__project_send",
                 Some(r#"{"workspace":"Shop","text":"Ship the search box"}"#)
             ),
             "To Shop: “Ship the search box”"
@@ -289,7 +305,7 @@ mod tests {
     #[test]
     fn the_detail_of_a_hangar_call_is_pretty_printed() {
         assert_eq!(
-            detail("mcp__hangar__pane_send", r#"{"pane":"Ada","text":"go"}"#),
+            detail("mcp__teskad__pane_send", r#"{"pane":"Ada","text":"go"}"#),
             "{\n  \"pane\": \"Ada\",\n  \"text\": \"go\"\n}"
         );
         assert_eq!(detail("Bash", "ls -la"), "ls -la");

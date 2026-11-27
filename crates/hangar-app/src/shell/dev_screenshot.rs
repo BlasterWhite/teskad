@@ -2,8 +2,8 @@
 //! take one: on a GNOME Wayland session nothing but the person may capture
 //! the screen, and the agents porting the views need to see them.
 //!
-//! `HANGAR_DEV_SCREENSHOT=/some/where.png scripts/native-dev.sh` opens the app,
-//! waits for it to settle (`HANGAR_DEV_SCREENSHOT_AFTER_MS`, 3000 by default),
+//! `TESKAD_DEV_SCREENSHOT=/some/where.png scripts/native-dev.sh` opens the app,
+//! waits for it to settle (`TESKAD_DEV_SCREENSHOT_AFTER_MS`, 3000 by default),
 //! writes what the main window shows as a PNG, and quits. Debug builds only:
 //! a release build ignores the variables.
 //!
@@ -40,32 +40,32 @@ pub fn requested() -> Option<PathBuf> {
     if !cfg!(debug_assertions) {
         return None;
     }
-    std::env::var_os("HANGAR_DEV_SCREENSHOT")
+    hangar_core::env::var_os("TESKAD_DEV_SCREENSHOT")
         .filter(|path| !path.is_empty())
         .map(PathBuf::from)
 }
 
-/// The folder captures taken on demand go to (`HANGAR_DEV_CAPTURE_DIR`, debug
+/// The folder captures taken on demand go to (`TESKAD_DEV_CAPTURE_DIR`, debug
 /// builds): the pictures of the README and the site, of a session of real
 /// agents that a capture must not end. The main window then opens at
 /// [`capture_size`], and each `SIGUSR1` the app gets (`kill -USR1 <pid>`)
-/// writes what it shows, at `HANGAR_DEV_CAPTURE_SCALE` (2 by default), to
+/// writes what it shows, at `TESKAD_DEV_CAPTURE_SCALE` (2 by default), to
 /// `capture-<milliseconds>.png` there.
 pub fn capture_dir() -> Option<PathBuf> {
     if !cfg!(debug_assertions) {
         return None;
     }
-    std::env::var_os("HANGAR_DEV_CAPTURE_DIR")
+    hangar_core::env::var_os("TESKAD_DEV_CAPTURE_DIR")
         .filter(|path| !path.is_empty())
         .map(PathBuf::from)
 }
 
 /// The main window's size while captures are taken on demand:
-/// `HANGAR_DEV_CAPTURE_SIZE` (`1280x720` by default), so that every capture
+/// `TESKAD_DEV_CAPTURE_SIZE` (`1280x720` by default), so that every capture
 /// lays the panes out the same way.
 pub fn capture_size() -> Option<Size> {
     capture_dir()?;
-    let asked = std::env::var("HANGAR_DEV_CAPTURE_SIZE").ok();
+    let asked = hangar_core::env::var("TESKAD_DEV_CAPTURE_SIZE").ok();
     Some(
         asked
             .as_deref()
@@ -77,7 +77,7 @@ pub fn capture_size() -> Option<Size> {
 
 /// Physical pixels per pixel of the window in an on-demand capture.
 fn capture_scale() -> f32 {
-    std::env::var("HANGAR_DEV_CAPTURE_SCALE")
+    hangar_core::env::var("TESKAD_DEV_CAPTURE_SCALE")
         .ok()
         .and_then(|scale| scale.parse().ok())
         .filter(|scale: &f32| *scale > 0.0)
@@ -137,7 +137,7 @@ pub struct Due {
 
 /// Waits, then asks `window` for what [`take`] needs.
 pub fn capture(window: window::Id) -> Task<Message> {
-    let after = std::env::var("HANGAR_DEV_SCREENSHOT_AFTER_MS")
+    let after = hangar_core::env::var("TESKAD_DEV_SCREENSHOT_AFTER_MS")
         .ok()
         .and_then(|ms| ms.parse().ok())
         .unwrap_or(3000);

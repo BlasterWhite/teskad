@@ -156,7 +156,7 @@ pub trait Deps: Send + Sync + 'static {
         path: String,
         opened_by: String,
     ) -> BoxFuture<Result<(), String>>;
-    /// The pane's inbox (hangar-bridge for Claude Code, the attached client
+    /// The pane's inbox (teskad-bridge for Claude Code, the attached client
     /// for Codex): submitted once the agent is free.
     fn enqueue(&self, pane_id: String, text: String, from: String)
     -> BoxFuture<Result<(), String>>;

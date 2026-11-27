@@ -27,11 +27,11 @@ pub fn endpoint_path() -> Option<PathBuf> {
 /// read: they name another app's port and token, which an agent of Teskad must
 /// not be handed.
 ///
-/// `HANGAR_ENDPOINT_FILE` replaces it, for a development build run next to an
+/// `TESKAD_ENDPOINT_FILE` replaces it, for a development build run next to an
 /// installed Teskad: sharing the file would hand every agent of the installed
 /// app over to the build, and closing the build would delete it.
 fn endpoint_paths() -> Vec<PathBuf> {
-    if let Some(file) = std::env::var_os("HANGAR_ENDPOINT_FILE").filter(|v| !v.is_empty()) {
+    if let Some(file) = std::env::var_os("TESKAD_ENDPOINT_FILE").filter(|v| !v.is_empty()) {
         return vec![PathBuf::from(file)];
     }
     endpoint_path().into_iter().collect()
@@ -50,7 +50,7 @@ fn body(port: u16, token: &str) -> Result<String, String> {
 /// app's own (`publish`): a headless node (headless.rs) next to a desktop
 /// Hangar on the same account must not take its agents over. Its folder is
 /// created private if missing and otherwise left as it is, as one named by
-/// `HANGAR_ENDPOINT_FILE` is.
+/// `TESKAD_ENDPOINT_FILE` is.
 pub fn publish_to(path: &Path, port: u16, token: &str) -> Result<(), String> {
     let body = body(port, token)?;
     if let Some(parent) = path.parent() {
@@ -72,7 +72,7 @@ pub fn publish(port: u16, token: &str) -> Result<(), String> {
         return Err("no home directory".into());
     }
 
-    let own_folders = std::env::var_os("HANGAR_ENDPOINT_FILE").is_none_or(|v| v.is_empty());
+    let own_folders = std::env::var_os("TESKAD_ENDPOINT_FILE").is_none_or(|v| v.is_empty());
     let path = &paths[0];
     if let Some(parent) = path.parent() {
         private_folder(parent, own_folders);
@@ -88,7 +88,7 @@ pub fn publish(port: u16, token: &str) -> Result<(), String> {
 ///
 /// The folder is only tightened when it is Teskad's own (`~/.teskad`, which
 /// also holds the accounts and kits): one named by
-/// `HANGAR_ENDPOINT_FILE` may be anything, `/tmp` included, and is only
+/// `TESKAD_ENDPOINT_FILE` may be anything, `/tmp` included, and is only
 /// created, private, if missing.
 ///
 /// On Windows the file sits in the user's profile, whose ACL already keeps
@@ -145,7 +145,7 @@ mod tests {
     fn the_endpoint_is_in_teskad_s_folder_and_never_the_official_apps() {
         let path = endpoint_path().unwrap();
         assert!(path.ends_with(".teskad/endpoint.json"), "{path:?}");
-        if std::env::var_os("HANGAR_ENDPOINT_FILE").is_none_or(|v| v.is_empty()) {
+        if std::env::var_os("TESKAD_ENDPOINT_FILE").is_none_or(|v| v.is_empty()) {
             assert_eq!(endpoint_paths(), vec![path]);
         }
     }

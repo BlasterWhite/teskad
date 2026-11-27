@@ -1095,7 +1095,7 @@ fn routes_hand_other_windows_events_to_whoever_asked() {
 
 /// The whole way a file takes to the helper's window and back, with the real
 /// helper: `cargo build -p hangar-webview --features engine`, then
-/// `HANGAR_WEBVIEW=target/debug/teskad-webview cargo test -p hangar-app
+/// `TESKAD_WEBVIEW=target/debug/teskad-webview cargo test -p hangar-app
 /// an_html_page_runs -- --ignored --nocapture` on a machine with a display.
 #[tokio::test]
 #[ignore = "needs the helper built with --features engine, and a display"]
@@ -1112,14 +1112,14 @@ async fn an_html_page_a_pdf_and_a_video_load_through_the_scheme_in_the_real_help
     let pdf = dir.join("doc.pdf");
     std::fs::write(
         &pdf,
-        std::fs::read(std::env::var("HANGAR_TEST_PDF").unwrap()).unwrap(),
+        std::fs::read(hangar_core::env::var("TESKAD_TEST_PDF").unwrap()).unwrap(),
     )
     .unwrap();
     hangar_core::model::model_allow_roots(vec![dir.to_string_lossy().into_owned()])
         .await
         .unwrap();
 
-    let helper = hangar_webview::find_helper().expect("HANGAR_WEBVIEW names the helper");
+    let helper = hangar_webview::find_helper().expect("TESKAD_WEBVIEW names the helper");
     let (client, events) = Client::spawn(helper).expect("the helper starts");
     let client = Arc::new(client);
     let html = entry(FileKind::Html, &page.to_string_lossy());
@@ -1185,7 +1185,7 @@ async fn an_html_page_a_pdf_and_a_video_load_through_the_scheme_in_the_real_help
 }
 
 /// And a video: the player asks for byte ranges, which `model::serve` answers
-/// in chunks (`HANGAR_TEST_VIDEO` names an MP4).
+/// in chunks (`TESKAD_TEST_VIDEO` names an MP4).
 #[tokio::test]
 #[ignore = "needs the helper built with --features engine, and a display"]
 async fn a_video_is_played_from_ranges_in_the_real_helper() {
@@ -1195,13 +1195,13 @@ async fn a_video_is_played_from_ranges_in_the_real_helper() {
     let clip = dir.join("clip.mp4");
     std::fs::write(
         &clip,
-        std::fs::read(std::env::var("HANGAR_TEST_VIDEO").unwrap()).unwrap(),
+        std::fs::read(hangar_core::env::var("TESKAD_TEST_VIDEO").unwrap()).unwrap(),
     )
     .unwrap();
     hangar_core::model::model_allow_roots(vec![dir.to_string_lossy().into_owned()])
         .await
         .unwrap();
-    let helper = hangar_webview::find_helper().expect("HANGAR_WEBVIEW names the helper");
+    let helper = hangar_webview::find_helper().expect("TESKAD_WEBVIEW names the helper");
     let (client, events) = Client::spawn(helper).expect("the helper starts");
     let video = entry(FileKind::Video, &clip.to_string_lossy());
     client
@@ -1256,10 +1256,10 @@ async fn a_video_is_played_from_ranges_in_the_real_helper() {
 /// plays is paused when its entry leaves the screen, and the window comes back.
 ///
 /// `cargo build -p hangar-webview --features engine`, then
-/// `HANGAR_WEBVIEW=target/debug/teskad-webview HANGAR_TEST_PDF=<a pdf>
-/// HANGAR_TEST_AUDIO=<a wav> HANGAR_TEST_VIDEO=<an mp4> cargo test -p
+/// `TESKAD_WEBVIEW=target/debug/teskad-webview TESKAD_TEST_PDF=<a pdf>
+/// TESKAD_TEST_AUDIO=<a wav> TESKAD_TEST_VIDEO=<an mp4> cargo test -p
 /// hangar-app windows_follow_ -- --ignored --nocapture` on a machine with a
-/// display (`HANGAR_TEST_TRACE=1` prints the helper's events).
+/// display (`TESKAD_TEST_TRACE=1` prints the helper's events).
 #[tokio::test]
 #[ignore = "needs the helper built with --features engine, and a display"]
 async fn windows_follow_what_is_seen_in_the_real_helper() {
@@ -1275,19 +1275,19 @@ async fn windows_follow_what_is_seen_in_the_real_helper() {
         .unwrap();
         to.to_string_lossy().into_owned()
     };
-    let pdf = entry(FileKind::Pdf, &copy("HANGAR_TEST_PDF", "doc.pdf"));
-    let sound = entry(FileKind::Audio, &copy("HANGAR_TEST_AUDIO", "tone.wav"));
+    let pdf = entry(FileKind::Pdf, &copy("TESKAD_TEST_PDF", "doc.pdf"));
+    let sound = entry(FileKind::Audio, &copy("TESKAD_TEST_AUDIO", "tone.wav"));
     // A video the engine cannot play: the head of a real one, so that it is
     // still served as a video (its header is checked), and then runs out.
     let broken = dir.join("broken.mp4");
-    let video = std::fs::read(std::env::var("HANGAR_TEST_VIDEO").unwrap()).unwrap();
+    let video = std::fs::read(hangar_core::env::var("TESKAD_TEST_VIDEO").unwrap()).unwrap();
     std::fs::write(&broken, &video[..video.len().min(600)]).unwrap();
     let broken = entry(FileKind::Video, &broken.to_string_lossy());
     hangar_core::model::model_allow_roots(vec![dir.to_string_lossy().into_owned()])
         .await
         .unwrap();
 
-    let helper = hangar_webview::find_helper().expect("HANGAR_WEBVIEW names the helper");
+    let helper = hangar_webview::find_helper().expect("TESKAD_WEBVIEW names the helper");
     let (client, events) = Client::spawn(helper).expect("the helper starts");
     let mut windows = Windows::with_unfocused_open(true);
 
@@ -1304,7 +1304,7 @@ async fn windows_follow_what_is_seen_in_the_real_helper() {
             match &event {
                 Event::SchemeRequest(request) => {
                     let response = answer(request);
-                    if std::env::var_os("HANGAR_TEST_TRACE").is_some() {
+                    if hangar_core::env::var_os("TESKAD_TEST_TRACE").is_some() {
                         eprintln!(
                             "served {} -> {} ({} bytes)",
                             request.uri,
@@ -1319,7 +1319,7 @@ async fn windows_follow_what_is_seen_in_the_real_helper() {
                 }
                 _ => {}
             }
-            if std::env::var_os("HANGAR_TEST_TRACE").is_some() {
+            if hangar_core::env::var_os("TESKAD_TEST_TRACE").is_some() {
                 eprintln!("event: {event:?}");
             }
             windows.on_event(Some(&client), &event);

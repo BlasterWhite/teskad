@@ -1,5 +1,5 @@
 {
-  "name": "hangar-bridge",
+  "name": "teskad-bridge",
   "version": "0.1.0",
   "description": "Tells Teskad what the Claude Code session in each of its panes is doing: turns, permission prompts, context and plan usage. Loaded by Hangar for the panes it launches; does nothing anywhere else.",
   "author": { "name": "simnJS" }

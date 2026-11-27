@@ -30,18 +30,24 @@ use crate::store::{write_atomic, Access};
 /// hangar-i18n; a test in hangar-app holds the two equal): change both together.
 pub const APP_NAME: &str = "Teskad";
 
-const START: &str = "<!-- HANGAR:START - generated, do not edit by hand -->";
-const END: &str = "<!-- HANGAR:END -->";
+const START: &str = "<!-- TESKAD:START - generated, do not edit by hand -->";
+const END: &str = "<!-- TESKAD:END -->";
 
 /// Marker pairs written by earlier versions, newest first.
 ///
 /// These are already sitting in users' `CLAUDE.md`. A rename
 /// that only knew the new markers would not match the old block, so instead of
 /// replacing the playbook it would append a second copy on every run.
-const LEGACY_MARKERS: &[(&str, &str)] = &[(
-    "<!-- IABENCH:START - generated, do not edit by hand -->",
-    "<!-- IABENCH:END -->",
-)];
+const LEGACY_MARKERS: &[(&str, &str)] = &[
+    (
+        "<!-- HANGAR:START - generated, do not edit by hand -->",
+        "<!-- HANGAR:END -->",
+    ),
+    (
+        "<!-- IABENCH:START - generated, do not edit by hand -->",
+        "<!-- IABENCH:END -->",
+    ),
+];
 
 /// The instructions file of each agent in `agents`, each once, in the order
 /// given.
@@ -436,7 +442,7 @@ mod tests {
     /// grows by one copy on every install.
     #[test]
     fn a_block_under_the_previous_markers_is_replaced_not_duplicated() {
-        let (legacy_start, legacy_end) = LEGACY_MARKERS[0];
+        let (legacy_start, legacy_end) = LEGACY_MARKERS[1];
         let existing =
             format!("# Projet\n\n{legacy_start}\nancien contenu\n{legacy_end}\n\n## Suite\n");
 
@@ -447,6 +453,23 @@ mod tests {
         assert!(!updated.contains("ancien contenu"));
         assert!(updated.contains("# Projet"));
         assert!(updated.contains("## Suite"));
+    }
+
+    /// The block written under the upstream's `HANGAR` markers (what Teskad
+    /// wrote before the rename) is replaced too, tool names and all.
+    #[test]
+    fn a_block_under_the_hangar_markers_is_replaced_not_duplicated() {
+        let (start, end) = LEGACY_MARKERS[0];
+        let existing =
+            format!("# Projet\n\n{start}\nuse mcp__hangar__board_list_tasks\n{end}\n\n## Suite\n");
+
+        let updated = upsert_block(&existing, &playbook());
+
+        assert_eq!(updated.matches(START).count(), 1);
+        assert!(!updated.contains(start));
+        assert!(!updated.contains("mcp__hangar__"));
+        assert!(updated.contains("# Projet") && updated.contains("## Suite"));
+        assert_eq!(upsert_block(&updated, &playbook()), updated, "idempotent");
     }
 
     #[test]
@@ -667,7 +690,7 @@ mod tests {
     #[test]
     fn an_old_block_in_agents_md_is_replaced_in_place() {
         let root = scratch();
-        let (legacy_start, legacy_end) = LEGACY_MARKERS[0];
+        let (legacy_start, legacy_end) = LEGACY_MARKERS[1];
         fs::write(
             root.join("AGENTS.md"),
             format!("# Notes\n\n{legacy_start}\nvieux\n{legacy_end}\n\n## Fin\n"),

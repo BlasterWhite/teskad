@@ -306,7 +306,7 @@ teskad-node workspace add ~/projects/shop       # or /workspace on Discord
 ```
 
 - **The settings on the server.** `~/.local/state/teskad-node/discord.json`
-  (0600): the token, read from `HANGAR_DISCORD_TOKEN` or standard input,
+  (0600): the token, read from `TESKAD_DISCORD_TOKEN` or standard input,
   never an argument; the server; who is paired and the pairing code.
   Another server or another token unpairs. `teskad-node discord status`
   says what is set and whether the bot runs; `teskad-node discord off`

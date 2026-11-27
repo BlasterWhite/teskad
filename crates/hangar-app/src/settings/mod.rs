@@ -99,7 +99,7 @@ pub struct State {
     publisher: Publisher,
     /// The app's launch, which the presence counts from. Unix milliseconds.
     launched_at: i64,
-    /// A debug build was asked to open the sheet at start (`HANGAR_DEV_SETTINGS`).
+    /// A debug build was asked to open the sheet at start (`TESKAD_DEV_SETTINGS`).
     dev_opened: bool,
 }
 
@@ -464,13 +464,13 @@ pub fn update(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Me
 }
 
 /// The category a debug build is asked to open at start, by the id the TS
-/// used (`HANGAR_DEV_SETTINGS=voice`): the way to see a surface, since screen
+/// used (`TESKAD_DEV_SETTINGS=voice`): the way to see a surface, since screen
 /// capture is refused on the development machines.
 fn dev_category() -> Option<SettingsCategory> {
     if !cfg!(debug_assertions) {
         return None;
     }
-    let id = std::env::var("HANGAR_DEV_SETTINGS").ok()?;
+    let id = hangar_core::env::var("TESKAD_DEV_SETTINGS").ok()?;
     schema::ORDER
         .iter()
         .copied()
@@ -503,7 +503,7 @@ pub fn subscription(st: &State, m: &Model) -> Subscription<Message> {
 }
 
 /// One message, a moment after the start: open the sheet where
-/// `HANGAR_DEV_SETTINGS` says.
+/// `TESKAD_DEV_SETTINGS` says.
 fn dev_open() -> impl iced::futures::Stream<Item = Message> {
     use iced::futures::StreamExt;
     iced::futures::stream::once(async {

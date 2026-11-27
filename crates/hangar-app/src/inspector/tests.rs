@@ -858,7 +858,7 @@ mod drawn {
 
         m.live
             .panes_logic
-            .set_launch_mcp("a", Some(servers(&["hangar", "github"])));
+            .set_launch_mcp("a", Some(servers(&["teskad", "github"])));
         assert!(draws(&m, w, "MCP"));
         assert!(draws(&m, w, "Change…"));
         // Its own servers, not Claude Code's: the servers are the value, and
@@ -867,7 +867,7 @@ mod drawn {
         let recorded = sources::insight(&m, &"a".to_string()).mcp.clone().unwrap();
         assert_eq!(
             sections::mcp_servers(&recorded).as_deref(),
-            Some("hangar, github")
+            Some("teskad, github")
         );
     }
 
@@ -894,7 +894,7 @@ mod drawn {
         m.ui.focus_by_workspace.insert("w".into(), "b".into());
         m.live
             .panes_logic
-            .set_launch_mcp("b", Some(servers(&["hangar"])));
+            .set_launch_mcp("b", Some(servers(&["teskad"])));
         assert!(!draws(&m, w, "MCP"));
     }
 
@@ -904,7 +904,7 @@ mod drawn {
         let w = main(&m);
         m.live
             .panes_logic
-            .set_launch_mcp("a", Some(servers(&["hangar", "github"])));
+            .set_launch_mcp("a", Some(servers(&["teskad", "github"])));
         assert!(draws(&m, w, "MCP") && !draws(&m, w, "Claude Code's own"));
         // The next launch was on Claude Code's own servers.
         m.live.panes_logic.set_launch_mcp(
@@ -922,10 +922,10 @@ mod drawn {
 
     #[test]
     fn the_row_lists_the_names_a_custom_launch_loaded_and_nothing_for_claude_codes_own() {
-        let custom = servers(&["hangar", "github", "docs"]);
+        let custom = servers(&["teskad", "github", "docs"]);
         assert_eq!(
             sections::mcp_servers(&custom).as_deref(),
-            Some("hangar, github, docs")
+            Some("teskad, github, docs")
         );
         let own = PaneMcp {
             mode: PaneMcpMode::Inherit,
@@ -1096,7 +1096,7 @@ mod drawn {
             &m,
             w,
             "Nothing yet. Prompts, permissions and edits show up here once Claude Code loads \
-             the hangar-bridge mod."
+             the teskad-bridge mod."
         ));
         assert!(draws(&m, w, &en(hangar_i18n::Key::InspectorResume)));
         assert!(draws(&m, w, &en(hangar_i18n::Key::InspectorSectionQueue)));

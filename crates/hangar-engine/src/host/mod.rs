@@ -1181,7 +1181,7 @@ fn same_runs(published: &Delivering, now: &HashMap<WsId, HashMap<String, usize>>
 /// Whether a pane's agent of `kind` says its session itself: its kind's side
 /// channel reports the session's id (`caps.sessions.id`, Reported) and the
 /// pane's launch set that side channel up (`channel`, Attached) — Claude
-/// Code with the hangar-bridge mod on, Codex attached to its own server.
+/// Code with the teskad-bridge mod on, Codex attached to its own server.
 /// On the floor, the session is noted as the agent's line is typed.
 fn says_itself(kind: AgentKind, channel: Option<&SideChannel>) -> bool {
     kind.info().caps.sessions.id == SessionId::Reported && channel == Some(&SideChannel::Attached)
@@ -1579,7 +1579,7 @@ mod agent_tests {
         assert!(leo.attach);
         assert_eq!(leo.request.kind, Codex);
         assert!(leo.request.hangar_mcp.is_some(), "{leo:?}");
-        assert_eq!(leo.request.allowed_tools, ["mcp__hangar"]);
+        assert_eq!(leo.request.allowed_tools, ["mcp__teskad"]);
         assert_eq!(leo.request.mcp, None);
         assert_eq!(of("p2").map(|launch| launch.request.kind), Some(Claude));
         assert!(of("p3").is_none(), "a shell has no launch");

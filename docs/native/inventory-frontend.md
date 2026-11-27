@@ -673,7 +673,7 @@ Repo facts that shape the port:
 - A screen-reader `role=status` span carries the sentence.
 
 **NavigatorPlan.**
-- Data: `usePlanLimits()` from lib/agentState, i.e. the rate limits the hangar-bridge reports. Hidden until there is data.
+- Data: `usePlanLimits()` from lib/agentState, i.e. the rate limits the teskad-bridge reports. Hidden until there is data.
 - Head: `sidebar.plan` plus the next reset time (`resetWhen`).
 - One `nav-meter--ok|warn(≥70)|hot(≥90)` per limit: label (`five_hour` → `sidebar.planFiveHour`, `seven_day` → `sidebar.planWeek`, otherwise the kind with spaces), track/fill bar, and a percentage formatted with `Intl` percent.
 - Tooltip: `sidebar.planHint` plus one `sidebar.planResets{window,reset}` line per window.
@@ -1950,7 +1950,7 @@ Category order: general, appearance, terminal, shell, notifications, mobile, kit
 | `locale` | segmented | `null` | `""` = Auto (`settings.localeAuto`), `en` "English", `fr` "Français" | `settings.languageLabel` (section `settings.language`) | `""` ↔ null |
 | `projectsFolder?` | custom: path input + Browse | absent | free path; placeholder `settings.projectsFolderPlaceholder` | `settings.projectsFolder` / `…Hint` | keys live in `strings/workspaceFromGit.ts`. Browse = folder dialog titled `settings.projectsFolderDialog`, button `create.browse`. Stored raw on each keystroke |
 | `autoResume` | toggle | true | — | `settings.autoResume` / `…Hint` | section `settings.sessions`; TerminalPane |
-| `claudeBridge` | toggle | true | — | `settings.claudeBridge` / `…Hint` | hangar-bridge plugin injected into Claude Code panes |
+| `claudeBridge` | toggle | true | — | `settings.claudeBridge` / `…Hint` | teskad-bridge plugin injected into Claude Code panes |
 | `launchDelayMs` | slider | 700 | 0–4000, step 100, "{n} ms" | `settings.launchDelay` / `…Hint` | item id `launchDelay` |
 | `hibernateIdle` | toggle | true | — | `settings.hibernate` / `…Hint` | section `settings.memory` |
 | `hibernateAfterMin` | select | 10 | {5,10,20,30,60} ∪ {current}, sorted, "{num} min" | `settings.hibernateDelay` / `…Hint` | value stored as a string, `Number()` on save |
@@ -2873,9 +2873,9 @@ Pane shortcuts: `pane.zoom` Mod+Shift+Z (Meta+Alt+Z on macOS), `pane.restart` Mo
 - Arguments: `{ id: pane.id, cwd: pane.cwd || workspace.cwd, shell: ShellInfo|null, cols: term.cols, rows: term.rows, name: pane.name, bridge: settings.claudeBridge, portBase: pane.portBase ?? null, mcpConfig: <file path>|null, kits: string[], agent: pane.agent, claudeAccount: account.id|null }`.
 - Returns `PtySpawned { kitIssues: KitLaunchIssue[], account?, accountIssues? }`.
 - **The backend environment** (`pty.rs`):
-  - `TERM=xterm-256color`, `HANGAR_PANE_ID`, `HANGAR_PANE_NAME`.
-  - If `bridge` is not false: `HANGAR_BRIDGE_URL=http://127.0.0.1:<port>`, `HANGAR_BRIDGE_TOKEN`, `CLAUDE_CODE_PLUGIN_DIRS` (mod and kit plugins; left out when the managed policy forbids sideloading).
-  - `HANGAR_PORT_BASE` / `HANGAR_PORT_COUNT=20` (workers only), `HANGAR_MCP_CONFIG`, `CLAUDE_CONFIG_DIR` (account profile).
+  - `TERM=xterm-256color`, `TESKAD_PANE_ID`, `TESKAD_PANE_NAME`.
+  - If `bridge` is not false: `TESKAD_BRIDGE_URL=http://127.0.0.1:<port>`, `TESKAD_BRIDGE_TOKEN`, `CLAUDE_CODE_PLUGIN_DIRS` (mod and kit plugins; left out when the managed policy forbids sideloading).
+  - `TESKAD_PORT_BASE` / `TESKAD_PORT_COUNT=20` (workers only), `TESKAD_MCP_CONFIG`, `CLAUDE_CONFIG_DIR` (account profile).
   - Strips `CLAUDE_CODE_CHILD_SESSION, CLAUDE_CODE_SESSION_ID, CLAUDE_CODE_ENTRYPOINT, CLAUDECODE, CLAUDE_PID`.
   - PowerShell gets `-NoLogo` (after a leading `-Login`).
   - Falls back to `default_shell()` when the given shell is missing.
@@ -2911,7 +2911,7 @@ Pane shortcuts: `pane.zoom` Mod+Shift+Z (Meta+Alt+Z on macOS), `pane.restart` Mo
 6. If `isResumable(agent)`: `known = knownSessionIds(agent, cwd)` (`list_sessions`) **before** the launch.
 7. If not adopted (`launchesPane(adopted) = !adopted`):
    - load kits (`loadPaneKits`) and the account (`launchAccount`, Claude only);
-   - `mcpLaunchConfig` (`mcp_scope_write`; HANGAR_MCP_CONFIG referenced per shell as `$env:`, `"%…%"`, `"$…"` or `$env.`);
+   - `mcpLaunchConfig` (`mcp_scope_write`; TESKAD_MCP_CONFIG referenced per shell as `$env:`, `"%…%"`, `"$…"` or `$env.`);
    - `beginLaunch(id)`, `pty_spawn`, status `running`, note bar ← launch notes;
    - shell panes stop here;
    - login panes: sleep `launchDelayMs`, then write `claude auth login\r` unless the account fell back;
@@ -3389,7 +3389,7 @@ This section has its own numbering: §5/1 control and orchestration engine (1.0 
 - **Reply contract:** one reply per id. A late reply is dropped (the `pending` map). A refusal is `Err(String)`, which becomes HTTP 400 `{error:"refused", message}`. No answer means `Unavailable`, HTTP 503 (`pc-busy` for the phone). If the store is not loaded yet, the reply is `Err("HangarAI is still starting. Try again in a moment.")`.
 - **Gating:** agent ops throw `DISABLED` unless `settings.agentPaneControl !== false`. Remote ops run as the person: `runRemote` rebuilds the deps with `enabled: () => true`. The briefing is never gated.
 - **Two listeners share `control:internal`:** each claims its own ops by name. An unknown internal op is answered by nobody and times out.
-- **Caller:** comes from `args.caller {paneId, paneName, cwd}`, set by mcp.rs:1112 from `HANGAR_PANE_ID`/`HANGAR_PANE_NAME`, with `args.callerCwd` as fallback.
+- **Caller:** comes from `args.caller {paneId, paneName, cwd}`, set by mcp.rs:1112 from `TESKAD_PANE_ID`/`TESKAD_PANE_NAME`, with `args.callerCwd` as fallback.
   - `callerWorkspace`: the workspace owning the pane id. Otherwise an exact cwd match (case- and separator-insensitive) on `ws.cwd` or any `pane.cwd`; on a tie, by pane name, then the active workspace. Otherwise the deepest ancestor `ws.cwd`.
   - `workspaceFor`: `args.workspace` (by id, then name, then cwd). Otherwise a pane name held by exactly one workspace. Otherwise the caller's workspace, or throw with the list of workspace names.
 - **Error strings are part of the contract:** every thrown message is English text read by a model, and the tests assert on it. Port the strings verbatim.
@@ -4553,7 +4553,7 @@ Core services are called directly (no invoke): `pty::{write,alive,kill}`, `bridg
 | WP | Scope (TS source → Rust) | Files under `crates/hangar-app/src/` | Rust LOC (source + tests) | Needs from the shell |
 |---|---|---|---|---|
 | **WP1: control bus + agent ops** | control.ts, managerControl.ts, deliveryControl.ts, deliveryRuns.ts (2,372 TS LOC; tests 2,853, 154 cases) + WP0 | `control/mod.rs` (bus stream, dispatch, gating, caller and workspace resolution, `resolvePath`), `control/port.rs`, `control/types.rs`, `control/panes.rs` (pane_*, workspace_list/window/set_check, keys), `control/preview.rs` (model_*/preview_*, `admit`, `sight`), `control/kit_tabs.rs`, `control/workspace.rs` (workspace_create glue, `tell_when_waiting`), `control/manager.rs`, `control/delivery.rs` (+ shared comment consts in `control/delivery_text.rs`) | about 2,900 + 3,100 = **about 6,000** | `Message::Control`, `Message::Model(ModelCmd, Reply)` with the update handlers, Snapshot publishing, `TerminalHub` (read, bracketed paste, app-cursor flag), `PreviewHost` per workspace, notice toast for `Announce`, `model.delivering` |
-| **WP2: orchestration engine** | workerControl.ts, orchestratorEvents.ts, orchestratorBrief.ts, managerEvents.ts (3,024; tests 2,384, 107 cases) + projects.ts (467, out of scope but required) | `orchestration/mod.rs`, `orchestration/runtime.rs` (the tokio task, `EngineMsg`, CoreEvent fan-in, ticks), `orchestration/worker.rs`, `orchestration/events.rs`, `orchestration/brief.rs`, `orchestration/brief_text.rs` (verbatim prompts), `orchestration/manager_feed.rs`, `orchestration/projects.rs` | about 3,600 + 2,600 = **about 6,200** | runtime spawned on hydration; the `CoreEvent` broadcast from core; `EngineMsg` sender in app state (pin/unpin → `announce_role`, « Arrêter les workers »); `AddPane{init}` atomic so the worker's PTY starts with `HANGAR_PORT_BASE` |
+| **WP2: orchestration engine** | workerControl.ts, orchestratorEvents.ts, orchestratorBrief.ts, managerEvents.ts (3,024; tests 2,384, 107 cases) + projects.ts (467, out of scope but required) | `orchestration/mod.rs`, `orchestration/runtime.rs` (the tokio task, `EngineMsg`, CoreEvent fan-in, ticks), `orchestration/worker.rs`, `orchestration/events.rs`, `orchestration/brief.rs`, `orchestration/brief_text.rs` (verbatim prompts), `orchestration/manager_feed.rs`, `orchestration/projects.rs` | about 3,600 + 2,600 = **about 6,200** | runtime spawned on hydration; the `CoreEvent` broadcast from core; `EngineMsg` sender in app state (pin/unpin → `announce_role`, « Arrêter les workers »); `AddPane{init}` atomic so the worker's PTY starts with `TESKAD_PORT_BASE` |
 | **WP3: Hangar Mobile window side** | remoteControl.ts, remoteAnswer.ts, remoteDelivery.ts, remoteApps.ts, remotePush.ts, activityLog.ts, remote/{types,calls,stats}.ts (3,327; tests 3,137, 153 cases) | `mobile/mod.rs` (`run`, 16 ops), `mobile/ops.rs` (state/screen/send/permission/manager/wake/workspace, `type`/`hold`/`wake`), `mobile/chat_live.rs` (`note_bridge_event`, pending, running), `mobile/answer.rs`, `mobile/delivery.rs`, `mobile/apps.rs`, `mobile/stats.rs` (`usage_reader`), `mobile/push.rs`, `mobile/activity_log.rs`; in core: `hangar-core/src/remote/contract.rs`, `hangar-core/src/chat/calls.rs` | about 3,850 + 3,250 = **about 7,100** | the same bus (`Channel::Internal`); runtime hooks for push and the activity log (owned by the WP2 runtime, WP3 supplies the state machines); `remote::Window` closures (`send` → control bus, `changed`/`shared` → CoreEvent); i18n `activity.*` and `typeset` |
 
 **Order and coupling between packages:**

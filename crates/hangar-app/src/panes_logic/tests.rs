@@ -621,7 +621,7 @@ fn a_freshly_mounted_pane_has_done_nothing_yet() {
 fn custom_launch() -> PaneMcp {
     PaneMcp {
         mode: crate::state::live::PaneMcpMode::Custom {
-            servers: vec!["hangar".into(), "github".into()],
+            servers: vec!["teskad".into(), "github".into()],
         },
         hangar: Some(true),
     }
@@ -704,7 +704,7 @@ fn without_the_mod() -> Model {
     m
 }
 
-/// The hangar-bridge mod switched off: nothing but the launch says when a
+/// The teskad-bridge mod switched off: nothing but the launch says when a
 /// Claude Code session began.
 fn bridge_off(m: &mut Model) {
     let mut state = m.state().clone();

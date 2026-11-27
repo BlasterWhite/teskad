@@ -487,7 +487,7 @@ fn an_http_answer_gives_its_body_plain_or_chunked() {
 fn http_get_sends_the_token_and_reads_the_answer() {
     use std::io::{Read, Write};
     // A port of this worker's range when there is one, else any.
-    let port = std::env::var("HANGAR_PORT_BASE")
+    let port = hangar_core::env::var("TESKAD_PORT_BASE")
         .ok()
         .and_then(|base| base.parse::<u16>().ok())
         .map(|base| base + 17)
@@ -1337,7 +1337,7 @@ async fn rig_connects_to_the_test_container_with_a_fake_hangar_node() {
     );
     let dir = tempfile::tempdir().unwrap();
     let fake_node = dir.path().join("teskad-node");
-    std::fs::write(&fake_node, FAKE_HANGAR_NODE).unwrap();
+    std::fs::write(&fake_node, FAKE_TESKAD_NODE).unwrap();
     let node = NodeConfig {
         id: "rig".into(),
         label: "rig".into(),
@@ -1375,7 +1375,7 @@ async fn rig_connects_to_the_test_container_with_a_fake_hangar_node() {
 /// The fake `teskad-node` of the rig test: `version` prints a version that
 /// is never the desktop's, `serve --detach` starts a Python server on a free
 /// port that answers `/node/info` to the right token, and writes node.json.
-const FAKE_HANGAR_NODE: &str = r#"#!/bin/sh
+const FAKE_TESKAD_NODE: &str = r#"#!/bin/sh
 set -e
 case "$1" in
 version) echo "fake x86_64-unknown-linux-gnu" ;;

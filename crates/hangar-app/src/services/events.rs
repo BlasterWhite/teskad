@@ -36,7 +36,7 @@ pub enum CoreEvent {
     PtyExit {
         pane: PaneId,
     },
-    /// A report of a pane's hangar-bridge mod, as the mod sent it;
+    /// A report of a pane's teskad-bridge mod, as the mod sent it;
     /// `state::BridgeEvent::parse` reads it (P4 owns its meaning).
     Bridge {
         pane: PaneId,

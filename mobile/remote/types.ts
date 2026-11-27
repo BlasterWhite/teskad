@@ -81,7 +81,7 @@ export interface RemoteScreen {
 /**
  * remote_send: typed as the person; an asleep or closed workspace is opened
  * first. A Claude Code pane not up yet — asleep, or resuming after a wake —
- * gets its text through the hangar-bridge queue, submitted once its session
+ * gets its text through the teskad-bridge queue, submitted once its session
  * is ready (`queued`); keys, or text without Enter, are refused there.
  */
 export interface RemoteSendArgs {
@@ -176,7 +176,7 @@ export interface ChatAnswer {
 }
 
 export type ChatItemBody =
-  /** "hangar": a message Hangar sent, which starts with "[Hangar]". */
+  /** "hangar": a message Hangar sent, which starts with "[Teskad]". */
   | { kind: "user"; text: string; from: "person" | "hangar"; images: number }
   /** Markdown as Claude wrote it. */
   | { kind: "assistant"; text: string }
@@ -211,7 +211,7 @@ export type ChatPending =
       tool: string;
       title: string;
       detail?: string;
-      /** ExitPlanMode held by the hangar-bridge mod: the plan, as Markdown. */
+      /** ExitPlanMode held by the teskad-bridge mod: the plan, as Markdown. */
       plan?: string;
     };
 
@@ -409,7 +409,7 @@ export interface RemoteReworked {
 
 /**
  * Where an app the phone can open comes from: a worker's port block
- * (HANGAR_PORT_BASE and the 19 after it), or a port the person added to the
+ * (TESKAD_PORT_BASE and the 19 after it), or a port the person added to the
  * workspace in Settings › Mobile.
  */
 export type RemoteAppSource = "worker" | "custom";
@@ -556,7 +556,7 @@ export interface RemoteStats {
   unpricedTokens: number;
   /**
    * The plan's windows as the last Claude Code session to report them saw
-   * them (the hangar-bridge mod), when: one account behind every pane. null
+   * them (the teskad-bridge mod), when: one account behind every pane. null
    * until one has, or on a plan without such limits.
    */
   plan: { at: number; windows: RemoteStatsWindow[] } | null;

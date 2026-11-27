@@ -630,7 +630,9 @@ fn server_row<'a>(
 ) -> Element<'a, Message> {
     let t = ctx.theme;
     let is_hangar = server.is_none_or(|server| server.hangar);
-    let name = server.map_or("hangar", |server| server.name.as_str());
+    let name = server.map_or(hangar_core::install::SERVER_KEY, |server| {
+        server.name.as_str()
+    });
     let loaded = match server {
         Some(server) => is_loaded(server, mcp),
         None => mcp.mode == McpMode::Custom,

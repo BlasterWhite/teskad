@@ -39,7 +39,7 @@ key the first time; the sheet notices when you are signed in. Teskad never sees 
 
 For each Codex pane, Teskad starts a Codex server of the pane's own (`codex app-server`) and
 types `codex --remote` into the pane: you get Codex's own terminal, unchanged, and Teskad is a
-second client of the same session. That is **attached**, and it is what the hangar-bridge mod
+second client of the same session. That is **attached**, and it is what the teskad-bridge mod
 does for Claude Code: exact pane states, Teskad's messages delivered without typing (into an
 idle session, or steering a running turn), approvals and questions held until you answer from
 the chat view, your phone or Discord (the first answer wins, the terminal's included), live
@@ -83,7 +83,7 @@ with a notice naming the version needed.
   `--approve-for-me` turns on; *Bypass* turns approvals and the sandbox off.
 
 Teskad's MCP server reaches every Codex pane on the command line of its server
-(`-c mcp_servers.hangar…`), at each launch: there is nothing to register, and Teskad never
+(`-c mcp_servers.teskad…`), at each launch: there is nothing to register, and Teskad never
 writes your `~/.codex/config.toml`.
 
 ## Accounts

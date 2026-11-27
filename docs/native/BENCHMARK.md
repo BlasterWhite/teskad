@@ -59,7 +59,7 @@ a quiet moment (see below), so the background load was small but not zero.
   notifications, the Claude bridge, voice, Discord and hibernation off.
   "Cold" means a new process with no state from an earlier run. The harness does
   not empty the operating system's file cache.
-- **Isolation.** The harness removes `HANGAR_*`, `WEBKIT_*` and `WAYLAND_DEBUG`
+- **Isolation.** The harness removes `TESKAD_*`, `WEBKIT_*` and `WAYLAND_DEBUG`
   from the environment, then sets its own folders and a marker variable. It
   hashes the Hangar data folders used every day before and after each trial.
   None of the 1.12.1 and 2.0 trials changed them. At the end of each trial it

@@ -232,8 +232,8 @@ fn hangar_messages_are_told_from_the_person_s() {
         "u1",
         1,
         json!({
-            "message": { "role": "user", "content": "The hangar-bridge plugin sent a message:\n[Hangar] From agent \"Jack\": land it.\n\nThis is how Claude Code surfaces a prompt a plugin submits between turns — it starts this turn in the user's place. Address the message above." },
-            "origin": { "kind": "plugin", "name": "hangar-bridge" },
+            "message": { "role": "user", "content": "The teskad-bridge plugin sent a message:\n[Teskad] From agent \"Jack\": land it.\n\nThis is how Claude Code surfaces a prompt a plugin submits between turns — it starts this turn in the user's place. Address the message above." },
+            "origin": { "kind": "plugin", "name": "teskad-bridge" },
         }),
     );
     let plugin_blocks = line(
@@ -241,11 +241,11 @@ fn hangar_messages_are_told_from_the_person_s() {
         "u2",
         2,
         json!({
-            "message": { "role": "user", "content": [{ "type": "text", "text": "[Hangar] Briefing — not typed by the person.\nYour task." }] },
-            "origin": { "kind": "plugin", "name": "hangar-bridge" },
+            "message": { "role": "user", "content": [{ "type": "text", "text": "[Teskad] Briefing — not typed by the person.\nYour task." }] },
+            "origin": { "kind": "plugin", "name": "teskad-bridge" },
         }),
     );
-    let typed = person("u3", 3, "[Hangar] queued through the prompt");
+    let typed = person("u3", 3, "[Teskad] queued through the prompt");
     let mine = person("u4", 4, "Looks good");
     let items = items_of(&[plugin, plugin_blocks, typed, mine]);
     let users: Vec<(&str, Sender)> = items
@@ -258,13 +258,44 @@ fn hangar_messages_are_told_from_the_person_s() {
     assert_eq!(
         users,
         vec![
-            ("[Hangar] From agent \"Jack\": land it.", Sender::Hangar),
+            ("[Teskad] From agent \"Jack\": land it.", Sender::Hangar),
             (
-                "[Hangar] Briefing — not typed by the person.\nYour task.",
+                "[Teskad] Briefing — not typed by the person.\nYour task.",
                 Sender::Hangar
             ),
-            ("[Hangar] queued through the prompt", Sender::Hangar),
+            ("[Teskad] queued through the prompt", Sender::Hangar),
             ("Looks good", Sender::Person),
+        ]
+    );
+}
+
+/// A transcript written before the rename holds the old plugin's name and the
+/// old mark: both still read as the app's.
+#[test]
+fn messages_from_before_the_rename_are_still_told_from_the_person_s() {
+    let plugin = line(
+        "user",
+        "u1",
+        1,
+        json!({
+            "message": { "role": "user", "content": "The hangar-bridge plugin sent a message:\n[Hangar] From agent \"Jack\": land it.\n\nThis is how Claude Code surfaces a prompt a plugin submits between turns — it starts this turn in the user's place. Address the message above." },
+            "origin": { "kind": "plugin", "name": "hangar-bridge" },
+        }),
+    );
+    let typed = person("u2", 2, "[Hangar] queued through the prompt");
+    let items = items_of(&[plugin, typed]);
+    let users: Vec<(&str, Sender)> = items
+        .iter()
+        .map(|item| match &item.body {
+            Body::User { text, from, .. } => (text.as_str(), *from),
+            other => panic!("{other:?}"),
+        })
+        .collect();
+    assert_eq!(
+        users,
+        vec![
+            ("[Hangar] From agent \"Jack\": land it.", Sender::Hangar),
+            ("[Hangar] queued through the prompt", Sender::Hangar),
         ]
     );
 }
@@ -543,13 +574,13 @@ fn calls_read_as_one_line_with_the_input_that_matters() {
             Some("Get-ChildItem\nWrite-Output done"),
         ),
         (
-            "mcp__hangar__project_list",
+            "mcp__teskad__project_list",
             json!({}),
             "Used project_list",
             None,
         ),
         (
-            "mcp__hangar__board_comment_task",
+            "mcp__teskad__board_comment_task",
             json!({ "id": "t1" }),
             "Used board_comment_task",
             Some("{\"id\":\"t1\"}"),

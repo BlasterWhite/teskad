@@ -197,7 +197,7 @@ pub struct Pane {
     /// `--model` of its agent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
-    /// First port a worker may bind (`HANGAR_PORT_BASE`).
+    /// First port a worker may bind (`TESKAD_PORT_BASE`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub port_base: Option<u32>,
     /// A worker in the workspace's own folder (no worktree).

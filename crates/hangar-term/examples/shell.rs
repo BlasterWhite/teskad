@@ -11,7 +11,7 @@
 //! Shift+PageUp, Ctrl+click on a URL, Ctrl+Shift+F for the search bar, and
 //! full-screen programs such as `htop`, `vim` or `less`.
 //!
-//! `HANGAR_TERM_FONT` sets the font stack and `HANGAR_TERM_SIZE` the size.
+//! `TESKAD_TERM_FONT` sets the font stack and `TESKAD_TERM_SIZE` the size.
 
 use std::io::{Read, Write};
 use std::sync::{Mutex, OnceLock};
@@ -73,10 +73,10 @@ type Output = mpsc::UnboundedReceiver<Option<Vec<u8>>>;
 
 impl Shell {
     fn boot() -> Self {
-        let font = std::env::var("HANGAR_TERM_FONT").unwrap_or_else(|_| {
+        let font = hangar_core::env::var("TESKAD_TERM_FONT").unwrap_or_else(|_| {
             "\"JetBrains Mono\", \"Cascadia Code\", \"DejaVu Sans Mono\", monospace".into()
         });
-        let size = std::env::var("HANGAR_TERM_SIZE")
+        let size = hangar_core::env::var("TESKAD_TERM_SIZE")
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(14.0);

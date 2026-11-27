@@ -86,14 +86,14 @@ const SCRUBBED: &[&str] = &[
     "CLAUDE_CODE_MESSAGING_SOCKET",
     "CLAUDE_CODE_MESSAGING_TOKEN",
     "CLAUDE_PID",
-    "HANGAR_PANE_ID",
-    "HANGAR_PANE_NAME",
-    "HANGAR_BRIDGE_URL",
-    "HANGAR_BRIDGE_TOKEN",
-    "HANGAR_WORKSPACE",
-    "HANGAR_AGENT",
-    "HANGAR_PORT_BASE",
-    "HANGAR_PORT_COUNT",
+    "TESKAD_PANE_ID",
+    "TESKAD_PANE_NAME",
+    "TESKAD_BRIDGE_URL",
+    "TESKAD_BRIDGE_TOKEN",
+    "TESKAD_WORKSPACE",
+    "TESKAD_AGENT",
+    "TESKAD_PORT_BASE",
+    "TESKAD_PORT_COUNT",
 ];
 
 /* ── Processes ─────────────────────────────────────────────────── */
@@ -1139,8 +1139,8 @@ fn check_command(
     // another worker's.
     if let Some(base) = port_base {
         command
-            .env("HANGAR_PORT_BASE", base.to_string())
-            .env("HANGAR_PORT_COUNT", "20");
+            .env("TESKAD_PORT_BASE", base.to_string())
+            .env("TESKAD_PORT_COUNT", "20");
     }
     command
 }

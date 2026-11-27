@@ -2,7 +2,7 @@
 //! (`components/accounts/usageStore.ts`).
 //!
 //! A session counts for the account its pane was launched on, so the figures
-//! come from the hangar-bridge's `usage` events (`accounts::on_event`). The web
+//! come from the teskad-bridge's `usage` events (`accounts::on_event`). The web
 //! app kept them in `localStorage`; the native app has none, so they live in
 //! `<app data>/account-usage.json`, the same JSON, and a restart still has the
 //! last known figures (the interface shows « unknown » for a window never

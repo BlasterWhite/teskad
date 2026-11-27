@@ -26,7 +26,7 @@ connector reads its snapshot, follows core's events (the mods' reports) and
 the orchestration's journal, and acts through the desk (`mobile::desk`), the
 chat view's and the phone's own calls: send, queue, answer a question,
 allow a permission, approve a plan, stop, land or send back a delivery.
-Every answer goes through the hangar-bridge mod as the chat view's do.
+Every answer goes through the teskad-bridge mod as the chat view's do.
 
 - **The desktop app** (`hangar-app/src/discord/`), behind the
   `discord-connector` experiment: the same port, desk and orchestration
@@ -282,7 +282,7 @@ means something.
 
 - The person creates the Discord application and its bot, and the server: bots
   cannot create guilds since July 2025. `teskad-node discord setup --guild
-  <id>` takes the token (from `HANGAR_DISCORD_TOKEN` or standard input) and
+  <id>` takes the token (from `TESKAD_DISCORD_TOKEN` or standard input) and
   gives the invite link with the
   scopes `bot applications.commands` and the permissions it needs (Manage
   Channels, Manage Webhooks, Send Messages, Create Public Threads, Send
@@ -399,8 +399,8 @@ pane on a node the desktop drives is not followed this way).
 `cargo run -p hangar-discord --example fake_discord -- 7777` serves a
 Discord of one's own (its REST routes, its gateway, `/fake/calls` and
 `/fake/send`); a debug build of the app talks to it with
-`HANGAR_DISCORD_API=http://127.0.0.1:7777/api` and
-`HANGAR_DISCORD_GATEWAY=ws://127.0.0.1:7777/gateway`. Run so (November 12,
+`TESKAD_DISCORD_API=http://127.0.0.1:7777/api` and
+`TESKAD_DISCORD_GATEWAY=ws://127.0.0.1:7777/gateway`. Run so (November 12,
 2026), the desktop app made its category, channel, webhook and pinned
 dashboard, typed a message written on "Discord" into its orchestrator's
 pane, answered `/status`, and ignored a stranger.

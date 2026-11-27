@@ -42,7 +42,7 @@ has no online service of its own.
 - **Terminals of its own.** Teskad draws its terminals itself, on alacritty_terminal: true
   colour, mouse modes, links, search, bracketed paste, and dead keys that compose.
 - **Session resume.** Agent panes reopen on the conversation they were in.
-- **A side channel per agent.** For Claude Code, a small mod (hangar-bridge); for Codex,
+- **A side channel per agent.** For Claude Code, a small mod (teskad-bridge); for Codex,
   Teskad attaches to the server Codex's own terminal runs on. Either reports turns,
   permission prompts, context fill and plan usage, so pane states are exact rather than
   guessed. When an agent edits a file another pane just changed, it is told who changed it

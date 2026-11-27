@@ -2,7 +2,7 @@
 //! (`src/remote/calls.ts`): Claude Code writes a call there only once it has
 //! its result, so a call running, a permission dialog open and a question
 //! waiting are known only from what the pane's side channel reports — the
-//! hangar-bridge mod, or Hangar's client of a Codex pane's server, which
+//! teskad-bridge mod, or Hangar's client of a Codex pane's server, which
 //! reports Codex's calls under the names the window reads (`Bash` for a
 //! command, `AskUserQuestion` for a question) and its own asks under
 //! Codex's (`apply_patch`, `request_permissions`, an MCP server's
@@ -478,7 +478,7 @@ mod tests {
                 None,
             ),
             (
-                "mcp__hangar__pane_send",
+                "mcp__teskad__pane_send",
                 json!({"pane": "Ava"}),
                 "Used pane_send",
                 "Use pane_send",

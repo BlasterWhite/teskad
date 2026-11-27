@@ -7,7 +7,7 @@ person's Hangar.
   control  --root R --endpoint F <op> <json>      POST /api/control/<op>
   wait-pane --root R --endpoint F <ws> <pane> <needle> <secs>
                                                   pane_read until <needle> shows
-  pane-env --root R <app pid> <pane id>           HANGAR_* of that pane's shell
+  pane-env --root R <app pid> <pane id>           TESKAD_* of that pane's shell
   app-runs <app pid> <VAR=value>                  exits 0 if a process under the
                                                   app has it in its environment
   mcp      --root R --endpoint F --app BIN <envfile> <tool> <json> [secs]
@@ -166,16 +166,16 @@ def cmd_pane_env(args):
     if len(rest) != 2:
         die("pane-env <app pid> <pane id>")
     app, pane = int(rest[0]), rest[1]
-    pid, env = pane_process(app, f"HANGAR_PANE_ID={pane}")
+    pid, env = pane_process(app, f"TESKAD_PANE_ID={pane}")
     if pid is None:
         die(f"no process of pane {pane} under the app (pid {app})")
-    hangar = {k: v for k, v in env.items() if k.startswith("HANGAR_")}
-    if not hangar.get("HANGAR_BRIDGE_URL") or not hangar.get("HANGAR_BRIDGE_TOKEN"):
+    hangar = {k: v for k, v in env.items() if k.startswith("TESKAD_")}
+    if not hangar.get("TESKAD_BRIDGE_URL") or not hangar.get("TESKAD_BRIDGE_TOKEN"):
         die(f"pane {pane} (pid {pid}) has no bridge in its environment")
     # Where the pane runs: the workspace its board calls are for.
-    hangar["HANGAR_WORKSPACE"] = os.readlink(f"/proc/{pid}/cwd")
-    if not inside(opts["root"], hangar["HANGAR_WORKSPACE"]):
-        die(f"pane {pane} runs in {hangar['HANGAR_WORKSPACE']}, not under {opts['root']}")
+    hangar["TESKAD_WORKSPACE"] = os.readlink(f"/proc/{pid}/cwd")
+    if not inside(opts["root"], hangar["TESKAD_WORKSPACE"]):
+        die(f"pane {pane} runs in {hangar['TESKAD_WORKSPACE']}, not under {opts['root']}")
     for key, value in sorted(hangar.items()):
         print(f"{key}={value}")
 
@@ -197,16 +197,16 @@ def cmd_mcp(args):
     secs = float(rest[3]) if len(rest) == 4 else 60.0
     if not inside(opts["root"], opts["endpoint"]) or not inside(opts["root"], envfile):
         die("refusing: the endpoint and the pane's environment must be the test's own")
-    env = {k: v for k, v in os.environ.items() if not k.startswith("HANGAR_")}
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("TESKAD_", "HANGAR_"))}
     with open(envfile, encoding="utf-8") as handle:
         for line in handle:
             key, _, value = line.rstrip("\n").partition("=")
-            if key.startswith("HANGAR_"):
+            if key.startswith("TESKAD_"):
                 env[key] = value
-    env["HANGAR_ENDPOINT_FILE"] = opts["endpoint"]
-    # The proxy takes its workspace from HANGAR_WORKSPACE, else its folder: both
+    env["TESKAD_ENDPOINT_FILE"] = opts["endpoint"]
+    # The proxy takes its workspace from TESKAD_WORKSPACE, else its folder: both
     # are the pane's own, inside the test's folder, never the caller's checkout.
-    workspace = env.get("HANGAR_WORKSPACE", "")
+    workspace = env.get("TESKAD_WORKSPACE", "")
     if not workspace or not inside(opts["root"], workspace):
         die(f"refusing: the pane's workspace {workspace!r} is not under {opts['root']}")
     calls = [

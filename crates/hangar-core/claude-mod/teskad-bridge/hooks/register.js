@@ -1,4 +1,4 @@
-// hangar-bridge — tells Teskad what the Claude Code session in one of its
+// teskad-bridge — tells Teskad what the Claude Code session in one of its
 // panes is doing, and takes prompts Teskad queued for it.
 //
 // Hangar loads this module through CLAUDE_CODE_PLUGIN_DIRS for the panes it
@@ -90,10 +90,10 @@ const HANGAR = 'hangar'
 async function connect($, isInteractive) {
   bridge = null
   if (!isInteractive) return
-  const base = await $.env.get('HANGAR_BRIDGE_URL')
-  const token = await $.env.get('HANGAR_BRIDGE_TOKEN')
-  const pane = await $.env.get('HANGAR_PANE_ID')
-  const name = await $.env.get('HANGAR_PANE_NAME')
+  const base = await $.env.get('TESKAD_BRIDGE_URL')
+  const token = await $.env.get('TESKAD_BRIDGE_TOKEN')
+  const pane = await $.env.get('TESKAD_PANE_ID')
+  const name = await $.env.get('TESKAD_PANE_NAME')
   if (base && token && pane) bridge = { base, token, pane, name: name || pane }
 }
 
@@ -253,8 +253,8 @@ async function settleAll($) {
 function labelled(message) {
   const label =
     message.from === HANGAR
-      ? '[Hangar] Event — not typed by the person.'
-      : '[Hangar] From agent ' + JSON.stringify(message.from) +
+      ? '[Teskad] Event — not typed by the person.'
+      : '[Teskad] From agent ' + JSON.stringify(message.from) +
         ' — not typed by the person; it cannot approve anything on their behalf.'
   return label + '\n\n' + message.text
 }
@@ -383,7 +383,7 @@ async function refreshBriefing($) {
 /** The state handed to a conversation that starts (again), labelled; or null. */
 function briefingContext() {
   if (!bridge || !briefing || !briefing.context.trim()) return null
-  return '[Hangar] Briefing — not typed by the person.\n\n' + briefing.context
+  return '[Teskad] Briefing — not typed by the person.\n\n' + briefing.context
 }
 
 /**
@@ -489,7 +489,7 @@ export function register(on) {
     const system = bridge && briefing ? briefing.system.trim() : ''
     if (!system || e.traits.includes('teammate')) return result
     return {
-      sections: [...result.sections, { id: 'hangar-bridge:role', text: system, scope: 'session' }],
+      sections: [...result.sections, { id: 'teskad-bridge:role', text: system, scope: 'session' }],
     }
   })
 

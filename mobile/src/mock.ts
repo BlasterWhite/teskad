@@ -217,7 +217,7 @@ function scenery(now: number, locale: Locale) {
       "⏺ hangar - delivery_submit (MCP)(summary: \"Settings › Mobile pairs a phone by QR code\")",
       "  ⎿  Teskad merges hangar/mobile-settings-qr-3e1f0a onto main in a separate worktree…",
       "",
-      "⏺ [Hangar] hangar/mobile-settings-qr-3e1f0a passed its check and its review. Automatic",
+      "⏺ [Teskad] hangar/mobile-settings-qr-3e1f0a passed its check and its review. Automatic",
       "  landing is off in this workspace, so it waits for the person to land it on main.",
       "",
       "⏺ Done: the delivery waits for you to merge it.",
@@ -796,7 +796,7 @@ export function createMock(scenario: Scenario, now = Date.now(), locale: Locale 
         if (!boss) return json(409, { error: "Open the project manager on the PC" });
         say(boss, { kind: "user", text: String(args.text), from: "person", images: 0 });
         respond(boss, [`> ${String(args.text)}`], ["⏺ Noted. I'll pass it on and tell you here how it goes."], "yours", {
-          tool: "mcp__hangar__project_list",
+          tool: "mcp__teskad__project_list",
           title: "Used project_list",
           detail: "{}",
           result: "4 projects",

@@ -90,6 +90,9 @@ pub enum Skip {
 pub struct Report {
     pub pairs: Vec<(PathBuf, Outcome)>,
     pub rewritten_projects: Vec<PathBuf>,
+    /// The workspaces whose `.mcp.json` held Teskad's server under the
+    /// upstream's name (`hangar`), moved to `teskad` (install.rs).
+    pub renamed_projects: Vec<PathBuf>,
 }
 
 impl Report {
@@ -102,11 +105,12 @@ impl Report {
 }
 
 /// The plan for this machine, or `None` for a run kept off the person's real
-/// files (`HANGAR_DATA_ROOT` or `HANGAR_ENDPOINT_FILE`, set by a development
+/// files (`TESKAD_DATA_ROOT` or `TESKAD_ENDPOINT_FILE`, set by a development
 /// build, which must not read the official app's data either).
 pub fn system_plan() -> Option<Plan> {
-    let set = |name: &str| std::env::var_os(name).is_some_and(|value| !value.is_empty());
-    if set("HANGAR_DATA_ROOT") || set("HANGAR_ENDPOINT_FILE") {
+    let set = |value: Option<std::ffi::OsString>| value.is_some_and(|value| !value.is_empty());
+    if set(crate::env::var_os("TESKAD_DATA_ROOT")) || set(std::env::var_os("TESKAD_ENDPOINT_FILE"))
+    {
         return None;
     }
     let home = dirs::home_dir()?;
@@ -147,7 +151,26 @@ pub fn system_plan() -> Option<Plan> {
 /// Runs the plan for this machine, if there is one. Errors are in the report:
 /// a migration that fails leaves Teskad to start empty, never to stop.
 pub fn run_at_startup() -> Report {
-    system_plan().map_or_else(Report::default, |plan| run(&plan))
+    let Some(plan) = system_plan() else {
+        return Report::default();
+    };
+    let mut report = run(&plan);
+    if let Some(home) = paths::home_folder() {
+        report.renamed_projects = rename_server_in_projects(&home.join("state.json"));
+    }
+    report
+}
+
+/// The workspaces `state` lists whose `.mcp.json` names Teskad's MCP server
+/// `hangar`, as every config written before the rename does: the entry moves to
+/// `teskad` (the tools agents see are `mcp__teskad__*`). An entry under that
+/// name that runs the official app is left as it is
+/// (`install::migrate_project_config`). Returns the workspaces rewritten.
+pub fn rename_server_in_projects(state: &Path) -> Vec<PathBuf> {
+    workspace_folders(state)
+        .into_iter()
+        .filter(|cwd| crate::install::migrate_project_config(cwd))
+        .collect()
 }
 
 /// Imports every pair of `plan` that needs it.
@@ -272,38 +295,49 @@ fn copy_tree(from: &Path, to: &Path, skip: &[&str], top: bool) -> io::Result<usi
     Ok(files)
 }
 
-/// The names under which the `hangar` MCP server has been registered.
-const SERVER_KEYS: [&str; 2] = ["hangar", "iabench"];
-
-/// Points the `hangar` entry of an `mcpServers` document at `exe`; whether the
-/// document changed. The entry keeps its `args` and `env`; one under an older
-/// name (`iabench`) becomes `hangar`, as an install does (install.rs).
-fn point_at(doc: &mut Value, exe: &Path) -> bool {
+/// Points the `teskad` entry of an `mcpServers` document at `exe`; whether the
+/// document changed. The entry keeps its `args` and `env` (its `HANGAR_*`
+/// variables renamed `TESKAD_*`); one under an older name, `hangar` (the
+/// official app's, as copied) or `iabench`, becomes `teskad`, as an install
+/// does (install.rs).
+///
+/// A `shared` document is one the official app reads as well (a project's
+/// `.mcp.json`): there, an entry under `hangar` is taken only when it runs
+/// Teskad, and the official app's own is left in place.
+fn point_at(doc: &mut Value, exe: &Path, shared: bool) -> bool {
     let exe = exe.to_string_lossy();
     let Some(servers) = doc.get_mut("mcpServers").and_then(Value::as_object_mut) else {
         return false;
     };
-    let Some(mut entry) = SERVER_KEYS
-        .iter()
-        .find_map(|key| servers.get(*key).cloned())
-        .filter(Value::is_object)
-    else {
+    let before = servers.clone();
+    let upstream = crate::install::UPSTREAM_SERVER_KEY;
+    let takes_upstream = servers
+        .get(upstream)
+        .is_some_and(|entry| !shared || crate::install::names_teskad(entry));
+    let key = if servers
+        .get(crate::install::SERVER_KEY)
+        .is_some_and(Value::is_object)
+    {
+        crate::install::SERVER_KEY
+    } else if takes_upstream && servers.get(upstream).is_some_and(Value::is_object) {
+        upstream
+    } else if servers.get("iabench").is_some_and(Value::is_object) {
+        "iabench"
+    } else {
         return false;
     };
-    let before = (
-        servers.get("hangar").cloned(),
-        servers.contains_key("iabench"),
-    );
+    let mut entry = servers[key].clone();
     entry["command"] = Value::String(exe.into_owned());
     if entry.get("args").is_none() {
         entry["args"] = serde_json::json!(["--mcp"]);
     }
+    crate::install::rename_env(&mut entry);
     servers.remove("iabench");
-    servers.insert("hangar".into(), entry);
-    (
-        servers.get("hangar").cloned(),
-        servers.contains_key("iabench"),
-    ) != before
+    if takes_upstream {
+        servers.remove(upstream);
+    }
+    servers.insert(crate::install::SERVER_KEY.into(), entry);
+    *servers != before
 }
 
 /// The copied `mcp/*.json` files a pane's Claude Code is pointed at. They are
@@ -321,8 +355,9 @@ fn rewrite_scope_files(dir: &Path, exe: &Path) {
     }
 }
 
-/// A workspace's `.mcp.json`, when it holds the `hangar` server pointing
-/// elsewhere than at `exe`. Makes the one-time copy `<file>.hangar-bak` first,
+/// A workspace's `.mcp.json`, when it holds the `teskad` server (or an
+/// `iabench` one, or a `hangar` one that runs Teskad) pointing elsewhere than
+/// at `exe`; the official app's `hangar` entry is not touched. Makes the one-time copy `<file>.hangar-bak` first,
 /// as an install does. A file that does not parse is left as it is.
 fn rewrite_project_config(path: &Path, exe: &Path) -> bool {
     path.is_file() && rewrite_json(path, exe, true)
@@ -335,7 +370,8 @@ fn rewrite_json(path: &Path, exe: &Path, backup: bool) -> bool {
     let Ok(mut doc) = serde_json::from_str::<Value>(raw.trim_start_matches('\u{feff}')) else {
         return false;
     };
-    if !point_at(&mut doc, exe) {
+    // The copied `mcp/*.json` are Teskad's own; a project's file is shared.
+    if !point_at(&mut doc, exe, backup) {
         return false;
     }
     if backup {
@@ -650,13 +686,14 @@ mod tests {
             serde_json::from_str(&fs::read_to_string(f.new_dir().join("mcp/ws-1.json")).unwrap())
                 .unwrap();
         assert_eq!(
-            copy["mcpServers"]["hangar"]["command"],
+            copy["mcpServers"]["teskad"]["command"],
             f.exe.to_string_lossy().as_ref()
         );
         assert_eq!(
-            copy["mcpServers"]["hangar"]["env"]["HANGAR_WORKSPACE"],
-            "/w"
+            copy["mcpServers"]["teskad"]["env"]["TESKAD_WORKSPACE"], "/w",
+            "the variable the server reads is renamed with it"
         );
+        assert!(copy["mcpServers"].get("hangar").is_none());
         assert_eq!(copy["mcpServers"]["linear"]["command"], "npx");
         let original = fs::read_to_string(f.old().join("mcp/ws-1.json")).unwrap();
         assert_eq!(
@@ -693,7 +730,7 @@ mod tests {
             .to_string(),
         );
         let exe = f.exe.to_string_lossy().into_owned();
-        let up_to_date = json!({"mcpServers": {"hangar": {"command": exe, "args": ["--mcp"]}}});
+        let up_to_date = json!({"mcpServers": {"teskad": {"command": exe, "args": ["--mcp"]}}});
         f.put(&current, ".mcp.json", &up_to_date.to_string());
         f.put(&plain, "README.md", "no mcp here");
 
@@ -702,7 +739,7 @@ mod tests {
         assert_eq!(report.rewritten_projects, vec![stale.clone()]);
         let doc: Value =
             serde_json::from_str(&fs::read_to_string(stale.join(".mcp.json")).unwrap()).unwrap();
-        assert_eq!(doc["mcpServers"]["hangar"]["command"], exe.as_str());
+        assert_eq!(doc["mcpServers"]["teskad"]["command"], exe.as_str());
         assert!(
             doc["mcpServers"].get("iabench").is_none(),
             "the old name goes"
@@ -718,6 +755,107 @@ mod tests {
             "a config that is right is not rewritten"
         );
         assert!(!plain.join(".mcp.json").exists());
+    }
+
+    /// A project shared with the official app: its `hangar` entry is the
+    /// official app's, and the migration copies nothing of it into Teskad's.
+    #[test]
+    fn a_project_config_keeps_the_official_apps_server_when_it_is_shared() {
+        let f = Fixture::new("migrate-shared");
+        let project = f.root.join("proj");
+        f.official();
+        f.put(
+            &f.old(),
+            "state.json",
+            &json!({"workspaces":[{"cwd": project}]}).to_string(),
+        );
+        let body = json!({"mcpServers": {
+            "hangar": { "command": "/opt/hangar/hangar-ai", "args": ["--mcp"] }
+        }})
+        .to_string();
+        f.put(&project, ".mcp.json", &body);
+
+        let report = run(&f.plan());
+
+        assert!(report.rewritten_projects.is_empty());
+        assert_eq!(fs::read_to_string(project.join(".mcp.json")).unwrap(), body);
+        assert!(!project.join(".mcp.json.hangar-bak").exists());
+    }
+
+    fn config(dir: &Path) -> Value {
+        serde_json::from_str(&fs::read_to_string(dir.join(".mcp.json")).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn teskad_s_server_under_the_upstream_name_moves_to_teskad() {
+        let f = Fixture::new("migrate-rename");
+        let (ours, official, both, none) = (
+            f.root.join("ours"),
+            f.root.join("official-project"),
+            f.root.join("both"),
+            f.root.join("none"),
+        );
+        let state = f.root.join("state.json");
+        let folders: Vec<&PathBuf> = vec![&ours, &official, &both, &none];
+        f.put(
+            &f.root,
+            "state.json",
+            &json!({"workspaces": folders.iter().map(|cwd| json!({"cwd": cwd})).collect::<Vec<_>>()})
+                .to_string(),
+        );
+        f.put(
+            &ours,
+            ".mcp.json",
+            &json!({"mcpServers": {
+                "hangar": {
+                    "command": "/home/a/.local/bin/teskad",
+                    "args": ["--mcp"],
+                    "env": { "HANGAR_WORKSPACE": "/w", "KEEP": "1" }
+                },
+                "linear": { "command": "npx" }
+            }})
+            .to_string(),
+        );
+        let official_body = json!({"mcpServers": {
+            "hangar": { "command": "/opt/hangar/hangar-ai", "args": ["--mcp"] }
+        }})
+        .to_string();
+        f.put(&official, ".mcp.json", &official_body);
+        // Already moved, and the upstream's entry left from before: ours stays.
+        f.put(
+            &both,
+            ".mcp.json",
+            &json!({"mcpServers": {
+                "teskad": { "command": "/new/teskad", "args": ["--mcp"] },
+                "hangar": { "command": "/old/teskad", "args": ["--mcp"] }
+            }})
+            .to_string(),
+        );
+
+        let renamed = rename_server_in_projects(&state);
+
+        assert_eq!(renamed, vec![ours.clone(), both.clone()]);
+        let doc = config(&ours);
+        let servers = &doc["mcpServers"];
+        assert!(servers.get("hangar").is_none());
+        assert_eq!(servers["teskad"]["command"], "/home/a/.local/bin/teskad");
+        assert_eq!(servers["teskad"]["env"]["TESKAD_WORKSPACE"], "/w");
+        assert_eq!(servers["teskad"]["env"]["KEEP"], "1");
+        assert!(servers["teskad"]["env"].get("HANGAR_WORKSPACE").is_none());
+        assert_eq!(servers["linear"]["command"], "npx");
+        assert!(ours.join(".mcp.json.hangar-bak").is_file());
+        assert_eq!(
+            fs::read_to_string(official.join(".mcp.json")).unwrap(),
+            official_body,
+            "the official app's entry is not touched"
+        );
+        assert!(!official.join(".mcp.json.hangar-bak").exists());
+        let doc = config(&both);
+        assert_eq!(doc["mcpServers"]["teskad"]["command"], "/new/teskad");
+        assert!(doc["mcpServers"].get("hangar").is_none());
+        assert!(!none.join(".mcp.json").exists());
+        // Run again: nothing left to do.
+        assert!(rename_server_in_projects(&state).is_empty());
     }
 
     #[test]
@@ -742,8 +880,8 @@ mod tests {
     #[test]
     fn a_development_run_does_not_read_the_official_app_s_files() {
         // The variables a development build sets (scripts/native-dev.sh).
-        if std::env::var_os("HANGAR_DATA_ROOT").is_some()
-            || std::env::var_os("HANGAR_ENDPOINT_FILE").is_some()
+        if crate::env::var_os("TESKAD_DATA_ROOT").is_some()
+            || std::env::var_os("TESKAD_ENDPOINT_FILE").is_some()
         {
             assert!(system_plan().is_none());
         } else if let Some(plan) = system_plan() {

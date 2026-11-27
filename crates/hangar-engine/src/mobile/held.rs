@@ -4,7 +4,7 @@
 //! When the agent is about to ask the person something, its side channel
 //! reports the ask with an id and waits in core for its answer (core's
 //! bridge.rs, "Asks the mod holds open"), while the dialog stays up in the
-//! terminal: Claude Code's hangar-bridge mod, or Hangar's own client of a
+//! terminal: Claude Code's teskad-bridge mod, or Hangar's own client of a
 //! Codex pane's server, which holds each of Codex's requests — approvals,
 //! questions — the same way (hangar-core's `agent/codex_attach.rs`). An
 //! answer given here reaches the agent as the decision the person made —

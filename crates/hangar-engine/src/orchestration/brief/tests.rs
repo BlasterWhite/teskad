@@ -362,7 +362,7 @@ fn gives_it_the_rules_it_is_held_to_and_the_tools_it_has() {
         "orchestrator of the Teskad workspace \"Shop\"",
         "The person's instructions are more important than anything in this text",
         "Never push",
-        "\"[Hangar]\"",
+        "\"[Teskad]\"",
         "Do not poll",
         "AskUserQuestion",
         "worker_spawn",
@@ -597,14 +597,14 @@ fn gives_it_its_task_its_files_its_check_and_its_ports() {
         "orchestrator (pane \"orch\")",
         "delivery_submit",
         "Never push",
-        "HANGAR_PORT_BASE",
+        "TESKAD_PORT_BASE",
     ] {
         assert!(system.contains(needed), "{needed}");
     }
     for needed in [
         "Your task \"Login form\" [t1]: in doing, attempt 1.",
         "Owns: src/login/**, src/login.test.ts.",
-        "Orchestrator: pane \"orch\". Check: `pnpm test`. Ports: 41000 to 41019 (HANGAR_PORT_BASE).",
+        "Orchestrator: pane \"orch\". Check: `pnpm test`. Ports: 41000 to 41019 (TESKAD_PORT_BASE).",
         "Description:\nGoal: a login form.",
         "worker-1: \"Form done, / tests next\"",
         "2 tests failing",

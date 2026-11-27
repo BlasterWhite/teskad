@@ -2,7 +2,7 @@
 //! workspace, the preview store, and the messages the tasks of `update` would
 //! have ended with, fed by hand (a read's events, the folders it waits for).
 //! What the views draw is drawn headless by `iced_test`; with
-//! `HANGAR_MODEL3D_SNAPSHOTS=<folder>` the scenes are written there as PNGs
+//! `TESKAD_MODEL3D_SNAPSHOTS=<folder>` the scenes are written there as PNGs
 //! (`cargo test -p hangar-app model3d_view::tests::snapshots`).
 //!
 //! The viewport itself is a GPU widget: on `iced_test`'s software renderer it
@@ -1531,10 +1531,10 @@ fn nothing_is_said_over_a_model_that_has_not_loaded_even_if_the_renderer_is_know
     assert!(has_text(&mut ui, "cube.glb"), "the loading card is shown");
 }
 
-/// The scenes, as pictures, when `HANGAR_MODEL3D_SNAPSHOTS` names a folder.
+/// The scenes, as pictures, when `TESKAD_MODEL3D_SNAPSHOTS` names a folder.
 #[test]
 fn snapshots() {
-    let Some(out) = std::env::var_os("HANGAR_MODEL3D_SNAPSHOTS").map(PathBuf::from) else {
+    let Some(out) = hangar_core::env::var_os("TESKAD_MODEL3D_SNAPSHOTS").map(PathBuf::from) else {
         return;
     };
     std::fs::create_dir_all(&out).unwrap();

@@ -36,12 +36,12 @@ pub fn locked<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(|poison| poison.into_inner())
 }
 
-/// `HANGAR_NODES_TIMING=1`: each step of a connection timed on stderr, one
+/// `TESKAD_NODES_TIMING=1`: each step of a connection timed on stderr, one
 /// line each (`nodes timing: node=<id> step=<step> ms=<its time>
 /// at=<epoch ms>`), which `scripts/node-test/bench.sh` reads.
 pub fn timing_on() -> bool {
     static ON: OnceLock<bool> = OnceLock::new();
-    *ON.get_or_init(|| std::env::var("HANGAR_NODES_TIMING").is_ok_and(|value| value == "1"))
+    *ON.get_or_init(|| hangar_core::env::var("TESKAD_NODES_TIMING").is_ok_and(|value| value == "1"))
 }
 
 /// One timing line, when they are asked for.
@@ -197,7 +197,7 @@ pub struct Setup {
 }
 
 /// The folder of the app's SSH master sockets, made private: under
-/// `HANGAR_NODES_SSH_DIR` when set (the rig's runs), else the runtime
+/// `TESKAD_NODES_SSH_DIR` when set (the rig's runs), else the runtime
 /// folder (`$XDG_RUNTIME_DIR`), else the cache. `None` on Windows, or when
 /// it cannot be made, or is too deep for a socket's path (about 100 bytes,
 /// ssh's temporary name included).
@@ -205,7 +205,7 @@ pub fn control_dir() -> Option<PathBuf> {
     if cfg!(windows) {
         return None;
     }
-    let dir = std::env::var_os("HANGAR_NODES_SSH_DIR")
+    let dir = hangar_core::env::var_os("TESKAD_NODES_SSH_DIR")
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
         .or_else(|| dirs::runtime_dir().map(|dir| dir.join("hangar-ssh")))

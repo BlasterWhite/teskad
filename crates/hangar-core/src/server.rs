@@ -90,7 +90,7 @@ pub struct PaneIdentity {
 
 impl PaneIdentity {
     /// What the pane signs a claim, a comment, a block or a fact with: its
-    /// name, which is what the MCP proxy signs with (`HANGAR_PANE_NAME`), and
+    /// name, which is what the MCP proxy signs with (`TESKAD_PANE_NAME`), and
     /// its id when it has none.
     pub fn signature(&self) -> &str {
         self.name.as_deref().unwrap_or(&self.id)
@@ -652,7 +652,7 @@ async fn delete_memory(
 // ---------------------------------------------------------------------------
 // Bridge
 //
-// The hangar-bridge mod inside each pane's Claude Code reports here, keyed by
+// The teskad-bridge mod inside each pane's Claude Code reports here, keyed by
 // the pane id Hangar put in its environment (see bridge.rs).
 // ---------------------------------------------------------------------------
 
@@ -859,7 +859,7 @@ struct KitTabRoute {
 
 #[derive(Deserialize)]
 struct KitTabQuery {
-    /// `$HANGAR_PANE_ID`, from the hook's environment. A pane's own token
+    /// `$TESKAD_PANE_ID`, from the hook's environment. A pane's own token
     /// says it already: then this may be left out, and may not name another.
     #[serde(default)]
     pane: String,
@@ -910,7 +910,7 @@ async fn kit_tab_open(
         return Err(bad(
             StatusCode::NOT_FOUND,
             format!(
-                "no pane {pane:?} is running in Hangar: pass ?pane=$HANGAR_PANE_ID, from the pane the hook runs in",
+                "no pane {pane:?} is running in Hangar: pass ?pane=$TESKAD_PANE_ID, from the pane the hook runs in",
             ),
         ));
     }
@@ -1186,7 +1186,7 @@ mod tests {
             let (status, body) = send(router, request(uri, Some("secret"), run())).await;
             assert_eq!(status, StatusCode::NOT_FOUND, "{uri}");
             assert!(
-                body["error"].as_str().unwrap().contains("HANGAR_PANE_ID"),
+                body["error"].as_str().unwrap().contains("TESKAD_PANE_ID"),
                 "{body}"
             );
             assert!(asked.lock().unwrap().is_empty(), "{uri}");

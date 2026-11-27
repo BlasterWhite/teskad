@@ -2833,11 +2833,11 @@ pub(crate) fn exclude_locally(root: &Path, dir: &str, probe: &str) {
 
 /// What the git view costs on a big repository: the looks the inspector,
 /// the pane headers and the git view take, on a repository named by
-/// `HANGAR_BENCH_REPO` (the audit used nodejs/node: 49k commits, 57k files,
+/// `TESKAD_BENCH_REPO` (the audit used nodejs/node: 49k commits, 57k files,
 /// 300 files edited, 50 untracked, 20 worktrees).
 ///
 /// ```text
-/// HANGAR_BENCH_REPO=~/dev/bench/big-node cargo test --release -p hangar-core \
+/// TESKAD_BENCH_REPO=~/dev/bench/big-node cargo test --release -p hangar-core \
 ///     --lib git::bench -- --ignored --nocapture
 /// ```
 #[cfg(test)]
@@ -2848,14 +2848,14 @@ mod bench {
     #[test]
     #[ignore = "a benchmark: run it in release with --ignored --nocapture"]
     fn git_view_on_a_big_repository() {
-        let Some(repo) = std::env::var_os("HANGAR_BENCH_REPO") else {
-            println!("HANGAR_BENCH_REPO is not set: nothing to measure");
+        let Some(repo) = crate::env::var_os("TESKAD_BENCH_REPO") else {
+            println!("TESKAD_BENCH_REPO is not set: nothing to measure");
             return;
         };
         let repo = PathBuf::from(repo);
         let (mut info, mut looks, mut big, mut listed) =
             (Vec::new(), Vec::new(), Vec::new(), Vec::new());
-        let biggest = std::env::var("HANGAR_BENCH_FILE").unwrap_or_default();
+        let biggest = crate::env::var("TESKAD_BENCH_FILE").unwrap_or_default();
         for _ in 0..7 {
             timed(&mut info, || repo_info(&repo));
             let found = timed(&mut looks, || changes(&repo, None).unwrap());
@@ -4708,7 +4708,7 @@ mod tests {
             );
         }
         // What a pane leaves in the environment is removed, not passed on.
-        assert_eq!(env("HANGAR_BRIDGE_TOKEN"), Some(None));
+        assert_eq!(env("TESKAD_BRIDGE_TOKEN"), Some(None));
     }
 
     #[test]

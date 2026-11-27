@@ -38,6 +38,7 @@ pub mod delivery;
 #[cfg(feature = "desktop")]
 pub mod discord;
 pub mod endpoint;
+pub mod env;
 pub mod executable;
 pub mod git;
 pub mod git_clone;

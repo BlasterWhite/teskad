@@ -14,23 +14,23 @@ ports and its tests.
 
 ```bash
 scripts/native-dev.sh                       # the app, on data under target/dev-home/
-HANGAR_DEV_SCREENSHOT=/tmp/x.png scripts/native-dev.sh   # a PNG of the main window, then quit
+TESKAD_DEV_SCREENSHOT=/tmp/x.png scripts/native-dev.sh   # a PNG of the main window, then quit
 cargo test -p hangar-app && cargo clippy -p hangar-app --all-targets -- -D warnings
 ```
 
 - **Never run the app plainly.** The released Hangar is installed and in use
   on the development machines, and both use the same `state.json`, endpoint
   file and Claude Code mods. A debug build refuses to start unless
-  `HANGAR_DATA_ROOT` and `HANGAR_ENDPOINT_FILE` are set, which
-  `scripts/native-dev.sh` does. `HANGAR_DEV_HOME=<dir>` points it at another
+  `TESKAD_DATA_ROOT` and `TESKAD_ENDPOINT_FILE` are set, which
+  `scripts/native-dev.sh` does. `TESKAD_DEV_HOME=<dir>` points it at another
   folder; put a `data/state.json` there to start on a given state.
-- `HANGAR_DEV_SCREENSHOT` is how you see your surface: screen capture is
-  refused on the GNOME Wayland session. `HANGAR_DEV_SCREENSHOT_AFTER_MS`
+- `TESKAD_DEV_SCREENSHOT` is how you see your surface: screen capture is
+  refused on the GNOME Wayland session. `TESKAD_DEV_SCREENSHOT_AFTER_MS`
   (default 3000) is the wait before the capture. The picture is the main
   window's view drawn off screen at that moment, at the window's size and
   scale (shell/dev_screenshot.rs says why not iced's `window::screenshot`):
   what the widgets keep themselves, a scroll offset or the caret, starts
-  afresh in it. `HANGAR_DEV_KIT_TABS=<kit>/<tab>?<param>=<value>&…` opens
+  afresh in it. `TESKAD_DEV_KIT_TABS=<kit>/<tab>?<param>=<value>&…` opens
   kit tabs first (kit_tabs/dev.rs).
 - `-j 16` at most; other agents build on the same machine. Never `cargo clean`.
 

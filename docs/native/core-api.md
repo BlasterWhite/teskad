@@ -45,7 +45,7 @@ core.shutdown();                              // when the main window goes; then
 the Tauri `setup` hook did, in this order:
 
 1. warms the login shell's `PATH` (`path_env::ensure`) and writes the
-   hangar-bridge mod to `~/.hangar/mods/` (`bridge::plugin_dir`), each on a
+   teskad-bridge mod to `~/.hangar/mods/` (`bridge::plugin_dir`), each on a
    thread of its own;
 2. starts the watchers: `kits::watch` (every 2 s: the kits' index and
    manifests, `Event::KitsChanged`) and `accounts::watch` (every 3 s: the
@@ -59,7 +59,7 @@ the Tauri `setup` hook did, in this order:
    ephemeral port, a bearer token made at startup), then hands the port and
    token to the panes (`bridge::set_endpoint`) and publishes them for the
    agents (`endpoint::publish`: `~/.hangar/endpoint.json` and the legacy
-   `~/.iabench/endpoint.json`, or `$HANGAR_ENDPOINT_FILE` alone). A failure
+   `~/.iabench/endpoint.json`, or `$TESKAD_ENDPOINT_FILE` alone). A failure
    is printed (`board API failed to start: …`).
 
 `runtime` must outlive the `Core`; the app's own Tokio runtime (iced's `tokio`
@@ -167,7 +167,7 @@ window emitted `board:changed` itself after a delivery, in
 | `MemoryChanged` | `memory:changed` (payload `""`) | — | the API or `memory_create`/`memory_update`/`memory_delete` wrote the memory |
 | `ControlRequest(control::ControlRequest)` | `control:request` | `ControlRequest { id: String, op: String, args: serde_json::Value }` | an agent asked to act on the panes (`/api/control/{op}`, or a kit hook's `/api/kit/tab/open`). `op` is one of `control::OPERATIONS`. Answer with `control::control_reply(id, ok, value, error)` |
 | `ControlInternal(control::ControlRequest)` | `control:internal` | same | Hangar's own questions: `orchestrator_briefing` (`{ paneId }`, given 8 s, answered by src/lib/orchestratorBrief.ts) and the phone's calls `remote_<op>` (given 10 s, answered by src/lib/remoteControl.ts; `<op>` is `state`, `screen`, `send`, `permission`, `manager`, `history`, `chat`, `answer`, `wake`, `stats`, `apps`, `delivery`, `delivery_file`, `land`, `rework`, and `workspace`). Answered whether or not pane control is on |
-| `BridgeEvent { pane_id: String, event: serde_json::Value }` | `bridge:event` (`{ paneId, event }`) | the mod's report as it sent it; the window owns the meaning of `event.kind` | a pane's hangar-bridge mod reported (turns, permission dialogs, context, edits) |
+| `BridgeEvent { pane_id: String, event: serde_json::Value }` | `bridge:event` (`{ paneId, event }`) | the mod's report as it sent it; the window owns the meaning of `event.kind` | a pane's teskad-bridge mod reported (turns, permission dialogs, context, edits) |
 | `BridgeQueue(bridge::QueueChanged)` | `bridge:queue` | `QueueChanged { pane_id: String, pending: Vec<bridge::Queued> }`, `Queued { id, text, from: Option<String> }` | `bridge_enqueue`, `bridge_cancel`, and the mod taking a queued prompt |
 | `VoicePhase(voice::Phase)` | `voice:phase` | `Phase { phase: &'static str /* "idle", "recording", "transcribing" */, error: Option<String> }` | `voice_start`, `voice_stop`, a transcription ending |
 | `VoiceText(voice::Transcript)` | `voice:text` | `Transcript { text: String }` | a dictation transcribed to something |
@@ -402,7 +402,7 @@ pub fn accounts_support() -> Support
 
 Whether logging in to one account here leaves the others logged in.
 
-### hangar-bridge queue
+### teskad-bridge queue
 
 #### `bridge_enqueue`
 
@@ -438,7 +438,7 @@ Invoked as `bridge_queue` from `src/lib/ipc.ts`. Now `hangar_core::bridge::bridg
 pub fn bridge_queue(pane_id: String) -> Vec<Queued>
 ```
 
-### hangar-bridge asks
+### teskad-bridge asks
 
 When Claude Code is about to ask the person something (a permission, an `AskUserQuestion`, a plan to approve), the mod's `classic.PermissionRequest` hook reports it with an id of its own (`{ kind: "permission", waiting: true, tool, input, askId, toolUseId? }`) and waits for Hangar's answer through `GET /api/bridge/{pane}/ask/{id}?wait=<ms>` (at most 25 s per request; it asks again until the ask ends). Claude Code draws its own dialog in the terminal meanwhile and takes whichever answer comes first, as it does for an Agent SDK host's `canUseTool`: an answer typed in the terminal ends the call, and the mod reports `{ kind: "ask", phase: "end", askId }`. A decision made by a `PermissionRequest` hook of the user's own settings stands, and nothing is awaited. Measured with Claude Code 2.1.322.
 
@@ -1993,7 +1993,7 @@ does not:
   update; the exit after `Core::shutdown`.
 - **The version** (`getVersion()` from `@tauri-apps/api/app`, in the sidebar
   and the settings): the app's `CARGO_PKG_VERSION`, the workspace's;
-  `hangar_core::kits::HANGAR_VERSION` is the same number.
+  `hangar_core::kits::APP_VERSION` is the same number.
 - **The webview's schemes**: registering `hangar-model` and `hangar-kit`
   with `model::serve` and `kit_scheme::serve`, off the UI thread, and the
   origins of its own pages.

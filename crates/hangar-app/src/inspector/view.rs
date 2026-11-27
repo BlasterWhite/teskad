@@ -67,7 +67,7 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
 pub(super) struct Data<'a> {
     pub insight: &'a PaneInsight,
     pub state: AgentState,
-    /// The state comes from the pane's side channel (the hangar-bridge mod,
+    /// The state comes from the pane's side channel (the teskad-bridge mod,
     /// Hangar attached to a Codex) rather than from a guess.
     pub bridged: bool,
     /// The plan's windows as they stand for the pane's agent
@@ -148,7 +148,7 @@ pub(super) fn column_of<'a>(scene: &Scene<'a>, data: Data<'a>) -> Element<'a, Me
     // something happened in it, so never empty. Until its side channel
     // speaks, the words say which one it waits for: Hangar attached to an
     // agent it reaches through a server of its own (`headless.app_server`,
-    // as `roles::side_channel_on` reads it), the hangar-bridge mod otherwise.
+    // as `roles::side_channel_on` reads it), the teskad-bridge mod otherwise.
     let nothing_yet = if data.bridged {
         tr.t(Key::InspectorActivityQuiet).into_owned()
     } else if caps.is_some_and(|caps| caps.headless.app_server) {

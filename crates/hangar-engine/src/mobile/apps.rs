@@ -3,7 +3,7 @@
 //! slot of the mobile server's own (core's `remote/apps.rs`).
 //!
 //! A worker's are found by themselves, in the port block its shell was given
-//! (`HANGAR_PORT_BASE` and the 19 after it); the person adds their own to a
+//! (`TESKAD_PORT_BASE` and the 19 after it); the person adds their own to a
 //! workspace in Settings › Mobile (`mobilePorts`). Only the ports a server
 //! listens on right now are listed: the phone shows what it can open, and
 //! the mobile server, which asks this before it opens anything, opens nothing

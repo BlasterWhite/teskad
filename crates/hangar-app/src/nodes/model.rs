@@ -25,7 +25,7 @@ pub const REMOTE_BIN_UPLOAD: &str = ".local/share/teskad-node/bin/teskad-node.ne
 pub const REMOTE_NODE_JSON: &str = ".local/state/teskad-node/node.json";
 
 /// The development override of the binary to upload.
-pub const BINARY_ENV: &str = "HANGAR_NODE_BINARY";
+pub const BINARY_ENV: &str = "TESKAD_NODE_BINARY";
 
 /// A step of a connection, in the order they run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -276,7 +276,7 @@ pub fn normalize_arch(uname: &str) -> Option<&'static str> {
 /// Where the binary to upload comes from.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BinarySource {
-    /// `HANGAR_NODE_BINARY`, for development: used whatever the machine.
+    /// `TESKAD_NODE_BINARY`, for development: used whatever the machine.
     pub override_path: Option<PathBuf>,
     /// The folder of the running `teskad`, which holds
     /// `teskad-node-<arch>` in a release.
@@ -287,7 +287,7 @@ impl BinarySource {
     /// From the environment and the running executable.
     pub fn from_env() -> BinarySource {
         BinarySource {
-            override_path: std::env::var_os(BINARY_ENV)
+            override_path: hangar_core::env::var_os(BINARY_ENV)
                 .filter(|value| !value.is_empty())
                 .map(PathBuf::from),
             exe_dir: std::env::current_exe()

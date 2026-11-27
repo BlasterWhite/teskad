@@ -490,8 +490,8 @@ fn reconcile(st: &mut State, m: &Model, sv: &Services) {
             .filter(|v| !v.trim().is_empty())
     };
     let options = hangar_discord::Options {
-        api: named("HANGAR_DISCORD_API").unwrap_or_else(|| hangar_discord::rest::API.into()),
-        gateway: named("HANGAR_DISCORD_GATEWAY"),
+        api: named("TESKAD_DISCORD_API").unwrap_or_else(|| hangar_discord::rest::API.into()),
+        gateway: named("TESKAD_DISCORD_GATEWAY"),
         dir,
     };
     st.running = Some(Running {

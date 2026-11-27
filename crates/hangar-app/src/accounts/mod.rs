@@ -250,7 +250,7 @@ pub enum Hold {
     NotLoggedIn,
     /// Its agent is inside a turn: at work, or waiting on the person.
     Turn,
-    /// Its turns are not reported: the hangar-bridge mod is not loaded, or
+    /// Its turns are not reported: the teskad-bridge mod is not loaded, or
     /// has said nothing yet.
     Unreported,
     /// Something typed in its prompt and not sent.

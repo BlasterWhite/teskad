@@ -4,8 +4,8 @@
 //! ```sh
 //! cargo run -p hangar-discord --example fake_discord -- 7777
 //! # then, in a debug build of Hangar:
-//! HANGAR_DISCORD_API=http://127.0.0.1:7777/api \
-//! HANGAR_DISCORD_GATEWAY=ws://127.0.0.1:7777/gateway hangar-ai
+//! TESKAD_DISCORD_API=http://127.0.0.1:7777/api \
+//! TESKAD_DISCORD_GATEWAY=ws://127.0.0.1:7777/gateway hangar-ai
 //! curl -s 127.0.0.1:7777/fake/calls                 # what the bot did
 //! curl -s -XPOST 127.0.0.1:7777/fake/send -d '{"t":"MESSAGE_CREATE","d":{…}}'
 //! ```

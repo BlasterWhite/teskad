@@ -648,7 +648,7 @@ mod tests {
                 item(
                     "h1",
                     Body::User {
-                        text: "[Hangar] Briefing".into(),
+                        text: "[Teskad] Briefing".into(),
                         from: Sender::Hangar,
                         images: 0,
                     },

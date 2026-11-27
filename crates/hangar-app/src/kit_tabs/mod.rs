@@ -119,7 +119,7 @@ pub struct State {
     helper_starting: bool,
     /// Numbers the windows, each open being a window of its own.
     windows: u64,
-    /// `HANGAR_DEV_KIT_TABS` has been looked at (dev.rs).
+    /// `TESKAD_DEV_KIT_TABS` has been looked at (dev.rs).
     dev_done: bool,
     /// Tabs whose window the person asked for with the panel's buttons (open
     /// it, reload it): the next window of each is theirs, and may take the
@@ -1012,7 +1012,7 @@ pub fn on_intent(
 }
 
 /// Whether a core event is one that changes what `panes.list` tells: a
-/// report of a pane's hangar-bridge mod (its agent started or finished a turn,
+/// report of a pane's teskad-bridge mod (its agent started or finished a turn,
 /// asks for a permission), or its shell ending. The reducers of the panes
 /// package have applied it to the model by the time it is offered here: that
 /// package is offered every event first (`packages!` in `app.rs` lists

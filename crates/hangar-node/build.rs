@@ -3,6 +3,6 @@
 
 fn main() {
     let target = std::env::var("TARGET").unwrap_or_else(|_| "unknown".to_string());
-    println!("cargo:rustc-env=HANGAR_NODE_TARGET={target}");
+    println!("cargo:rustc-env=TESKAD_NODE_TARGET={target}");
     println!("cargo:rerun-if-changed=build.rs");
 }

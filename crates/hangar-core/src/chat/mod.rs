@@ -46,7 +46,7 @@ const SPAN_BYTES: u64 = 512 * 1024;
 const CACHED: usize = 4;
 
 /// Who wrote a user message: the person, or Hangar (its messages start with
-/// "[Hangar]").
+/// "[Teskad]").
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Sender {

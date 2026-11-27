@@ -1,7 +1,7 @@
 //! Where each pane's agent stands (`lib/agentState.ts`).
 //!
 //! The pane works its own state out, from its side channel when one speaks
-//! (the hangar-bridge mod in a Claude Code, Hangar's client of a Codex
+//! (the teskad-bridge mod in a Claude Code, Hangar's client of a Codex
 //! pane's server) and from its terminal otherwise (`pane_agent`), and
 //! publishes it here. The navigator, the toolbar, the
 //! needs-you list and the engines read it from nowhere near the pane.

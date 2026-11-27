@@ -9,7 +9,7 @@ How it was checked:
 - **Tests.** `cargo test -p hangar-app` passes 2951 tests, with 0 failures and 3 ignored (it was 2408). The workspace's other crates were not re-run here; STATUS records them green.
 - **Dead-code pass.** `main.rs:12` still allows dead code crate-wide. `cargo rustc -p hangar-app --profile=check -- --force-warn dead_code` now lists 122 items (it was 144). They are mostly constants and pure ports that tests use, see §5.2.
 - **Marker pass.** `grep -rn "TODO(P" crates/` finds nothing (there were 27).
-- **One real run.** The app ran through `scripts/native-dev.sh` on a temporary `HANGAR_DEV_HOME`, with a copy of `state/fixtures/typical.json` changed to shell panes only (it has `site` detached). The main window drew three live shells, the navigator with `site` marked as detached, the toolbar, the board dock and the broadcast bar (with its `Ctrl+Shift+B` hint), in French. `workspace_list` over the control endpoint reported `site` as `open` and `pane_list` showed its pane running, with its shell process alive. This is gap 3 of the first audit, closed. After the run `state.json` was byte for byte unchanged and no pane process was left.
+- **One real run.** The app ran through `scripts/native-dev.sh` on a temporary `TESKAD_DEV_HOME`, with a copy of `state/fixtures/typical.json` changed to shell panes only (it has `site` detached). The main window drew three live shells, the navigator with `site` marked as detached, the toolbar, the board dock and the broadcast bar (with its `Ctrl+Shift+B` hint), in French. `workspace_list` over the control endpoint reported `site` as `open` and `pane_list` showed its pane running, with its shell process alive. This is gap 3 of the first audit, closed. After the run `state.json` was byte for byte unchanged and no pane process was left.
 - **Two reviewers for §2.7 and §2.8.** The preview, viewer, kit tab and 3D surfaces were not in the first audit's rows. Two readers graded them from the code and ran the tests of those packages (`preview::` 245 pass, `kit_tabs::` 176, `model3d_view::` 59, `hangar-model3d` 145, `hangar-kit-host` 25, `hangar-core` `kits::` 203, all green). I re-checked four of their findings in the code: a GPU failure is only logged (`hangar-model3d/src/viewer.rs:750, 793`); `KHR_mesh_quantization` is refused (`hangar-model3d/src/load/gltf.rs:33`); the helper window is never opened unfocused (`hangar-webview/src/engine.rs` has no `with_focused`); an absolute Markdown image path is read as written (`preview/model.rs:610`).
 
 Evidence is a file and line, or a test name. A row that says *code only* has no test of its own. All paths are under `crates/hangar-app/src/` unless a crate is named.
@@ -78,7 +78,7 @@ Most of the 6 missing and about half of the 18 partial rows among the first 690 
 | A pane opened to log in to an account starts with no kits | code passed every kit on, against its own comment | `panes/controller.rs`, test `:1043` | `done`, as the comment intended |
 | HTML kit tabs and PDFs open in their own window (the helper is a separate process) | inline iframe | `hangar-webview`; in practice HTML pages, video and audio too | §2.7 and §2.8 rows are `partial`; the helper's window behaviour is gap 4 below |
 | Native kits are WebAssembly only | none | `hangar-kit-host` | A new capability, not graded against the old app |
-| The MCP install and the login item refuse whenever `HANGAR_DATA_ROOT` is set; an isolated run leaves Claude Code's trust list alone | wrote the real files | `hangar-core/src/install.rs:170`, `autostart.rs:67`, `Paths::isolated()` | Closes the dev-machine risks of §6. Release builds never set it |
+| The MCP install and the login item refuse whenever `TESKAD_DATA_ROOT` is set; an isolated run leaves Claude Code's trust list alone | wrote the real files | `hangar-core/src/install.rs:170`, `autostart.rs:67`, `Paths::isolated()` | Closes the dev-machine risks of §6. Release builds never set it |
 | Links open only for `http` and `https`, on Ctrl or Cmd plus click (integration pass, in the log only) | xterm's web-links addon opened any matching URL on a plain click | `panes/mod.rs:471`, `hangar-term/src/links.rs:188`, `pointer.rs:140-148` | The consent hole is closed; the modifier is a difference to decide (row "Web links", §7 WP-H) |
 | The old app stays on the branch until wave 5 (done); the native app ships as **Hangar 2.0.0** (owner's decision): the workspace is 2.0.0, `examples/kits/hello-native` asks for `>=2.0.0` | – | – | No row |
 
@@ -166,7 +166,7 @@ Of 170 rows, 136 were `done` in the first audit and still are: the navigator tre
 | Navigator | Filter bar: a press on the field focuses the input | partial → partial | `navigator/view.rs:816 filter_bar` | iced limit |
 | Navigator | Menu › Sleep: disabled with a reason, probe on open | partial → done | `navigator/menu.rs:264-268`, `navigator/sleep.rs`; tests `navigator/sleep/tests.rs:35, 51` | – |
 | Navigator | Menu › Claude account section | regressed → done | `navigator/menu.rs:84, 218-221`; tests `navigator/tests.rs:504`, `pane_menu/tests.rs:63, 87, 101` | – |
-| Navigator | Plan meters | partial → done | `navigator/reads.rs` `plan` → `panes_logic.plan_limits()`; `HANGAR_DEV_PLAN` only while no pane has reported | – |
+| Navigator | Plan meters | partial → done | `navigator/reads.rs` `plan` → `panes_logic.plan_limits()`; `TESKAD_DEV_PLAN` only while no pane has reported | – |
 | Toolbar | Arrow keys on the views group | missing → missing | `toolbar/mod.rs:14-16` | iced buttons take no focus |
 | Toolbar | Capsule: tool asked, last answer, context chip | partial → done | `toolbar/activity.rs:44-70, 114-116, 230` read `panes_logic.insight`; tests `toolbar/activity/tests.rs` | – |
 | Toolbar | Capsule: the pane's board task | missing → done | `toolbar/activity.rs:121, 173` (`board::Live::task_for_pane`) | – |
@@ -177,7 +177,7 @@ Of 170 rows, 136 were `done` in the first audit and still are: the navigator tre
 | Status bar | Branch polling | partial → partial | `status_bar/mod.rs:215-250` | Beats for windows that have the focus, where the TS read visibility; test `status_bar/tests.rs:161` |
 | Status bar | Dictation and broadcast key hints | missing → done | `status_bar/mod.rs:365-380, 465` | – |
 | Status bar | Which workspace it acts on; one broadcast text per window | regressed → done | `status_bar/tests.rs:99, 112, 124` | – |
-| Needs-you | The panel opens; `view.needsYou` | regressed → done | `needs_you/mod.rs:200` writes `live.signals.needs_you`; tests `needs_you/tests.rs:125, 140, 160, 175`; `HANGAR_DEV_NEEDS_YOU_OPEN` removed | – |
+| Needs-you | The panel opens; `view.needsYou` | regressed → done | `needs_you/mod.rs:200` writes `live.signals.needs_you`; tests `needs_you/tests.rs:125, 140, 160, 175`; `TESKAD_DEV_NEEDS_YOU_OPEN` removed | – |
 | Needs-you | Landing busy state | partial → done | `needs_you/mod.rs:51, 103, 208` (`control::Live::task_delivering`); tests `needs_you/tests.rs:50, 61` | – |
 | Needs-you | Inline land error on the row | missing → done | `control/mod.rs:265-300` sends `Msg::LandFailed`; test `control/tests/delivery.rs:1014` | – |
 | Needs-you | First action autofocused | missing → missing | no code | iced has no focus |
@@ -424,7 +424,7 @@ All 59 intents are handled (§4). All 5 hooks are installed. `live.signals.needs
 
 ### 5.4 Debug-only seeds
 
-Every seed is behind `cfg!(debug_assertions)`, so no release build reads one. Left: `HANGAR_DEV_SCREENSHOT`, `_SCREENSHOT_AFTER_MS`, `_PREVIEW`, `_MODEL3D_CAPTURE`, `_USE_REAL_DATA`, `_SETTINGS`, `_KIT_TABS`, `_VOICE` (HUD only; the real press works), `_UPDATE_BANNER`, `_PLAN` (only while no pane has reported), `_NAV_RENAME`, `_NAV_MENU`, `_NAV_DRAG`, `_FOCUSED_PANE`. `HANGAR_DEV_NEEDS_YOU_OPEN` and `HANGAR_DEV_ACTIVITY`, which hid gaps, are gone.
+Every seed is behind `cfg!(debug_assertions)`, so no release build reads one. Left: `TESKAD_DEV_SCREENSHOT`, `_SCREENSHOT_AFTER_MS`, `_PREVIEW`, `_MODEL3D_CAPTURE`, `_USE_REAL_DATA`, `_SETTINGS`, `_KIT_TABS`, `_VOICE` (HUD only; the real press works), `_UPDATE_BANNER`, `_PLAN` (only while no pane has reported), `_NAV_RENAME`, `_NAV_MENU`, `_NAV_DRAG`, `_FOCUSED_PANE`. `TESKAD_DEV_NEEDS_YOU_OPEN` and `TESKAD_DEV_ACTIVITY`, which hid gaps, are gone.
 
 ---
 
@@ -438,7 +438,7 @@ Every seed is behind `cfg!(debug_assertions)`, so no release build reads one. Le
 | `workspace_set_check` could overwrite a panel edit | low → closed | `control/workspace.rs:218`; test `control/tests/workspace.rs:411` |
 | Grips wrote the settings on every pointer move | cost → closed | inspector, board dock and preview grips draw from `panel_drag` and save once on release; Escape cancels |
 | Boards written from a detached window went to another workspace | medium → closed | `board/mod.rs:1229, 1277` |
-| A dev build wrote the person's real files | medium → closed | MCP install and login item refuse whenever `HANGAR_DATA_ROOT` is set (`hangar-core/src/install.rs:170`, `autostart.rs:67`); a clone in an isolated run leaves `~/.claude.json` alone (`Paths::isolated()`) |
+| A dev build wrote the person's real files | medium → closed | MCP install and login item refuse whenever `TESKAD_DATA_ROOT` is set (`hangar-core/src/install.rs:170`, `autostart.rs:67`); a clone in an isolated run leaves `~/.claude.json` alone (`Paths::isolated()`) |
 | A Markdown file can show any local image path | new, low | `preview/model.rs:599-626`: no root check, no size cap (gap 5, §7 WP-F) |
 
 ### Processes
@@ -468,7 +468,7 @@ Checked and safe: setup commands run only on a click of Run; saved commands only
 
 ## 7. Remaining work: packages for parallel agents
 
-The packages own disjoint files and are listed most valuable first. Where two need one file, the package says who owns which part or who goes first. WP-A is not code and runs first, because most of the numbers above come from reading; WP-J runs last, because it deletes in files the others own. Each package reads this file, then `crates/hangar-app/PACKAGES.md` and the rows it names, and ends with `cargo test -p hangar-app` (plus the crates it touches), `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt --all --check`, and where the app is involved a run through `scripts/native-dev.sh` with `HANGAR_DEV_HOME` set to a temporary folder (a debug build refuses to start without it; put a copy of `state/fixtures/typical.json` at `$HANGAR_DEV_HOME/data/state.json`). A package that changes a row's status updates this file. Agents' worktrees are cut from `main`: check `git merge-base --is-ancestor 44cfd25 HEAD` and reset onto `feat/native-rust` first.
+The packages own disjoint files and are listed most valuable first. Where two need one file, the package says who owns which part or who goes first. WP-A is not code and runs first, because most of the numbers above come from reading; WP-J runs last, because it deletes in files the others own. Each package reads this file, then `crates/hangar-app/PACKAGES.md` and the rows it names, and ends with `cargo test -p hangar-app` (plus the crates it touches), `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt --all --check`, and where the app is involved a run through `scripts/native-dev.sh` with `TESKAD_DEV_HOME` set to a temporary folder (a debug build refuses to start without it; put a copy of `state/fixtures/typical.json` at `$TESKAD_DEV_HOME/data/state.json`). A package that changes a row's status updates this file. Agents' worktrees are cut from `main`: check `git merge-base --is-ancestor 44cfd25 HEAD` and reset onto `feat/native-rust` first.
 
 ### WP-A — Run it for real (owns no source files; findings become rows here)
 

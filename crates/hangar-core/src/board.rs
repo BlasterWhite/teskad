@@ -151,7 +151,7 @@ pub const MAX_BLOCK_REASON: usize = 500;
 /// The longest note kept with an unblock.
 const MAX_UNBLOCK_NOTE: usize = 500;
 /// Who signs the comments Hangar writes itself on a task.
-pub const HANGAR_AUTHOR: &str = "hangar";
+pub const APP_AUTHOR: &str = "hangar";
 
 /// What blocks a task, as `block_task` takes it.
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -256,7 +256,7 @@ fn legacy_board_path(workspace_cwd: &str) -> PathBuf {
 /// workspace directory — would give each of them a separate, empty board, and
 /// agents spread across worktrees would be coordinating with nobody. Resolving
 /// here, in the only two functions that touch the file, is what puts them all
-/// on the one board; it covers the MCP path too, where `HANGAR_WORKSPACE` may
+/// on the one board; it covers the MCP path too, where `TESKAD_WORKSPACE` may
 /// well point at a worktree.
 ///
 /// Anything that is not a linked worktree keeps the path it was given.
@@ -1197,7 +1197,7 @@ pub fn unblock_task(board: &mut Board, id: &str, request: UnblockRequest) -> Res
         None => format!("Unblocked by {by} (was blocked: {})", blocked.reason),
     };
     task.blocked = None;
-    push_comment(task, HANGAR_AUTHOR, text);
+    push_comment(task, APP_AUTHOR, text);
     Ok(task.clone())
 }
 
@@ -1224,14 +1224,14 @@ pub fn sweep_rechecks(board: &mut Board, today: &str) -> bool {
             }
             push_comment(
                 task,
-                HANGAR_AUTHOR,
+                APP_AUTHOR,
                 format!("recheck passed ({day}): still blocked until a person lifts it ({reason})"),
             );
         } else {
             task.blocked = None;
             push_comment(
                 task,
-                HANGAR_AUTHOR,
+                APP_AUTHOR,
                 format!("recheck passed ({day}; was blocked: {reason})"),
             );
         }
@@ -2071,7 +2071,7 @@ mod tests {
         let task = &board.tasks[0];
         assert!(task.blocked.is_none());
         let note = task.comments.last().unwrap();
-        assert_eq!(note.author, HANGAR_AUTHOR);
+        assert_eq!(note.author, APP_AUTHOR);
         assert!(note.text.starts_with("recheck passed"), "{}", note.text);
         assert!(!sweep_rechecks(&mut board, "2026-11-07"));
     }

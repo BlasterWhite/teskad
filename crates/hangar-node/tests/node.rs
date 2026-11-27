@@ -24,15 +24,15 @@ fn command(home: &Path) -> Command {
     let mut command = Command::new(BIN);
     command.env("HOME", home);
     for var in [
-        "HANGAR_DATA_ROOT",
-        "HANGAR_ENDPOINT_FILE",
-        "HANGAR_PANE_ID",
-        "HANGAR_PANE_NAME",
-        "HANGAR_BRIDGE_URL",
-        "HANGAR_BRIDGE_TOKEN",
-        "HANGAR_PORT_BASE",
-        "HANGAR_PORT_COUNT",
-        "HANGAR_WORKSPACE",
+        "TESKAD_DATA_ROOT",
+        "TESKAD_ENDPOINT_FILE",
+        "TESKAD_PANE_ID",
+        "TESKAD_PANE_NAME",
+        "TESKAD_BRIDGE_URL",
+        "TESKAD_BRIDGE_TOKEN",
+        "TESKAD_PORT_BASE",
+        "TESKAD_PORT_COUNT",
+        "TESKAD_WORKSPACE",
         "XDG_DATA_HOME",
         "XDG_STATE_HOME",
         "XDG_CONFIG_HOME",
@@ -687,7 +687,7 @@ fn the_mcp_proxy_reaches_the_node() {
     let node = Node::start();
     let mut proxy = command(node.home())
         .arg("--mcp")
-        .env("HANGAR_WORKSPACE", node.home())
+        .env("TESKAD_WORKSPACE", node.home())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -1232,7 +1232,7 @@ impl Mcp {
     fn start(node: &Node, cwd: &Path) -> Mcp {
         let mut child = command(node.home())
             .arg("--mcp")
-            .env("HANGAR_WORKSPACE", cwd)
+            .env("TESKAD_WORKSPACE", cwd)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
@@ -1873,7 +1873,7 @@ fn the_node_s_own_workspaces_from_the_command_line() {
 fn discord_is_set_up_on_the_server_and_run_by_the_daemon() {
     let home = tempfile::tempdir().unwrap();
     let status = command(home.path())
-        .env("HANGAR_DISCORD_API", "http://127.0.0.1:9/api")
+        .env("TESKAD_DISCORD_API", "http://127.0.0.1:9/api")
         .args(["serve", "--detach"])
         .status()
         .unwrap();
@@ -1885,7 +1885,7 @@ fn discord_is_set_up_on_the_server_and_run_by_the_daemon() {
     // "123456789012345678" in base64: the bot's id, from its token.
     let out = command(node.home())
         .env(
-            "HANGAR_DISCORD_TOKEN",
+            "TESKAD_DISCORD_TOKEN",
             "MTIzNDU2Nzg5MDEyMzQ1Njc4.GAbcde.xyz",
         )
         .args(["discord", "setup", "--guild", "42"])
@@ -1922,7 +1922,7 @@ fn discord_is_set_up_on_the_server_and_run_by_the_daemon() {
 
     // A bad server id is refused before anything is written.
     let out = command(node.home())
-        .env("HANGAR_DISCORD_TOKEN", "x")
+        .env("TESKAD_DISCORD_TOKEN", "x")
         .args(["discord", "setup", "--guild", "my-server"])
         .output()
         .unwrap();
@@ -1945,7 +1945,7 @@ fn discord_is_set_up_on_the_server_and_run_by_the_daemon() {
 fn the_desktop_s_bot_is_shared_with_the_node_and_given_back() {
     let home = tempfile::tempdir().unwrap();
     let status = command(home.path())
-        .env("HANGAR_DISCORD_API", "http://127.0.0.1:9/api")
+        .env("TESKAD_DISCORD_API", "http://127.0.0.1:9/api")
         .args(["serve", "--detach"])
         .status()
         .unwrap();
@@ -2018,7 +2018,7 @@ fn the_desktop_s_bot_is_shared_with_the_node_and_given_back() {
     );
     assert_eq!(status, 200);
     let out = command(node.home())
-        .env("HANGAR_DISCORD_TOKEN", "node-token")
+        .env("TESKAD_DISCORD_TOKEN", "node-token")
         .args(["discord", "setup", "--guild", "7"])
         .output()
         .unwrap();

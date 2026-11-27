@@ -491,7 +491,7 @@ mod tests {
     /// The restart button's label wraps onto two lines in the menu's width:
     /// the button grows with it, and its text stays above the next button.
     /// Drawn to `<folder>/switcher-ask-<scope>-<locale>.png` when
-    /// `HANGAR_ACCOUNTS_SNAPSHOTS` names a folder.
+    /// `TESKAD_ACCOUNTS_SNAPSHOTS` names a folder.
     #[test]
     fn the_question_keeps_a_label_that_wraps_inside_its_button() {
         for locale in Locale::ALL {
@@ -536,7 +536,7 @@ mod tests {
                     restart.y + restart.height + tokens::space::MD <= next.y,
                     "{label:?} runs into the button under it: {restart:?} and {next:?}"
                 );
-                if let Some(folder) = std::env::var_os("HANGAR_ACCOUNTS_SNAPSHOTS") {
+                if let Some(folder) = hangar_core::env::var_os("TESKAD_ACCOUNTS_SNAPSHOTS") {
                     let folder = std::path::PathBuf::from(folder);
                     std::fs::create_dir_all(&folder).expect("the folder");
                     ui.snapshot(&hangar_theme::to_iced(ctx.theme))

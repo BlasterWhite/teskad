@@ -15,17 +15,20 @@ a dedicated key pair and known_hosts in `.keys/` (gitignored).
 
 - Image: pinned Debian (dated tag + digest), openssh-server, git, bash, curl,
   ca-certificates, procps, iproute2; user `hangar`; key auth only, no root login, port 22.
-- `HANGAR_NODE_TEST_NET_ADMIN=1`: the container gets `NET_ADMIN`, so that
+- Every variable here and in the scripts that a person sets (`TESKAD_NODE_TEST_*`,
+  `TESKAD_PORT_BASE`, `TESKAD_PORT_COUNT`, `TESKAD_BENCH_OUT`) is read under its old
+  `HANGAR_*` name when the `TESKAD_*` one is not set.
+- `TESKAD_NODE_TEST_NET_ADMIN=1`: the container gets `NET_ADMIN`, so that
   `tc qdisc add dev eth0 root netem delay 20ms` (as root, `docker exec`) can
   add latency to its link (`bench.sh` does).
-- Port: `HANGAR_NODE_TEST_PORT`, else the first free one from 2222. Container
-  name: `HANGAR_NODE_TEST_CONTAINER` (default `teskad-node-test`).
+- Port: `TESKAD_NODE_TEST_PORT`, else the first free one from 2222. Container
+  name: `TESKAD_NODE_TEST_CONTAINER` (default `teskad-node-test`).
 - `--with-claude` adds Node.js and `@anthropic-ai/claude-code` (off by default;
   no Claude login happens in tests).
 - `--arm64` runs a `linux/arm64` container through qemu-user-binfmt. If this
   machine cannot run arm64 containers it says so and exits 0 without starting anything.
 - One container per name: `up.sh` replaces a running one of the same name.
-- `HANGAR_NODE_TEST_STATE_DIR`: where `port`, `known_hosts` and `ssh_config`
+- `TESKAD_NODE_TEST_STATE_DIR`: where `port`, `known_hosts` and `ssh_config`
   go instead of `.keys/` and this folder (the key stays in `.keys/`), so a run
   with its own container never clobbers the files of a rig started by hand.
 
@@ -63,15 +66,15 @@ What it does, printing `PASS`/`FAIL` per step:
 
 1. `cargo build -p hangar-node --release` on its own (built together with
    hangar-app, the features would unify), then a debug `hangar-app`.
-2. Starts its own container (`HANGAR_NODE_TEST_CONTAINER`, default
-   `teskad-node-e2e-<pid>`) on its own port (`HANGAR_NODE_TEST_PORT`, else the
-   first free one of `HANGAR_PORT_BASE`.. when set, else from 22200). Seeds the
+2. Starts its own container (`TESKAD_NODE_TEST_CONTAINER`, default
+   `teskad-node-e2e-<pid>`) on its own port (`TESKAD_NODE_TEST_PORT`, else the
+   first free one of `TESKAD_PORT_BASE`.. when set, else from 22200). Seeds the
    node with a git repo (`/home/hangar/demo`) and a handcrafted Claude Code
    transcript, and an isolated state with node `n1` and two workspaces: `E2E
    remote` on the node (a `Shell` pane and an orchestrator shell `Rorch`) and
    `E2E local`, a git repo in the run's folder (orchestrator shell `Lorch`,
    check `grep -q done work.sh`, automatic landing). Starts the debug app with
-   `HANGAR_NODE_BINARY`; the app connects its nodes as it starts.
+   `TESKAD_NODE_BINARY`; the app connects its nodes as it starts.
 3. Checks:
    - the remote `Shell` pane echoes a command, with the node's hostname
      (`pane_send` / `pane_read` on the control API);
@@ -99,14 +102,14 @@ What it does, printing `PASS`/`FAIL` per step:
 
 Isolation, so a run can never reach the person's Hangar:
 
-- every `HANGAR_*` variable of the caller is dropped first (`HANGAR_BRIDGE_*`,
-  `HANGAR_API_*`, a pane's id and name…);
-- `HANGAR_DATA_ROOT` and `HANGAR_ENDPOINT_FILE` point into a `mktemp -d`
+- every `TESKAD_*` variable of the caller is dropped first (`TESKAD_BRIDGE_*`,
+  `TESKAD_API_*`, a pane's id and name…);
+- `TESKAD_DATA_ROOT` and `TESKAD_ENDPOINT_FILE` point into a `mktemp -d`
   folder, and the script refuses to run if the endpoint file is not under it;
   the helper refuses any endpoint, pane environment or pane folder outside it;
 - `XDG_DATA_HOME`/`XDG_CACHE_HOME`/`XDG_STATE_HOME` point there too (the
   delivery's check worktree lands there, not in `~/.local/share/hangar/c`);
-- the agents' MCP proxies run in their pane's folder with `HANGAR_WORKSPACE`
+- the agents' MCP proxies run in their pane's folder with `TESKAD_WORKSPACE`
   set to it: run from a checkout, a proxy would take that checkout's board;
 - the script works from the run's folder, never from the checkout.
 
@@ -131,11 +134,11 @@ MCP calls as a pane there).
 bash scripts/node-test/bench.sh                    # builds, 3 runs of each measure, medians
 bash scripts/node-test/bench.sh --no-build --runs 5
 bash scripts/node-test/bench.sh --node-bin old/teskad-node --app-bin old/teskad   # a baseline
-HANGAR_BENCH_OUT=after.json bash scripts/node-test/bench.sh   # the medians as JSON too
+TESKAD_BENCH_OUT=after.json bash scripts/node-test/bench.sh   # the medians as JSON too
 bash scripts/node-test/bench.sh --connect-only --latency "0 20"   # only the connect measures
 ```
 
-Same needs and the same isolation as `e2e.sh` (every `HANGAR_*` dropped, its
+Same needs and the same isolation as `e2e.sh` (every `TESKAD_*` dropped, its
 own `mktemp -d` data root and endpoint file, its own container and port, the
 app's process group and the container removed on exit). It builds
 `teskad-node` in release, and `hangar-app` in release with debug assertions
@@ -168,11 +171,11 @@ The connect measures run once per `--latency` (milliseconds added with
 each round trip grows by that much; default `0 20`), cold, warm, reconnect
 and local `--runs` times each. Times are from the app's launch:
 `endpoint_ms` (its control API up), `prompt_ms`, and from its
-`HANGAR_NODES_TIMING=1` log (nodes/connect.rs) `begin_at_ms` (the
+`TESKAD_NODES_TIMING=1` log (nodes/connect.rs) `begin_at_ms` (the
 connection starts), each step's time (`probe_ms`, `upload_ms`, `start_ms`,
 `tunnel_ms`, `handshake_ms`; older builds: `install_ms`, `config_ms`),
 `connected_at_ms` and `stream_at_ms` (the pane's stream opened).
-The app's SSH master sockets go to `HANGAR_NODES_SSH_DIR`, in the run's
+The app's SSH master sockets go to `TESKAD_NODES_SSH_DIR`, in the run's
 folder (e2e.sh too).
 
 Echo samples: `--samples` keys (200), median, p95, min and max per run; a

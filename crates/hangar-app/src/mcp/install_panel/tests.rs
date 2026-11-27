@@ -190,7 +190,7 @@ fn a_workspace_with_a_codex_pane_gets_agents_md_written_and_checked() {
     assert_eq!(ids(&reports), ["AGENTS.md", ".gitignore"], "{reports:?}");
     assert!(reports.iter().all(|report| report.ok), "{reports:?}");
     let agents_md = text_of(dir.path(), "AGENTS.md").expect("AGENTS.md written");
-    assert!(agents_md.contains("<!-- HANGAR:START"), "{agents_md}");
+    assert!(agents_md.contains("<!-- TESKAD:START"), "{agents_md}");
     assert!(agents_md.contains("board_claim_task"), "{agents_md}");
     assert!(text_of(dir.path(), "CLAUDE.md").is_none(), "Codex alone");
 
@@ -232,7 +232,7 @@ fn a_workspace_running_both_agents_gets_both_files() {
     assert!(
         text_of(dir.path(), "AGENTS.md")
             .unwrap()
-            .contains("HANGAR:START")
+            .contains("TESKAD:START")
     );
     assert!(instructions::agent_instructions_status_for(
         panel.cwd.clone(),
@@ -257,7 +257,7 @@ fn a_claude_only_workspace_is_written_as_before() {
     assert!(
         text_of(dir.path(), "CLAUDE.md")
             .unwrap()
-            .contains("HANGAR:START")
+            .contains("TESKAD:START")
     );
     assert!(text_of(dir.path(), "AGENTS.md").is_none());
 

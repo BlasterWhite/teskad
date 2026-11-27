@@ -1,4 +1,4 @@
-//! The other end of the `hangar-bridge` Claude Code mod.
+//! The other end of the `teskad-bridge` Claude Code mod.
 //!
 //! Hangar launches Claude Code itself, so it can load a mod into every pane's
 //! session without the user installing anything: the mod's files ship inside
@@ -44,15 +44,15 @@ use crate::host::{Event, Host};
 const MOD_FILES: &[(&str, &str)] = &[
     (
         ".claude-plugin/plugin.json",
-        include_str!("../claude-mod/hangar-bridge/.claude-plugin/plugin.json"),
+        include_str!("../claude-mod/teskad-bridge/.claude-plugin/plugin.json"),
     ),
     (
         "hooks/hooks.json",
-        include_str!("../claude-mod/hangar-bridge/hooks/hooks.json"),
+        include_str!("../claude-mod/teskad-bridge/hooks/hooks.json"),
     ),
     (
         "hooks/register.js",
-        include_str!("../claude-mod/hangar-bridge/hooks/register.js"),
+        include_str!("../claude-mod/teskad-bridge/hooks/register.js"),
     ),
 ];
 
@@ -76,7 +76,7 @@ pub fn plugin_dir() -> Option<&'static Path> {
 /// to an installed Hangar was given (endpoint.rs): the installed app's
 /// sessions hot-reload the shared folder, and would run the build's mod.
 fn mods_root() -> Option<PathBuf> {
-    if let Some(file) = std::env::var_os("HANGAR_ENDPOINT_FILE").filter(|v| !v.is_empty()) {
+    if let Some(file) = std::env::var_os("TESKAD_ENDPOINT_FILE").filter(|v| !v.is_empty()) {
         return Some(PathBuf::from(file).parent()?.join("mods"));
     }
     Some(crate::paths::home_folder()?.join("mods"))
@@ -86,7 +86,12 @@ fn mods_root() -> Option<PathBuf> {
 /// Claude Code hot-reloads a plugin directory when its files change — while an
 /// ordinary launch touches nothing.
 fn install() -> Option<PathBuf> {
-    let dir = mods_root()?.join("hangar-bridge");
+    let root = mods_root()?;
+    remove_upstream_mod(
+        &root,
+        std::env::var_os("TESKAD_ENDPOINT_FILE").is_some_and(|v| !v.is_empty()),
+    );
+    let dir = root.join("teskad-bridge");
     for (relative, body) in MOD_FILES {
         let path = dir.join(relative);
         if fs::read_to_string(&path).ok().as_deref() == Some(*body) {
@@ -96,6 +101,24 @@ fn install() -> Option<PathBuf> {
         fs::write(&path, body).ok()?;
     }
     Some(dir)
+}
+
+/// The mod's name before the rename, which is also the official app's.
+const UPSTREAM_MOD: &str = "hangar-bridge";
+
+/// Removes what Teskad installed under the mod's former name, so a Claude Code
+/// started with `CLAUDE_CODE_PLUGIN_DIRS` does not load two bridges. Only
+/// Teskad's own `mods` folder is cleaned: one beside an endpoint file a
+/// development build was given (`mods_root`) may be the official app's, whose
+/// `hangar-bridge` is not ours to touch.
+fn remove_upstream_mod(root: &Path, beside_an_endpoint_file: bool) {
+    if beside_an_endpoint_file {
+        return;
+    }
+    let old = root.join(UPSTREAM_MOD);
+    if old.join("hooks").join("register.js").is_file() {
+        let _ = fs::remove_dir_all(old);
+    }
 }
 
 /// The loopback API, once it is listening. Set by the setup hook.
@@ -112,8 +135,8 @@ pub fn endpoint() -> Option<(u16, &'static str)> {
     ENDPOINT.get().map(|(port, token)| (*port, token.as_str()))
 }
 
-/// What a pane's environment needs, beside the `HANGAR_PANE_ID` and
-/// `HANGAR_PANE_NAME` every pane is given (pty.rs), for its Claude Code to
+/// What a pane's environment needs, beside the `TESKAD_PANE_ID` and
+/// `TESKAD_PANE_NAME` every pane is given (pty.rs), for its Claude Code to
 /// find its way back here, and the mod's folder, which `apply_plugin_dirs`
 /// then puts on `CLAUDE_CODE_PLUGIN_DIRS` beside the workspace's kits.
 /// `endpoint` is the API's port and the pane's own token (pty.rs, `pane_api`).
@@ -127,8 +150,8 @@ pub fn apply_env(cmd: &mut CommandBuilder, endpoint: Option<(u16, &str)>) -> Opt
     if sideloading_forbidden() {
         return None;
     }
-    cmd.env("HANGAR_BRIDGE_URL", format!("http://127.0.0.1:{port}"));
-    cmd.env("HANGAR_BRIDGE_TOKEN", token);
+    cmd.env("TESKAD_BRIDGE_URL", format!("http://127.0.0.1:{port}"));
+    cmd.env("TESKAD_BRIDGE_TOKEN", token);
     Some(dir)
 }
 
@@ -833,6 +856,29 @@ mod tests {
     }
 
     #[test]
+    fn the_mod_under_its_former_name_is_removed_from_teskad_s_own_folder_only() {
+        let root = crate::testdir::scratch("bridge-upstream");
+        let old = root.join(UPSTREAM_MOD);
+        fs::create_dir_all(old.join("hooks")).unwrap();
+        fs::write(old.join("hooks/register.js"), "// old").unwrap();
+        let unrelated = root.join("other-mod");
+        fs::create_dir_all(&unrelated).unwrap();
+
+        // Beside an endpoint file the folder may be the official app's.
+        remove_upstream_mod(&root, true);
+        assert!(old.is_dir());
+
+        remove_upstream_mod(&root, false);
+        assert!(!old.exists());
+        assert!(unrelated.is_dir());
+
+        // A folder of that name that is not the mod is left alone.
+        fs::create_dir_all(&old).unwrap();
+        remove_upstream_mod(&root, false);
+        assert!(old.is_dir());
+    }
+
+    #[test]
     fn only_an_explicit_true_forbids_sideloading() {
         assert!(forbids_sideloading(r#"{ "disableSideloadFlags": true }"#));
         assert!(!forbids_sideloading(r#"{ "disableSideloadFlags": false }"#));
@@ -842,7 +888,7 @@ mod tests {
 
     #[test]
     fn our_plugin_folders_go_first_and_the_users_stay() {
-        let (bridge, kit) = (Path::new("/m/hangar-bridge"), Path::new("/k/studio"));
+        let (bridge, kit) = (Path::new("/m/teskad-bridge"), Path::new("/k/studio"));
         let sep = if cfg!(windows) { ";" } else { ":" };
         assert_eq!(
             plugin_dirs_value(&[bridge, kit], Some("/mine")),

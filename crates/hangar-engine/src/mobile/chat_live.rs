@@ -12,7 +12,7 @@
 //! thread runs, whether Hangar is attached to it or not; what it has not
 //! written yet is what Hangar's client of that server reports — the calls
 //! running, the dialog open, the question asked (`agent/codex_attach.rs`) —
-//! in the very reports the hangar-bridge mod sends, kept here alike.
+//! in the very reports the teskad-bridge mod sends, kept here alike.
 
 use std::collections::HashMap;
 

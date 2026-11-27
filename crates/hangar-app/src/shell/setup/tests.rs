@@ -3,7 +3,7 @@
 //! install, signing in, the sheet drawn, and NixOS, where Claude Code's card
 //! offers nixpkgs instead.
 //!
-//! `HANGAR_P8_SNAPSHOTS=<folder>` writes the sheet's pictures there, as the
+//! `TESKAD_P8_SNAPSHOTS=<folder>` writes the sheet's pictures there, as the
 //! new-workspace dialog's tests do (workspace_dialog/testing.rs).
 
 use std::path::PathBuf;
@@ -453,7 +453,7 @@ fn an_installer_that_cannot_start_says_why() {
     ));
 }
 
-/// `HANGAR_DEV_CLAUDE_INSTALLER` and `HANGAR_DEV_CODEX_INSTALLER` stand in
+/// `TESKAD_DEV_CLAUDE_INSTALLER` and `TESKAD_DEV_CODEX_INSTALLER` stand in
 /// for the official commands in a debug build (the tests' own), and an empty
 /// one does not.
 #[test]

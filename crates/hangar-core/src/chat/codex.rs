@@ -56,7 +56,7 @@ use std::sync::OnceLock;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::thread::{COMPACTED, HANGAR_MARK, INTERRUPTED};
+use super::thread::{from_app, COMPACTED, INTERRUPTED};
 use super::tools::{self, clip, Change, ChangeKind, Described, WebAction, CLIP_BYTES, TEXT_BYTES};
 use super::{
     Body, CacheOf, CallResult, CallState, ChatItem, ChatPage, Lines, OpenCall, PendingQuestion,
@@ -70,13 +70,13 @@ use crate::sessions::codex::Record;
 // What both shapes become
 // ---------------------------------------------------------------------------
 
-/// A message from the person, or from Hangar when it starts with "[Hangar]".
+/// A message from the person, or from Hangar when it starts with "[Teskad]" (or "[Hangar]", as it did before the rename).
 fn user(text: &str, images: u32) -> Option<Body> {
     let text = text.trim();
     if text.is_empty() && images == 0 {
         return None;
     }
-    let from = if text.starts_with(HANGAR_MARK) {
+    let from = if from_app(text) {
         Sender::Hangar
     } else {
         Sender::Person

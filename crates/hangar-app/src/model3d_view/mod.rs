@@ -134,7 +134,7 @@ pub struct State {
     clock: u64,
     /// Numbers the notices, so one is not cleared by the timer of another.
     notice_seq: u64,
-    /// `HANGAR_DEV_MODEL3D_CAPTURE` has been served.
+    /// `TESKAD_DEV_MODEL3D_CAPTURE` has been served.
     dev_captured: bool,
     /// The system asks for less motion (`motion.rs`); Recenter then jumps.
     reduced_motion: bool,

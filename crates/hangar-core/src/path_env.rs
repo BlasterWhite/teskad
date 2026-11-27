@@ -308,7 +308,7 @@ fn npm_path(
 /// Wraps the answer so whatever an rc file prints on the way — a banner, an
 /// instant prompt, a shell integration escape sequence — can be cut away.
 #[cfg(unix)]
-const MARKER: &str = "__HANGAR_PATH__";
+const MARKER: &str = "__TESKAD_PATH__";
 
 /// How long the shell gets before we take the well-known directories instead.
 /// An interactive rc that blocks would otherwise hold the first detection call
@@ -324,7 +324,7 @@ const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(4);
 /// would mean something else there.
 ///
 /// The braces around `PATH` are not decoration. A marker made of word
-/// characters runs straight into the name, and `$PATH__HANGAR_PATH__` is a
+/// characters runs straight into the name, and `$PATH__TESKAD_PATH__` is a
 /// perfectly valid reference to a variable nobody ever set — which expands to
 /// nothing, quietly, on every machine.
 #[cfg(unix)]

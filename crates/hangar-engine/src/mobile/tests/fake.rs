@@ -89,7 +89,7 @@ pub struct App {
     /// opens.
     pub live: Mutex<HashSet<PaneId>>,
     pub typed: Arc<Mutex<Vec<String>>>,
-    /// What went to the hangar-bridge queue, as `pane:text`.
+    /// What went to the teskad-bridge queue, as `pane:text`.
     pub queued: Mutex<Vec<String>>,
     /// Model writes: `open:w1`, `touch:w1`, `close:w1:p1`.
     pub log: Arc<Mutex<Vec<String>>>,

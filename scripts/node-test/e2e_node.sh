@@ -38,7 +38,7 @@ pane_mcp() {
   local want="$1" tool="$2" arguments="$3" secs="${4:-60}"
   local pid; pid="$(pane_pid "$want")"
   local -a env=()
-  mapfile -t env < <(tr '\0' '\n' < "/proc/$pid/environ" | grep '^HANGAR_')
+  mapfile -t env < <(tr '\0' '\n' < "/proc/$pid/environ" | grep '^TESKAD_')
   cd "$(readlink "/proc/$pid/cwd")"
   coproc MCP { exec env "${env[@]}" "$node_bin" --mcp 2>/dev/null; }
   printf '%s\n' \

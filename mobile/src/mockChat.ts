@@ -31,7 +31,7 @@ function transcript(prefix: string) {
 
   return {
     person: (text: string, seconds = 40, images = 0) => items.push({ ...next(seconds), kind: "user", text, from: "person", images }),
-    hangar: (text: string, seconds = 4) => items.push({ ...next(seconds), kind: "user", text: `[Hangar] ${text}`, from: "hangar", images: 0 }),
+    hangar: (text: string, seconds = 4) => items.push({ ...next(seconds), kind: "user", text: `[Teskad] ${text}`, from: "hangar", images: 0 }),
     claude: (text: string, seconds = 9) => items.push({ ...next(seconds), kind: "assistant", text }),
     notice: (text: string, seconds = 2) => items.push({ ...next(seconds), kind: "notice", text }),
     read: (path: string, lines = 120, seconds = 2) =>
@@ -325,7 +325,7 @@ test result: FAILED. 5 passed; 1 failed; 0 ignored; finished in 0.08s`,
     8,
   );
   c.use(
-    "mcp__hangar__board_comment_task",
+    "mcp__teskad__board_comment_task",
     "board_comment_task",
     '{\n  "id": "81070ac8",\n  "text": "Cookie: SameSite=Strict everywhere, logout included."\n}',
     "Comment added to « Teskad Mobile — serveur distant »",
@@ -479,14 +479,14 @@ function jack(now: number): FakeChat {
   c.readMany(["docs/mobile.md", "src-tauri/src/mcp/server.rs", "src/lib/control.ts"]);
   const tasks = ["the server (M0a)", "the window's ops (M1)", "the phone app (M2)", "files both ways (M0b)", "settings (M3)", "push (M4)", "the week away (M5)"];
   for (const task of tasks) {
-    c.use("mcp__hangar__board_create_task", "board_create_task", `{ "title": "Teskad Mobile — ${task}" }`, `Created « Teskad Mobile — ${task} »`, "done", 4);
+    c.use("mcp__teskad__board_create_task", "board_create_task", `{ "title": "Teskad Mobile — ${task}" }`, `Created « Teskad Mobile — ${task} »`, "done", 4);
   }
   c.claude("I split it into seven tasks on the board: the server (M0a), the window's ops (M1), the phone app (M2), files both ways (M0b), settings (M3), push (M4) and the week away (M5). M0a, M1 and M2 run side by side.");
   for (const [name, task] of [["Ada", "81070ac8"], ["Ben", "f804a999"], ["Cora", "26e29387"]]) {
-    c.use("mcp__hangar__worker_spawn", "worker_spawn", `{ "task": "${task}", "name": "${name}" }`, `${name} started`, "done", 6);
+    c.use("mcp__teskad__worker_spawn", "worker_spawn", `{ "task": "${task}", "name": "${name}" }`, `${name} started`, "done", 6);
   }
   c.claude("Ada, Ben and Cora are on M0a, M1 and M2. I'll watch them, and land what is ready.");
-  c.use("mcp__hangar__worker_list", "worker_list", "{}", null, "running", 50);
+  c.use("mcp__teskad__worker_list", "worker_list", "{}", null, "running", 50);
   return { sessionId: "ses-jack", items: c.done(now - 30 * SECOND), pending: null };
 }
 
@@ -495,7 +495,7 @@ function mia(now: number): FakeChat {
   const c = transcript("mia");
   c.person("Run Lighthouse on mobile and send me the report.", 0);
   c.run("pnpm lighthouse --preset=mobile --output=html --output-path=docs/lighthouse.html", "Performance: 98\nAccessibility: 100\nBest practices: 100\nSEO: 100");
-  c.use("mcp__hangar__phone_share", "phone_share", '{ "path": "docs/lighthouse.html", "caption": "Lighthouse report, mobile" }', "Shared lighthouse.html with the phone");
+  c.use("mcp__teskad__phone_share", "phone_share", '{ "path": "docs/lighthouse.html", "caption": "Lighthouse report, mobile" }', "Shared lighthouse.html with the phone");
   c.claude(`All twelve tasks are done and landed on main. The storefront passes Lighthouse at **98** on mobile; the report is in \`docs/lighthouse.html\`, and on your phone under Shared.
 
 Anything else for this sprint?`);
@@ -506,7 +506,7 @@ Anything else for this sprint?`);
 function max(now: number): FakeChat {
   const c = transcript("max");
   c.person("Where does everything stand?", 0);
-  c.use("mcp__hangar__project_list", "project_list", "{}", '[\n  { "name": "IaBench", "open": true, "doing": 3 },\n  { "name": "storefront", "open": true, "doing": 0 },\n  { "name": "billing-api", "asleep": true },\n  { "name": "recipes-app", "open": true }\n]');
+  c.use("mcp__teskad__project_list", "project_list", "{}", '[\n  { "name": "IaBench", "open": true, "doing": 3 },\n  { "name": "storefront", "open": true, "doing": 0 },\n  { "name": "billing-api", "asleep": true },\n  { "name": "recipes-app", "open": true }\n]');
   c.claude(`Four projects:
 - **IaBench**: Jack orchestrates three workers on Teskad Mobile. Ben waits for a permission, Cora for your answers; one delivery is ready to merge.
 - **storefront**: all twelve tasks done, Mia waits for what's next.

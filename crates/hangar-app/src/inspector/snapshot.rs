@@ -2,13 +2,13 @@
 //! pane can.
 //!
 //! The tests always build and lay the column out, which catches a view that
-//! panics or cannot be built. With `HANGAR_SNAPSHOTS=<folder>` set they also
+//! panics or cannot be built. With `TESKAD_SNAPSHOTS=<folder>` set they also
 //! draw it and write a PNG per case, which is how the column is looked at
 //! without a window (a GNOME Wayland session lets nobody but the person take
 //! a screenshot). Drawing runs one test at a time, on the software renderer:
 //!
 //! ```text
-//! ICED_TEST_BACKEND=tiny-skia HANGAR_SNAPSHOTS=/tmp/inspector \
+//! ICED_TEST_BACKEND=tiny-skia TESKAD_SNAPSHOTS=/tmp/inspector \
 //!     cargo test -p hangar-app inspector::snapshot -- --test-threads=1
 //! ```
 
@@ -130,7 +130,7 @@ fn insight() -> PaneInsight {
         turn_started_at: Some(ago(5)),
         mcp: Some(PaneMcp {
             mode: PaneMcpMode::Custom {
-                servers: vec!["hangar".into(), "github".into()],
+                servers: vec!["teskad".into(), "github".into()],
             },
             hangar: Some(true),
         }),
@@ -198,7 +198,7 @@ pub(crate) fn render(
     // several of those at once crash a GPU driver: only a person asking for
     // pictures does that, one test at a time.
     let mut ui = Simulator::with_size(settings, size, element);
-    let Some(folder) = std::env::var_os("HANGAR_SNAPSHOTS").map(PathBuf::from) else {
+    let Some(folder) = hangar_core::env::var_os("TESKAD_SNAPSHOTS").map(PathBuf::from) else {
         return;
     };
     let snapshot = ui

@@ -2,7 +2,7 @@
 //! workspace or two, a `Ctx` over it, and `iced_test`'s simulator to draw and
 //! drive what a view returns.
 //!
-//! `HANGAR_P8_SNAPSHOTS=<folder>` makes the tests that call [`Harness::shot`]
+//! `TESKAD_P8_SNAPSHOTS=<folder>` makes the tests that call [`Harness::shot`]
 //! write their picture there as `<name>-<renderer>.png`, which is how the
 //! surfaces are looked at in both languages and a dark and a light theme.
 
@@ -145,7 +145,8 @@ impl Harness {
 
     /// Writes the picture of what the simulator shows, when asked to.
     pub fn shot(&self, ui: &mut Simulator<'_, Message>, name: &str) {
-        let Some(folder) = std::env::var_os("HANGAR_P8_SNAPSHOTS").map(PathBuf::from) else {
+        let Some(folder) = hangar_core::env::var_os("TESKAD_P8_SNAPSHOTS").map(PathBuf::from)
+        else {
             return;
         };
         let path = folder.join(name);

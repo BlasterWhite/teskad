@@ -23,7 +23,7 @@ fn server(name: &str, hangar: bool) -> ServerInfo {
 }
 
 fn servers() -> Vec<ServerInfo> {
-    vec![server("hangar", true), server("robloxstudio", false)]
+    vec![server("teskad", true), server("robloxstudio", false)]
 }
 
 /// Workspace `w` has chosen only `robloxstudio`; it holds the Claude Code
@@ -56,7 +56,7 @@ fn model() -> Model {
 fn matching() -> Launched {
     Launched {
         mode: PaneMcpMode::Custom {
-            servers: vec!["hangar".into(), "robloxstudio".into()],
+            servers: vec!["teskad".into(), "robloxstudio".into()],
         },
         hangar: Some(true),
     }
@@ -116,7 +116,7 @@ fn a_launch_is_read_back_from_the_pane_read_model() {
         running_mcp(&m, &a),
         Some(PaneMcp {
             mode: McpMode::Custom,
-            servers: ids(&["hangar", "robloxstudio"]),
+            servers: ids(&["teskad", "robloxstudio"]),
             hangar: Some(true),
         })
     );
@@ -275,7 +275,7 @@ fn a_codex_pane_is_compared_with_codex_s_own_servers() {
     launch(&mut m, "a", matching());
     let hangar_alone = Launched {
         mode: PaneMcpMode::Custom {
-            servers: vec!["hangar".into()],
+            servers: vec!["teskad".into()],
         },
         hangar: Some(true),
     };

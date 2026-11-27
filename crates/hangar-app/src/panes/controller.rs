@@ -260,10 +260,10 @@ pub struct SpawnReport {
 /// side channel then proves by speaking (`PaneActivity::bridged`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Side {
-    /// Set up: the hangar-bridge mod within reach of its Claude Code, or the
+    /// Set up: the teskad-bridge mod within reach of its Claude Code, or the
     /// Codex pane's own server listening, followed by Hangar's client.
     Attached,
-    /// None, because the setting that brings it is off: the hangar-bridge
+    /// None, because the setting that brings it is off: the teskad-bridge
     /// mod's, or « Attach Hangar to Codex ».
     Off,
     /// None: the server the pane was to run attached to could not be had,
@@ -274,7 +274,7 @@ pub enum Side {
 impl Side {
     /// What the pane's agent of `kind` was started with: the server its
     /// spawn reported, for a kind Hangar reaches through a server of the
-    /// pane's own (`headless.app_server`: Codex, D5), the hangar-bridge
+    /// pane's own (`headless.app_server`: Codex, D5), the teskad-bridge
     /// mod's setting for any other (`bridge`), as the engine's host says it
     /// (`host/launch.rs`).
     pub fn of(kind: AgentKind, server: Option<&ServerState>, bridge: bool) -> Side {
@@ -1032,7 +1032,7 @@ impl Spawn {
         let (id, name, shell) = (self.id.clone(), self.name.clone(), self.shell.clone());
         let kind = request.kind;
         // The shell starts with the launch's variables (the MCP file's path
-        // in `HANGAR_MCP_CONFIG`, a Codex floor's settings in its own: the
+        // in `TESKAD_MCP_CONFIG`, a Codex floor's settings in its own: the
         // line names them, never the paths, which hold the person's name),
         // after the pane's own Codex server when it is to run attached.
         let spawned = hangar_core::pty::pty_spawn_launch(
@@ -1156,7 +1156,7 @@ impl Spawn {
             // its configuration defines.
             mode: if custom && scope.unlisted.is_none() {
                 let servers = hangar
-                    .then(|| "hangar".to_owned())
+                    .then(|| hangar_core::install::SERVER_KEY.to_owned())
                     .into_iter()
                     .chain(scope.servers)
                     .chain(scope.stay_off)
@@ -1888,7 +1888,7 @@ pub fn drafted(rt: &mut PaneRt, m: &Model, now: Instant) {
 }
 
 /// Where the pane's agent stands in its turns, when its live capabilities
-/// say its turns are reported (its side channel speaks: the hangar-bridge
+/// say its turns are reported (its side channel speaks: the teskad-bridge
 /// mod, Hangar's client of its Codex server): otherwise its state is a
 /// guess read off the screen, which is no ground for a restart.
 pub fn turn_of(m: &Model, pane: &str) -> Turn {
@@ -2927,12 +2927,12 @@ mod tests {
         let worker = with_role(Some(PaneRole::Worker));
         let (mode, tools) = role_flags(&ws, &worker);
         assert_eq!(mode.as_deref(), Some("acceptEdits"));
-        assert_eq!(tools, ["mcp__hangar"]);
+        assert_eq!(tools, ["mcp__teskad"]);
         let request = launch_request(&Settings::default(), &ws, &worker).expect("an agent's");
         assert_eq!(request.permission_mode, Some(PermissionMode::AcceptEdits));
         assert_eq!(
             launch_line(&request, None).as_deref(),
-            Some("claude --permission-mode acceptEdits --allowedTools mcp__hangar")
+            Some("claude --permission-mode acceptEdits --allowedTools mcp__teskad")
         );
     }
 
@@ -2944,7 +2944,7 @@ mod tests {
         let orchestrator = with_role(Some(PaneRole::Orchestrator));
         let (mode, tools) = role_flags(&ws, &orchestrator);
         assert_eq!(mode, None);
-        assert_eq!(tools, ["mcp__hangar"]);
+        assert_eq!(tools, ["mcp__teskad"]);
         let request = launch_request(&Settings::default(), &ws, &orchestrator).expect("an agent's");
         assert_eq!(request.permission_mode, None);
     }
@@ -3073,7 +3073,7 @@ mod tests {
         assert_eq!(request.extra_roots, ["/work/assets"]);
         assert_eq!(request.name.as_deref(), Some("Iris (Shop)"));
         assert_eq!(request.model.as_deref(), Some("gpt-5.5-codex"));
-        assert_eq!(request.allowed_tools, ["mcp__hangar"]);
+        assert_eq!(request.allowed_tools, ["mcp__teskad"]);
         assert_eq!(
             (request.mcp.as_ref(), request.resume.as_ref()),
             (None, None)
@@ -3120,7 +3120,7 @@ mod tests {
         let floor = launch_line(&request, Some(THREAD)).expect("a line");
         assert!(floor.starts_with("codex "), "{floor}");
         assert!(!floor.contains("--remote"), "{floor}");
-        assert!(floor.contains("-c \"$HANGAR_CODEX_MCP\""), "{floor}");
+        assert!(floor.contains("-c \"$TESKAD_CODEX_MCP\""), "{floor}");
         assert!(!floor.contains("Ann Lee"), "{floor}");
         assert!(floor.ends_with(&format!(" resume {THREAD}")), "{floor}");
     }
@@ -3179,7 +3179,7 @@ mod tests {
 
     /// What the spawn says of the side channel: a Codex pane attached to its
     /// server, or on the floor and why, or with « Attach Hangar to Codex »
-    /// off; a Claude Code with the hangar-bridge mod or without it, as the
+    /// off; a Claude Code with the teskad-bridge mod or without it, as the
     /// engine's host says it.
     #[test]
     fn the_side_channel_is_what_the_spawn_set_up() {
@@ -3284,13 +3284,13 @@ mod tests {
         };
         let file = crate::nodes::remote::RemoteScope {
             path: "/home/far/.hangar/mcp/w1.json".into(),
-            servers: vec!["hangar".into()],
+            servers: vec!["teskad".into()],
             missing: Vec::new(),
         };
         let strict = RemoteMcp {
             workspace_id: "w1".into(),
             workspace_cwd: "/srv/far".into(),
-            enabled: vec!["hangar".into()],
+            enabled: vec!["teskad".into()],
             strict: true,
         };
         let claude = LaunchRequest {
@@ -3307,7 +3307,7 @@ mod tests {
         let request = report.request.expect("a launch");
         assert_eq!(
             launch_line(&request, None).as_deref(),
-            Some("claude --name Far --mcp-config \"$HANGAR_MCP_CONFIG\" --strict-mcp-config")
+            Some("claude --name Far --mcp-config \"$TESKAD_MCP_CONFIG\" --strict-mcp-config")
         );
         assert_eq!(report.side, None, "its side channel is its node's");
 

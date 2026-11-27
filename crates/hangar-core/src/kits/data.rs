@@ -2,7 +2,7 @@
 //! account and worktree, never inside a project. A tab reads and writes it
 //! through the window (`data.read`, `data.write`, src/lib/kitApi.ts), which
 //! names the kit from its own record of the tab; a hook finds it through
-//! `HANGAR_KITS_DATA` in the pane's environment.
+//! `TESKAD_KITS_DATA` in the pane's environment.
 //!
 //! A path is relative to that kit's folder, and stays there: no absolute path,
 //! no `..`, no drive or stream, and on disk no link that leads out of the
@@ -22,7 +22,7 @@ use super::manifest;
 use super::{off_thread, TabError};
 
 /// What a pane of a workspace with kits finds the root in.
-pub const ENV_VAR: &str = "HANGAR_KITS_DATA";
+pub const ENV_VAR: &str = "TESKAD_KITS_DATA";
 
 const FOLDER: &str = "kit-data";
 
@@ -55,7 +55,7 @@ fn root_from(endpoint_file: Option<OsString>, home: Option<PathBuf>) -> Option<P
 /// `~/.teskad/kit-data`, or beside the endpoint file a development build run
 /// next to an installed Hangar was given, like the kits themselves.
 pub fn root() -> Option<PathBuf> {
-    root_from(std::env::var_os("HANGAR_ENDPOINT_FILE"), dirs::home_dir())
+    root_from(std::env::var_os("TESKAD_ENDPOINT_FILE"), dirs::home_dir())
 }
 
 fn invalid(what: impl std::fmt::Display) -> TabError {

@@ -216,11 +216,11 @@ id: must be 2 to 40 characters among a-z, 0-9 and -; tabs[0].permissions: unknow
 Every pane of a workspace — orchestrator, workers and shell panes included —
 is started with the workspace's kit ids (`ptySpawn({ kits })`). Rust resolves
 each to its plugin folder and puts the folders on `CLAUDE_CODE_PLUGIN_DIRS` in
-the pane's environment, after the hangar-bridge mod's when it comes along and
+the pane's environment, after the teskad-bridge mod's when it comes along and
 before whatever folders the user's own environment already lists:
 
 ```
-CLAUDE_CODE_PLUGIN_DIRS=<hangar-bridge>;<kit A plugin>;<kit B plugin>;<the user's own>
+CLAUDE_CODE_PLUGIN_DIRS=<teskad-bridge>;<kit A plugin>;<kit B plugin>;<the user's own>
 ```
 
 (`:` instead of `;` outside Windows.) So a Claude Code started in the pane —
@@ -249,8 +249,8 @@ reaches it, and how, is in [Claude Code and Codex](#claude-code-and-codex).
 `missing`, `broken` (with `detail`, in English) or `forbidden`.
 
 A pane of a workspace with at least one kit also finds their data's root in
-[`HANGAR_KITS_DATA`](#a-kits-data-folder), and what a hook needs to
-[reach Teskad](#from-a-hook) in `HANGAR_API_URL` and `HANGAR_API_TOKEN`, with the
+[`TESKAD_KITS_DATA`](#a-kits-data-folder), and what a hook needs to
+[reach Teskad](#from-a-hook) in `TESKAD_API_URL` and `TESKAD_API_TOKEN`, with the
 bridge or without it. A pane started with no kit — its workspace has none, or the
 only ones it has are left out for what they run by themselves — starts without these variables,
 even under a Teskad launched from inside a pane.
@@ -296,7 +296,7 @@ a URL) comes as its JSON, a `modules` entry (a hooks module, code Claude Code
 loads) under the event `modules` by its path, and a file that cannot be read as
 it stands, under the file's name.
 
-A hook finds the kit's data folder at `$HANGAR_KITS_DATA/<kit id>`.
+A hook finds the kit's data folder at `$TESKAD_KITS_DATA/<kit id>`.
 
 ### What runs by itself
 
@@ -694,8 +694,8 @@ A plugin's [hooks](#hooks) run in the pane, and have no MCP. They open a tab thr
 API that the bridge also speaks to:
 
 ```
-POST $HANGAR_API_URL/api/kit/tab/open?pane=$HANGAR_PANE_ID
-Authorization: Bearer $HANGAR_API_TOKEN
+POST $TESKAD_API_URL/api/kit/tab/open?pane=$TESKAD_PANE_ID
+Authorization: Bearer $TESKAD_API_TOKEN
 Content-Type: application/json
 
 { "kit": "ci-kit", "tab": "run", "params": { "run": "4567" }, "reveal": true }
@@ -729,7 +729,7 @@ A hook that opens the tab for a run after a `git push`, in `hooks/hooks.json`:
 ```js
 // Never fails: whatever goes wrong here is no reason to bother the agent.
 process.on("uncaughtException", () => process.exit(0));
-const { HANGAR_API_URL: url, HANGAR_API_TOKEN: token, HANGAR_PANE_ID: pane } = process.env;
+const { TESKAD_API_URL: url, TESKAD_API_TOKEN: token, TESKAD_PANE_ID: pane } = process.env;
 
 let input = "";
 process.stdin.on("data", (chunk) => (input += chunk));
@@ -749,14 +749,14 @@ process.stdin.on("end", async () => {
 Or from a shell, the same three safeguards in one line:
 
 ```sh
-curl -fsS --max-time 2 -X POST "$HANGAR_API_URL/api/kit/tab/open?pane=$HANGAR_PANE_ID" \
-  -H "Authorization: Bearer $HANGAR_API_TOKEN" -H "Content-Type: application/json" \
+curl -fsS --max-time 2 -X POST "$TESKAD_API_URL/api/kit/tab/open?pane=$TESKAD_PANE_ID" \
+  -H "Authorization: Bearer $TESKAD_API_TOKEN" -H "Content-Type: application/json" \
   -d '{"kit":"ci-kit","tab":"run","params":{"run":"4567"}}' >/dev/null 2>&1 || true
 ```
 
-**Where the token goes.** `HANGAR_API_URL` and `HANGAR_API_TOKEN` are set by `pty_spawn`, in the
+**Where the token goes.** `TESKAD_API_URL` and `TESKAD_API_TOKEN` are set by `pty_spawn`, in the
 environment of the process it starts in a pane of Teskad, and of what that process starts in turn; a
-pane with at least one kit gets them whether the bridge mod is on or off for it, and `HANGAR_PANE_ID`
+pane with at least one kit gets them whether the bridge mod is on or off for it, and `TESKAD_PANE_ID`
 is in every pane. Anything else does not:
 
 - a **pane without a kit** starts without them, even under a Teskad launched from inside another
@@ -1359,13 +1359,13 @@ argv changed only for another system asks nothing here.
 ## A kit's data folder
 
 Each kit has a folder of its own, `~/.hangar/kit-data/<kit id>/` — beside
-`HANGAR_ENDPOINT_FILE` for a development build given one, like the kits' store.
+`TESKAD_ENDPOINT_FILE` for a development build given one, like the kits' store.
 It is the same on every account, of either agent, and every worktree, and never inside a project.
 
 - **A tab** reaches it through `data.read` and `data.write`.
 - **A hook, or anything else in a pane**, finds it at
-  `$HANGAR_KITS_DATA/<kit id>`: panes of a workspace with at least one kit get
-  `HANGAR_KITS_DATA`, which is the root, `~/.hangar/kit-data`. Teskad makes the
+  `$TESKAD_KITS_DATA/<kit id>`: panes of a workspace with at least one kit get
+  `TESKAD_KITS_DATA`, which is the root, `~/.hangar/kit-data`. Teskad makes the
   folder of each kit whose plugin comes along when such a pane starts, so a hook
   can write there at once; otherwise the first `data.write` does. A WSL pane does
   not carry the variable into Linux.
@@ -1393,7 +1393,7 @@ as run, with its current command.
 
 ## The store, and where kits come from
 
-Installed kits live in `~/.hangar/kits/` — beside `HANGAR_ENDPOINT_FILE` for a
+Installed kits live in `~/.hangar/kits/` — beside `TESKAD_ENDPOINT_FILE` for a
 development build given one, as the bridge's mod does, so a dev build never
 touches the installed app's kits. Its `index.json`:
 

@@ -747,7 +747,7 @@ mod spec_tests {
         // Never the identity of a pane Hangar was started from.
         assert!(set
             .iter()
-            .any(|(name, value)| name.to_str() == Some("HANGAR_PANE_ID") && value.is_none()));
+            .any(|(name, value)| name.to_str() == Some("TESKAD_PANE_ID") && value.is_none()));
         let args: Vec<_> = command.as_std().get_args().collect();
         assert_eq!(args, ["app-server", "--listen", "stdio://"]);
     }

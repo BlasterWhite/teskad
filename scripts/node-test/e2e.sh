@@ -6,9 +6,9 @@
 #   e2e.sh [--no-build] [--keep]
 #     --no-build  use the binaries already in the target folder
 #     --keep      keep the run's temporary folder (logs, state) for a look
-# Container: HANGAR_NODE_TEST_CONTAINER (default teskad-node-e2e-<pid>).
-# Port: HANGAR_NODE_TEST_PORT, else the first free one of HANGAR_PORT_BASE ..
-# +HANGAR_PORT_COUNT-1 when set, else the first free one from 22200.
+# Container: TESKAD_NODE_TEST_CONTAINER (default teskad-node-e2e-<pid>).
+# Port: TESKAD_NODE_TEST_PORT, else the first free one of TESKAD_PORT_BASE ..
+# +TESKAD_PORT_COUNT-1 when set, else the first free one from 22200.
 # Prints PASS/FAIL per step, cleans up after itself, exits 1 on any failure.
 set -uo pipefail
 
@@ -27,34 +27,34 @@ for a in "$@"; do
 done
 
 # --- Isolation ---------------------------------------------------------------
-# What is read from the caller's environment before every HANGAR_* variable
+# What is read from the caller's environment before every TESKAD_* variable
 # is dropped: nothing this run starts may find the person's Hangar (its
 # bridge, its API, its endpoint file).
-port_base="${HANGAR_PORT_BASE:-}"
-port_count="${HANGAR_PORT_COUNT:-20}"
-rig_port="${HANGAR_NODE_TEST_PORT:-}"
-container="${HANGAR_NODE_TEST_CONTAINER:-teskad-node-e2e-$$}"
-outer_bridge="${HANGAR_BRIDGE_URL:-}"
+port_base="${TESKAD_PORT_BASE:-${HANGAR_PORT_BASE:-}}"
+port_count="${TESKAD_PORT_COUNT:-${HANGAR_PORT_COUNT:-20}}"
+rig_port="${TESKAD_NODE_TEST_PORT:-${HANGAR_NODE_TEST_PORT:-}}"
+container="${TESKAD_NODE_TEST_CONTAINER:-${HANGAR_NODE_TEST_CONTAINER:-teskad-node-e2e-$$}}"
+outer_bridge="${TESKAD_BRIDGE_URL:-${HANGAR_BRIDGE_URL:-}}"
 for name in $(compgen -e); do
-  case "$name" in HANGAR_*) unset "$name" ;; esac
+  case "$name" in TESKAD_*|HANGAR_*) unset "$name" ;; esac
 done
 
 work="$(mktemp -d "${TMPDIR:-/tmp}/teskad-node-e2e.XXXXXX")"
 work="$(cd "$work" && pwd -P)"
-export HANGAR_DATA_ROOT="$work/home"
-export HANGAR_ENDPOINT_FILE="$work/home/hangar/endpoint.json"
+export TESKAD_DATA_ROOT="$work/home"
+export TESKAD_ENDPOINT_FILE="$work/home/hangar/endpoint.json"
 # The app's SSH master sockets (nodes/connect.rs), in the run's folder.
-export HANGAR_NODES_SSH_DIR="$work/ssh"
+export TESKAD_NODES_SSH_DIR="$work/ssh"
 # Delivery check worktrees and other per-user folders of the app, kept in the run.
 export XDG_DATA_HOME="$work/xdg/data" XDG_CACHE_HOME="$work/xdg/cache" XDG_STATE_HOME="$work/xdg/state"
-export HANGAR_NODE_TEST_CONTAINER="$container"
-export HANGAR_NODE_TEST_STATE_DIR="$work/rig"
+export TESKAD_NODE_TEST_CONTAINER="$container"
+export TESKAD_NODE_TEST_STATE_DIR="$work/rig"
 export GIT_AUTHOR_NAME="Hangar E2E" GIT_AUTHOR_EMAIL="e2e@hangar.invalid"
 export GIT_COMMITTER_NAME="Hangar E2E" GIT_COMMITTER_EMAIL="e2e@hangar.invalid"
-mkdir -p "$HANGAR_DATA_ROOT/data" "$HANGAR_DATA_ROOT/hangar" "$XDG_DATA_HOME" "$XDG_CACHE_HOME" "$XDG_STATE_HOME" "$work/bin"
-case "$(realpath -m "$HANGAR_ENDPOINT_FILE")" in
+mkdir -p "$TESKAD_DATA_ROOT/data" "$TESKAD_DATA_ROOT/hangar" "$XDG_DATA_HOME" "$XDG_CACHE_HOME" "$XDG_STATE_HOME" "$work/bin"
+case "$(realpath -m "$TESKAD_ENDPOINT_FILE")" in
   "$work"/*) ;;
-  *) echo "refusing to run: HANGAR_ENDPOINT_FILE ($HANGAR_ENDPOINT_FILE) is not under $work" >&2; rm -rf "$work"; exit 2 ;;
+  *) echo "refusing to run: TESKAD_ENDPOINT_FILE ($TESKAD_ENDPOINT_FILE) is not under $work" >&2; rm -rf "$work"; exit 2 ;;
 esac
 
 # Nothing runs from the caller's checkout: a tool that takes its folder as
@@ -107,9 +107,9 @@ trap 'exit 130' INT TERM
 
 # --- Helpers -----------------------------------------------------------------
 helper() { python3 -I "$here/e2e_helper.py" "$@"; }
-ctl() { helper control --root "$work" --endpoint "$HANGAR_ENDPOINT_FILE" "$@"; }
-wait_pane() { helper wait-pane --root "$work" --endpoint "$HANGAR_ENDPOINT_FILE" "$@"; }
-mcp_as() { helper mcp --root "$work" --endpoint "$HANGAR_ENDPOINT_FILE" --app "$app_bin" "$@"; }
+ctl() { helper control --root "$work" --endpoint "$TESKAD_ENDPOINT_FILE" "$@"; }
+wait_pane() { helper wait-pane --root "$work" --endpoint "$TESKAD_ENDPOINT_FILE" "$@"; }
+mcp_as() { helper mcp --root "$work" --endpoint "$TESKAD_ENDPOINT_FILE" --app "$app_bin" "$@"; }
 jget() { helper get "$1"; }
 # A command on the node, its arguments quoted for the remote shell.
 on_node() { "$here/ssh.sh" "$(printf '%q ' "$@")"; }
@@ -165,7 +165,7 @@ pick_port() {
 }
 rig_up() {
   pick_port || return 1
-  HANGAR_NODE_TEST_PORT="$rig_port" "$here/up.sh" || return 1
+  TESKAD_NODE_TEST_PORT="$rig_port" "$here/up.sh" || return 1
   [ -r "$STATE_PORT" ] || { echo "the rig did not start"; return 1; }
   node_host="$(docker exec "$CONTAINER" hostname)"
   echo "container $CONTAINER ($node_host) on port $rig_port"
@@ -210,7 +210,7 @@ echo "nodes e2e: no interactive claude on this computer" >&2
 exit 1
 SH
   chmod +x "$work/bin/claude"
-  cat > "$HANGAR_DATA_ROOT/data/state.json" <<JSON
+  cat > "$TESKAD_DATA_ROOT/data/state.json" <<JSON
 {
   "activeWorkspaceId": "$remote_ws",
   "workspaces": [
@@ -241,13 +241,13 @@ JSON
 }
 
 start_app() {
-  rm -f "$HANGAR_ENDPOINT_FILE"
-  HANGAR_NODE_BINARY="$node_bin" PATH="$work/bin:$PATH" \
+  rm -f "$TESKAD_ENDPOINT_FILE"
+  TESKAD_NODE_BINARY="$node_bin" PATH="$work/bin:$PATH" \
     setsid "$app_bin" >> "$work/app.log" 2>&1 < /dev/null &
   app_pid=$!
-  retry 90 test -s "$HANGAR_ENDPOINT_FILE" || { echo "no endpoint after 90 s"; tail -n 20 "$work/app.log"; return 1; }
+  retry 90 test -s "$TESKAD_ENDPOINT_FILE" || { echo "no endpoint after 90 s"; tail -n 20 "$work/app.log"; return 1; }
   local bridge
-  bridge="$(helper get port < "$HANGAR_ENDPOINT_FILE")"
+  bridge="$(helper get port < "$TESKAD_ENDPOINT_FILE")"
   echo "isolated instance: pid $app_pid, API port $bridge"
 }
 
@@ -322,8 +322,8 @@ make_remote_task() {
   echo "task $remote_task made on the node"
 }
 remote_spawn() {
-  retry 60 node_helper pane-pid HANGAR_PANE_ID=p-rorch >/dev/null || { echo "no orchestrator shell on the node"; return 1; }
-  node_helper pane-mcp HANGAR_PANE_ID=p-rorch worker_spawn "{\"task\":\"$remote_task\",\"name\":\"Rwork\"}" 150 \
+  retry 60 node_helper pane-pid TESKAD_PANE_ID=p-rorch >/dev/null || { echo "no orchestrator shell on the node"; return 1; }
+  node_helper pane-mcp TESKAD_PANE_ID=p-rorch worker_spawn "{\"task\":\"$remote_task\",\"name\":\"Rwork\"}" 150 \
     | tee "$work/rspawn.json" || return 1
 }
 remote_board() {
@@ -344,11 +344,11 @@ remote_worktree_made() {
   echo "worktree on the node: $remote_worktree"
   ctl pane_list "{\"workspace\":\"$remote_ws\"}" | tee "$work/rpanes.json" | grep -q '"Rwork"' || { echo "Rwork not in the desktop's panes"; return 1; }
   echo "the desktop lists the worker pane Rwork"
-  node_helper pane-pid HANGAR_PANE_NAME=Rwork > /dev/null || { echo "Rwork has no shell on the node"; return 1; }
+  node_helper pane-pid TESKAD_PANE_NAME=Rwork > /dev/null || { echo "Rwork has no shell on the node"; return 1; }
   echo "Rwork's shell runs on the node"
 }
 remote_stop() {
-  node_helper pane-mcp HANGAR_PANE_ID=p-rorch worker_stop '{"worker":"Rwork"}' 120 || return 1
+  node_helper pane-mcp TESKAD_PANE_ID=p-rorch worker_stop '{"worker":"Rwork"}' 120 || return 1
   echo
   retry 30 on_node test ! -e "$remote_worktree" || { echo "$remote_worktree still there"; return 1; }
   echo "worktree removed on the node"
@@ -377,7 +377,7 @@ local_orchestrator() {
   retry 30 send "$local_ws" Lorch 'true' > /dev/null 2>&1 || { send "$local_ws" Lorch 'true'; return 1; }
   retry 60 helper pane-env --root "$work" "$app_pid" p-lorch > "$work/lorch.env" 2>/dev/null || {
     helper pane-env --root "$work" "$app_pid" p-lorch; return 1; }
-  local url; url="$(sed -n 's/^HANGAR_BRIDGE_URL=//p' "$work/lorch.env")"
+  local url; url="$(sed -n 's/^TESKAD_BRIDGE_URL=//p' "$work/lorch.env")"
   if [ -n "$outer_bridge" ] && [ "$url" = "$outer_bridge" ]; then
     echo "the orchestrator's bridge is the caller's own Hangar ($url): refusing"; return 1
   fi
@@ -396,12 +396,12 @@ local_spawn() {
   mcp_as "$work/lorch.env" worker_spawn "{\"task\":\"$local_task\",\"name\":\"Nwork\",\"node\":\"n1\"}" 240 \
     | tee "$work/nspawn.txt" || return 1
   echo
-  retry 60 node_helper pane-pid HANGAR_PANE_NAME=Nwork > /dev/null || { echo "Nwork has no shell on the node"; return 1; }
-  node_worktree="$(node_helper pane-cwd HANGAR_PANE_NAME=Nwork)" || return 1
+  retry 60 node_helper pane-pid TESKAD_PANE_NAME=Nwork > /dev/null || { echo "Nwork has no shell on the node"; return 1; }
+  node_worktree="$(node_helper pane-cwd TESKAD_PANE_NAME=Nwork)" || return 1
   [ "$node_worktree" != /home/hangar ] || { echo "Nwork's shell is not in a worktree"; return 1; }
   on_node git -C "$node_worktree" rev-parse --abbrev-ref HEAD || return 1
   echo "Nwork runs on the node in $node_worktree"
-  if helper app-runs "$app_pid" HANGAR_PANE_NAME=Nwork; then
+  if helper app-runs "$app_pid" TESKAD_PANE_NAME=Nwork; then
     echo "a process of Nwork runs on this computer, under the app"; return 1
   fi
   echo "no process of Nwork on this computer"
@@ -410,7 +410,7 @@ node_commit_and_deliver() {
   on_node bash -c "cd $(printf '%q' "$node_worktree") && printf '#!/bin/sh\necho done\n' > work.sh && git add work.sh && git -c user.name=Nwork -c user.email=nwork@node commit -qm 'Add work.sh (made on the node)'" || return 1
   node_commit="$(on_node git -C "$node_worktree" rev-parse HEAD)" || return 1
   echo "commit $node_commit made on the node"
-  node_helper pane-mcp HANGAR_PANE_NAME=Nwork delivery_submit '{"summary":"Added work.sh on the node (nodes e2e)."}' 120 || return 1
+  node_helper pane-mcp TESKAD_PANE_NAME=Nwork delivery_submit '{"summary":"Added work.sh on the node (nodes e2e)."}' 120 || return 1
 }
 local_task_done() {
   mcp_as "$work/lorch.env" board_list_tasks '{}' | python3 -I -c '

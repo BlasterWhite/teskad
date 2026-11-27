@@ -1258,7 +1258,7 @@ fn a_moving_panes_tooltip_says_what_it_waits_for() {
     let t = hangar_i18n::Translator::new(Locale::En);
     let title = |hold: Hold| badge::moving_title(t, "Perso", &hold);
     assert!(title(Hold::Turn).contains("its turn is over"));
-    assert!(title(Hold::Unreported).contains("hangar-bridge"));
+    assert!(title(Hold::Unreported).contains("teskad-bridge"));
     assert!(title(Hold::Draft).contains("typed"));
     assert!(title(Hold::Command("cargo build --release".into())).contains("cargo build --release"));
     assert!(title(Hold::Unreadable).contains("could not be read"));

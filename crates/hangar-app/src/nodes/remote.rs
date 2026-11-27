@@ -139,7 +139,7 @@ pub struct RemoteSpawn {
 /// Set in the shell of a worker a local workspace sent to a node: its MCP
 /// proxy sends its board's calls to this machine (hangar-core's mcp.rs,
 /// `board_relay`), where its task is, rather than to the node's board.
-pub const BOARD_RELAY: &str = "HANGAR_BOARD_RELAY";
+pub const BOARD_RELAY: &str = "TESKAD_BOARD_RELAY";
 
 impl RemoteSpawn {
     pub fn body(&self) -> Value {

@@ -430,7 +430,7 @@ fn horizontal_sep<'a>(ctx: Ctx<'a>) -> Element<'a, Message> {
 mod tests {
     //! The window at a window opacity under 1, drawn over nothing at all:
     //! the alpha of each pixel says where the desktop would show.
-    //! `HANGAR_P8_SNAPSHOTS=<folder>` keeps the pictures there, each twice:
+    //! `TESKAD_P8_SNAPSHOTS=<folder>` keeps the pictures there, each twice:
     //! as on a dark desktop (`<name>-<renderer>.png`) and with the desktop
     //! left out (`<name>-desktop-<renderer>.png`, translucent).
 
@@ -495,7 +495,7 @@ mod tests {
         };
         let desktop = iced::Theme::custom_with_fn("desktop", palette, move |_| extended);
         let scratch = tempfile::tempdir().expect("a scratch folder");
-        let folder = std::env::var_os("HANGAR_P8_SNAPSHOTS")
+        let folder = hangar_core::env::var_os("TESKAD_P8_SNAPSHOTS")
             .map_or_else(|| scratch.path().to_path_buf(), PathBuf::from);
         std::fs::create_dir_all(&folder).expect("the folder");
         let stem = format!("{name}-desktop");

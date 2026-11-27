@@ -1,12 +1,12 @@
 //! A way to see the capture button's result in a running debug build, with no
-//! person at the save dialog: with `HANGAR_DEV_MODEL3D_CAPTURE=<folder>` the
+//! person at the save dialog: with `TESKAD_DEV_MODEL3D_CAPTURE=<folder>` the
 //! first model on screen is captured as the button does (twice the panel's
 //! size, the person's own camera) once its viewport has been drawn, and the
 //! PNG is written in that folder under the name the dialog would propose.
 //!
 //! ```text
-//! HANGAR_DEV_PREVIEW=$PWD/assets/models/sample.glb \
-//!   HANGAR_DEV_MODEL3D_CAPTURE=/tmp/captures scripts/native-dev.sh
+//! TESKAD_DEV_PREVIEW=$PWD/assets/models/sample.glb \
+//!   TESKAD_DEV_MODEL3D_CAPTURE=/tmp/captures scripts/native-dev.sh
 //! ```
 //!
 //! A release build ignores the variable.
@@ -22,7 +22,7 @@ pub fn capture_folder() -> Option<PathBuf> {
     if !cfg!(debug_assertions) {
         return None;
     }
-    folder_in(std::env::var_os("HANGAR_DEV_MODEL3D_CAPTURE"))
+    folder_in(hangar_core::env::var_os("TESKAD_DEV_MODEL3D_CAPTURE"))
 }
 
 fn folder_in(value: Option<std::ffi::OsString>) -> Option<PathBuf> {

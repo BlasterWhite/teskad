@@ -66,7 +66,7 @@ pub type CmdOut = StoreOutcome;
 pub enum ModelCmd {
     /// A pane, answered with its id (`None` at `MAX_PANES`). `init` is
     /// applied before anything spawns it, so a worker's shell starts with its
-    /// role, task, model and port base (`HANGAR_PORT_BASE`).
+    /// role, task, model and port base (`TESKAD_PORT_BASE`).
     AddPane {
         ws: WsId,
         agent: Option<AgentId>,
@@ -192,7 +192,7 @@ pub trait AppPort: Send + Sync + 'static {
     /// Ends a pane's shell and everything it started (`pty_kill`, tree).
     fn kill(&self, pane: &PaneId) -> BoxFuture<Result<(), String>>;
 
-    /// The hangar-bridge queue: submitted once the Claude Code session is
+    /// The teskad-bridge queue: submitted once the Claude Code session is
     /// idle. `from` names the agent's pane (or `hangar`) when the person did
     /// not write it; `None` reads as the person's own words.
     fn enqueue(
@@ -202,7 +202,7 @@ pub trait AppPort: Send + Sync + 'static {
         from: Option<&str>,
     ) -> BoxFuture<Result<(), String>>;
 
-    /// Takes a prompt still waiting in the hangar-bridge queue back, by its
+    /// Takes a prompt still waiting in the teskad-bridge queue back, by its
     /// id (`bridge_cancel`): it never reaches the session.
     fn unqueue(&self, pane: &PaneId, id: &str) -> BoxFuture<Result<(), String>> {
         let _ = (pane, id);

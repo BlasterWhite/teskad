@@ -464,12 +464,18 @@ fn a_tree_sends_the_id_of_the_node_picked_and_opens_and_closes_what_has_children
     drawn.find("Workspace").expect("the node itself");
 }
 
-/// With `HANGAR_KIT_SNAPSHOTS=<folder>`, the fields, choices and lists of a
+/// Where the snapshots go: `TESKAD_KIT_SNAPSHOTS`, or its name before the
+/// rename (`HANGAR_KIT_SNAPSHOTS`).
+fn snapshots_folder() -> Option<std::ffi::OsString> {
+    std::env::var_os("TESKAD_KIT_SNAPSHOTS").or_else(|| std::env::var_os("HANGAR_KIT_SNAPSHOTS"))
+}
+
+/// With `TESKAD_KIT_SNAPSHOTS=<folder>`, the fields, choices and lists of a
 /// kit drawn in a dark and a light theme, in English and French, are written
 /// there as PNGs to be looked at; without it, nothing is written.
 #[test]
 fn snapshots() {
-    let Some(folder) = std::env::var_os("HANGAR_KIT_SNAPSHOTS") else {
+    let Some(folder) = snapshots_folder() else {
         return;
     };
     let folder = std::path::PathBuf::from(folder);
@@ -563,13 +569,13 @@ impl KitApi for NoImages {
 
 /* ── what the kits' native tabs added: a canvas, shortcuts, long logs ── */
 
-/// What the kits' ports added, drawn into `HANGAR_KIT_SNAPSHOTS` to be
+/// What the kits' ports added, drawn into `TESKAD_KIT_SNAPSHOTS` to be
 /// looked at, as `snapshots` draws the fields: a header with a back button,
 /// a canvas with a pin and a label turned at its edge, swatches, radio
 /// buttons, a rich row, a banner with a title, a diff, a numbered editor.
 #[test]
 fn snapshots_of_what_the_ports_added() {
-    let Some(folder) = std::env::var_os("HANGAR_KIT_SNAPSHOTS") else {
+    let Some(folder) = snapshots_folder() else {
         return;
     };
     let folder = std::path::PathBuf::from(folder);

@@ -85,7 +85,7 @@ A port never touches the hangar repository: everything below is in `hangar-kit-s
    again). Without Hangar: `cargo run -p hangar-kit-host --example preview -- ~/dev/kits/kit-ci/tabs/ci.wasm`
    (`--light`, `--fr`), a pretend Hangar with two panes and every permission. A picture of the tab
    without a click, once the kit is linked and enabled on the active workspace:
-   `HANGAR_DEV_KIT_TABS='ci-status/ci?id=42' HANGAR_DEV_SCREENSHOT=/tmp/ci.png scripts/native-dev.sh`
+   `TESKAD_DEV_KIT_TABS='ci-status/ci?id=42' TESKAD_DEV_SCREENSHOT=/tmp/ci.png scripts/native-dev.sh`
    (the params after `?`, joined by `&`).
 
 **Rules every port keeps** (kit-ui.md, "The rules a kit follows"): every string through

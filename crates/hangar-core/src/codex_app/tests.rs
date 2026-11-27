@@ -227,7 +227,7 @@ fn params_hangar_sends_carry_only_what_it_sets() {
     let steer = TurnSteerParams {
         thread_id: "thr_1".into(),
         expected_turn_id: "turn_1".into(),
-        input: vec![text("[Hangar] From agent \"Leo\": the board changed.")],
+        input: vec![text("[Teskad] From agent \"Leo\": the board changed.")],
         client_user_message_id: None,
     };
     assert_eq!(
@@ -235,7 +235,7 @@ fn params_hangar_sends_carry_only_what_it_sets() {
         json!({
             "threadId": "thr_1",
             "expectedTurnId": "turn_1",
-            "input": [{ "type": "text", "text": "[Hangar] From agent \"Leo\": the board changed." }],
+            "input": [{ "type": "text", "text": "[Teskad] From agent \"Leo\": the board changed." }],
         })
     );
     let interrupt = TurnInterruptParams {

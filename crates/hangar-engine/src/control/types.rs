@@ -13,7 +13,7 @@ use crate::state::PaneId;
 
 /// Who is asking, from the environment of the pane the agent runs in
 /// (`Caller` of control.ts). Core's MCP server sets `args.caller` from
-/// `HANGAR_PANE_ID`/`HANGAR_PANE_NAME`; `args.callerCwd` is the fallback for
+/// `TESKAD_PANE_ID`/`TESKAD_PANE_NAME`; `args.callerCwd` is the fallback for
 /// an agent Hangar did not start.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

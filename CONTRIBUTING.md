@@ -49,15 +49,15 @@ writes the same workspaces and resumes the same agent sessions. It also takes ov
 `~/.teskad/endpoint.json`, so your installed agents' MCP calls reach the dev build, and it
 deletes that file when it closes.
 
-`scripts/native-dev.sh` keeps the two apart: it sets `HANGAR_DATA_ROOT` and
-`HANGAR_ENDPOINT_FILE` so that the state, the app data, the endpoint file, the Claude Code
-mods, kits and accounts all go under `target/dev-home/` (`HANGAR_DEV_HOME` names another
+`scripts/native-dev.sh` keeps the two apart: it sets `TESKAD_DATA_ROOT` and
+`TESKAD_ENDPOINT_FILE` so that the state, the app data, the endpoint file, the Claude Code
+mods, kits and accounts all go under `target/dev-home/` (`TESKAD_DEV_HOME` names another
 folder, for instance one holding a copy of a real `state.json`). Arguments after `--` go
 to the app:
 
 ```bash
 scripts/native-dev.sh --release                # an optimised build
-HANGAR_DEV_HOME=/tmp/hangar-try scripts/native-dev.sh
+TESKAD_DEV_HOME=/tmp/hangar-try scripts/native-dev.sh
 echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | scripts/native-dev.sh -- --mcp
 ```
 
@@ -95,7 +95,7 @@ The Claude Code mod, if you touched `crates/hangar-core/claude-mod/` (this one i
 CI, so run it yourself):
 
 ```bash
-claude plugin test crates/hangar-core/claude-mod/hangar-bridge
+claude plugin test crates/hangar-core/claude-mod/teskad-bridge
 ```
 
 Some things to know:
@@ -126,10 +126,14 @@ Some things to know:
   (`OFFICIAL_*`) and `hangar_core::migrate`, which copies from them once and never writes
   there. Never write a path, key or name of the official app: build home paths with
   `paths::home_folder()`, not `.join(".hangar")`. What keeps its `hangar` name on purpose is
-  what projects and agents already hold: the `.hangar/` folder in a project, the `hangar` MCP
-  server and its tools, the `HANGAR_*` variables, the `hangar-*` crates and the helper
-  binaries (`teskad-webview`, `teskad-node`). Give anything new a `hangar` name there, and a
-  `teskad` name for what the person sees or installs.
+  what projects already hold: the `.hangar/` folder in a project (for now), and the
+  `hangar-*` crates. What agents see is `teskad`: the MCP server and its `mcp__teskad__*`
+  tools, the `teskad-bridge` mod, the `[Teskad]` prefix of the app's messages and the
+  `TESKAD_*` variables. A variable a person can set is read through `hangar_core::env`
+  (`TESKAD_X`, then `HANGAR_X`, documented in [FORK.md](FORK.md)); one the app sets for its
+  children is `TESKAD_*` alone. The old names appear only as those fallbacks, in the migrations,
+  and to read transcripts written before 2.6.0. The helper binaries are `teskad-webview` and
+  `teskad-node`. Give a new thing a `teskad` name.
 - **Local first.** Teskad runs on the user's machine and works without an account. This
   project runs no hosted service, collects no telemetry, and has nothing that depends on
   an account. Changes that add a hosted service, require an account or add telemetry will

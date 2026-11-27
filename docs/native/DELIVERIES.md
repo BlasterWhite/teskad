@@ -165,7 +165,7 @@ the size of the delivery that takes the turn is the one used.
 
 `delivery::tests::batches::measure_a_queue_of_five_with_one_failing`, run by
 hand (`cargo test -p hangar-core --lib measure_a_queue -- --ignored
---nocapture`, `HANGAR_MEASURE_CHECK_SECS` for the check's length): throwaway
+--nocapture`, `TESKAD_MEASURE_CHECK_SECS` for the check's length): throwaway
 repositories, five deliveries waiting together, a check that sleeps 60 s and
 fails when `bad.rs` is there, the third delivery adding it — then the same
 with all five green. Once one at a time (batch size 1), then with batches of

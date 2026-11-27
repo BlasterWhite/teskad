@@ -34,7 +34,7 @@ arm64, as two files: `teskad-node-x86_64` and `teskad-node-aarch64`. They are
 packager **resources**, not binaries (`resources` in
 `crates/hangar-app/Cargo.toml`). The desktop uploads the one that matches a
 node's `uname -m` over SSH (`crates/hangar-app/src/nodes/model.rs`,
-`BinarySource`: `HANGAR_NODE_BINARY`, else `teskad-node-<arch>` looked for in
+`BinarySource`: `TESKAD_NODE_BINARY`, else `teskad-node-<arch>` looked for in
 three places from the running `teskad`'s folder: beside it, in
 `../Resources` and in `../lib/teskad`), and a Mac or a Windows desktop
 drives Linux nodes too, so all three platforms carry both:
@@ -293,8 +293,8 @@ The packager downloads its AppImage tools (linuxdeploy and its plugin, then
 appimagetool and the type-2 runtime) into `target/packager-cache`. Nothing is
 installed on the system; run the AppImage, or unpack it with `--appimage-extract`.
 To try the app from a package without installing it, `dpkg-deb -x` the `.deb`
-into a folder and run `usr/bin/teskad` with `HANGAR_DATA_ROOT` and
-`HANGAR_ENDPOINT_FILE` set to a throwaway folder (as `scripts/native-dev.sh`
+into a folder and run `usr/bin/teskad` with `TESKAD_DATA_ROOT` and
+`TESKAD_ENDPOINT_FILE` set to a throwaway folder (as `scripts/native-dev.sh`
 does), never to the installed Hangar's.
 
 **macOS.** Build both targets, then `lipo` and package:

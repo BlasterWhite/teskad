@@ -41,7 +41,7 @@ beside them.
 
 An isolated Hangar: the release build of `main` at `cc1990a`, with a
 throwaway probe added (see [Probes](#probes)). It ran with its own data root,
-its own XDG folders, endpoint file and HOME. Every inherited `HANGAR_*`
+its own XDG folders, endpoint file and HOME. Every inherited `TESKAD_*`
 variable was dropped. The person's own Hangar files were fingerprinted
 before and after each run. The only files that changed were the ones the
 person's running Hangar writes itself (`account-usage.json`, `state.json`,

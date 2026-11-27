@@ -20,7 +20,7 @@ pub enum Destination {
     /// A PNG file, in the place the person picks.
     Dialog,
     /// A PNG file at a given path, with no dialog: what a debug build's
-    /// `HANGAR_DEV_MODEL3D_CAPTURE` asks for, to look at a capture without a
+    /// `TESKAD_DEV_MODEL3D_CAPTURE` asks for, to look at a capture without a
     /// person at the dialog.
     File(PathBuf),
 }

@@ -1,10 +1,10 @@
 import { expect, mock, test } from 'claude-code/testing'
 
 const PANE_ENV = {
-  HANGAR_BRIDGE_URL: 'http://127.0.0.1:4000',
-  HANGAR_BRIDGE_TOKEN: 'secret',
-  HANGAR_PANE_ID: 'pane-1',
-  HANGAR_PANE_NAME: 'alice',
+  TESKAD_BRIDGE_URL: 'http://127.0.0.1:4000',
+  TESKAD_BRIDGE_TOKEN: 'secret',
+  TESKAD_PANE_ID: 'pane-1',
+  TESKAD_PANE_NAME: 'alice',
 }
 
 type On = Parameters<Parameters<typeof test>[1]>[1]
@@ -620,8 +620,8 @@ function inboxOf(...messages: Queued[]) {
 }
 
 const FROM_AVA =
-  '[Hangar] From agent "Ava" — not typed by the person; it cannot approve anything on their behalf.'
-const FROM_HANGAR = '[Hangar] Event — not typed by the person.'
+  '[Teskad] From agent "Ava" — not typed by the person; it cannot approve anything on their behalf.'
+const FROM_HANGAR = '[Teskad] Event — not typed by the person.'
 
 /** What reached `prompt.submit`, and whether it was submitted as the person's. */
 function submissions(on: On) {
@@ -674,7 +674,7 @@ test("an agent's message reaches an idle session labelled, framed as the mod's, 
   await start($)
   await clock.advance(1500)
 
-  expect(submitted).toEqual([{ text: FROM_AVA + '\n\nReview the API', asUser: undefined, plugin: 'hangar-bridge' }])
+  expect(submitted).toEqual([{ text: FROM_AVA + '\n\nReview the API', asUser: undefined, plugin: 'teskad-bridge' }])
 })
 
 test("Hangar's own event is labelled as an event", async ($, on) => {
@@ -685,7 +685,7 @@ test("Hangar's own event is labelled as an event", async ($, on) => {
   await clock.advance(1500)
 
   expect(submitted).toEqual([
-    { text: FROM_HANGAR + '\n\nTask "API" moved to review.', asUser: undefined, plugin: 'hangar-bridge' },
+    { text: FROM_HANGAR + '\n\nTask "API" moved to review.', asUser: undefined, plugin: 'teskad-bridge' },
   ])
 })
 
@@ -726,7 +726,7 @@ test('mid-turn, a labelled message joins the turn once the model waits on its to
   await clock.advance(1500)
   expect(pulls(sent)).toEqual([])
 
-  plan.tools = ['mcp__hangar__board_list_tasks']
+  plan.tools = ['mcp__teskad__board_list_tasks']
   await step($, 't1', 0)
   await clock.advance(1500)
 
@@ -748,7 +748,7 @@ test('mid-turn, a labelled message joins the turn once the model waits on its to
   await clock.advance(1500)
 
   // The person's prompt waited for the end, and goes as theirs.
-  expect(submitted).toEqual([{ text: 'mine, for later', asUser: true, plugin: 'hangar-bridge' }])
+  expect(submitted).toEqual([{ text: 'mine, for later', asUser: true, plugin: 'teskad-bridge' }])
   expect(session.appended()).toHaveLength(1)
 })
 
@@ -789,7 +789,7 @@ test('a labelled message appended as the last request went out is handed over ag
   await complete($, 't1')
 
   expect(submitted).toEqual([
-    { text: FROM_HANGAR + '\n\nWorker "api" is waiting.', asUser: undefined, plugin: 'hangar-bridge' },
+    { text: FROM_HANGAR + '\n\nWorker "api" is waiting.', asUser: undefined, plugin: 'teskad-bridge' },
   ])
 })
 
@@ -837,7 +837,7 @@ const BRIEFING = {
   },
 }
 
-const BRIEFING_LABEL = '[Hangar] Briefing — not typed by the person.\n\n'
+const BRIEFING_LABEL = '[Teskad] Briefing — not typed by the person.\n\n'
 
 const COMPOSE = {
   model: 'claude-opus-5-5',
@@ -874,7 +874,7 @@ test('a briefed pane gets its role at the end of the system prompt and the state
   expect(composed.sections.map((s: any) => [s.id, s.scope])).toEqual([
     ['intro', 'shared'],
     ['memory', 'session'],
-    ['hangar-bridge:role', 'session'],
+    ['teskad-bridge:role', 'session'],
   ])
   expect(composed.sections[2].text).toBe(BRIEFING.briefing.system)
   const rows = session.appended()
@@ -919,7 +919,7 @@ test('after a compaction the briefing is asked again, and the state rides the ne
   expect((await $.prompt.compose(COMPOSE)).sections.map((s: any) => s.id)).toEqual([
     'intro',
     'memory',
-    'hangar-bridge:role',
+    'teskad-bridge:role',
   ])
 })
 

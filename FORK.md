@@ -37,10 +37,17 @@ the same time.
 | Notifications (Windows AUMID) | the identifier above | `com.simnjs.iabench` |
 
 Your project folders are shared, as they are the same projects: the `.hangar/` folder inside
-each one (the task board, uploads) keeps its name, and so do the `hangar` MCP server, its
-`mcp__hangar__*` tools and the `HANGAR_*` variables. The MCP server entry named `hangar` in a
-project's `.mcp.json` points at **one** program, the last one that registered it (see
-[Going back](#going-back-to-the-official-app)).
+each one (the task board, uploads) keeps its name. What agents see is Teskad's own: its MCP
+server is named `teskad` (tools `mcp__teskad__*`), its Claude Code mod `teskad-bridge`, its
+messages to agents start with `[Teskad]`, and the variables it sets are `TESKAD_*`. The
+official app's `hangar` entry in a project's `.mcp.json` is never touched: the two servers sit
+side by side, each under its own name (see [Going back](#going-back-to-the-official-app)).
+
+A variable you set yourself (`TESKAD_DATA_ROOT`, `TESKAD_WEBVIEW`, the `TESKAD_DEV_*` and test
+ones…) is read under its `TESKAD_` name first, and under its old `HANGAR_` name when the new one
+is not set, so a script or a profile written for the official app keeps working. The variables
+Teskad sets for its own panes and servers have no such fallback: a Teskad started inside a pane
+of the official app never takes that pane's for its own.
 
 ### First launch: your data is copied, not moved
 
@@ -62,10 +69,18 @@ holds the marker is never copied again, also after you cleared something in it. 
 quit Teskad and delete the folder (`~/.teskad`, or the app data folder).
 
 Then Teskad rewrites what named the official program: the `hangar` server of the copied
-`mcp/*.json` (the copy only), and the `.mcp.json` of every workspace in the copied `state.json`
-(your own project files: the `hangar` or older `iabench` entry is pointed at Teskad, after the
-file is saved as `.mcp.json.hangar-bak`). Nothing is imported or rewritten when `HANGAR_DATA_ROOT` or
-`HANGAR_ENDPOINT_FILE` is set (a development build, see [CONTRIBUTING.md](CONTRIBUTING.md)).
+`mcp/*.json` becomes `teskad` and runs Teskad (the copy only), and in the `.mcp.json` of every
+workspace in the copied `state.json` (your own project files) an older `iabench` entry is
+pointed at Teskad as `teskad`, after the file is saved as `.mcp.json.hangar-bak`. A `hangar`
+entry that runs the official app stays as it is. Nothing is imported or rewritten when
+`TESKAD_DATA_ROOT` or `TESKAD_ENDPOINT_FILE` is set (a development build, see
+[CONTRIBUTING.md](CONTRIBUTING.md)).
+
+At every launch, a project's `.mcp.json` that still holds Teskad's server under the name
+`hangar` (written before 2.6.0) gets it renamed `teskad`, and the Claude Code mod Teskad had
+installed as `~/.teskad/mods/hangar-bridge` is replaced by `teskad-bridge`. The official app's
+own entries and its `~/.hangar/mods` are not touched. Agent sessions already open keep seeing
+`mcp__hangar__*`: restart them to get `mcp__teskad__*`.
 
 Three things do not carry over:
 
@@ -80,9 +95,10 @@ Three things do not carry over:
 ### Going back to the official app
 
 Nothing was taken from it: install or start HangarAI and it finds its data as it left it
-(changes made in Teskad since the import are not in it). The official app's `.mcp.json` entries
-are the ones Teskad rewrote: in each project, open the MCP panel of the official app and install
-its server again, or restore `.mcp.json.hangar-bak`. To remove Teskad, uninstall it as any app
+(changes made in Teskad since the import are not in it). Its `.mcp.json` entry, named `hangar`,
+was never touched, so it works as before; Teskad's is the `teskad` one beside it. If a project
+had Teskad's server moved from `hangar` to `teskad` and you want the old file back, restore
+`.mcp.json.hangar-bak`. To remove Teskad, uninstall it as any app
 and delete `~/.teskad` and its data folder (above); that leaves the official app untouched.
 
 Run a development build with `scripts/native-dev.sh`: it runs the app on data of its own under

@@ -88,6 +88,12 @@ fn report_migration(report: &hangar_core::migrate::Report) {
     for project in &report.rewritten_projects {
         eprintln!("Pointed {}/.mcp.json at this app", project.display());
     }
+    for project in &report.renamed_projects {
+        eprintln!(
+            "Renamed the hangar server of {}/.mcp.json to teskad",
+            project.display()
+        );
+    }
 }
 
 /// A development build refuses to start on the installed {APP_NAME}'s data.
@@ -97,14 +103,14 @@ fn report_migration(report: &hangar_core::migrate::Report) {
 /// app by, the Claude Code mods. A debug build started plainly would answer
 /// agents in the real app's place and could rewrite the person's workspaces.
 /// `scripts/native-dev.sh` sets both variables to a folder of its own;
-/// `HANGAR_DEV_USE_REAL_DATA=1` is the deliberate way past this. A release
+/// `TESKAD_DEV_USE_REAL_DATA=1` is the deliberate way past this. A release
 /// build is the real app and never checks.
 fn dev_guard() -> Result<(), String> {
     if !cfg!(debug_assertions) {
         return Ok(());
     }
     let set = |name: &str| std::env::var_os(name).is_some_and(|value| !value.is_empty());
-    if set("HANGAR_DEV_USE_REAL_DATA") || (set("HANGAR_DATA_ROOT") && set("HANGAR_ENDPOINT_FILE")) {
+    if set("TESKAD_DEV_USE_REAL_DATA") || (set("TESKAD_DATA_ROOT") && set("TESKAD_ENDPOINT_FILE")) {
         return Ok(());
     }
     let app = hangar_i18n::APP_NAME;
@@ -112,7 +118,7 @@ fn dev_guard() -> Result<(), String> {
         "This development build would use the installed {app}'s data \
          (state.json, the agents' endpoint file).\n\
          Run it with scripts/native-dev.sh, which keeps it under target/dev-home/, \
-         or set HANGAR_DATA_ROOT and HANGAR_ENDPOINT_FILE yourself \
-         (HANGAR_DEV_USE_REAL_DATA=1 to use the real data on purpose)."
+         or set TESKAD_DATA_ROOT and TESKAD_ENDPOINT_FILE yourself \
+         (TESKAD_DEV_USE_REAL_DATA=1 to use the real data on purpose)."
     ))
 }

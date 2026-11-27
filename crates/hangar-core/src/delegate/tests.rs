@@ -1601,7 +1601,7 @@ fi
 printf '%s\n' "$@" > "$here/args"
 pwd > "$here/cwd"
 echo $$ > "$here/pid"
-printf '%s\n' "${HANGAR_PANE_ID-unset}" > "$here/pane"
+printf '%s\n' "${TESKAD_PANE_ID-unset}" > "$here/pane"
 while IFS= read -r step <&3; do
   case "$step" in
     '<') IFS= read -r line; printf '%s\n' "$line" >> "$here/told" ;;

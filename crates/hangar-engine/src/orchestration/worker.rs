@@ -60,7 +60,7 @@ use crate::state::types::{
     WsId,
 };
 
-/// How many ports a worker gets: `HANGAR_PORT_COUNT` (pty.rs).
+/// How many ports a worker gets: `TESKAD_PORT_COUNT` (pty.rs).
 pub const PORT_COUNT: u32 = 20;
 /// The pool every workspace's workers share: below the range each system
 /// hands out for outgoing connections (Linux from 32768, Windows and macOS
@@ -617,7 +617,7 @@ pub fn worker_brief(facts: &BriefFacts<'_>) -> String {
             )
         }),
         Some(format!(
-            "- Your ports: HANGAR_PORT_BASE to HANGAR_PORT_BASE+19 ({} to {}; HANGAR_PORT_BASE and HANGAR_PORT_COUNT are set in your shell). Bind every server, test server and debugger you start to these: other agents run beside you.",
+            "- Your ports: TESKAD_PORT_BASE to TESKAD_PORT_BASE+19 ({} to {}; TESKAD_PORT_BASE and TESKAD_PORT_COUNT are set in your shell). Bind every server, test server and debugger you start to these: other agents run beside you.",
             facts.port_base,
             facts.port_base + PORT_COUNT - 1
         )),

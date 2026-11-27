@@ -1,7 +1,7 @@
 /**
- * A plan window's usage, as the hangar-bridge mod reports it from inside a
+ * A plan window's usage, as the teskad-bridge mod reports it from inside a
  * pane's Claude Code (crates/hangar-core/src/bridge.rs and
- * crates/hangar-core/claude-mod/hangar-bridge), and as remote_stats passes it
+ * crates/hangar-core/claude-mod/teskad-bridge), and as remote_stats passes it
  * on to the phone.
  *
  * The desktop's src/lib/bridge.ts also held the bridge's events and the

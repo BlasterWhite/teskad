@@ -32,11 +32,13 @@ import tempfile
 import time
 
 CLEANED = [
-    "HANGAR_DATA_ROOT", "HANGAR_ENDPOINT_FILE", "HANGAR_PANE_ID", "HANGAR_PANE_NAME",
-    "HANGAR_BRIDGE_URL", "HANGAR_BRIDGE_TOKEN", "HANGAR_PORT_BASE", "HANGAR_PORT_COUNT",
-    "HANGAR_WORKSPACE", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CONFIG_HOME",
+    "TESKAD_DATA_ROOT", "TESKAD_ENDPOINT_FILE", "TESKAD_PANE_ID", "TESKAD_PANE_NAME",
+    "TESKAD_BRIDGE_URL", "TESKAD_BRIDGE_TOKEN", "TESKAD_PORT_BASE", "TESKAD_PORT_COUNT",
+    "TESKAD_WORKSPACE", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CONFIG_HOME",
     "XDG_CACHE_HOME", "CLAUDE_CONFIG_DIR",
 ]
+# The names the variables had before the rename are cleaned as well.
+CLEANED += [name.replace("TESKAD_", "HANGAR_") for name in CLEANED if name.startswith("TESKAD_")]
 TICKS = os.sysconf("SC_CLK_TCK")
 
 
@@ -170,7 +172,7 @@ def scenario_start(binary):
         fake = os.path.join(home, "fake-claude")
         marker["file"] = os.path.join(home, "started.txt")
         with open(fake, "w") as out:
-            out.write(f"#!/bin/sh\necho \"$HANGAR_PANE_ID\" >> '{marker['file']}'\nexec sleep 100000\n")
+            out.write(f"#!/bin/sh\necho \"$TESKAD_PANE_ID\" >> '{marker['file']}'\nexec sleep 100000\n")
         os.chmod(fake, 0o755)
         return state_of(home, workspaces, panes, "claude", command=fake)
 

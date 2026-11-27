@@ -158,13 +158,13 @@ mod tests {
     /// The real thing, skipped unless pointed at a checkpoint and a 16 kHz mono
     /// WAV — neither of which belongs in a repository or in CI.
     ///
-    ///   HANGAR_TEST_MODEL=…/ggml-small-q5_1.bin \
-    ///   HANGAR_TEST_WAV=…/jfk.wav cargo test -- --nocapture transcribes
+    ///   TESKAD_TEST_MODEL=…/ggml-small-q5_1.bin \
+    ///   TESKAD_TEST_WAV=…/jfk.wav cargo test -- --nocapture transcribes
     #[test]
     fn transcribes_real_audio() {
         let (Ok(model), Ok(wav)) = (
-            std::env::var("HANGAR_TEST_MODEL"),
-            std::env::var("HANGAR_TEST_WAV"),
+            crate::env::var("TESKAD_TEST_MODEL"),
+            crate::env::var("TESKAD_TEST_WAV"),
         ) else {
             return;
         };

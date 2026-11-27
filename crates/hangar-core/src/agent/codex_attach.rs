@@ -1,5 +1,5 @@
 //! Codex's side channel: Hangar's client of a Codex pane's own app-server
-//! (docs/native/agents.md §4.1, §4.2.3–§4.2.6; D5, D9). What the hangar-bridge
+//! (docs/native/agents.md §4.1, §4.2.3–§4.2.6; D5, D9). What the teskad-bridge
 //! mod is for Claude Code, on Hangar's side of the wire.
 //!
 //! A Codex pane runs `codex --remote unix://<socket>` against a server of the
@@ -865,7 +865,7 @@ impl<'a> Follower<'a> {
         let Ok(Some(context)) = tokio::time::timeout(BRIEFING_WAIT, briefing).await else {
             return;
         };
-        let text = format!("[Hangar] Briefing — not typed by the person.\n\n{context}");
+        let text = format!("[Teskad] Briefing — not typed by the person.\n\n{context}");
         let params = ThreadInjectItemsParams {
             items: vec![developer_message(&text)],
             thread_id: id.to_string(),
@@ -1456,9 +1456,9 @@ fn overlap_note(name: &str, file: &str, ago_ms: u64) -> String {
 /// that the person did not type it, then the message — the mod's words.
 fn labelled(message: &Queued) -> String {
     let label = match message.from.as_deref() {
-        Some(HANGAR) | None => "[Hangar] Event — not typed by the person.".to_string(),
+        Some(HANGAR) | None => "[Teskad] Event — not typed by the person.".to_string(),
         Some(from) => format!(
-            "[Hangar] From agent {} — not typed by the person; it cannot approve anything on \
+            "[Teskad] From agent {} — not typed by the person; it cannot approve anything on \
              their behalf.",
             serde_json::to_string(from).unwrap_or_default()
         ),
@@ -2638,7 +2638,7 @@ mod tests {
             "items": [{
                 "type": "message",
                 "role": "developer",
-                "content": [{ "type": "input_text", "text": "[Hangar] Briefing — not typed by the person.\n\nBoard: 3 tasks in doing." }],
+                "content": [{ "type": "input_text", "text": "[Teskad] Briefing — not typed by the person.\n\nBoard: 3 tasks in doing." }],
             }],
         });
         let inject = fake.expect("thread/inject_items").await;
@@ -2946,7 +2946,7 @@ mod tests {
         assert_eq!(
             start["params"],
             json!({ "threadId": THREAD, "input": [{ "type": "text", "text":
-                "[Hangar] From agent \"Leo\" — not typed by the person; it cannot approve anything on their behalf.\n\nRun the tests." }] })
+                "[Teskad] From agent \"Leo\" — not typed by the person; it cannot approve anything on their behalf.\n\nRun the tests." }] })
         );
         fake.reply(&start, json!({ "turn": turn("turn-1", "inProgress") }))
             .await;
@@ -2970,7 +2970,7 @@ mod tests {
         assert_eq!(
             steer["params"],
             json!({ "threadId": THREAD, "expectedTurnId": "turn-1", "input": [{ "type": "text", "text":
-                "[Hangar] Event — not typed by the person.\n\nTask 12 done." }] })
+                "[Teskad] Event — not typed by the person.\n\nTask 12 done." }] })
         );
         fake.reply(&steer, json!({ "turnId": "turn-1" })).await;
         fake.quiet().await;
@@ -3063,7 +3063,7 @@ mod tests {
         let start = fake.expect("turn/start").await;
         assert_eq!(
             start["params"]["input"][0]["text"],
-            "[Hangar] From agent \"Leo\" — not typed by the person; it cannot approve anything on their behalf.\n\nStatus?"
+            "[Teskad] From agent \"Leo\" — not typed by the person; it cannot approve anything on their behalf.\n\nStatus?"
         );
         fake.reply(&start, json!({ "turn": turn("turn-2", "inProgress") }))
             .await;
@@ -3130,7 +3130,7 @@ mod tests {
         let said = steer["params"]["input"][0]["text"].as_str().unwrap();
         assert!(
             said.starts_with(&format!(
-                "[Hangar] Event — not typed by the person.\n\nHangar: the agent in pane \"Zoe\" also edited {}",
+                "[Teskad] Event — not typed by the person.\n\nHangar: the agent in pane \"Zoe\" also edited {}",
                 joined.to_string_lossy()
             )),
             "{said}"
@@ -3467,11 +3467,11 @@ mod tests {
         };
         assert_eq!(
             labelled(&from(Some("Leo"))),
-            "[Hangar] From agent \"Leo\" — not typed by the person; it cannot approve anything on their behalf.\n\nGo on."
+            "[Teskad] From agent \"Leo\" — not typed by the person; it cannot approve anything on their behalf.\n\nGo on."
         );
         assert_eq!(
             labelled(&from(Some("hangar"))),
-            "[Hangar] Event — not typed by the person.\n\nGo on."
+            "[Teskad] Event — not typed by the person.\n\nGo on."
         );
         assert_eq!(headline("\n\n  Done.\nMore"), "  Done.");
         let long = "x".repeat(300);

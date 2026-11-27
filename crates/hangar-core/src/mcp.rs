@@ -23,8 +23,8 @@ const MAX_RESPONSE_BYTES: u64 = 64 * 1024 * 1024;
 /// First of `names` that is set and not empty.
 ///
 /// The list exists for the rename: configs written before it still export the
-/// `IABENCH_*` variables and still launch this binary, so the old names have to
-/// keep working. Only the new name is ever written.
+/// `IABENCH_*` or `HANGAR_*` variables and still launch this binary, so the old
+/// names have to keep working (read after the new one). Only the new name is ever written.
 fn env_var(names: &[&str]) -> Option<String> {
     names
         .iter()
@@ -34,7 +34,7 @@ fn env_var(names: &[&str]) -> Option<String> {
 /// Workspace the caller is acting on: an explicit override, else the working
 /// directory the agent was launched in — which is the workspace root.
 fn workspace_cwd() -> String {
-    env_var(&["HANGAR_WORKSPACE", "IABENCH_WORKSPACE"])
+    env_var(&["TESKAD_WORKSPACE", "HANGAR_WORKSPACE", "IABENCH_WORKSPACE"])
         .or_else(|| {
             std::env::current_dir()
                 .ok()
@@ -47,8 +47,14 @@ fn workspace_cwd() -> String {
 /// before the generic fallback: it is what the board's assignee chip can lead
 /// back to a pane with, and what pane_list calls that agent.
 fn agent_name() -> String {
-    env_var(&["HANGAR_AGENT", "IABENCH_AGENT", "HANGAR_PANE_NAME"])
-        .unwrap_or_else(|| "agent".to_string())
+    env_var(&[
+        "TESKAD_AGENT",
+        "HANGAR_AGENT",
+        "IABENCH_AGENT",
+        "TESKAD_PANE_NAME",
+        "HANGAR_PANE_NAME",
+    ])
+    .unwrap_or_else(|| "agent".to_string())
 }
 
 struct Api {
@@ -62,7 +68,7 @@ struct Api {
 }
 
 /// Set by the desktop in the shell of a worker it sends to a node.
-pub const BOARD_RELAY: &str = "HANGAR_BOARD_RELAY";
+pub const BOARD_RELAY: &str = "TESKAD_BOARD_RELAY";
 
 /// The control operation a relayed board call travels as.
 pub const BOARD_RELAY_OP: &str = "board_relay";
@@ -90,8 +96,8 @@ fn relay_body(method: &str, path: &str, body: Option<Value>) -> Value {
 /// whatever a body says; endpoint.json is for an agent Hangar did not start.
 fn pane_endpoint(var: impl Fn(&str) -> Option<String>) -> Option<(String, String)> {
     [
-        ("HANGAR_BRIDGE_URL", "HANGAR_BRIDGE_TOKEN"),
-        ("HANGAR_API_URL", "HANGAR_API_TOKEN"),
+        ("TESKAD_BRIDGE_URL", "TESKAD_BRIDGE_TOKEN"),
+        ("TESKAD_API_URL", "TESKAD_API_TOKEN"),
     ]
     .into_iter()
     .find_map(|(url, token)| Some((var(url)?, var(token)?)))
@@ -995,7 +1001,7 @@ fn manager_tool_definitions() -> Value {
 /// A relative `path` argument, made absolute against `base`.
 ///
 /// The window would resolve it against `caller.cwd`, and that is the
-/// workspace root whenever the MCP config pins `HANGAR_WORKSPACE` — not the
+/// workspace root whenever the MCP config pins `TESKAD_WORKSPACE` — not the
 /// worktree or subfolder the agent is working in. This process was started in
 /// the agent's own folder, so resolving here is what "relative to your working
 /// directory" means. A path with a root is left alone, `/c/Users/…` from Git
@@ -1331,7 +1337,7 @@ fn call_tool(api: &Api, name: &str, args: &Value) -> Result<Value, String> {
                 "path": str_arg("path").ok_or("missing 'path'")?,
                 // The pane is not the model's to state: it comes from the
                 // environment Hangar gave this process.
-                "paneName": env_var(&["HANGAR_PANE_NAME"]).unwrap_or_default(),
+                "paneName": env_var(&["TESKAD_PANE_NAME"]).unwrap_or_default(),
             });
             if let Some(caption) = opt_arg("caption") {
                 body["caption"] = json!(caption);
@@ -1350,8 +1356,8 @@ fn call_tool(api: &Api, name: &str, args: &Value) -> Result<Value, String> {
             // Who is asking, so "my workspace" and "you" mean something. Read
             // from the pane's environment, which the model cannot dress up.
             body["caller"] = json!({
-                "paneId": env_var(&["HANGAR_PANE_ID"]),
-                "paneName": env_var(&["HANGAR_PANE_NAME"]),
+                "paneId": env_var(&["TESKAD_PANE_ID"]),
+                "paneName": env_var(&["TESKAD_PANE_NAME"]),
                 "cwd": workspace_cwd(),
             });
             if names_a_file(op) {
@@ -1387,7 +1393,7 @@ fn handle(request: &Value) -> Option<Value> {
             json!({
                 "protocolVersion": PROTOCOL_VERSION,
                 "capabilities": { "tools": {} },
-                "serverInfo": { "name": "hangar-ai-board", "version": env!("CARGO_PKG_VERSION") }
+                "serverInfo": { "name": "teskad-board", "version": env!("CARGO_PKG_VERSION") }
             }),
         ),
         "tools/list" => respond(id, json!({ "tools": tool_definitions() })),
@@ -1462,10 +1468,10 @@ mod tests {
             }
         };
         const BOTH: [(&str, &str); 4] = [
-            ("HANGAR_BRIDGE_URL", "http://127.0.0.1:1"),
-            ("HANGAR_BRIDGE_TOKEN", "pane"),
-            ("HANGAR_API_URL", "http://127.0.0.1:2"),
-            ("HANGAR_API_TOKEN", "kit"),
+            ("TESKAD_BRIDGE_URL", "http://127.0.0.1:1"),
+            ("TESKAD_BRIDGE_TOKEN", "pane"),
+            ("TESKAD_API_URL", "http://127.0.0.1:2"),
+            ("TESKAD_API_TOKEN", "kit"),
         ];
         assert_eq!(
             pane_endpoint(env(&BOTH)),
@@ -1475,7 +1481,7 @@ mod tests {
             pane_endpoint(env(&BOTH[1..])),
             Some(("http://127.0.0.1:2".into(), "kit".into()))
         );
-        assert_eq!(pane_endpoint(env(&[("HANGAR_BRIDGE_TOKEN", "pane")])), None);
+        assert_eq!(pane_endpoint(env(&[("TESKAD_BRIDGE_TOKEN", "pane")])), None);
     }
 
     /// The model pays for every character of a result: no indentation.

@@ -10,7 +10,7 @@
 //! [`server`] are the one place that picks the file by kind.
 //!
 //! What a pane gets whatever runs in it stays with the PTY (`pty.rs`): its
-//! identity and API token, the hangar-bridge mod and the kits' plugin
+//! identity and API token, the teskad-bridge mod and the kits' plugin
 //! folders, its ports, the build cache. The engine's panes, and the desktop's
 //! Claude Code panes through `hangar-engine/src/panes/agents.rs`, type the
 //! line [`build`] answers (task T14a); the tests of `claude.rs` hold it to the
@@ -26,7 +26,7 @@ use crate::shells::ShellInfo;
 /// The variable a pane's shell holds its MCP config file's path in: the line
 /// typed names the variable instead of the path, which lies in Hangar's data
 /// folder, so holds the person's name, and would stay on screen.
-pub const MCP_CONFIG_VAR: &str = "HANGAR_MCP_CONFIG";
+pub const MCP_CONFIG_VAR: &str = "TESKAD_MCP_CONFIG";
 
 /// What a pane asks of its agent's launch, whatever the agent.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -533,7 +533,7 @@ mod tests {
             posix.quote("$HOME `x` \"y\" \\z !1 %P%"),
             Some("'$HOME `x` \"y\" \\z !1 %P%'".into())
         );
-        assert_eq!(posix.variable("HANGAR_X"), "\"$HANGAR_X\"");
+        assert_eq!(posix.variable("TESKAD_X"), "\"$TESKAD_X\"");
         assert!(posix.carries("x=\"a\nb\"\\"));
     }
 
@@ -544,7 +544,7 @@ mod tests {
         assert_eq!(fish.quote("it's"), Some("'it\\'s'".into()));
         assert_eq!(fish.quote("C:\\x\\\\y"), Some("'C:\\\\x\\\\\\\\y'".into()));
         assert_eq!(fish.quote("$HOME \"y\""), Some("'$HOME \"y\"'".into()));
-        assert_eq!(fish.variable("HANGAR_X"), "\"$HANGAR_X\"");
+        assert_eq!(fish.variable("TESKAD_X"), "\"$TESKAD_X\"");
         assert!(fish.carries("x=\"a\nb\"\\"));
     }
 
@@ -563,7 +563,7 @@ mod tests {
         );
         assert_eq!(pwsh.quote("a \"b\""), None);
         assert_eq!(pwsh.quote("C:\\dir\\"), None);
-        assert_eq!(pwsh.variable("HANGAR_X"), "$env:HANGAR_X");
+        assert_eq!(pwsh.variable("TESKAD_X"), "$env:TESKAD_X");
         assert!(pwsh.carries("x='C:\\a b'"));
         assert!(!pwsh.carries("x=\"a\""));
         assert!(!pwsh.carries("x='a\nb'"));
@@ -580,7 +580,7 @@ mod tests {
         assert_eq!(cmd.quote("a \"b\""), None);
         assert_eq!(cmd.quote("100%"), None);
         assert_eq!(cmd.quote("C:\\dir\\"), None);
-        assert_eq!(cmd.variable("HANGAR_X"), "\"%HANGAR_X%\"");
+        assert_eq!(cmd.variable("TESKAD_X"), "\"%TESKAD_X%\"");
         // Expanded once: a `%` in the value stays as it is.
         assert!(cmd.carries("x='C:\\100%'"));
         assert!(!cmd.carries("x=\"a\""));
@@ -644,7 +644,7 @@ mod tests {
         assert_eq!(mcp_env(&request), (MCP_CONFIG_VAR.to_string(), None));
         request.mcp = Some(McpRequest {
             file: "/data/mcp/ws-1.json".into(),
-            arg: "\"$HANGAR_MCP_CONFIG\"".into(),
+            arg: "\"$TESKAD_MCP_CONFIG\"".into(),
             strict: true,
         });
         assert_eq!(

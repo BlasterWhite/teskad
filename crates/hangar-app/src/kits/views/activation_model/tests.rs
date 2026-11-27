@@ -92,7 +92,7 @@ fn default_hooks() -> Vec<Hook> {
         hook(
             "PostToolUse",
             "Write|Edit",
-            "echo \"edited\" >> \"$HANGAR_KITS_DATA/hello-kit/log\"",
+            "echo \"edited\" >> \"$TESKAD_KITS_DATA/hello-kit/log\"",
         ),
         hook("SessionStart", "", "node ${CLAUDE_PLUGIN_ROOT}/start.js"),
     ]
@@ -132,7 +132,7 @@ fn shows_the_hooks_verbatim_and_says_they_run_by_themselves() {
     assert!(out.contains("PostToolUse · Write|Edit"));
     assert!(out.contains("SessionStart"));
     // The text is the command, whole.
-    assert!(out.contains("echo \"edited\" >> \"$HANGAR_KITS_DATA/hello-kit/log\""));
+    assert!(out.contains("echo \"edited\" >> \"$TESKAD_KITS_DATA/hello-kit/log\""));
     assert!(out.contains("node ${CLAUDE_PLUGIN_ROOT}/start.js"));
     assert_eq!(model.commands_shown().len(), 2);
 }

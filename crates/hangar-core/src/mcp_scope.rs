@@ -58,7 +58,9 @@ use serde_json::{json, Map, Value};
 
 use crate::agent::AgentKind;
 use crate::host::Host;
-use crate::install::{server_entry, LEGACY_SERVER_KEYS, SERVER_KEY};
+use crate::install::{
+    names_teskad, server_entry, LEGACY_SERVER_KEYS, SERVER_KEY, UPSTREAM_SERVER_KEY,
+};
 use crate::store::{landing, put_in_place, write_atomic, write_temp, Access};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -527,6 +529,13 @@ fn is_hangar(name: &str) -> bool {
     name == SERVER_KEY || LEGACY_SERVER_KEYS.contains(&name)
 }
 
+/// [`is_hangar`] for a server whose definition is at hand: one under the
+/// upstream's name (`hangar`) that starts Teskad is ours as well, while the
+/// official app's own entry is an ordinary server.
+fn is_ours(name: &str, definition: &Value) -> bool {
+    is_hangar(name) || (name == UPSTREAM_SERVER_KEY && names_teskad(definition))
+}
+
 /// Everything a Claude Code session started in `cwd` would be configured
 /// with, one entry per name, in name order.
 fn resolve(files: &ClaudeFiles, cwd: &Path) -> (Vec<Resolved>, Vec<String>) {
@@ -636,7 +645,7 @@ fn resolve(files: &ClaudeFiles, cwd: &Path) -> (Vec<Resolved>, Vec<String>) {
                 transport,
                 summary: summary(definition, transport),
                 status,
-                hangar: is_hangar(name),
+                hangar: is_ours(name, definition),
                 source,
             },
             definition: definition.clone(),
@@ -663,10 +672,17 @@ fn scoped_config(resolved: &[Resolved], enabled: &[String], hangar: Value) -> Sc
     for name in enabled {
         // Hangar's entry is the running app's, whatever the files say: an
         // old one points at a binary from before an update or a rename.
-        if is_hangar(name) || servers.contains_key(name) {
+        let found = resolved.iter().find(|entry| &entry.info.name == name);
+        if is_hangar(name)
+            || found.is_some_and(|entry| is_ours(name, &entry.definition))
+            || servers.contains_key(name)
+            // A choice made when ours was still called `hangar`, whose entry
+            // has moved to `teskad` (install.rs): not a server gone missing.
+            || (name == UPSTREAM_SERVER_KEY && found.is_none())
+        {
             continue;
         }
-        match resolved.iter().find(|entry| &entry.info.name == name) {
+        match found {
             Some(entry) => {
                 servers.insert(name.clone(), entry.definition.clone());
             }
@@ -1780,12 +1796,44 @@ mod tests {
 
     #[test]
     fn hangar_is_recognised_under_every_name() {
-        let m = Machine::new("hangar");
+        let m = Machine::new("teskad");
         let repo = m.dir("repo");
         m.config(json!({ "iabench": stdio("old"), "other": stdio("o") }), &[]);
         let found = m.discover(&repo);
         assert!(find(&found, "iabench").hangar);
         assert!(!find(&found, "other").hangar);
+    }
+
+    /// The upstream's name is ours only for an entry that runs Teskad: the
+    /// official app's own `hangar` is an ordinary server, passed on when chosen,
+    /// and a choice made before the rename is not reported missing.
+    #[test]
+    fn a_server_named_hangar_is_ours_only_when_it_runs_teskad() {
+        let m = Machine::new("upstream");
+        let repo = m.dir("repo");
+        m.config(json!({ "hangar": stdio("/opt/hangar/hangar-ai") }), &[]);
+        let (resolved, _) = resolve(&m.files, &repo);
+        assert!(!find(&m.discover(&repo), "hangar").hangar);
+        let ours = json!({ "command": "/new/teskad", "args": ["--mcp"] });
+        let config = scoped_config(&resolved, &["hangar".into()], ours.clone());
+        assert_eq!(
+            config.names,
+            vec!["hangar".to_string(), "teskad".to_string()]
+        );
+        assert!(config.missing.is_empty());
+
+        m.config(json!({ "hangar": stdio("/home/a/.local/bin/teskad") }), &[]);
+        let (resolved, _) = resolve(&m.files, &repo);
+        assert!(find(&m.discover(&repo), "hangar").hangar);
+        let config = scoped_config(&resolved, &["hangar".into()], ours.clone());
+        assert_eq!(config.names, vec!["teskad".to_string()]);
+
+        // Gone from the files (moved to `teskad`): neither passed on nor missing.
+        m.config(json!({ "teskad": stdio("/home/a/.local/bin/teskad") }), &[]);
+        let (resolved, _) = resolve(&m.files, &repo);
+        let config = scoped_config(&resolved, &["hangar".into()], ours);
+        assert_eq!(config.names, vec!["teskad".to_string()]);
+        assert!(config.missing.is_empty());
     }
 
     /// Only what was chosen goes in, with its whole entry — env included, or
@@ -1799,7 +1847,7 @@ mod tests {
             json!({
                 "roblox": roblox,
                 "atlassian": stdio("uvx"),
-                "hangar": stdio("C:/old/hangar.exe")
+                "teskad": stdio("C:/old/hangar.exe")
             }),
             &[],
         );
@@ -1808,7 +1856,7 @@ mod tests {
 
         let config = scoped_config(
             &resolved,
-            &["roblox".into(), "hangar".into(), "gone".into()],
+            &["roblox".into(), "teskad".into(), "gone".into()],
             ours.clone(),
         );
 
@@ -1816,14 +1864,14 @@ mod tests {
         assert_eq!(servers.len(), 2);
         assert_eq!(servers["roblox"], roblox);
         assert_eq!(
-            servers["hangar"], ours,
+            servers["teskad"], ours,
             "Hangar's entry is the running app's"
         );
         assert!(servers.get("atlassian").is_none());
         assert_eq!(config.missing, vec!["gone".to_string()]);
         assert_eq!(
             config.names,
-            vec!["hangar".to_string(), "roblox".to_string()]
+            vec!["roblox".to_string(), "teskad".to_string()]
         );
     }
 
@@ -1836,16 +1884,16 @@ mod tests {
             &mut config,
             vec![
                 ("plugin:studio:studio".into(), studio.clone()),
-                ("hangar".into(), json!({ "command": "impostor" })),
+                ("teskad".into(), json!({ "command": "impostor" })),
             ],
         );
         assert_eq!(added, vec!["plugin:studio:studio".to_string()]);
         let servers = config.body["mcpServers"].as_object().unwrap();
         assert_eq!(servers["plugin:studio:studio"], studio);
-        assert_eq!(servers["hangar"], json!({ "command": "h" }));
+        assert_eq!(servers["teskad"], json!({ "command": "h" }));
         assert_eq!(
             config.names,
-            vec!["hangar".to_string()],
+            vec!["teskad".to_string()],
             "the choice as it was"
         );
     }
@@ -1853,7 +1901,7 @@ mod tests {
     #[test]
     fn nothing_chosen_still_keeps_hangar() {
         let config = scoped_config(&[], &[], json!({ "command": "h" }));
-        assert_eq!(config.names, vec!["hangar".to_string()]);
+        assert_eq!(config.names, vec!["teskad".to_string()]);
     }
 
     #[test]
@@ -2008,7 +2056,7 @@ mod tests {
     "auth_status": "unsupported"
   },
   {
-    "name": "hangar",
+    "name": "teskad",
     "enabled": true,
     "disabled_reason": null,
     "transport": { "type": "stdio", "command": "/opt/hangar/hangar-ai", "args": ["--mcp"], "env": null, "env_vars": [], "cwd": null },
@@ -2061,7 +2109,7 @@ mod tests {
     fn codex_s_list_is_read_by_name_state_and_transport() {
         let servers = listed();
         let names: Vec<&str> = servers.iter().map(|s| s.name.as_str()).collect();
-        assert_eq!(names, ["github", "hangar", "iabench", "linear", "notes"]);
+        assert_eq!(names, ["github", "teskad", "iabench", "linear", "notes"]);
         assert!(servers[0].enabled && !servers[4].enabled);
         assert_eq!(servers[3].transport["type"], "streamable_http");
         assert!(parse_codex_list("\u{feff}[]\n").unwrap().is_empty());
@@ -2120,7 +2168,7 @@ mod tests {
     /// own name is the launch's.
     #[test]
     fn custom_mode_turns_off_what_was_not_chosen() {
-        let enabled: Vec<String> = ["linear", "notes", "gone", "hangar", "iabench"]
+        let enabled: Vec<String> = ["linear", "notes", "gone", "teskad", "iabench"]
             .map(String::from)
             .to_vec();
         let kit_github = ("github".to_string(), json!({ "command": "kit-github" }));
@@ -2150,7 +2198,7 @@ mod tests {
                 ),
             ]
         );
-        assert!(!scope.overrides.iter().any(|(name, _)| name == "hangar"));
+        assert!(!scope.overrides.iter().any(|(name, _)| name == "teskad"));
         let sent = serde_json::to_value(&scope).unwrap();
         assert!(sent.get("overrides").is_none(), "{sent}");
         assert_eq!(sent["kitServers"], json!(["studio_studio"]));
@@ -2181,7 +2229,7 @@ mod tests {
         let scope = codex_scope(
             None,
             None,
-            vec![studio(), ("hangar".into(), json!({ "command": "x" }))],
+            vec![studio(), ("teskad".into(), json!({ "command": "x" }))],
         );
         assert_eq!(scope.overrides, vec![studio()]);
         assert_eq!(scope.kit_servers, ["studio_studio"]);
@@ -2250,7 +2298,7 @@ mod tests {
                 "headers": {
                     "Authorization": "Bearer ${EXAMPLE_TOKEN}",
                     "X-Team": "${EXAMPLE_TEAM}",
-                    "X-Client": "hangar"
+                    "X-Client": "teskad"
                 },
                 "oauth": { "clientId": "abc" }
             }),
@@ -2261,7 +2309,7 @@ mod tests {
             entry,
             json!({
                 "url": "https://mcp.example.com/mcp",
-                "http_headers": { "X-Client": "hangar" },
+                "http_headers": { "X-Client": "teskad" },
                 "env_http_headers": { "X-Team": "EXAMPLE_TEAM" },
                 "bearer_token_env_var": "EXAMPLE_TOKEN",
             })

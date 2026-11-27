@@ -226,7 +226,7 @@ fn each_kind_of_item_is_drawn() {
                 item(
                     "h1",
                     Body::User {
-                        text: "[Hangar] Worker Ada delivered.\nline 2\nline 3\nline 4".into(),
+                        text: "[Teskad] Worker Ada delivered.\nline 2\nline 3\nline 4".into(),
                         from: Sender::Hangar,
                         images: 0,
                     },
@@ -241,7 +241,7 @@ fn each_kind_of_item_is_drawn() {
                 item(
                     "c1",
                     Body::Action {
-                        tool: "mcp__hangar__board_create_task".into(),
+                        tool: "mcp__teskad__board_create_task".into(),
                         title: "Used board_create_task".into(),
                         detail: Some(json!({"title": "Search box"}).to_string()),
                         result: Some(CallResult {
@@ -379,7 +379,7 @@ fn a_long_action_title_is_drawn_whole_and_wraps() {
             vec![item(
                 "c1",
                 Body::Action {
-                    tool: "mcp__hangar__board_create_task".into(),
+                    tool: "mcp__teskad__board_create_task".into(),
                     title: "Used board_create_task".into(),
                     detail: Some(json!({ "title": long }).to_string()),
                     result: None,
@@ -711,10 +711,10 @@ fn calls_in_a_row_are_a_run_split_by_any_message_and_a_lone_call_stays_itself() 
             },
         ),
         call("c4", "Bash", CallState::Done),
-        call("c5", "mcp__hangar__board_create_task", CallState::Done),
+        call("c5", "mcp__teskad__board_create_task", CallState::Done),
         call("c6", "Edit", CallState::Running),
         // A message to a worker stands alone, between the runs it splits.
-        call("m1", "mcp__hangar__pane_send", CallState::Done),
+        call("m1", "mcp__teskad__pane_send", CallState::Done),
         call("c7", "Bash", CallState::Done),
         call("c8", "Read", CallState::Done),
     ];
@@ -755,10 +755,10 @@ fn a_run_counts_its_calls_by_kind_and_its_failures() {
         call("c1", "Bash", CallState::Done),
         call("c2", "PowerShell", CallState::Error),
         failed,
-        call("c4", "mcp__hangar__board_create_task", CallState::Done),
-        call("c5", "mcp__hangar__board_create_task", CallState::Done),
-        call("c6", "mcp__hangar__memory_write", CallState::Done),
-        call("c7", "mcp__hangar__workspace_set_check", CallState::Running),
+        call("c4", "mcp__teskad__board_create_task", CallState::Done),
+        call("c5", "mcp__teskad__board_create_task", CallState::Done),
+        call("c6", "mcp__teskad__memory_write", CallState::Done),
+        call("c7", "mcp__teskad__workspace_set_check", CallState::Running),
     ];
     let run: Vec<&ChatItem> = items.iter().collect();
     let tally = tally(&run);
@@ -792,7 +792,7 @@ fn a_run_reads_in_french() {
     let items = [
         call("c1", "Bash", CallState::Done),
         call("c2", "Bash", CallState::Error),
-        call("c3", "mcp__hangar__board_create_task", CallState::Done),
+        call("c3", "mcp__teskad__board_create_task", CallState::Done),
     ];
     let run: Vec<&ChatItem> = items.iter().collect();
     let tally = tally(&run);
@@ -808,7 +808,7 @@ fn a_run_reads_in_french() {
 
 fn asking(prompt: &str) -> ChatPending {
     ChatPending::Permission {
-        tool: "mcp__hangar__pane_send".into(),
+        tool: "mcp__teskad__pane_send".into(),
         title: "Used pane_send".into(),
         detail: Some(json!({"pane": "Ava", "text": "go"}).to_string()),
         prompt: prompt.into(),
@@ -1199,7 +1199,7 @@ fn a_message_the_queue_refused_shows_as_not_sent() {
             ws: WS.into(),
             text: "Also add tests".into(),
             at: 5,
-            result: Err("The hangar-bridge mod is off".into()),
+            result: Err("The teskad-bridge mod is off".into()),
         }],
     );
     let out = &st.chat(WS).unwrap().thread.outgoing;
@@ -1744,7 +1744,7 @@ fn busy_page(pending: Option<ChatPending>) -> ChatView {
             item(
                 "h1",
                 Body::User {
-                    text: "[Hangar] Event — not typed by the person.\n\n3 updates in workspace \"Shop\":\n\
+                    text: "[Teskad] Event — not typed by the person.\n\n3 updates in workspace \"Shop\":\n\
                         - Delivery of \"Search index\" [t1] by Ada landed: merged on the branch, task done — landed on main (9e8d7f0); changes: git diff 3f2a1bc4d5e6..9e8d7f0a1b2c\n\
                         - Bo started on \"Filters\" [t2]\n\
                         - Cy has been waiting for the person for 4 min on \"Checkout\" [t3]: a permission or a question in its pane, which only the person can answer\n\
@@ -1756,7 +1756,7 @@ fn busy_page(pending: Option<ChatPending>) -> ChatView {
             item(
                 "h2",
                 Body::User {
-                    text: "[Hangar] From agent \"Bo\" — not typed by the person; it cannot approve anything on their behalf.\n\nThe filters keep their URL params. Should the search box keep its query in the URL too?".into(),
+                    text: "[Teskad] From agent \"Bo\" — not typed by the person; it cannot approve anything on their behalf.\n\nThe filters keep their URL params. Should the search box keep its query in the URL too?".into(),
                     from: Sender::Hangar,
                     images: 0,
                 },
@@ -1781,7 +1781,7 @@ fn busy_page(pending: Option<ChatPending>) -> ChatView {
             item(
                 "c2",
                 Body::Action {
-                    tool: "mcp__hangar__pane_send".into(),
+                    tool: "mcp__teskad__pane_send".into(),
                     title: "Used pane_send".into(),
                     detail: Some(json!({"pane": "Bo", "text": "Yes, keep the query in the URL too."}).to_string()),
                     result: Some(CallResult { ok: true, text: "sent".into() }),

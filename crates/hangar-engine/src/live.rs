@@ -1,6 +1,6 @@
 //! What the engine keeps of each pane and agent beside the persisted state:
 //! activity, insight, the reports of each pane's side channel (the
-//! hangar-bridge mod in a Claude Code, Hangar's client of a Codex pane's
+//! teskad-bridge mod in a Claude Code, Hangar's client of a Codex pane's
 //! server), rate limits, and what each pane's agent can do now ([`live_caps`]).
 //! The app holds these in its read-models (`Model.live`); a Hangar with no
 //! window holds them alone.
@@ -45,7 +45,7 @@ pub type EpochMs = u64;
 pub struct PaneActivity {
     pub workspace_id: WsId,
     pub activity: AgentActivity,
-    /// The pane's side channel spoke — the hangar-bridge mod in its Claude
+    /// The pane's side channel spoke — the teskad-bridge mod in its Claude
     /// Code, or Hangar's client of its Codex server (`hello`, or any report
     /// since): the state is reported rather than guessed, and the pane takes
     /// what is queued for it without typing.
@@ -62,7 +62,7 @@ pub enum SideChannel {
     /// was not the engine's.
     #[default]
     Unknown,
-    /// Set up: the hangar-bridge mod within reach of its Claude Code, or
+    /// Set up: the teskad-bridge mod within reach of its Claude Code, or
     /// Hangar's client following the Codex pane's own server.
     Attached,
     /// None: Claude Code with the mod turned off, or Codex's plain TUI (the
@@ -332,7 +332,7 @@ pub struct PaneInsight {
 }
 
 /// What a pane's side channel reports (`BridgeEvent` of `lib/bridge.ts`):
-/// the hangar-bridge mod from inside a Claude Code, or Hangar's own client
+/// the teskad-bridge mod from inside a Claude Code, or Hangar's own client
 /// of a Codex pane's server (`agent/codex_attach.rs`), which reports the
 /// same kinds in the same shapes. Core hands it over as raw JSON
 /// (`CoreEvent::Bridge`); `BridgeEvent::parse` reads it.
@@ -525,7 +525,7 @@ mod tests {
         assert_eq!(codex.usage.limits, UsageSource::Transcript);
     }
 
-    /// The shapes of crates/hangar-core/claude-mod/hangar-bridge/hooks/
+    /// The shapes of crates/hangar-core/claude-mod/teskad-bridge/hooks/
     /// register.js, nulls and extra keys included: a report that fails to
     /// read is a report lost, a hello among them.
     #[test]

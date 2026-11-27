@@ -60,7 +60,7 @@ history when it reconnects.
    `ssh -o BatchMode=yes`: `uname -m` → picks the binary for the target;
    installs or updates `teskad-node` under `~/.local/share/teskad-node/bin`
    when the version differs (the binary comes from beside `hangar-ai`, or
-   `HANGAR_NODE_BINARY` for development); starts `teskad-node serve` detached
+   `TESKAD_NODE_BINARY` for development); starts `teskad-node serve` detached
    (a `systemd-run --user` unit when available, else `setsid nohup`); reads
    `node.json`; opens `ssh -N -L 127.0.0.1:<local>:127.0.0.1:<port>` and keeps
    it up. A node that is switched on (`enabled`, on unless set to `false`) is

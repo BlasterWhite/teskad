@@ -37,10 +37,10 @@ pub fn key_for(workspace_id: &str) -> String {
 }
 
 /// The workspace's build cache folder: short on purpose. Under
-/// `HANGAR_DATA_ROOT` when that is set (a run kept off the installed app's
+/// `TESKAD_DATA_ROOT` when that is set (a run kept off the installed app's
 /// files), in the system's local-data (Windows) or cache folder otherwise.
 pub fn dir_for(workspace_id: &str) -> PathBuf {
-    let base = match std::env::var_os("HANGAR_DATA_ROOT").filter(|value| !value.is_empty()) {
+    let base = match crate::env::var_os("TESKAD_DATA_ROOT").filter(|value| !value.is_empty()) {
         Some(root) => PathBuf::from(root),
         None => system_base(),
     };
@@ -86,7 +86,7 @@ pub fn env_for(workspace_root: &Path, workspace_id: &str, enabled: bool) -> Vec<
 /// reuse another branch's build of the same crate. The check runs in one
 /// folder of its own that no worker builds in, always on the same path.
 pub fn check_dir_for(workspace_id: &str) -> PathBuf {
-    let base = match std::env::var_os("HANGAR_DATA_ROOT").filter(|value| !value.is_empty()) {
+    let base = match crate::env::var_os("TESKAD_DATA_ROOT").filter(|value| !value.is_empty()) {
         Some(root) => PathBuf::from(root),
         None => system_base(),
     };

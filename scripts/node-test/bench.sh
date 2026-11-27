@@ -15,9 +15,9 @@
 #     --connect-only  only the connect measures
 #     --latency "MS…" the added latencies of the connect measures, each a run
 #                   of its own (default "0 20"; `tc netem` in the container)
-# Container, port and isolation: as e2e.sh (HANGAR_NODE_TEST_CONTAINER,
-# HANGAR_NODE_TEST_PORT, HANGAR_PORT_BASE). Results: printed, and
-# HANGAR_BENCH_OUT (a JSON file) when set.
+# Container, port and isolation: as e2e.sh (TESKAD_NODE_TEST_CONTAINER,
+# TESKAD_NODE_TEST_PORT, TESKAD_PORT_BASE). Results: printed, and
+# TESKAD_BENCH_OUT (a JSON file) when set.
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -50,28 +50,28 @@ while [ $# -gt 0 ]; do
 done
 
 # --- Isolation (as e2e.sh) ---------------------------------------------------
-port_base="${HANGAR_PORT_BASE:-}"
-port_count="${HANGAR_PORT_COUNT:-20}"
-rig_port="${HANGAR_NODE_TEST_PORT:-}"
-container="${HANGAR_NODE_TEST_CONTAINER:-teskad-node-bench-$$}"
-out_file="${HANGAR_BENCH_OUT:-}"
+port_base="${TESKAD_PORT_BASE:-${HANGAR_PORT_BASE:-}}"
+port_count="${TESKAD_PORT_COUNT:-${HANGAR_PORT_COUNT:-20}}"
+rig_port="${TESKAD_NODE_TEST_PORT:-${HANGAR_NODE_TEST_PORT:-}}"
+container="${TESKAD_NODE_TEST_CONTAINER:-${HANGAR_NODE_TEST_CONTAINER:-teskad-node-bench-$$}}"
+out_file="${TESKAD_BENCH_OUT:-${HANGAR_BENCH_OUT:-}}"
 for name in $(compgen -e); do
-  case "$name" in HANGAR_*) unset "$name" ;; esac
+  case "$name" in TESKAD_*|HANGAR_*) unset "$name" ;; esac
 done
 
 work="$(mktemp -d "${TMPDIR:-/tmp}/teskad-node-bench.XXXXXX")"
 work="$(cd "$work" && pwd -P)"
-export HANGAR_DATA_ROOT="$work/home"
-export HANGAR_ENDPOINT_FILE="$work/home/hangar/endpoint.json"
+export TESKAD_DATA_ROOT="$work/home"
+export TESKAD_ENDPOINT_FILE="$work/home/hangar/endpoint.json"
 # The app's SSH master sockets (nodes/connect.rs), in the run's folder.
-export HANGAR_NODES_SSH_DIR="$work/ssh"
+export TESKAD_NODES_SSH_DIR="$work/ssh"
 export XDG_DATA_HOME="$work/xdg/data" XDG_CACHE_HOME="$work/xdg/cache" XDG_STATE_HOME="$work/xdg/state"
-export HANGAR_NODE_TEST_CONTAINER="$container"
-export HANGAR_NODE_TEST_STATE_DIR="$work/rig"
-mkdir -p "$HANGAR_DATA_ROOT/data" "$HANGAR_DATA_ROOT/hangar" "$XDG_DATA_HOME" "$XDG_CACHE_HOME" "$XDG_STATE_HOME" "$work/local"
-case "$(realpath -m "$HANGAR_ENDPOINT_FILE")" in
+export TESKAD_NODE_TEST_CONTAINER="$container"
+export TESKAD_NODE_TEST_STATE_DIR="$work/rig"
+mkdir -p "$TESKAD_DATA_ROOT/data" "$TESKAD_DATA_ROOT/hangar" "$XDG_DATA_HOME" "$XDG_CACHE_HOME" "$XDG_STATE_HOME" "$work/local"
+case "$(realpath -m "$TESKAD_ENDPOINT_FILE")" in
   "$work"/*) ;;
-  *) echo "refusing to run: HANGAR_ENDPOINT_FILE ($HANGAR_ENDPOINT_FILE) is not under $work" >&2; rm -rf "$work"; exit 2 ;;
+  *) echo "refusing to run: TESKAD_ENDPOINT_FILE ($TESKAD_ENDPOINT_FILE) is not under $work" >&2; rm -rf "$work"; exit 2 ;;
 esac
 cd "$work" || exit 2
 
@@ -146,10 +146,10 @@ free_port() {
 }
 [ -n "$rig_port" ] || rig_port="$(free_port)" || die "no free port"
 say "rig: container $container on port $rig_port"
-HANGAR_NODE_TEST_NET_ADMIN=1 HANGAR_NODE_TEST_PORT="$rig_port" "$here/up.sh" > "$work/rig.log" 2>&1 || { cat "$work/rig.log"; die "the rig did not start"; }
+TESKAD_NODE_TEST_NET_ADMIN=1 TESKAD_NODE_TEST_PORT="$rig_port" "$here/up.sh" > "$work/rig.log" 2>&1 || { cat "$work/rig.log"; die "the rig did not start"; }
 
 git init -q -b main "$work/local" && git -C "$work/local" -c user.name=B -c user.email=b@b commit -q --allow-empty -m init
-cat > "$HANGAR_DATA_ROOT/data/state.json" <<JSON
+cat > "$TESKAD_DATA_ROOT/data/state.json" <<JSON
 {
   "activeWorkspaceId": "w-remote",
   "workspaces": [
@@ -169,14 +169,14 @@ JSON
 say "app: $app_bin"
 say "node: $node_bin"
 start_app() { # [log]: the isolated app, connecting its node as it starts
-  rm -f "$HANGAR_ENDPOINT_FILE"
-  HANGAR_NODE_BINARY="$node_bin" HANGAR_NODES_TIMING=1 \
+  rm -f "$TESKAD_ENDPOINT_FILE"
+  TESKAD_NODE_BINARY="$node_bin" TESKAD_NODES_TIMING=1 \
     setsid "$app_bin" >> "${1:-$work/app.log}" 2>&1 < /dev/null &
   app_pid=$!
 }
 start_app
-retry 90 test -s "$HANGAR_ENDPOINT_FILE" || { tail -n 20 "$work/app.log"; die "no endpoint after 90 s"; }
-ctl_args=(--root "$work" --endpoint "$HANGAR_ENDPOINT_FILE")
+retry 90 test -s "$TESKAD_ENDPOINT_FILE" || { tail -n 20 "$work/app.log"; die "no endpoint after 90 s"; }
+ctl_args=(--root "$work" --endpoint "$TESKAD_ENDPOINT_FILE")
 # The remote pane once its node is deployed, started and connected.
 retry 120 helper desktop-prepare "${ctl_args[@]}" w-remote Remote > /dev/null 2>&1 \
   || { helper desktop-prepare "${ctl_args[@]}" w-remote Remote; tail -n 20 "$work/app.log"; die "the remote pane did not start"; }
@@ -301,7 +301,7 @@ forget_node() { # no teskad-node at all on the node
   docker exec -u hangar "$container" rm -rf /home/hangar/.local/share/teskad-node /home/hangar/.local/state/teskad-node
 }
 shown_workspace() { # <id>: the workspace the app opens on
-  python3 -I - "$HANGAR_DATA_ROOT/data/state.json" "$1" <<'PY'
+  python3 -I - "$TESKAD_DATA_ROOT/data/state.json" "$1" <<'PY'
 import json, sys
 path, ws = sys.argv[1], sys.argv[2]
 with open(path, encoding="utf-8") as handle:

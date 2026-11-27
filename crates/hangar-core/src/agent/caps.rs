@@ -4,7 +4,7 @@
 //! honestly how much of it works — "turn end only", "keys checked on
 //! screen" — instead of pretending. The levels here are the static ones of
 //! [`AgentInfo::caps`](super::AgentInfo): what the tested version of each kind
-//! does at its best (Claude Code with the hangar-bridge mod, Codex attached to
+//! does at its best (Claude Code with the teskad-bridge mod, Codex attached to
 //! its app-server), so what Hangar may *offer*. A pane's live capabilities,
 //! which drop to the floor when the side channel is off or could not attach,
 //! are the engine's (`hangar-engine/src/live.rs`).

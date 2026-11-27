@@ -910,9 +910,9 @@ pub(super) mod tests {
     }
 
     /// A port from the share Hangar hands a worker running beside others
-    /// (HANGAR_PORT_BASE), or any free one where there is no such share.
+    /// (TESKAD_PORT_BASE), or any free one where there is no such share.
     pub fn test_port(offset: u16) -> u16 {
-        std::env::var("HANGAR_PORT_BASE")
+        crate::env::var("TESKAD_PORT_BASE")
             .ok()
             .and_then(|base| base.parse::<u16>().ok())
             .map_or(0, |base| base + offset)

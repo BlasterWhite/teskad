@@ -1,7 +1,7 @@
 //! The package driven as the shell drives it, without a core: a model with a
 //! workspace, a store, and the messages the tasks of `update` would have
 //! ended with, fed by hand. What the views draw is drawn headless by
-//! `iced_test`; with `HANGAR_PREVIEW_SNAPSHOTS=<folder>` the scenes are
+//! `iced_test`; with `TESKAD_PREVIEW_SNAPSHOTS=<folder>` the scenes are
 //! written there as PNGs (`cargo test -p hangar-app preview::tests::snapshots`).
 
 use std::borrow::Cow;
@@ -1160,17 +1160,17 @@ async fn a_long_file_is_drawn_in_a_moment() {
     eprintln!("read and coloured in {read:?}, laid out and drawn in {drawn:?}");
 }
 
-/// The scenes, as pictures, when `HANGAR_PREVIEW_SNAPSHOTS` names a folder.
+/// The scenes, as pictures, when `TESKAD_PREVIEW_SNAPSHOTS` names a folder.
 #[tokio::test]
 async fn snapshots() {
-    let Some(out) = std::env::var_os("HANGAR_PREVIEW_SNAPSHOTS").map(PathBuf::from) else {
+    let Some(out) = hangar_core::env::var_os("TESKAD_PREVIEW_SNAPSHOTS").map(PathBuf::from) else {
         return;
     };
-    let source = std::env::var_os("HANGAR_PREVIEW_SAMPLES")
+    let source = hangar_core::env::var_os("TESKAD_PREVIEW_SAMPLES")
         .map(PathBuf::from)
-        .expect("HANGAR_PREVIEW_SAMPLES names a folder of sample files");
+        .expect("TESKAD_PREVIEW_SAMPLES names a folder of sample files");
     std::fs::create_dir_all(&out).unwrap();
-    let theme_ids: Vec<String> = std::env::var("HANGAR_PREVIEW_THEMES")
+    let theme_ids: Vec<String> = hangar_core::env::var("TESKAD_PREVIEW_THEMES")
         .unwrap_or_else(|_| "graphite,paper".into())
         .split(',')
         .map(str::to_string)

@@ -1,4 +1,4 @@
-//! What the hangar-bridge mod reports from inside a pane's Claude Code
+//! What the teskad-bridge mod reports from inside a pane's Claude Code
 //! (`lib/bridge.ts`), and the small helpers of PaneStatus.ts the reports are
 //! worded with.
 //!

@@ -421,22 +421,22 @@ fn apply_app_only_env(cmd: &mut CommandBuilder, names: &[&str]) {
     }
 }
 
-/// How many ports a worker gets from its `HANGAR_PORT_BASE` (lib/workerControl.ts).
+/// How many ports a worker gets from its `TESKAD_PORT_BASE` (lib/workerControl.ts).
 const PORT_COUNT: u16 = 20;
 
-/// A worker's own ports: `HANGAR_PORT_BASE` and the nineteen after it, which
+/// A worker's own ports: `TESKAD_PORT_BASE` and the nineteen after it, which
 /// no other pane of any workspace is given, so two workers can each run a dev
 /// server without fighting over one port. Only workers have them; every other
 /// pane starts without, even under a Hangar launched from inside a worker.
 fn apply_ports(cmd: &mut CommandBuilder, port_base: Option<u16>) {
     match port_base {
         Some(base) => {
-            cmd.env("HANGAR_PORT_BASE", base.to_string());
-            cmd.env("HANGAR_PORT_COUNT", PORT_COUNT.to_string());
+            cmd.env("TESKAD_PORT_BASE", base.to_string());
+            cmd.env("TESKAD_PORT_COUNT", PORT_COUNT.to_string());
         }
         None => {
-            cmd.env_remove("HANGAR_PORT_BASE");
-            cmd.env_remove("HANGAR_PORT_COUNT");
+            cmd.env_remove("TESKAD_PORT_BASE");
+            cmd.env_remove("TESKAD_PORT_COUNT");
         }
     }
 }
@@ -458,19 +458,19 @@ fn apply_build_cache(cmd: &mut CommandBuilder, port_base: Option<u16>, env: &[(S
 /// Never inherited from a Hangar started inside a pane.
 fn apply_mcp_config(cmd: &mut CommandBuilder, path: Option<&str>) {
     match path.filter(|path| !path.is_empty()) {
-        Some(path) => cmd.env("HANGAR_MCP_CONFIG", path),
-        None => cmd.env_remove("HANGAR_MCP_CONFIG"),
+        Some(path) => cmd.env("TESKAD_MCP_CONFIG", path),
+        None => cmd.env_remove("TESKAD_MCP_CONFIG"),
     }
 }
 
-/// What a pane's Claude Code loads as plugins: the hangar-bridge mod when it
+/// What a pane's Claude Code loads as plugins: the teskad-bridge mod when it
 /// comes along, then the plugins of the workspace's kits — which do not
 /// depend on the bridge, and come with it off too. A machine whose policy
 /// forbids sideloading gets neither (bridge.rs); the kits it kept out are
 /// reported, and the pane starts all the same.
 ///
 /// A pane with kits also learns where their data lives, for a hook to find
-/// `$HANGAR_KITS_DATA/<kit id>`; any other pane starts without the variable,
+/// `$TESKAD_KITS_DATA/<kit id>`; any other pane starts without the variable,
 /// even under a Hangar launched from inside a pane.
 fn apply_plugins(
     cmd: &mut CommandBuilder,
@@ -516,19 +516,19 @@ fn pane_api(
 }
 
 /// What a hook of a kit, which has no MCP, needs to reach Hangar from its pane
-/// (docs/kits.md): the loopback API's URL and the pane's token, beside the `HANGAR_PANE_ID`
+/// (docs/kits.md): the loopback API's URL and the pane's token, beside the `TESKAD_PANE_ID`
 /// every pane has. A pane with kits gets them whether or not the bridge mod comes
 /// along; any other starts without them, even under a Hangar launched from inside
 /// a pane, whose token would be that Hangar's.
 fn apply_kit_api(cmd: &mut CommandBuilder, has_kits: bool, endpoint: Option<(u16, &str)>) {
     match endpoint.filter(|_| has_kits) {
         Some((port, token)) => {
-            cmd.env("HANGAR_API_URL", format!("http://127.0.0.1:{port}"));
-            cmd.env("HANGAR_API_TOKEN", token);
+            cmd.env("TESKAD_API_URL", format!("http://127.0.0.1:{port}"));
+            cmd.env("TESKAD_API_TOKEN", token);
         }
         None => {
-            cmd.env_remove("HANGAR_API_URL");
-            cmd.env_remove("HANGAR_API_TOKEN");
+            cmd.env_remove("TESKAD_API_URL");
+            cmd.env_remove("TESKAD_API_TOKEN");
         }
     }
 }
@@ -829,14 +829,14 @@ fn spawn(
     // Who this pane is, for an agent in it that asks Hangar to act on its own
     // pane, or signs its board claims. Set whether or not the bridge mod comes
     // along, and never inherited from a Hangar started inside another pane.
-    cmd.env("HANGAR_PANE_ID", &id);
+    cmd.env("TESKAD_PANE_ID", &id);
     match name
         .as_deref()
         .map(str::trim)
         .filter(|name| !name.is_empty())
     {
-        Some(name) => cmd.env("HANGAR_PANE_NAME", name),
-        None => cmd.env_remove("HANGAR_PANE_NAME"),
+        Some(name) => cmd.env("TESKAD_PANE_NAME", name),
+        None => cmd.env_remove("TESKAD_PANE_NAME"),
     }
     // The API as this pane reaches it: its port, and a token of the pane's
     // own, never Hangar's, so that what the pane asks is done as the pane.
@@ -850,7 +850,7 @@ fn spawn(
     let endpoint = endpoint
         .as_ref()
         .map(|(port, token)| (*port, token.as_str()));
-    // Lets a Claude Code started in this pane load the hangar-bridge mod, and
+    // Lets a Claude Code started in this pane load the teskad-bridge mod, and
     // the plugins of its workspace's kits.
     let bridge_dir = if bridge != Some(false) {
         crate::bridge::apply_env(&mut cmd, endpoint)
@@ -1598,21 +1598,21 @@ mod tests {
         let mut worker = CommandBuilder::new("sh");
         apply_ports(&mut worker, Some(41020));
         assert_eq!(
-            worker.get_env("HANGAR_PORT_BASE"),
+            worker.get_env("TESKAD_PORT_BASE"),
             Some(std::ffi::OsStr::new("41020"))
         );
         assert_eq!(
-            worker.get_env("HANGAR_PORT_COUNT"),
+            worker.get_env("TESKAD_PORT_COUNT"),
             Some(std::ffi::OsStr::new("20"))
         );
 
         // Inherited from a Hangar started inside a worker: not passed on.
         let mut other = CommandBuilder::new("sh");
-        other.env("HANGAR_PORT_BASE", "41000");
-        other.env("HANGAR_PORT_COUNT", "20");
+        other.env("TESKAD_PORT_BASE", "41000");
+        other.env("TESKAD_PORT_COUNT", "20");
         apply_ports(&mut other, None);
-        assert_eq!(other.get_env("HANGAR_PORT_BASE"), None);
-        assert_eq!(other.get_env("HANGAR_PORT_COUNT"), None);
+        assert_eq!(other.get_env("TESKAD_PORT_BASE"), None);
+        assert_eq!(other.get_env("TESKAD_PORT_COUNT"), None);
     }
 
     #[test]
@@ -1651,15 +1651,15 @@ mod tests {
         let mut pane = CommandBuilder::new("pwsh");
         apply_mcp_config(&mut pane, Some(path));
         assert_eq!(
-            pane.get_env("HANGAR_MCP_CONFIG"),
+            pane.get_env("TESKAD_MCP_CONFIG"),
             Some(std::ffi::OsStr::new(path))
         );
 
         for none in [None, Some("")] {
             let mut other = CommandBuilder::new("sh");
-            other.env("HANGAR_MCP_CONFIG", "/elsewhere.json");
+            other.env("TESKAD_MCP_CONFIG", "/elsewhere.json");
             apply_mcp_config(&mut other, none);
-            assert_eq!(other.get_env("HANGAR_MCP_CONFIG"), None);
+            assert_eq!(other.get_env("TESKAD_MCP_CONFIG"), None);
         }
     }
 
@@ -1739,13 +1739,13 @@ mod tests {
 
     #[test]
     fn a_name_kept_from_the_panes_is_listed_once() {
-        keep_from_panes("HANGAR_TEST_APP_ONLY");
-        keep_from_panes("HANGAR_TEST_APP_ONLY");
+        keep_from_panes("TESKAD_TEST_APP_ONLY");
+        keep_from_panes("TESKAD_TEST_APP_ONLY");
         let names = APP_ONLY_ENV.lock().unwrap();
         assert_eq!(
             names
                 .iter()
-                .filter(|name| **name == "HANGAR_TEST_APP_ONLY")
+                .filter(|name| **name == "TESKAD_TEST_APP_ONLY")
                 .count(),
             1
         );
@@ -1755,33 +1755,33 @@ mod tests {
     fn a_pane_with_kits_can_reach_the_api_with_the_bridge_on_or_off() {
         let mut cmd = CommandBuilder::new("sh");
         // The bridge off for this pane: none of its variables. Nothing here reads them.
-        cmd.env_remove("HANGAR_BRIDGE_URL");
-        cmd.env_remove("HANGAR_BRIDGE_TOKEN");
+        cmd.env_remove("TESKAD_BRIDGE_URL");
+        cmd.env_remove("TESKAD_BRIDGE_TOKEN");
         apply_kit_api(&mut cmd, true, Some((4242, "secret")));
         assert_eq!(
-            env_of(&cmd, "HANGAR_API_URL").as_deref(),
+            env_of(&cmd, "TESKAD_API_URL").as_deref(),
             Some("http://127.0.0.1:4242")
         );
-        assert_eq!(env_of(&cmd, "HANGAR_API_TOKEN").as_deref(), Some("secret"));
-        assert_eq!(env_of(&cmd, "HANGAR_BRIDGE_URL"), None);
-        assert_eq!(env_of(&cmd, "HANGAR_BRIDGE_TOKEN"), None);
+        assert_eq!(env_of(&cmd, "TESKAD_API_TOKEN").as_deref(), Some("secret"));
+        assert_eq!(env_of(&cmd, "TESKAD_BRIDGE_URL"), None);
+        assert_eq!(env_of(&cmd, "TESKAD_BRIDGE_TOKEN"), None);
     }
 
     #[test]
     fn a_pane_without_kits_gets_no_token_even_one_it_would_inherit() {
         let mut bare = CommandBuilder::new("sh");
         apply_kit_api(&mut bare, false, Some((4242, "secret")));
-        assert_eq!(env_of(&bare, "HANGAR_API_URL"), None);
-        assert_eq!(env_of(&bare, "HANGAR_API_TOKEN"), None);
+        assert_eq!(env_of(&bare, "TESKAD_API_URL"), None);
+        assert_eq!(env_of(&bare, "TESKAD_API_TOKEN"), None);
 
         // A Hangar started inside a pane of another: that one's are not this one's.
         for (has_kits, endpoint) in [(false, Some((4242, "secret"))), (true, None)] {
             let mut inherited = CommandBuilder::new("sh");
-            inherited.env("HANGAR_API_URL", "http://127.0.0.1:1");
-            inherited.env("HANGAR_API_TOKEN", "the other one");
+            inherited.env("TESKAD_API_URL", "http://127.0.0.1:1");
+            inherited.env("TESKAD_API_TOKEN", "the other one");
             apply_kit_api(&mut inherited, has_kits, endpoint);
-            assert_eq!(env_of(&inherited, "HANGAR_API_URL"), None);
-            assert_eq!(env_of(&inherited, "HANGAR_API_TOKEN"), None);
+            assert_eq!(env_of(&inherited, "TESKAD_API_URL"), None);
+            assert_eq!(env_of(&inherited, "TESKAD_API_TOKEN"), None);
         }
     }
 
@@ -1796,7 +1796,7 @@ mod tests {
         assert_ne!(token, tokens.issue("p-own-token-other", None));
         let mut cmd = CommandBuilder::new("sh");
         apply_kit_api(&mut cmd, true, api.as_ref().map(|(p, t)| (*p, t.as_str())));
-        assert_eq!(env_of(&cmd, "HANGAR_API_TOKEN"), Some(token.clone()));
+        assert_eq!(env_of(&cmd, "TESKAD_API_TOKEN"), Some(token.clone()));
 
         // A respawn on the same id (a restart, a hibernation) keeps it.
         let again = pane_api(Some(4242), "p-own-token", Some("Ada"), true);
@@ -1823,7 +1823,7 @@ mod tests {
     #[test]
     fn a_pane_with_kits_finds_their_data_with_the_bridge_or_without_it() {
         let root = std::path::PathBuf::from("/home/me/.hangar/kit-data");
-        let bridge = std::path::Path::new("/hangar/mods/hangar-bridge");
+        let bridge = std::path::Path::new("/hangar/mods/teskad-bridge");
         let with_root = || crate::kits::Launch {
             data_root: Some(root.clone()),
             ..kits(&[("studio", "/kits/studio")])
@@ -1857,7 +1857,7 @@ mod tests {
 
         let mut inherited = CommandBuilder::new("pwsh");
         inherited.env(crate::kits::data::ENV_VAR, "/somewhere/else");
-        let bridge = std::path::Path::new("/hangar/mods/hangar-bridge");
+        let bridge = std::path::Path::new("/hangar/mods/teskad-bridge");
         apply_plugins(
             &mut inherited,
             Some(bridge),
@@ -1870,7 +1870,7 @@ mod tests {
     #[test]
     fn a_kit_reaches_claude_code_with_the_bridge_or_without_it() {
         let sep = if cfg!(windows) { ";" } else { ":" };
-        let bridge = std::path::Path::new("/hangar/mods/hangar-bridge");
+        let bridge = std::path::Path::new("/hangar/mods/teskad-bridge");
 
         let mut with_bridge = CommandBuilder::new("pwsh");
         with_bridge.env_remove(crate::bridge::PLUGIN_DIRS_VAR);
@@ -2453,10 +2453,10 @@ mod tests {
     #[test]
     fn a_codex_server_gets_the_panes_environment_then_the_launchs() {
         let mut pane = CommandBuilder::new("sh");
-        pane.env("HANGAR_PANE_ID", "p-env");
-        pane.env("HANGAR_CODEX_MCP", "inherited from another Hangar");
-        pane.env("HANGAR_GONE", "x");
-        pane.env_remove("HANGAR_GONE");
+        pane.env("TESKAD_PANE_ID", "p-env");
+        pane.env("TESKAD_CODEX_MCP", "inherited from another Hangar");
+        pane.env("TESKAD_GONE", "x");
+        pane.env_remove("TESKAD_GONE");
         let home = PathBuf::from("/home/me/.hangar/accounts/codex/work");
         let spec = launch::build(&LaunchRequest {
             kind: AgentKind::Codex,
@@ -2468,10 +2468,10 @@ mod tests {
         .unwrap();
         let env: HashMap<OsString, OsString> = server_env(&pane, &spec.env).into_iter().collect();
         let get = |name: &str| env.get(OsStr::new(name)).cloned();
-        assert_eq!(get("HANGAR_PANE_ID"), Some(OsString::from("p-env")));
+        assert_eq!(get("TESKAD_PANE_ID"), Some(OsString::from("p-env")));
         assert_eq!(get("CODEX_HOME"), Some(home.into_os_string()));
-        assert_eq!(get("HANGAR_CODEX_MCP"), None);
-        assert_eq!(get("HANGAR_GONE"), None);
+        assert_eq!(get("TESKAD_CODEX_MCP"), None);
+        assert_eq!(get("TESKAD_GONE"), None);
         // What the pane inherits from Hangar comes along.
         #[cfg(unix)]
         assert_eq!(get("HOME"), std::env::var_os("HOME"));
@@ -2702,12 +2702,12 @@ while True:
         );
         let env = read(&here, "env");
         let has = |line: &str| env.lines().any(|l| l == line);
-        assert!(has(&format!("HANGAR_PANE_ID={id}")), "{env}");
-        assert!(has("HANGAR_PANE_NAME=Ada"), "{env}");
+        assert!(has(&format!("TESKAD_PANE_ID={id}")), "{env}");
+        assert!(has("TESKAD_PANE_NAME=Ada"), "{env}");
         assert!(has("TERM=xterm-256color"), "{env}");
         assert!(
             !env.lines()
-                .any(|l| l.starts_with("HANGAR_CODEX_") || l.starts_with("HANGAR_MCP_CONFIG=")),
+                .any(|l| l.starts_with("TESKAD_CODEX_") || l.starts_with("TESKAD_MCP_CONFIG=")),
             "{env}"
         );
 

@@ -664,7 +664,7 @@ async fn steering_a_turn_that_ended_is_refused_by_codex() {
             thread_id: THREAD.into(),
             expected_turn_id: "turn-1".into(),
             input: vec![UserInput::Text(TextUserInput {
-                text: "[Hangar] From agent \"Leo\": also run the linter.".into(),
+                text: "[Teskad] From agent \"Leo\": also run the linter.".into(),
                 text_elements: None,
             })],
             client_user_message_id: None,
@@ -963,7 +963,7 @@ async fn a_pane_socket_is_reached_by_its_path() {
             thread_id: THREAD.into(),
             expected_turn_id: "turn-1".into(),
             input: vec![UserInput::Text(TextUserInput {
-                text: "[Hangar] From agent \"Leo\": also run the linter.".into(),
+                text: "[Teskad] From agent \"Leo\": also run the linter.".into(),
                 text_elements: None,
             })],
             client_user_message_id: None,

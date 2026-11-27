@@ -776,7 +776,7 @@ fn general(ctx: &Context, locale: Locale) -> Category {
                         Target::ClaudeBridge,
                     )
                     .hint(tx(Key::SettingsClaudeBridgeHint))
-                    .keywords("mod plugin hangar-bridge claude code permission usage forfait"),
+                    .keywords("mod plugin teskad-bridge claude code permission usage forfait"),
                     toggle(
                         "codexAttach",
                         beta(t, tx(Key::SettingsCodexAttach)),

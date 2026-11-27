@@ -349,14 +349,17 @@ pub fn on_event(
 
 // ---- Development aid -----------------------------------------------------------------------------
 
-/// `HANGAR_DEV_UPDATE_BANNER=available|downloading|ready|failed` shows that
+/// `TESKAD_DEV_UPDATE_BANNER=available|downloading|ready|failed` shows that
 /// stage of the banner without a release to follow, to see it in a theme and a
 /// language. Debug builds only: a release build never reads it.
 fn dev_stage() -> Option<Phase> {
     if !cfg!(debug_assertions) {
         return None;
     }
-    match std::env::var("HANGAR_DEV_UPDATE_BANNER").ok()?.as_str() {
+    match hangar_core::env::var("TESKAD_DEV_UPDATE_BANNER")
+        .ok()?
+        .as_str()
+    {
         "available" => Some(Phase::Available),
         "downloading" => Some(Phase::Downloading),
         "ready" => Some(Phase::Ready),

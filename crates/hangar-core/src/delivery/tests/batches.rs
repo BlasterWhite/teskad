@@ -457,7 +457,7 @@ fn deliveries_submitted_while_one_is_checked_wait_and_are_checked_together() {
 }
 
 /// Five deliveries waiting together, the third one failing or not, on a check that
-/// sleeps (`HANGAR_MEASURE_CHECK_SECS`, 60 by default): the wall-clock time
+/// sleeps (`TESKAD_MEASURE_CHECK_SECS`, 60 by default): the wall-clock time
 /// and the outcomes one at a time, then with batches of 4 and of 5. Only in
 /// throwaway repositories; run it by hand:
 /// `cargo test -p hangar-core --lib measure_a_queue -- --ignored --nocapture`.
@@ -465,7 +465,7 @@ fn deliveries_submitted_while_one_is_checked_wait_and_are_checked_together() {
 #[test]
 #[ignore = "takes minutes: a measurement, run by hand"]
 fn measure_a_queue_of_five_with_one_failing() {
-    let secs: u64 = std::env::var("HANGAR_MEASURE_CHECK_SECS")
+    let secs: u64 = crate::env::var("TESKAD_MEASURE_CHECK_SECS")
         .ok()
         .and_then(|secs| secs.parse().ok())
         .unwrap_or(60);

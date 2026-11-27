@@ -275,7 +275,7 @@ impl NativeTab {
         path: PathBuf,
     ) -> (NativeTab, hangar_kit_host::Effects) {
         let start = TabStart {
-            hangar: hangar_core::kits::HANGAR_VERSION.into(),
+            hangar: hangar_core::kits::APP_VERSION.into(),
             kit: StartKit {
                 id: started.kit_id.into(),
                 name: started.kit_name.into(),

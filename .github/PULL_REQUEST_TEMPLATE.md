@@ -8,7 +8,7 @@
 
 - [ ] `cargo fmt --all --check`, `cargo clippy --workspace --all-targets --locked -- -D warnings`, `cargo test --workspace --locked`
 - [ ] `pnpm mobile:typecheck`, `pnpm test`, `pnpm mobile:build` (only if `mobile/` changed)
-- [ ] `claude plugin test crates/hangar-core/claude-mod/hangar-bridge` (only if the mod changed)
+- [ ] `claude plugin test crates/hangar-core/claude-mod/teskad-bridge` (only if the mod changed)
 
 ## Checklist
 

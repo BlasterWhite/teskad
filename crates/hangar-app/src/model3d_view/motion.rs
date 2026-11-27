@@ -23,7 +23,11 @@ use std::process::{Command, Stdio};
 /// What the system asks for, read now. Blocks on a process: call it where
 /// blocking is fine.
 pub fn reduced_motion() -> bool {
-    if let Some(asked) = dev_override(std::env::var("HANGAR_DEV_REDUCED_MOTION").ok().as_deref()) {
+    if let Some(asked) = dev_override(
+        hangar_core::env::var("TESKAD_DEV_REDUCED_MOTION")
+            .ok()
+            .as_deref(),
+    ) {
         return asked;
     }
     if cfg!(target_os = "linux") {
@@ -44,7 +48,7 @@ pub fn reduced_motion() -> bool {
 }
 
 /// A debug build can be told what the system says, to see both behaviours
-/// without touching the desktop's settings: `HANGAR_DEV_REDUCED_MOTION=1` or
+/// without touching the desktop's settings: `TESKAD_DEV_REDUCED_MOTION=1` or
 /// `=0`. A release build never looks at it.
 fn dev_override(value: Option<&str>) -> Option<bool> {
     if !cfg!(debug_assertions) {

@@ -64,7 +64,7 @@ fn a_spawn_carries_its_worker_s_variables() {
         mcp: None,
         env: vec![(remote::BOARD_RELAY.into(), "1".into())],
     };
-    assert_eq!(spawn.body()["env"], json!({ "HANGAR_BOARD_RELAY": "1" }));
+    assert_eq!(spawn.body()["env"], json!({ "TESKAD_BOARD_RELAY": "1" }));
 }
 
 #[test]
@@ -515,7 +515,7 @@ async fn a_pane_finds_its_shell_on_the_node_or_starts_one() {
         assert_eq!(body["cwd"], "/home/hangar/demo");
         let spawned = json!({
             "spawned": { "kitIssues": [] },
-            "mcp": { "path": "/n/mcp.json", "servers": ["hangar"], "missing": ["gone"] },
+            "mcp": { "path": "/n/mcp.json", "servers": ["teskad"], "missing": ["gone"] },
         });
         answer(&mut stream, 200, &spawned.to_string()).await;
     });
@@ -528,7 +528,7 @@ async fn a_pane_finds_its_shell_on_the_node_or_starts_one() {
         Ok(Started::Spawned {
             mcp: Some(remote::RemoteScope {
                 path: "/n/mcp.json".into(),
-                servers: vec!["hangar".into()],
+                servers: vec!["teskad".into()],
                 missing: vec!["gone".into()],
             })
         })

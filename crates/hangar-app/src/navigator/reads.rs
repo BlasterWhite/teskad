@@ -141,7 +141,7 @@ pub fn asleep_at(m: &Model, ws: &Workspace) -> Option<i64> {
 
 // ---- Development aids -----------------------------------------------------------------------------
 
-/// `HANGAR_DEV_PLAN=five_hour:72:2026-11-04T20:01:00Z,seven_day:35` shows the
+/// `TESKAD_DEV_PLAN=five_hour:72:2026-11-04T20:01:00Z,seven_day:35` shows the
 /// plan block while no pane has reported one: the real report wins as soon as
 /// there is one. Debug builds only.
 fn dev_plan<'a>() -> Option<&'a PlanLimits> {
@@ -151,7 +151,7 @@ fn dev_plan<'a>() -> Option<&'a PlanLimits> {
         return None;
     }
     PLAN.get_or_init(|| {
-        let spec = std::env::var("HANGAR_DEV_PLAN").ok()?;
+        let spec = hangar_core::env::var("TESKAD_DEV_PLAN").ok()?;
         let limits: Vec<crate::state::live::RateLimit> = spec
             .split(',')
             .filter_map(|window| {

@@ -27,7 +27,7 @@ its API (`--url`, `--token`: node.json's).
                   an app just started (at NS, epoch nanoseconds): milliseconds
                   until its endpoint file, then until the pane shows its first
                   text (its prompt, or the screen replayed), and the
-                  connection's steps from LOG (HANGAR_NODES_TIMING lines)
+                  connection's steps from LOG (TESKAD_NODES_TIMING lines)
   report <results.jsonl> <out.json>
                   the median of each number over the runs of each measure
 

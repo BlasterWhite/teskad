@@ -529,7 +529,7 @@ pub(super) fn caps_of(m: &Model, pane: &Pane) -> Option<Capabilities> {
     Some(live_caps(&kind.info().caps, spoke(m, pane)))
 }
 
-/// The pane's side channel spoke: the hangar-bridge mod in its Claude Code,
+/// The pane's side channel spoke: the teskad-bridge mod in its Claude Code,
 /// Hangar's client of its Codex server.
 fn spoke(m: &Model, pane: &Pane) -> bool {
     m.live.panes_logic.bridged_count([&pane.id]) == 1
@@ -1422,7 +1422,7 @@ pub(super) fn queueing(m: &Model, pane: &Pane) -> bool {
 }
 
 /// Whether the queue this window keeps for the orchestrator reaches it: its
-/// side channel spoke and the settings let it run (the hangar-bridge mod of
+/// side channel spoke and the settings let it run (the teskad-bridge mod of
 /// a Claude Code, Hangar attached to a Codex: `side_channel_on`), it reaches
 /// a running turn or its end, and the queue is this window's, not a node's.
 fn delivers(m: &Model, pane: &Pane) -> bool {
@@ -1450,7 +1450,7 @@ pub(super) fn waiting<'a>(m: &'a Model, chat: &'a Chat) -> impl Iterator<Item = 
 /// Whether the orchestrator's model, effort and mode can be set from the
 /// input: the commands that set them go through its queue (`delivers`), and
 /// its side channel runs them as its prompt would (`submits_commands`: the
-/// hangar-bridge mod does; Codex's runs its commands in its own window, so a
+/// teskad-bridge mod does; Codex's runs its commands in its own window, so a
 /// Codex orchestrator is not offered them).
 pub(super) fn tunable(m: &Model, pane: &Pane) -> bool {
     delivers(m, pane) && caps_of(m, pane).is_some_and(|caps| caps.submits_commands)

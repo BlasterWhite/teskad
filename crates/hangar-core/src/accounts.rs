@@ -15,7 +15,7 @@
 //!   with (`CLAUDE_CONFIG_DIR` if it was set, `~/.claude` otherwise). It is
 //!   always there, cannot be removed, and its files are only ever read.
 //! - every other account is a profile Hangar made, `~/.hangar/accounts/<id>/`
-//!   (beside `HANGAR_ENDPOINT_FILE` for a development build, like the mods of
+//!   (beside `TESKAD_ENDPOINT_FILE` for a development build, like the mods of
 //!   bridge.rs), listed in `~/.hangar/accounts/accounts.json` as
 //!   `{ id, label, dir, addedAt }` (store.rs).
 //!
@@ -205,7 +205,7 @@ impl ClaudeHome {
 /// run next to an installed Hangar was given (endpoint.rs), so that it does
 /// not adopt the installed app's profiles.
 fn store_root() -> Option<PathBuf> {
-    if let Some(file) = std::env::var_os("HANGAR_ENDPOINT_FILE").filter(|v| !v.is_empty()) {
+    if let Some(file) = std::env::var_os("TESKAD_ENDPOINT_FILE").filter(|v| !v.is_empty()) {
         return Some(PathBuf::from(file).parent()?.join("accounts"));
     }
     Some(crate::paths::home_folder()?.join("accounts"))

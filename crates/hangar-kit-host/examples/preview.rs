@@ -10,7 +10,7 @@
 //! Every permission is granted, so a tab's denied states show only in its
 //! tests. The window is 360 points wide, the panel's narrowest but one.
 //!
-//! `HANGAR_PREVIEW_SHOT=page.rgba` takes a picture of the window after two
+//! `TESKAD_PREVIEW_SHOT=page.rgba` takes a picture of the window after two
 //! seconds and quits: the raw RGBA, its width and height first on a line of
 //! their own, for a script to turn into an image.
 
@@ -185,7 +185,10 @@ fn boot() -> (Preview, Task<Message>) {
     }
     .with_locale(hangar_i18n::Locale::from_tag(locale).unwrap_or_default());
     let said = Said::default();
-    let shot = std::env::var_os("HANGAR_PREVIEW_SHOT").map(PathBuf::from);
+    let shot = std::env::var_os("TESKAD_PREVIEW_SHOT")
+        // The name it had before the rename, still read.
+        .or_else(|| std::env::var_os("HANGAR_PREVIEW_SHOT"))
+        .map(PathBuf::from);
     let started = (|| {
         let bytes = std::fs::read(&module).map_err(|why| format!("{}: {why}", module.display()))?;
         let runtime = KitRuntime::new(Limits::default()).map_err(|why| why.to_string())?;

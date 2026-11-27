@@ -102,10 +102,13 @@ impl SpawnOptions {
 }
 
 /// Where the helper is, if it is installed next to the program running: the
-/// `HANGAR_WEBVIEW` variable if set, then the folder of the current executable,
+/// `TESKAD_WEBVIEW` variable if set (or `HANGAR_WEBVIEW`, its name before the
+/// rename, which stands in when the new one is not), then the folder of the current executable,
 /// then its parent (for a program run from cargo's `examples/` or `deps/`).
 pub fn find_helper() -> Option<PathBuf> {
-    if let Some(path) = std::env::var_os("HANGAR_WEBVIEW") {
+    if let Some(path) =
+        std::env::var_os("TESKAD_WEBVIEW").or_else(|| std::env::var_os("HANGAR_WEBVIEW"))
+    {
         return Some(PathBuf::from(path));
     }
     let name = format!("teskad-webview{}", std::env::consts::EXE_SUFFIX);

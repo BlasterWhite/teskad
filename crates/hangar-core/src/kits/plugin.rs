@@ -1482,7 +1482,7 @@ mod tests {
             "hooks/hooks.json",
             &json!({ "hooks": { "PostToolUse": [{
                 "matcher": "Bash",
-                "hooks": [{ "type": "command", "command": "echo ran >> \"$HANGAR_KITS_DATA/studio/log\"" }]
+                "hooks": [{ "type": "command", "command": "echo ran >> \"$TESKAD_KITS_DATA/studio/log\"" }]
             }] } })
             .to_string(),
         );
@@ -1492,7 +1492,7 @@ mod tests {
         assert_eq!(found.hooks[0].matcher, "Bash");
         assert_eq!(
             found.hooks[0].command,
-            "echo ran >> \"$HANGAR_KITS_DATA/studio/log\""
+            "echo ran >> \"$TESKAD_KITS_DATA/studio/log\""
         );
         let dir = Path::new(&found.plugin.as_ref().unwrap().dir);
         assert_eq!(

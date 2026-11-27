@@ -342,8 +342,8 @@ fn a_hovered_folder_offers_a_new_workspace_filed_in_it() {
         let mut ui = simulate(framed);
         let bounds = ui.find("WORK").expect("the folder's heading").bounds();
         // Drawn to `<folder>/navigator-folder-hover-tiny-skia.png` when
-        // `HANGAR_P8_SNAPSHOTS` names a folder.
-        if let Some(folder) = std::env::var_os("HANGAR_P8_SNAPSHOTS") {
+        // `TESKAD_P8_SNAPSHOTS` names a folder.
+        if let Some(folder) = hangar_core::env::var_os("TESKAD_P8_SNAPSHOTS") {
             let folder = std::path::PathBuf::from(folder);
             std::fs::create_dir_all(&folder).expect("the folder");
             let _ = std::fs::remove_file(folder.join("navigator-folder-hover-tiny-skia.png"));

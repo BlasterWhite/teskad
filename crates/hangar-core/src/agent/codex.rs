@@ -22,8 +22,8 @@
 //! **The floor** (no socket, D6). The plain `codex`, every setting on its
 //! line. What is long or holds a path — Hangar's executable, the other MCP
 //! servers, the role, the writable roots, the trusted folders — travels in a
-//! `HANGAR_CODEX_*` variable the pane's shell starts with and expands, as
-//! `$HANGAR_MCP_CONFIG` does for Claude Code: the line names the variable,
+//! `TESKAD_CODEX_*` variable the pane's shell starts with and expands, as
+//! `$TESKAD_MCP_CONFIG` does for Claude Code: the line names the variable,
 //! never the value. A shell that cannot hand the program a variable's value
 //! whole (PowerShell and cmd, for a value holding a double quote) goes
 //! without that setting rather than with a broken one.
@@ -92,11 +92,11 @@ const TRUST_LEVEL: &str = "trust_level";
 /// The image generation feature, stable and on by default
 /// (`features/src/lib.rs`): on whatever the person's configuration says.
 const IMAGE_GENERATION: &str = "features.image_generation";
-/// Hangar's MCP server, `[mcp_servers.hangar]` (`RawMcpServerConfig`,
+/// Hangar's MCP server, `[mcp_servers.teskad]` (`RawMcpServerConfig`,
 /// `config/src/mcp_types.rs`), given whole as one inline table.
-const HANGAR_SERVER: &str = "mcp_servers.hangar";
+const MCP_SERVER_PATH: &str = "mcp_servers.teskad";
 /// The launch's other MCP servers (`LaunchRequest::mcp_overrides`), one
-/// inline table of them by name. It goes before [`HANGAR_SERVER`]: `-c`
+/// inline table of them by name. It goes before [`MCP_SERVER_PATH`]: `-c`
 /// builds its layer in the order given, and a whole table set at
 /// `mcp_servers` replaces what an earlier `-c` put under it, where a dotted
 /// key set later only adds its entry (`config/src/overrides.rs`,
@@ -134,16 +134,16 @@ const MCP_ARG: &str = "--mcp";
 /// `DEFAULT_ENV_VARS`), passing on only the variables `env_vars` names; one
 /// that is not set is skipped.
 const MCP_ENV_VARS: [&str; 10] = [
-    "HANGAR_PANE_ID",
-    "HANGAR_PANE_NAME",
-    "HANGAR_AGENT",
-    "HANGAR_WORKSPACE",
-    "HANGAR_API_URL",
-    "HANGAR_API_TOKEN",
-    "HANGAR_BRIDGE_URL",
-    "HANGAR_BRIDGE_TOKEN",
+    "TESKAD_PANE_ID",
+    "TESKAD_PANE_NAME",
+    "TESKAD_AGENT",
+    "TESKAD_WORKSPACE",
+    "TESKAD_API_URL",
+    "TESKAD_API_TOKEN",
+    "TESKAD_BRIDGE_URL",
+    "TESKAD_BRIDGE_TOKEN",
     crate::mcp::BOARD_RELAY,
-    "HANGAR_ENDPOINT_FILE",
+    "TESKAD_ENDPOINT_FILE",
 ];
 /// How long one of Hangar's tools may run, in seconds: some wait on the app
 /// (a worker started, a delivery). Codex's own default is 60 (docs
@@ -152,21 +152,21 @@ const MCP_ENV_VARS: [&str; 10] = [
 const MCP_TOOL_TIMEOUT_SEC: &str = "120.0";
 /// The rules of Claude Code's `--allowedTools` that let all of Hangar's
 /// tools through: what Codex can say of one server (`AllowedTools::HangarTools`).
-const HANGAR_TOOLS_RULES: [&str; 2] = ["mcp__hangar", "mcp__hangar__*"];
+const TESKAD_TOOLS_RULES: [&str; 2] = ["mcp__teskad", "mcp__teskad__*"];
 
 // The floor's variables: each holds a whole `key=value`, the line types
 // `-c <the variable>`.
 
 /// Hangar's MCP server: its executable's path holds the person's name.
-pub const MCP_VAR: &str = "HANGAR_CODEX_MCP";
+pub const MCP_VAR: &str = "TESKAD_CODEX_MCP";
 /// The other MCP servers: a kit's folder, its servers' variables.
-pub const SERVERS_VAR: &str = "HANGAR_CODEX_SERVERS";
+pub const SERVERS_VAR: &str = "TESKAD_CODEX_SERVERS";
 /// The role: a long text.
-pub const ROLE_VAR: &str = "HANGAR_CODEX_ROLE";
+pub const ROLE_VAR: &str = "TESKAD_CODEX_ROLE";
 /// The writable roots: paths.
-pub const ROOTS_VAR: &str = "HANGAR_CODEX_ROOTS";
+pub const ROOTS_VAR: &str = "TESKAD_CODEX_ROOTS";
 /// The trusted folders: paths.
-pub const TRUST_VAR: &str = "HANGAR_CODEX_TRUST";
+pub const TRUST_VAR: &str = "TESKAD_CODEX_TRUST";
 /// Every one, in the order the line types them.
 const VARIABLES: [&str; 5] = [SERVERS_VAR, MCP_VAR, ROLE_VAR, ROOTS_VAR, TRUST_VAR];
 
@@ -285,7 +285,7 @@ fn settings(request: &LaunchRequest) -> Vec<Setting> {
     }
     if let Some(server) = hangar_server(request) {
         settings.push(Setting {
-            arg: format!("{HANGAR_SERVER}={server}"),
+            arg: format!("{MCP_SERVER_PATH}={server}"),
             typed: Typed::Variable(MCP_VAR),
         });
     }
@@ -380,7 +380,7 @@ fn permissions(mode: PermissionMode) -> &'static [(&'static str, &'static str)] 
     }
 }
 
-/// `[mcp_servers.hangar]` as one TOML inline table, when the launch names
+/// `[mcp_servers.teskad]` as one TOML inline table, when the launch names
 /// Hangar's executable.
 fn hangar_server(request: &LaunchRequest) -> Option<String> {
     let executable = request
@@ -397,7 +397,7 @@ fn hangar_server(request: &LaunchRequest) -> Option<String> {
     if request
         .allowed_tools
         .iter()
-        .any(|rule| HANGAR_TOOLS_RULES.contains(&rule.as_str()))
+        .any(|rule| TESKAD_TOOLS_RULES.contains(&rule.as_str()))
     {
         fields.push(format!(
             "default_tools_approval_mode={}",
@@ -416,7 +416,7 @@ fn other_servers(request: &LaunchRequest) -> Option<String> {
     let servers: Vec<String> = request
         .mcp_overrides
         .iter()
-        .filter(|(name, _)| !name.is_empty() && name != HANGAR_NAME)
+        .filter(|(name, _)| !name.is_empty() && name != MCP_SERVER_NAME)
         .filter(|(_, entry)| entry.is_object())
         .filter(|(name, _)| seen.insert(name.as_str()))
         .filter_map(|(name, entry)| Some(format!("{}={}", toml_key(name), toml_value(entry)?)))
@@ -424,8 +424,8 @@ fn other_servers(request: &LaunchRequest) -> Option<String> {
     (!servers.is_empty()).then(|| format!("{{{}}}", servers.join(",")))
 }
 
-/// Hangar's own server's name, the last part of [`HANGAR_SERVER`].
-const HANGAR_NAME: &str = "hangar";
+/// Hangar's own server's name, the last part of [`MCP_SERVER_PATH`].
+const MCP_SERVER_NAME: &str = "teskad";
 
 /// A JSON value as TOML: strings as [`toml_string`] writes them, objects as
 /// inline tables, arrays with their items. `None` for a `null`, which TOML
@@ -593,7 +593,7 @@ mod tests {
             model: some("gpt-5.1-codex"),
             effort: some("high"),
             permission_mode: Some(PermissionMode::BypassPermissions),
-            allowed_tools: strings(&["mcp__hangar"]),
+            allowed_tools: strings(&["mcp__teskad"]),
             role: some("You are Vadim, a worker.\nDo the brief and nothing else."),
             shell,
             hangar_mcp: some(HANGAR),
@@ -623,9 +623,9 @@ mod tests {
     /// What `hangar-ai --mcp` gets, as one inline table.
     fn hangar_table(executable: &str, approve: bool) -> String {
         format!(
-            "{{command={executable},args=['--mcp'],env_vars=['HANGAR_PANE_ID','HANGAR_PANE_NAME',\
-             'HANGAR_AGENT','HANGAR_WORKSPACE','HANGAR_API_URL','HANGAR_API_TOKEN',\
-             'HANGAR_BRIDGE_URL','HANGAR_BRIDGE_TOKEN','HANGAR_BOARD_RELAY','HANGAR_ENDPOINT_FILE'],\
+            "{{command={executable},args=['--mcp'],env_vars=['TESKAD_PANE_ID','TESKAD_PANE_NAME',\
+             'TESKAD_AGENT','TESKAD_WORKSPACE','TESKAD_API_URL','TESKAD_API_TOKEN',\
+             'TESKAD_BRIDGE_URL','TESKAD_BRIDGE_TOKEN','TESKAD_BOARD_RELAY','TESKAD_ENDPOINT_FILE'],\
              tool_timeout_sec=120.0{}}}",
             if approve {
                 ",default_tools_approval_mode='approve'"
@@ -639,7 +639,7 @@ mod tests {
     fn worker_settings() -> Vec<String> {
         vec![
             format!(
-                "mcp_servers.hangar={}",
+                "mcp_servers.teskad={}",
                 hangar_table("'/home/Ann Lee/.local/bin/hangar-ai'", true)
             ),
             "developer_instructions=\"You are Vadim, a worker.\\nDo the brief and nothing else.\""
@@ -833,9 +833,9 @@ mod tests {
         assert_eq!(
             posix.command_line(),
             format!(
-                "codex -c \"$HANGAR_CODEX_MCP\" -c \"$HANGAR_CODEX_ROLE\" \
+                "codex -c \"$TESKAD_CODEX_MCP\" -c \"$TESKAD_CODEX_ROLE\" \
                  -c approval_policy=never -c sandbox_mode=danger-full-access \
-                 -c \"$HANGAR_CODEX_ROOTS\" -c \"$HANGAR_CODEX_TRUST\" \
+                 -c \"$TESKAD_CODEX_ROOTS\" -c \"$TESKAD_CODEX_TRUST\" \
                  -c model=gpt-5.1-codex -c model_reasoning_effort=high \
                  -c features.image_generation=true resume {THREAD}"
             )
@@ -879,9 +879,9 @@ mod tests {
         assert_eq!(
             pwsh.command_line(),
             format!(
-                "codex -c $env:HANGAR_CODEX_MCP \
+                "codex -c $env:TESKAD_CODEX_MCP \
                  -c approval_policy=never -c sandbox_mode=danger-full-access \
-                 -c $env:HANGAR_CODEX_ROOTS -c $env:HANGAR_CODEX_TRUST \
+                 -c $env:TESKAD_CODEX_ROOTS -c $env:TESKAD_CODEX_TRUST \
                  -c model=gpt-5.1-codex -c model_reasoning_effort=high \
                  -c features.image_generation=true resume {THREAD}"
             )
@@ -892,9 +892,9 @@ mod tests {
         assert_eq!(
             cmd.command_line(),
             format!(
-                "codex -c \"%HANGAR_CODEX_MCP%\" \
+                "codex -c \"%TESKAD_CODEX_MCP%\" \
                  -c approval_policy=never -c sandbox_mode=danger-full-access \
-                 -c \"%HANGAR_CODEX_ROOTS%\" -c \"%HANGAR_CODEX_TRUST%\" \
+                 -c \"%TESKAD_CODEX_ROOTS%\" -c \"%TESKAD_CODEX_TRUST%\" \
                  -c model=gpt-5.1-codex -c model_reasoning_effort=high \
                  -c features.image_generation=true resume {THREAD}"
             )
@@ -907,7 +907,7 @@ mod tests {
             ..worker(Some(ShellSyntax::Cmd))
         };
         let spec = build(&one_line).unwrap();
-        assert!(spec.command_line().contains("-c \"%HANGAR_CODEX_ROLE%\""));
+        assert!(spec.command_line().contains("-c \"%TESKAD_CODEX_ROLE%\""));
         assert_eq!(
             variable(&spec, ROLE_VAR),
             Some(&OsString::from(
@@ -944,7 +944,7 @@ mod tests {
         assert_eq!(
             variable(&spec, MCP_VAR),
             Some(&OsString::from(format!(
-                "mcp_servers.hangar={}",
+                "mcp_servers.teskad={}",
                 hangar_table("'C:\\Program Files\\Hangar\\hangar-ai.exe'", false)
             )))
         );
@@ -1070,17 +1070,17 @@ mod tests {
             server.args[4].clone()
         };
         let approved = format!(
-            "mcp_servers.hangar={}",
+            "mcp_servers.teskad={}",
             hangar_table(&toml_string(HANGAR), true)
         );
         let asked = format!(
-            "mcp_servers.hangar={}",
+            "mcp_servers.teskad={}",
             hangar_table(&toml_string(HANGAR), false)
         );
-        assert_eq!(table(&["mcp__hangar"]), approved);
-        assert_eq!(table(&["mcp__hangar__*"]), approved);
+        assert_eq!(table(&["mcp__teskad"]), approved);
+        assert_eq!(table(&["mcp__teskad__*"]), approved);
         assert_eq!(table(&[]), asked);
-        assert_eq!(table(&["Read", "mcp__hangar__board_list_tasks"]), asked);
+        assert_eq!(table(&["Read", "mcp__teskad__board_list_tasks"]), asked);
     }
 
     #[test]
@@ -1140,7 +1140,7 @@ mod tests {
         .unwrap();
         assert_eq!(server.args[3..5], strings(&["-c", OTHER_SERVERS])[..]);
         assert_eq!(server.args[5], "-c");
-        assert!(server.args[6].starts_with("mcp_servers.hangar={"));
+        assert!(server.args[6].starts_with("mcp_servers.teskad={"));
         assert_eq!(server.args[7..], with_flags(&worker_settings()[1..])[..]);
     }
 
@@ -1156,7 +1156,7 @@ mod tests {
         .unwrap();
         assert!(posix
             .command_line()
-            .starts_with("codex -c \"$HANGAR_CODEX_SERVERS\" -c \"$HANGAR_CODEX_MCP\" "));
+            .starts_with("codex -c \"$TESKAD_CODEX_SERVERS\" -c \"$TESKAD_CODEX_MCP\" "));
         assert_eq!(
             variable(&posix, SERVERS_VAR),
             Some(&OsString::from(OTHER_SERVERS))
@@ -1196,7 +1196,7 @@ mod tests {
     fn the_other_servers_keep_one_table_per_name_and_never_hangars() {
         let request = LaunchRequest {
             mcp_overrides: vec![
-                ("hangar".into(), serde_json::json!({ "command": "evil" })),
+                ("teskad".into(), serde_json::json!({ "command": "evil" })),
                 (
                     "my server".into(),
                     serde_json::json!({ "url": "https://mcp.example.com/" }),

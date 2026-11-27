@@ -18,7 +18,7 @@ use super::commands;
 use super::manifest::{self, Manifest};
 use super::plugin;
 use super::source::{self, GitSource};
-use super::HANGAR_VERSION;
+use super::APP_VERSION;
 
 const INDEX: &str = "index.json";
 
@@ -294,7 +294,7 @@ impl Store {
                 manifest.id
             ));
         }
-        manifest::compatible(&manifest, HANGAR_VERSION)?;
+        manifest::compatible(&manifest, APP_VERSION)?;
         Ok(Loaded {
             entry: entry.clone(),
             root,
@@ -317,7 +317,7 @@ impl Store {
             .filter(|dir| dir.is_dir())
             .ok_or_else(|| format!("{} is not a folder", path.display()))?;
         let manifest = manifest::read(&dir)?;
-        manifest::compatible(&manifest, HANGAR_VERSION)?;
+        manifest::compatible(&manifest, APP_VERSION)?;
 
         let _guard = lock();
         let mut index = self.load()?;
@@ -368,7 +368,7 @@ impl Store {
             let commit = source::clone(&source, &staging)?;
             let root = kit_root(&staging, source.subdir.as_deref())?;
             let manifest = manifest::read(&root)?;
-            manifest::compatible(&manifest, HANGAR_VERSION)?;
+            manifest::compatible(&manifest, APP_VERSION)?;
             Ok::<_, String>((manifest, commit))
         })();
         let (manifest, commit) = match checked {
@@ -609,7 +609,7 @@ impl Store {
                     manifest.id, entry.id
                 ));
             }
-            manifest::compatible(&manifest, HANGAR_VERSION).map_err(|why| {
+            manifest::compatible(&manifest, APP_VERSION).map_err(|why| {
                 format!("version {} cannot be used here: {why}", manifest.version)
             })?;
             Ok(manifest.version)

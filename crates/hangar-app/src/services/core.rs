@@ -40,7 +40,7 @@ impl CoreHandles {
     /// Must run inside the app's Tokio runtime, which outlives the core: iced
     /// calls `App::boot` inside it.
     pub fn start() -> (CoreHandles, Bus) {
-        // `Host::new` reads `HANGAR_DATA_ROOT` (paths.rs), which keeps a
+        // `Host::new` reads `TESKAD_DATA_ROOT` (paths.rs), which keeps a
         // development build off the installed app's data (main.rs).
         let host = Host::new();
         let bus = Bus::new(host.subscribe());

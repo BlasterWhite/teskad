@@ -1,6 +1,6 @@
 //! What is kept of each pane, with no clock and no window inside: the state
 //! machines the terminal pane used to keep (P4 of the port). The host feeds
-//! them what the panes, the hangar-bridge mod and core report, with the
+//! them what the panes, the teskad-bridge mod and core report, with the
 //! moment as `now`, and reads what they decide; the app's `panes_logic`
 //! package is that host for the desktop.
 //!
