@@ -17,15 +17,15 @@ pub fn default(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
             Status::Disabled { is_checked } => (is_checked, false, true),
         };
         let (background, edge): (Color, Color) = if checked {
-            (c.accent, c.accent)
+            (t.palette.accent, t.palette.accent)
         } else if hovered {
-            (c.bg, c.fg_subtle)
+            (t.palette.bg, c.fg_subtle)
         } else {
-            (c.bg, c.border_strong)
+            (t.palette.bg, t.palette.border_strong)
         };
         let style = Style {
             background: Background::Color(background),
-            icon_color: c.accent_fg,
+            icon_color: t.palette.on_accent,
             border: hairline(edge, radius::XS),
             text_color: Some(c.fg),
         };

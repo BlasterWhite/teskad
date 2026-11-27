@@ -53,7 +53,7 @@ pub fn menu(t: &Theme) -> impl Fn(&iced::Theme) -> menu::Style + '_ {
             text_color: p.text,
             selected_text_color: p.text,
             selected_background: Background::Color(p.selection_bg),
-            shadow: drop_shadow(t.colors.shadow, 8.0, 24.0),
+            shadow: drop_shadow(t.inks.shadow, 8.0, 24.0),
         }
     }
 }

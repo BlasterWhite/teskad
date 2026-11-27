@@ -32,7 +32,7 @@ pub fn plain(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 
 /// The page under everything (`body`): the terminal's own background.
 pub fn window(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| fill(t.colors.bg, t.colors.fg)
+    move |_| fill(t.palette.bg, t.colors.fg)
 }
 
 /// The page laid straight on the desktop: [`window`] at the window's alpha
@@ -40,7 +40,7 @@ pub fn window(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 /// page and nothing is drawn under: the work area, a placeholder, the whole
 /// window while it starts.
 pub fn backdrop(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| fill(t.see_through(t.colors.bg), t.colors.fg)
+    move |_| fill(t.see_through(t.palette.bg), t.colors.fg)
 }
 
 /// The page under a pane that lies on a [`backdrop`]: the page's colour on a
@@ -77,7 +77,7 @@ pub fn see_through<'a>(
 
 /// The navigator (`.sidebar`). Its right edge is a [`super::rule::sep`].
 pub fn sidebar(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| fill(t.colors.chrome, t.colors.fg)
+    move |_| fill(t.palette.surface, t.colors.fg)
 }
 
 /// The inspector and the other side panels: the same chrome as the navigator.
@@ -87,12 +87,12 @@ pub fn panel(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 
 /// The bar over the workspace (`.toolbar`), a step above the navigator.
 pub fn toolbar(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| fill(t.colors.chrome_bar, t.colors.fg)
+    move |_| fill(t.palette.surface_raised, t.colors.fg)
 }
 
 /// The bar along the bottom (`.status`).
 pub fn statusbar(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| fill(t.colors.chrome, t.colors.fg)
+    move |_| fill(t.palette.surface, t.colors.fg)
 }
 
 /// A pane's header (`.pane__bar`), a little lighter while the pane has the
@@ -100,9 +100,9 @@ pub fn statusbar(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 pub fn pane_head(t: &Theme, focused: bool) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| {
         let color = if focused {
-            t.colors.pane_head_focus
+            t.palette.surface_raised
         } else {
-            t.colors.pane_head
+            t.palette.surface
         };
         fill(color, t.colors.fg)
     }
@@ -112,7 +112,7 @@ pub fn pane_head(t: &Theme, focused: bool) -> impl Fn(&iced::Theme) -> Style + '
 /// page's own colour on a light one, with a hairline around it.
 pub fn card(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
-        border: hairline(t.colors.line, radius::LG),
+        border: hairline(t.palette.border, radius::LG),
         ..fill(t.colors.card, t.colors.fg)
     }
 }
@@ -121,16 +121,16 @@ pub fn card(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 /// back in the panel.
 pub fn well(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
-        border: hairline(t.colors.line, radius::MD),
-        ..fill(t.colors.bg, t.colors.fg)
+        border: hairline(t.palette.border, radius::MD),
+        ..fill(t.palette.bg, t.colors.fg)
     }
 }
 
 /// A chip or a capsule: a hairline's tint over whatever it sits on.
 pub fn chip(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
-        border: hairline(t.colors.line, radius::SM),
-        ..fill(t.colors.line, t.colors.fg_secondary)
+        border: hairline(t.palette.border, radius::SM),
+        ..fill(t.palette.border, t.colors.fg_secondary)
     }
 }
 
@@ -138,7 +138,7 @@ pub fn chip(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 /// segment is a [`super::button::tab`].
 pub fn segmented_track(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
-        background: Some(Background::Color(t.colors.line)),
+        background: Some(Background::Color(t.palette.border)),
         border: rounded(7.0),
         ..Style::default()
     }
@@ -160,7 +160,7 @@ pub fn segmented(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 pub fn popover(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
         border: hairline(t.palette.border, radius::LG),
-        shadow: drop_shadow(t.colors.shadow, 8.0, 24.0),
+        shadow: drop_shadow(t.inks.shadow, 8.0, 24.0),
         ..fill(t.palette.surface_raised, t.palette.text)
     }
 }
@@ -170,7 +170,7 @@ pub fn popover(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 pub fn modal(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
         border: hairline(t.palette.border_strong, radius::XL),
-        shadow: drop_shadow(t.colors.shadow, 24.0, 64.0),
+        shadow: drop_shadow(t.inks.shadow, 24.0, 64.0),
         ..fill(t.palette.surface, t.palette.text)
     }
 }
@@ -193,18 +193,18 @@ pub fn modal_foot(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 /// is behind it through 90 % of the toolbar's colour; this is opaque.
 pub fn palette(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
-        border: hairline(t.colors.line_strong, radius::XL),
-        shadow: drop_shadow(t.colors.shadow, 30.0, 80.0),
-        ..fill(t.colors.chrome_bar, t.colors.fg)
+        border: hairline(t.palette.border_strong, radius::XL),
+        shadow: drop_shadow(t.inks.shadow, 30.0, 80.0),
+        ..fill(t.palette.surface_raised, t.colors.fg)
     }
 }
 
 /// A tooltip: a small popover.
 pub fn tooltip(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
-        border: hairline(t.colors.line_strong, radius::SM),
-        shadow: drop_shadow(t.colors.shadow, 4.0, 12.0),
-        ..fill(t.colors.chrome_bar, t.colors.fg)
+        border: hairline(t.palette.border_strong, radius::SM),
+        shadow: drop_shadow(t.inks.shadow, 4.0, 12.0),
+        ..fill(t.palette.surface_raised, t.colors.fg)
     }
 }
 
@@ -221,7 +221,9 @@ pub fn scrim(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 /// 42 %, so the window stays readable and it is clear nothing has moved yet.
 pub fn palette_scrim(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
-        background: Some(Background::Color(t.colors.sep.scale_alpha(0.42))),
+        background: Some(Background::Color(
+            t.palette.surface_sunken.scale_alpha(0.42),
+        )),
         ..Style::default()
     }
 }
@@ -229,8 +231,8 @@ pub fn palette_scrim(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 /// A badge that warns (`--danger-soft` behind `--danger`).
 pub fn badge_danger(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
-        background: Some(Background::Color(t.colors.danger_soft)),
-        text_color: Some(t.colors.danger),
+        background: Some(Background::Color(t.inks.danger_soft)),
+        text_color: Some(t.inks.danger()),
         border: rounded(radius::XS),
         ..Style::default()
     }
@@ -270,7 +272,7 @@ pub fn kbd_conflict(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 /// and its tint behind, the way a field with the keyboard looks.
 pub fn recorder(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
-        border: hairline(t.colors.accent, radius::MD),
+        border: hairline(t.palette.accent, radius::MD),
         ..fill(t.colors.accent_soft, t.colors.fg)
     }
 }
@@ -283,14 +285,14 @@ pub fn palette_icon(t: &Theme, chosen: bool) -> impl Fn(&iced::Theme) -> Style +
         let c = &t.colors;
         if chosen {
             Style {
-                background: Some(Background::Color(with_alpha(c.accent_fg, 0.18))),
-                text_color: Some(c.accent_fg),
+                background: Some(Background::Color(with_alpha(t.palette.on_accent, 0.18))),
+                text_color: Some(t.palette.on_accent),
                 border: rounded(radius::SM),
                 ..Style::default()
             }
         } else {
             Style {
-                background: Some(Background::Color(c.line)),
+                background: Some(Background::Color(t.palette.border)),
                 text_color: Some(c.fg_muted),
                 border: rounded(radius::SM),
                 ..Style::default()
@@ -303,7 +305,7 @@ pub fn palette_icon(t: &Theme, chosen: bool) -> impl Fn(&iced::Theme) -> Style +
 /// that closes the palette, on a surface of its own.
 pub fn outline(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
-        border: hairline(t.colors.line_strong, radius::XS),
+        border: hairline(t.palette.border_strong, radius::XS),
         text_color: Some(t.colors.fg_secondary),
         ..Style::default()
     }
@@ -312,7 +314,7 @@ pub fn outline(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 /// A small word set on a surface (`.key-row__tag`): "custom", "new".
 pub fn tag(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
-        background: Some(Background::Color(t.colors.surface_active)),
+        background: Some(Background::Color(t.palette.selection_bg)),
         text_color: Some(t.colors.fg_muted),
         border: rounded(radius::XS),
         ..Style::default()
@@ -340,16 +342,16 @@ pub fn toast(t: &Theme, tone: Tone) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| {
         let c = &t.colors;
         let edge = match tone {
-            Tone::Neutral => c.line_strong,
-            Tone::Accent => c.accent,
-            Tone::Success => c.success,
-            Tone::Warning => c.warning,
-            Tone::Danger => c.danger,
+            Tone::Neutral => t.palette.border_strong,
+            Tone::Accent => t.palette.accent,
+            Tone::Success => t.inks.success(),
+            Tone::Warning => t.inks.warning(),
+            Tone::Danger => t.inks.danger(),
         };
         Style {
             border: hairline(edge, radius::LG),
-            shadow: drop_shadow(c.shadow, 10.0, 28.0),
-            ..fill(c.chrome_bar, c.fg)
+            shadow: drop_shadow(t.inks.shadow, 10.0, 28.0),
+            ..fill(t.palette.surface_raised, c.fg)
         }
     }
 }
@@ -363,11 +365,11 @@ pub fn tone_text(t: &Theme, tone: Tone) -> Color {
 fn tone_colors(t: &Theme, tone: Tone) -> (Color, Color) {
     let c = &t.colors;
     match tone {
-        Tone::Neutral => (c.line, c.fg_secondary),
+        Tone::Neutral => (t.palette.border, c.fg_secondary),
         Tone::Accent => (c.accent_soft, c.accent_hi),
-        Tone::Success => (with_alpha(c.success, 0.16), c.success),
-        Tone::Warning => (with_alpha(c.warning, 0.16), c.warning),
-        Tone::Danger => (c.danger_soft, c.danger),
+        Tone::Success => (with_alpha(t.inks.success(), 0.16), t.inks.success()),
+        Tone::Warning => (with_alpha(t.inks.warning(), 0.16), t.inks.warning()),
+        Tone::Danger => (t.inks.danger_soft, t.inks.danger()),
     }
 }
 
@@ -390,7 +392,7 @@ pub fn row_hover(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 /// A row that something is wrong with: a wash of the danger colour.
 pub fn row_conflict(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
-        background: Some(Background::Color(with_alpha(t.colors.danger, 0.08))),
+        background: Some(Background::Color(with_alpha(t.inks.danger(), 0.08))),
         border: rounded(radius::NONE),
         ..Style::default()
     }

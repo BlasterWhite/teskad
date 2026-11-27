@@ -176,7 +176,7 @@ mod tests {
         /// A theme's `--kit-*` colours, each laid over the page as it reads.
         fn tokens(theme: &Theme) -> HashMap<String, Rgb> {
             let map: serde_json::Value = serde_json::from_str(TOKEN_MAP).unwrap();
-            let page = Rgb::from(theme.colors.chrome);
+            let page = Rgb::from(theme.palette.surface);
             map["colors"]
                 .as_object()
                 .unwrap()

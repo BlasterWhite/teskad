@@ -41,22 +41,22 @@ pub fn accent(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 
 /// Text on the accent.
 pub fn on_accent(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| colored(t.colors.accent_fg)
+    move |_| colored(t.palette.on_accent)
 }
 
 pub fn danger(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| colored(t.colors.danger)
+    move |_| colored(t.inks.danger())
 }
 
 pub fn success(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| colored(t.colors.success)
+    move |_| colored(t.inks.success())
 }
 
 pub fn warning(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| colored(t.colors.warning)
+    move |_| colored(t.inks.warning())
 }
 
 /// The word for an agent's state (working, waiting, your turn, idle).
 pub fn state(t: &Theme, state: AgentState) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| colored(t.colors.state(state).text)
+    move |_| colored(t.inks.state(state).text)
 }

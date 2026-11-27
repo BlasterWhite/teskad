@@ -108,7 +108,7 @@ fn the_menu_line_under_the_pointer_is_lit_not_filled_and_keeps_its_text() {
     assert!(lit(&hovered) > 0.0 && lit(&pressed) > lit(&hovered));
     assert_eq!(hovered.text_color, t.palette.text);
     let danger = button_style::menu_item_danger(t)(&iced::Theme::Dark, Status::Hovered);
-    assert_eq!(danger.text_color, t.colors.danger);
+    assert_eq!(danger.text_color, t.inks.danger());
 }
 
 #[test]
@@ -175,7 +175,7 @@ fn an_invalid_field_keeps_the_danger_edge_even_while_it_has_the_keyboard() {
         text_input::Status::Focused { is_hovered: false },
     ] {
         let look = text_input_style::field_invalid(t)(&iced::Theme::Dark, status);
-        assert_eq!(look.border.color, t.colors.danger, "{status:?}");
+        assert_eq!(look.border.color, t.inks.danger(), "{status:?}");
     }
 }
 
@@ -184,8 +184,8 @@ fn the_palette_row_is_the_accent_only_when_chosen() {
     let t = default_theme();
     let chosen = button_style::palette_row(t, true)(&iced::Theme::Dark, Status::Active);
     let other = button_style::palette_row(t, false)(&iced::Theme::Dark, Status::Hovered);
-    assert_eq!(chosen.background, Some(Background::Color(t.colors.accent)));
-    assert_eq!(chosen.text_color, t.colors.accent_fg);
+    assert_eq!(chosen.background, Some(Background::Color(t.palette.accent)));
+    assert_eq!(chosen.text_color, t.palette.on_accent);
     assert_eq!(other.background, None);
 }
 
@@ -214,7 +214,7 @@ fn a_front_tab_takes_the_panels_surface_in_every_state() {
     let t = default_theme();
     for status in [Status::Active, Status::Hovered, Status::Pressed] {
         let look = button_style::tab_strip(t, true)(&iced::Theme::Dark, status);
-        assert_eq!(look.background, Some(Background::Color(t.colors.chrome)));
+        assert_eq!(look.background, Some(Background::Color(t.palette.surface)));
     }
 }
 
@@ -266,12 +266,12 @@ fn on_a_translucent_window_the_desktop_shows_through_the_page_and_the_bars_only(
     };
     // The page under everything, and the bars, at the window's alpha.
     let backdrop = fill_of(container_style::backdrop(theme)(dark)).unwrap();
-    assert_eq!(backdrop, theme.colors.bg.scale_alpha(alpha));
+    assert_eq!(backdrop, theme.palette.bg.scale_alpha(alpha));
     let bar = fill_of(container_style::see_through(
         theme,
         container_style::toolbar(theme),
     )(dark));
-    assert_eq!(bar, Some(theme.colors.chrome_bar.scale_alpha(alpha)));
+    assert_eq!(bar, Some(theme.palette.surface_raised.scale_alpha(alpha)));
     assert_eq!(rule::sep_see_through(theme)(dark).color.a, alpha);
     // A pane on the backdrop adds nothing to it, or the two coats would make
     // it opaque; its text keeps the theme's colour.

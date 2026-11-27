@@ -3,7 +3,7 @@
 
 use std::sync::OnceLock;
 
-use crate::derive::{derive_colors, derive_palette};
+use crate::derive::{derive_colors, derive_inks, derive_palette};
 use crate::palette::{Palette, Status};
 use crate::spec::ThemeSpec;
 use crate::theme::{Appearance, Theme};
@@ -63,13 +63,15 @@ const SOLID: f32 = 1.0;
 /// that palette.
 fn build(spec: ThemeSpec) -> Theme {
     let palette = derive_palette(spec.appearance, &spec.terminal, &spec.ui);
+    let inks = derive_inks(spec.appearance, &palette, &spec.terminal);
     Theme {
         id: Box::leak(spec.id.into_boxed_str()),
         name: Box::leak(spec.name.into_boxed_str()),
         appearance: spec.appearance,
         terminal: spec.terminal,
         palette,
-        colors: derive_colors(spec.appearance, &palette, &spec.terminal),
+        inks,
+        colors: derive_colors(spec.appearance, &palette, &inks),
         window_opacity: SOLID,
     }
 }
