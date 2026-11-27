@@ -5,10 +5,13 @@
 use std::collections::HashMap;
 
 use hangar_i18n::{Key, args};
-use hangar_theme::tokens::{font_size, size, space};
+use hangar_theme::tokens::scale::type_scale;
+use hangar_theme::tokens::{BORDER_WIDTH, font_size, size, space};
 use hangar_theme::{Theme, fonts, style};
 use hangar_ui::button;
+use hangar_ui::dashed::dashed;
 use hangar_ui::icon::{Icon, icon};
+use hangar_ui::tab_toolbar;
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::{
     Space, column, container, mouse_area, responsive, row, rule, scrollable, stack, text,
@@ -60,6 +63,8 @@ pub(super) struct View<'a> {
     /// The time the frame is drawn at, for the clocks of cards in progress.
     pub now: i64,
     pub dock: bool,
+    /// The task of this board whose sheet is open: its card is selected.
+    pub selected: Option<&'a str>,
 }
 
 impl<'a> View<'a> {
@@ -88,6 +93,7 @@ impl<'a> View<'a> {
             panes,
             now: now_ms() as i64,
             dock,
+            selected: st.open_task(cwd),
         }
     }
 
@@ -127,8 +133,8 @@ pub(super) fn board<'a>(
     let in_dock = dock_room.is_some();
     let v = View::new(st, ctx, cwd, in_dock);
     let t = v.t();
-    let body: Element<'a, Message> = if in_dock {
-        dock_body(v)
+    let body: Element<'a, Message> = if let Some((width, _)) = dock_room {
+        dock_body(v, width)
     } else {
         responsive(move |size| full_body(&v, size.width)).into()
     };
@@ -146,94 +152,114 @@ pub(super) fn board<'a>(
 
 fn full_body<'a>(v: &View<'a>, width: f32) -> Element<'a, Message> {
     let t = v.t();
-    let compact = width < look::COMPACT_BELOW;
-    let stacked = width < look::STACK_BELOW;
-
     let content: Element<'a, Message> = if !v.loaded {
         skeleton(v)
     } else if v.all.is_empty() && !v.st.composing.contains(v.cwd) {
         empty(v)
-    } else if stacked {
-        scrollable(
-            column(
-                Column::ALL
-                    .into_iter()
-                    .map(|c| column_view(v, c, false, true)),
-            )
-            .width(Length::Fill),
-        )
-        .height(Length::Fill)
-        .style(style::scrollable::default(t))
-        .into()
     } else {
-        row(Column::ALL
-            .into_iter()
-            .map(|c| column_view(v, c, false, false)))
-        .height(Length::Fill)
-        .into()
+        columns(v, width)
     };
 
     let page = column![
-        bar_full(v, compact),
-        rule::horizontal(1).style(style::rule::sep(t)),
-        content,
+        bar_full(v, tab_toolbar::compact(width)),
+        container(content)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .style(style::container::plain(t)),
     ];
     with_toast(v, page.into())
+}
+
+/// How wide each of the four columns is in a board `width` wide: a fourth of
+/// the room, and no less than [`look::COLUMN_MIN`] once the columns scroll.
+fn column_width(width: f32) -> f32 {
+    let between = 3.0 * look::COLUMN_GAP + 2.0 * look::PAGE_PADDING.1;
+    let share = ((width - between) / 4.0).max(0.0);
+    if width < look::SCROLL_BELOW {
+        share.max(look::COLUMN_MIN)
+    } else {
+        share
+    }
+}
+
+/// The four columns side by side; under [`look::SCROLL_BELOW`] they keep a
+/// readable width and scroll sideways.
+fn columns<'a>(v: &View<'a>, width: f32) -> Element<'a, Message> {
+    let each = column_width(width);
+    let card_width = each - 2.0 * (CARDS_PADDING + BORDER_WIDTH);
+    let scrolls = width < look::SCROLL_BELOW;
+    let line = row(Column::ALL.into_iter().map(|which| {
+        let column = column_view(v, which, false, false, card_width);
+        container(column)
+            .width(if scrolls {
+                Length::Fixed(each)
+            } else {
+                Length::FillPortion(1)
+            })
+            .height(Length::Fill)
+            .into()
+    }))
+    .spacing(look::COLUMN_GAP)
+    .padding([look::PAGE_PADDING.0, look::PAGE_PADDING.1])
+    .height(Length::Fill);
+    if !scrolls {
+        return line.into();
+    }
+    scrollable(line)
+        .direction(scrollable::Direction::Horizontal(
+            scrollable::Scrollbar::default(),
+        ))
+        .height(Length::Fill)
+        .style(style::scrollable::default(v.t()))
+        .into()
 }
 
 fn bar_full<'a>(v: &View<'a>, compact: bool) -> Element<'a, Message> {
     let t = v.t();
     let tr = v.ctx.i18n;
-    let title = text(if v.loaded {
-        count_text(v)
-    } else {
-        tr.t(Key::BoardTitle).into_owned()
-    })
-    .size(font_size::BODY)
-    .font(fonts::ui_semibold());
-
-    let mut bar = row![title].spacing(space::MD).align_y(Alignment::Center);
-    // Nothing to filter before the first read, or on an empty board.
-    if v.st.filters.active() || !v.all.is_empty() {
-        bar = bar.push(filter::group(v));
-    }
-    bar = bar.push(Space::new().width(Length::Fill));
-
-    let mut mcp_label = row![icon(Icon::Plug, 12.0)]
-        .spacing(space::SM)
-        .align_y(Alignment::Center);
-    if !compact {
-        mcp_label = mcp_label.push(text(tr.t(Key::BoardHint)).size(font_size::CAPTION_LG));
-    }
-    bar = bar.push(hangar_ui::tip::bottom(
+    let title = tab_toolbar::count(
         t,
-        iced::widget::button(look::centred(mcp_label))
-            .padding([0.0, space::SM])
-            .height(24.0)
-            .style(look::quiet_button(t))
-            .on_press(Message::Board(Msg::OpenMcp)),
-        tr.t(Key::BoardMcp),
-    ));
-    bar = bar.push(
-        button::secondary(t, tr.t(Key::BoardAddTask))
-            .icon(Icon::Plus)
-            .small()
-            .on_press(Message::Board(Msg::StartAdding(
-                v.cwd.to_owned(),
-                Column::Todo,
-            ))),
+        if v.loaded {
+            count_text(v)
+        } else {
+            tr.t(Key::BoardTitle).into_owned()
+        },
     );
 
-    container(bar)
-        .padding(Padding {
-            top: 0.0,
-            right: space::XL,
-            bottom: 0.0,
-            left: space::XXL,
-        })
-        .center_y(look::BAR_HEIGHT)
-        .style(style::container::pane_head(t, false))
-        .into()
+    let mut leading = row![title, Space::new().width(space::MD)]
+        .spacing(space::MD)
+        .align_y(Alignment::Center);
+    // Nothing to filter before the first read, or on an empty board.
+    if v.st.filters.active() || !v.all.is_empty() {
+        leading = leading.push(if compact {
+            filter::folded(v)
+        } else {
+            filter::group(v)
+        });
+    }
+
+    let note = tab_toolbar::note(
+        t,
+        tr.t(Key::BoardHint).into_owned(),
+        tr.t(Key::BoardMcp).into_owned(),
+        compact,
+        Message::Board(Msg::OpenMcp),
+    );
+    let add = button::secondary(t, tr.t(Key::BoardAddTask))
+        .icon(Icon::Plus)
+        .size(button::Size::Bar)
+        .on_press(Message::Board(Msg::StartAdding(
+            v.cwd.to_owned(),
+            Column::Todo,
+        )));
+
+    tab_toolbar::bar(
+        t,
+        leading,
+        row![note, Element::from(add)]
+            .spacing(space::MD)
+            .align_y(Alignment::Center),
+    )
 }
 
 /// "12 tasks", or "3 of 12 tasks" while a filter hides some.
@@ -250,7 +276,9 @@ fn count_text(v: &View<'_>) -> String {
 
 // ---- Dock ------------------------------------------------------------------------------------
 
-fn dock_body<'a>(v: View<'a>) -> Element<'a, Message> {
+fn dock_body<'a>(v: View<'a>, width: f32) -> Element<'a, Message> {
+    // The panel less its grip and the room around the cards.
+    let card_width = width - look::GRIP_WIDTH - 2.0 * space::LG;
     let t = v.t();
     let tr = v.ctx.i18n;
     let filtering = v.st.filters.active();
@@ -347,7 +375,7 @@ fn dock_body<'a>(v: View<'a>) -> Element<'a, Message> {
             column(
                 Column::DOCK_ORDER
                     .into_iter()
-                    .map(|c| column_view(&v, c, true, true)),
+                    .map(|c| column_view(&v, c, true, true, card_width)),
             )
             .padding(Padding {
                 top: space::XS,
@@ -366,9 +394,18 @@ fn dock_body<'a>(v: View<'a>) -> Element<'a, Message> {
 
 // ---- Columns ---------------------------------------------------------------------------------
 
+/// The room around a column's cards, across.
+const CARDS_PADDING: f32 = 8.0;
+
 /// A column. In the dock it is a section that folds; `flow` lets its cards
 /// run the length of the page instead of scrolling inside the column.
-fn column_view<'a>(v: &View<'a>, which: Column, in_dock: bool, flow: bool) -> Element<'a, Message> {
+fn column_view<'a>(
+    v: &View<'a>,
+    which: Column,
+    in_dock: bool,
+    flow: bool,
+    card_width: f32,
+) -> Element<'a, Message> {
     let t = v.t();
     let tr = v.ctx.i18n;
     let items = select::column_items(&v.shown, which);
@@ -384,18 +421,17 @@ fn column_view<'a>(v: &View<'a>, which: Column, in_dock: bool, flow: bool) -> El
 
     let mark = hangar_ui::glyph::state(t, look::mark(which), look::MARK);
     let count = text(items.len().to_string())
-        .size(font_size::LABEL)
+        .size(type_scale::LABEL.size)
         .font(fonts::mono())
-        .style(style::text::subtle(t));
+        .color(t.palette.text_muted);
     let plus = button::icon_button(t, Icon::Plus)
-        .small()
-        .icon_size(12.0)
+        .sized(button::Side::Xs)
         .tip(add_label.clone())
         .on_press(Message::Board(Msg::StartAdding(v.cwd.to_owned(), which)));
 
     let head: Element<'a, Message> = if in_dock {
         let caret = icon(Icon::ChevronRight, 10.0)
-            .color(t.colors.fg_subtle)
+            .color(t.palette.text_muted)
             .rotate(if folded {
                 Radians(0.0)
             } else {
@@ -408,7 +444,7 @@ fn column_view<'a>(v: &View<'a>, which: Column, in_dock: bool, flow: bool) -> El
                 text(name.clone())
                     .size(font_size::CAPTION)
                     .font(fonts::ui_semibold())
-                    .style(style::text::muted(t)),
+                    .color(t.palette.text_secondary),
                 count
             ]
             .spacing(7.0)
@@ -436,8 +472,9 @@ fn column_view<'a>(v: &View<'a>, which: Column, in_dock: bool, flow: bool) -> El
             row![
                 mark,
                 text(name.clone())
-                    .size(font_size::UI)
-                    .font(fonts::ui_semibold()),
+                    .size(type_scale::SMALL.size)
+                    .font(fonts::ui_semibold())
+                    .wrapping(text::Wrapping::None),
                 count,
                 Space::new().width(Length::Fill),
                 plus,
@@ -446,8 +483,8 @@ fn column_view<'a>(v: &View<'a>, which: Column, in_dock: bool, flow: bool) -> El
             .align_y(Alignment::Center),
         )
         .padding(Padding {
-            left: 14.0,
-            right: space::MD,
+            left: space::XL,
+            right: space::SM,
             ..Padding::ZERO
         })
         .center_y(look::COLUMN_HEAD)
@@ -456,14 +493,18 @@ fn column_view<'a>(v: &View<'a>, which: Column, in_dock: bool, flow: bool) -> El
 
     let mut parts = iced::widget::column![head];
     if !folded {
-        let mut cards = iced::widget::column(items.iter().map(|task| card::card(v, task)))
-            .spacing(if in_dock { 5.0 } else { 6.0 })
-            .padding(Padding {
-                top: 2.0,
-                right: space::LG,
-                bottom: if in_dock { space::MD } else { space::XL },
-                left: space::LG,
-            });
+        let side = if in_dock { space::LG } else { CARDS_PADDING };
+        let mut cards =
+            iced::widget::column(items.iter().map(|task| card::card(v, task, card_width)))
+                .spacing(CARDS_PADDING)
+                .padding(Padding {
+                    // Room for the focus ring of the first card, which the
+                    // scrollable would cut.
+                    top: space::XS,
+                    right: side,
+                    bottom: CARDS_PADDING,
+                    left: side,
+                });
         if let Some(field) = add_field(v, which, items.is_empty(), add_label) {
             cards = cards.push(field);
         }
@@ -480,6 +521,8 @@ fn column_view<'a>(v: &View<'a>, which: Column, in_dock: bool, flow: bool) -> El
     let surface = container(parts)
         .width(Length::Fill)
         .height(if flow { Length::Shrink } else { Length::Fill })
+        // Off the column's hairline.
+        .padding(if in_dock { 0.0 } else { BORDER_WIDTH })
         .style(look::column(t, over, in_dock));
 
     // While a card is pressed, each column says when the pointer is over it.
@@ -495,17 +538,13 @@ fn column_view<'a>(v: &View<'a>, which: Column, in_dock: bool, flow: bool) -> El
             .width(Length::Fill)
             .into()
     } else {
-        container(row![area, rule::vertical(1).style(style::rule::sep(t))])
-            .width(Length::FillPortion(1))
-            .max_width(look::COLUMN_MAX_WIDTH)
-            .height(Length::Fill)
-            .into()
+        area.into()
     }
 }
 
-/// The row to type a card into. A column with nothing in it keeps it open: it
-/// is the column's empty state. Otherwise it is there once it has been asked
-/// for (the column's "+", the bar's "Add…") or holds something typed.
+/// The row to type a card into, there once it has been asked for (the
+/// column's "+", the bar's "Add…") or while it holds something typed. A
+/// column with nothing in it has the dashed "Add…" in its place until then.
 fn add_field<'a>(
     v: &View<'a>,
     column: Column,
@@ -524,6 +563,17 @@ fn add_field<'a>(
             .is_some_and(|(at, which)| at == v.cwd && *which == column);
     if !(empty || !draft.is_empty() || asked) {
         return None;
+    }
+    // A column with nothing in it offers a card in a dashed frame; pressing
+    // it opens the field the card is typed in.
+    if draft.is_empty() && !asked {
+        return Some(dashed(
+            t,
+            Icon::Plus,
+            v.ctx.t(Key::BoardAddTask).into_owned(),
+            super::add_id(column),
+            Message::Board(Msg::StartAdding(cwd, column)),
+        ));
     }
     let placeholder = v.ctx.t(Key::BoardAdd).into_owned();
     let (typed_on, submitted_on) = (cwd.clone(), cwd.clone());

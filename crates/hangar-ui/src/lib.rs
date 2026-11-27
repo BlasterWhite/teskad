@@ -41,6 +41,9 @@
 //! | [`text`] | `body`, `label`, `muted`, `hint`, `title`, `heading`, `mono`: text by role |
 //! | [`button`] | `primary`, `secondary`, `ghost`, `danger`, `icon_button` (with tooltip), `toggle_button`, `tab_button`, `link` |
 //! | [`input`] | `text_field` (label, hint, error), `search_field`, `number_input`, `textarea`, `select`, `checkbox`, `switch`, `slider`, `segmented` |
+//! | [`clamp`](mod@clamp) | `clamp`: text on a few lines at most, with an ellipsis after the last |
+//! | [`dashed`](mod@dashed) | `dashed`: a button in a dashed frame, for a place that has nothing yet |
+//! | [`tab_toolbar`] | `bar`, `count`, `note`, `filters_button`: the bar under the top bar of a tab (Board, Memory, Statistics) |
 //! | [`shortcut_field`] | the Shortcuts settings' control: a command's keys, and the field that records another |
 //! | [`shortcut`] | chords, bindings and the recorder's state machine (`src/lib/keys.ts`) |
 //! | [`keycap`] | `keycap`, `binding`: shortcuts drawn as caps |
@@ -86,6 +89,8 @@
 
 pub mod badge;
 pub mod button;
+pub mod clamp;
+pub mod dashed;
 pub mod dialog;
 pub mod empty;
 pub mod focus;
@@ -112,6 +117,7 @@ pub mod sheet;
 pub mod shortcut;
 pub mod shortcut_field;
 pub mod split;
+pub mod tab_toolbar;
 pub mod tabs;
 pub mod tail_text;
 #[cfg(test)]

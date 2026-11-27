@@ -160,22 +160,14 @@ fn workspace_body<'a>(ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, Message> {
     ))
     .on_enter(Message::Shell(Action::PointerOverToolbar(true)))
     .on_exit(Message::Shell(Action::PointerOverToolbar(false)));
-    // The taller bar of the broadcast field lies on the window's `bg`, as
-    // the top bar does; the readouts of the other views keep the status bar.
-    let broadcasting = crate::status_bar::height(ctx) == crate::status_bar::BROADCAST_HEIGHT;
+    // The status bar lies on the window's `bg`, as the top bar does.
     let status = container(crate::status_bar::view(&p.status_bar, ctx))
         .width(Length::Fill)
         .height(crate::status_bar::height(ctx))
         .style(title_bar::rounded_style(
             ctx,
             Corners::bottom(ctx),
-            style::container::see_through(t, move |theme: &iced::Theme| {
-                if broadcasting {
-                    skin::window_chrome(t)(theme)
-                } else {
-                    style::container::statusbar(t)(theme)
-                }
-            }),
+            style::container::see_through(t, skin::window_chrome(t)),
         ));
 
     let mut body = row![work_area(ctx, ws)].height(Length::Fill);

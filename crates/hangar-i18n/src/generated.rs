@@ -314,6 +314,8 @@ pub enum Key {
     BoardDoing,
     /// `board.doingSince`
     BoardDoingSince,
+    /// `board.doingSinceTime`
+    BoardDoingSinceTime,
     /// `board.done`
     BoardDone,
     /// `board.elapsedDays`
@@ -4210,6 +4212,8 @@ pub enum Key {
     TaskAddDependency,
     /// `task.assignee`
     TaskAssignee,
+    /// `task.blocks`
+    TaskBlocks,
     /// `task.close`
     TaskClose,
     /// `task.column`
@@ -4224,10 +4228,14 @@ pub enum Key {
     TaskDeleteConfirm,
     /// `task.dependencies`
     TaskDependencies,
+    /// `task.dependenciesSection`
+    TaskDependenciesSection,
     /// `task.description`
     TaskDescription,
     /// `task.descriptionHint`
     TaskDescriptionHint,
+    /// `task.doingSince`
+    TaskDoingSince,
     /// `task.free`
     TaskFree,
     /// `task.labels`
@@ -4238,6 +4246,8 @@ pub enum Key {
     TaskNew,
     /// `task.noComments`
     TaskNoComments,
+    /// `task.openPane`
+    TaskOpenPane,
     /// `task.owns`
     TaskOwns,
     /// `task.ownsHint`
@@ -4256,6 +4266,8 @@ pub enum Key {
     TaskThreadHint,
     /// `task.title`
     TaskTitle,
+    /// `task.today`
+    TaskToday,
     /// `task.writeComment`
     TaskWriteComment,
     /// `titleBar.close`
@@ -4812,6 +4824,7 @@ impl Key {
         Key::BoardDockResize,
         Key::BoardDoing,
         Key::BoardDoingSince,
+        Key::BoardDoingSinceTime,
         Key::BoardDone,
         Key::BoardElapsedDays,
         Key::BoardElapsedHours,
@@ -6760,6 +6773,7 @@ impl Key {
         Key::StatusWorktree,
         Key::TaskAddDependency,
         Key::TaskAssignee,
+        Key::TaskBlocks,
         Key::TaskClose,
         Key::TaskColumn,
         Key::TaskCreate,
@@ -6767,13 +6781,16 @@ impl Key {
         Key::TaskDelete,
         Key::TaskDeleteConfirm,
         Key::TaskDependencies,
+        Key::TaskDependenciesSection,
         Key::TaskDescription,
         Key::TaskDescriptionHint,
+        Key::TaskDoingSince,
         Key::TaskFree,
         Key::TaskLabels,
         Key::TaskName,
         Key::TaskNew,
         Key::TaskNoComments,
+        Key::TaskOpenPane,
         Key::TaskOwns,
         Key::TaskOwnsHint,
         Key::TaskPriority,
@@ -6783,6 +6800,7 @@ impl Key {
         Key::TaskThread,
         Key::TaskThreadHint,
         Key::TaskTitle,
+        Key::TaskToday,
         Key::TaskWriteComment,
         Key::TitleBarClose,
         Key::TitleBarMaximize,
@@ -7136,6 +7154,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "board.dockResize", en: Text::plain("Resize the board panel · double-click for the default width"), fr: Text::plain("Redimensionner le tableau latéral · double-clic pour la largeur par défaut") },
     Message { id: "board.doing", en: Text::plain("In progress"), fr: Text::plain("En cours") },
     Message { id: "board.doingSince", en: Text::plain("In progress since {date}"), fr: Text::plain("En cours depuis le {date}") },
+    Message { id: "board.doingSinceTime", en: Text::plain("In progress since {time}"), fr: Text::plain("En cours depuis {time}") },
     Message { id: "board.done", en: Text::plain("Done"), fr: Text::plain("Terminé") },
     Message { id: "board.elapsedDays", en: Text::plain("{d}\u{a0}d\u{a0}{h}\u{a0}h"), fr: Text::plain("{d}\u{a0}j\u{a0}{h}\u{a0}h") },
     Message { id: "board.elapsedHours", en: Text::plain("{h}\u{a0}h\u{a0}{m}"), fr: Text::plain("{h}\u{a0}h\u{a0}{m}") },
@@ -9084,6 +9103,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "status.worktree", en: Text::plain("worktree"), fr: Text::plain("worktree") },
     Message { id: "task.addDependency", en: Text::plain("Add a dependency…"), fr: Text::plain("Ajouter une dépendance…") },
     Message { id: "task.assignee", en: Text::plain("Assigned to"), fr: Text::plain("Assignée à") },
+    Message { id: "task.blocks", en: Text::plain("Blocks"), fr: Text::plain("Bloque") },
     Message { id: "task.close", en: Text::plain("Close"), fr: Text::plain("Fermer") },
     Message { id: "task.column", en: Text::plain("Column"), fr: Text::plain("Colonne") },
     Message { id: "task.create", en: Text::plain("Create"), fr: Text::plain("Créer") },
@@ -9091,13 +9111,16 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "task.delete", en: Text::plain("Delete"), fr: Text::plain("Supprimer") },
     Message { id: "task.deleteConfirm", en: Text::plain("Confirm"), fr: Text::plain("Confirmer") },
     Message { id: "task.dependencies", en: Text::plain("Depends on"), fr: Text::plain("Dépend de") },
+    Message { id: "task.dependenciesSection", en: Text::plain("Dependencies"), fr: Text::plain("Dépendances") },
     Message { id: "task.description", en: Text::plain("Description"), fr: Text::plain("Description") },
     Message { id: "task.descriptionHint", en: Text::plain("visible to agents"), fr: Text::plain("visible par les agents") },
+    Message { id: "task.doingSince", en: Text::plain("In progress since"), fr: Text::plain("En cours depuis") },
     Message { id: "task.free", en: Text::plain("free — any agent can take it"), fr: Text::plain("libre — un agent peut la prendre") },
     Message { id: "task.labels", en: Text::plain("Labels"), fr: Text::plain("Labels") },
     Message { id: "task.name", en: Text::plain("Title"), fr: Text::plain("Titre") },
     Message { id: "task.new", en: Text::plain("New task"), fr: Text::plain("Nouvelle tâche") },
     Message { id: "task.noComments", en: Text::plain("No message yet."), fr: Text::plain("Aucun message pour l'instant.") },
+    Message { id: "task.openPane", en: Text::plain("Open pane →"), fr: Text::plain("Ouvrir le panneau →") },
     Message { id: "task.owns", en: Text::plain("Files it owns"), fr: Text::plain("Fichiers qui lui sont réservés") },
     Message { id: "task.ownsHint", en: Text::plain("one path or pattern per line; its worker changes nothing else"), fr: Text::plain("un chemin ou un motif par ligne\u{202f}; son agent ne modifie rien d'autre") },
     Message { id: "task.priority", en: Text::plain("Priority"), fr: Text::plain("Priorité") },
@@ -9107,6 +9130,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "task.thread", en: Text::plain("Thread"), fr: Text::plain("Échanges") },
     Message { id: "task.threadHint", en: Text::plain("this is where agents talk to each other"), fr: Text::plain("c'est ici que les agents se parlent") },
     Message { id: "task.title", en: Text::plain("Task"), fr: Text::plain("Tâche") },
+    Message { id: "task.today", en: Text::plain("today {time}"), fr: Text::plain("aujourd'hui {time}") },
     Message { id: "task.writeComment", en: Text::plain("Write a message…"), fr: Text::plain("Écrire un message…") },
     Message { id: "titleBar.close", en: Text::plain("Close"), fr: Text::plain("Fermer") },
     Message { id: "titleBar.maximize", en: Text::plain("Maximize"), fr: Text::plain("Agrandir") },

@@ -100,11 +100,12 @@ pub enum Icon {
     External,
     Apps,
     Eye,
+    Unlock,
 }
 
 impl Icon {
     /// All of them, in the order of the web app's table.
-    pub const ALL: [Icon; 94] = [
+    pub const ALL: [Icon; 95] = [
         Icon::Layout1,
         Icon::Layout2,
         Icon::Layout4,
@@ -199,6 +200,7 @@ impl Icon {
         Icon::External,
         Icon::Apps,
         Icon::Eye,
+        Icon::Unlock,
     ];
 
     /// The name the web app knows it by (`"splitRight"`), which is what the
@@ -299,6 +301,7 @@ impl Icon {
             Icon::External => "external",
             Icon::Apps => "apps",
             Icon::Eye => "eye",
+            Icon::Unlock => "unlock",
         }
     }
 
@@ -410,6 +413,8 @@ impl Icon {
             Icon::External => r##"<path d="M9 2.5h4.5V7M13.5 2.5 8 8M11.5 9.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3"/>"##,
             Icon::Apps => r##"<rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/>"##,
             Icon::Eye => r##"<path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/>"##,
+            // The lock with its shackle let go: a block lifted.
+            Icon::Unlock => r##"<rect x="3" y="7" width="10" height="6.75" rx="1.6"/><path d="M5.5 7V4.9a2.5 2.5 0 0 1 4.9-.7"/>"##,
         }
     }
 }

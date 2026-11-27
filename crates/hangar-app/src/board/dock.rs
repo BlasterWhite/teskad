@@ -97,8 +97,9 @@ pub(super) fn grip<'a>(st: &'a State, ctx: Ctx<'a>, width: f32, max: f32) -> Ele
         })
         .interaction(mouse::Interaction::ResizingHorizontally)
         .look(Look {
-            hover: Some(t.colors.accent),
-            ring: Some(t.colors.accent),
+            hover: Some(t.palette.accent),
+            ring: Some(t.palette.focus_ring),
+            ring_offset: 0.0,
             radius: 0.0,
             inset_x: look::GRIP_INSET,
         })

@@ -63,6 +63,8 @@ pub enum Size {
     /// 32 px, the brand's `controlMd`: the buttons of a settings page and
     /// of a dialog's foot.
     Large,
+    /// 30 px: the main action of a tab's bar (`tab_toolbar`).
+    Bar,
 }
 
 impl Size {
@@ -71,6 +73,7 @@ impl Size {
             Size::Medium => size::CONTROL_HEIGHT,
             Size::Small => size::CONTROL_HEIGHT_SM,
             Size::Large => scale::size::CONTROL_MD,
+            Size::Bar => 30.0,
         }
     }
 
@@ -79,6 +82,7 @@ impl Size {
             Size::Medium => 11.0,
             Size::Small => 9.0,
             Size::Large => 14.0,
+            Size::Bar => 12.0,
         }
     }
 
@@ -86,6 +90,7 @@ impl Size {
         match self {
             Size::Medium | Size::Large => font_size::BODY,
             Size::Small => font_size::CAPTION_LG,
+            Size::Bar => font_size::UI,
         }
     }
 }

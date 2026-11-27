@@ -105,6 +105,26 @@ impl Theme {
         self.appearance.is_dark()
     }
 
+    /// What a column of the board is filled with (`ecrans.md`, the token
+    /// `deep`: a step off the window, under the cards laid on it). It is not a
+    /// colour a theme writes: halfway from `bg` to `surface` on a dark theme
+    /// (Teskad Dark's `#120F18`, the mockups' `#120F17`), and
+    /// `surfaceRaised` on a light one, whose surface is lighter than its
+    /// window (Teskad Light's `#F3EFF8`, as its mockup).
+    pub fn deep(&self) -> Color {
+        let p = &self.palette;
+        if !self.is_dark() {
+            return p.surface_raised;
+        }
+        let half = |a: f32, b: f32| (a + b) / 2.0;
+        Color {
+            r: half(p.bg.r, p.surface.r),
+            g: half(p.bg.g, p.surface.g),
+            b: half(p.bg.b, p.surface.b),
+            a: p.bg.a,
+        }
+    }
+
     /// How opaque the window's background is drawn here: the theme's
     /// [`window_opacity`](Theme::window_opacity) on Linux, where the window is
     /// created transparent (for the corners of the title bar Hangar draws),

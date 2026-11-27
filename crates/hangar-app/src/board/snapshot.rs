@@ -194,7 +194,7 @@ fn draw<'a>(
     let packages: &'a Packages = Box::leak(Box::default());
     let element = build(ctx(m, packages));
     let settings = Settings {
-        fonts: vec![Cow::Borrowed(hangar_theme::fonts::INTER_VARIABLE)],
+        fonts: hangar_theme::fonts::ALL.map(Cow::Borrowed).to_vec(),
         default_font: hangar_theme::fonts::ui(),
         ..Settings::default()
     };
@@ -223,9 +223,9 @@ fn draw<'a>(
 /// Each scene in English and French, a dark theme and a light one.
 fn each(scene: impl Fn(&Model)) {
     for (locale, theme) in [
-        (Locale::En, "graphite"),
+        (Locale::En, "teskad-dark"),
         (Locale::Fr, "graphite"),
-        (Locale::En, "github-light"),
+        (Locale::En, "teskad-light"),
     ] {
         let m = model(locale, theme, Some(tasks()));
         scene(&m);
@@ -244,8 +244,71 @@ fn the_full_board_in_each_language_and_theme() {
 }
 
 #[test]
-fn the_full_board_stacks_when_it_is_narrow() {
-    each(|m| full(m, &State::default(), "stacked", Size::new(560.0, 760.0)));
+fn the_full_board_makes_room_when_it_is_narrow() {
+    each(|m| full(m, &State::default(), "narrow", Size::new(760.0, 760.0)));
+}
+
+#[test]
+fn the_folded_filters_and_a_card_under_the_pointer() {
+    let m = model(Locale::En, "teskad-dark", Some(tasks()));
+    let st = State {
+        filters_menu: true,
+        hovered: Some((
+            CWD.to_owned(),
+            "3d4e0000-aaaa-bbbb-cccc-dddddddddddd".into(),
+        )),
+        filters: super::select::Filters {
+            state: super::select::STATE_FREE.into(),
+            ..Default::default()
+        },
+        ..State::default()
+    };
+    full(&m, &st, "folded-filters", Size::new(900.0, 760.0));
+}
+
+/// The whole window on the board, as the mockups 04, 04b and 04-light are
+/// drawn: 1440 × 900, with a task's sheet open or not.
+#[test]
+fn the_window_on_the_board_with_and_without_a_sheet() {
+    use crate::shell::{Overlay, View, WindowKind};
+    let open = "3d4e0000-aaaa-bbbb-cccc-dddddddddddd";
+    for (theme, sheet) in [
+        ("teskad-dark", None),
+        ("teskad-light", None),
+        ("teskad-dark", Some(open)),
+        ("teskad-dark", Some("5b3c0000-aaaa-bbbb-cccc-dddddddddddd")),
+        ("teskad-light", Some(open)),
+    ] {
+        let mut m = model(Locale::En, theme, Some(tasks()));
+        let window = window::Id::unique();
+        m.live.windows.insert(window, WindowKind::Main);
+        m.ui.focused_window = Some(window);
+        m.ui.view = View::Board;
+        let mut packages = Packages::default();
+        if let Some(id) = sheet {
+            m.ui.overlays.push(Overlay::Task {
+                cwd: CWD.into(),
+                task: Some(id.into()),
+            });
+            m.ui.body_width.insert(window, 1440.0 - 249.0);
+            packages.board.dialog = Some(Dialog::open(
+                CWD,
+                Some(id),
+                m.live.board.tasks(CWD).unwrap_or(&[]),
+            ));
+        }
+        let name = match sheet {
+            None => "window".to_owned(),
+            Some(id) => format!("window-sheet-{}", &id[..4]),
+        };
+        let m: &'static Model = Box::leak(Box::new(m));
+        let packages: &'static Packages = Box::leak(Box::new(packages));
+        let mut context = ctx(m, packages);
+        context.window = window;
+        draw(&name, m, Size::new(1440.0, 900.0), |_| {
+            crate::shell::frame::main(context)
+        });
+    }
 }
 
 #[test]
