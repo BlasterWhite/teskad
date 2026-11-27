@@ -17,6 +17,7 @@
   "sidebar.planResets": "{window}: {reset}",
   "sidebar.planAccountsHint": "Plan usage of each Claude account, as its panes last reported it",
   "sidebar.planNoFigures": "No figures yet",
+  "sidebar.planAccount": "Plan · {name}",
   "sidebar.renameHint": "Enter to confirm, Escape to cancel",
   "sidebar.remove": "Delete workspace",
   "sidebar.newFolder": "New folder",

@@ -7,13 +7,17 @@
 //! never by a name written here; with several agents' accounts the per-account
 //! block (`accounts::plan`) takes over.
 
-use iced::widget::{Space, column, container, progress_bar, row, text, tooltip};
-use iced::{Alignment, Background, Border, Element, Length, Padding};
+use iced::widget::{column, container, row, text, tooltip};
+use iced::{Alignment, Element, Length};
 
 use hangar_core::agent::UsageSource;
-use hangar_i18n::{Key, Locale, Translator, args};
-use hangar_theme::tokens::{font_size, space};
+use hangar_i18n::{Key, Translator, args};
+use hangar_theme::tokens::{font_size, scale, scale::type_scale, space};
 use hangar_theme::{Theme, fonts, style};
+use hangar_ui::meter;
+use hangar_ui::tail_text::tail_text;
+
+use super::skin;
 
 use crate::ctx::Ctx;
 use crate::inspector::format::{format_percent, reset_when, resets_at_ms};
@@ -22,17 +26,6 @@ use crate::panes_logic::wall_clock_ms;
 use crate::state::Model;
 use crate::state::live::{PlanLimits, RateLimit};
 use crate::state::types::AgentKind;
-
-/// Past these, a window is close enough to its limit to say so in colour.
-pub const WARN_AT: u8 = 70;
-pub const HOT_AT: u8 = 90;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Level {
-    Ok,
-    Warn,
-    Hot,
-}
 
 /// A window's usage as the meter draws it: whole percent, held between 0 and
 /// 100.
@@ -47,16 +40,6 @@ pub fn shown_pct(limit: &RateLimit, now: i64) -> u8 {
     match resets_at_ms(limit) {
         Some(reset) if reset <= now => 0,
         _ => meter_pct(limit.percent_used),
-    }
-}
-
-pub fn level_of(pct: u8) -> Level {
-    if pct >= HOT_AT {
-        Level::Hot
-    } else if pct >= WARN_AT {
-        Level::Warn
-    } else {
-        Level::Ok
     }
 }
 
@@ -146,118 +129,86 @@ pub fn view<'a>(plan: Option<&'a PlanLimits>, ctx: Ctx<'a>) -> Option<Element<'a
     let plan = plan?;
     let t = ctx.theme;
     let tr = ctx.i18n;
-    let locale: Locale = tr.locale();
     let now = i64::try_from(wall_clock_ms()).unwrap_or_default();
 
+    let entry = entry(
+        t,
+        tr,
+        tr.t(Key::SidebarPlan).into_owned(),
+        &plan.limits,
+        now,
+    );
+    let words = hint(tr, &reporters(ctx.model), &plan.limits, now);
+    Some(card(t, vec![entry], words))
+}
+
+/// One account's part of the card: its name and its next reset, then a gauge
+/// per window, or that there are no figures yet. The per-account block draws
+/// the same parts.
+pub fn entry<'a>(
+    t: &'a Theme,
+    tr: Translator,
+    title: String,
+    limits: &[RateLimit],
+    now: i64,
+) -> Element<'a, Message> {
     let mut head = row![
-        text(tr.t(Key::SidebarPlan).into_owned())
-            .size(font_size::CAPTION)
+        tail_text(title)
+            .readable()
+            .cut_end()
+            .size(type_scale::CAPTION.size)
             .font(fonts::ui_semibold())
-            .color(t.colors.fg_muted),
-        Space::new().width(Length::Fill),
+            .color(t.palette.text),
     ]
     .spacing(space::MD)
     .align_y(Alignment::Center);
-    if let Some(next) = next_reset(&plan.limits, now) {
+    if let Some(next) = next_reset(limits, now) {
         head = head.push(
             text(reset_text(tr, next, now))
-                .size(font_size::CAPTION)
-                .color(t.colors.fg_subtle)
+                .size(type_scale::LABEL.size)
+                .color(t.palette.text_muted)
                 .wrapping(text::Wrapping::None),
         );
     }
-
-    let mut meters = column![head].spacing(0);
-    for limit in &plan.limits {
-        meters = meters.push(meter(
+    let mut lines = column![head].spacing(space::MD);
+    for limit in limits {
+        let pct = shown_pct(limit, now);
+        lines = lines.push(meter::plan_row_with(
             t,
-            locale,
             window_label(tr, &limit.kind),
-            shown_pct(limit, now),
+            format_percent(f64::from(pct), tr.locale()),
+            pct,
         ));
     }
-
-    let block = container(meters).width(Length::Fill).padding(Padding {
-        top: 9.0,
-        right: 16.0,
-        bottom: 10.0,
-        left: 16.0,
-    });
-    let words = hint(tr, &reporters(ctx.model), &plan.limits, now);
-    Some(
-        column![
-            rule(t),
-            tooltip(
-                block,
-                container(text(words).size(font_size::CAPTION_LG))
-                    .padding([space::XS - 1.0, space::MD - 1.0])
-                    .style(style::container::tooltip(t)),
-                tooltip::Position::Top,
-            )
-        ]
-        .into(),
-    )
+    if limits.is_empty() {
+        lines = lines.push(
+            text(tr.t(Key::SidebarPlanNoFigures).into_owned())
+                .size(type_scale::LABEL.size)
+                .color(t.palette.text_muted),
+        );
+    }
+    lines.into()
 }
 
-/// One window's line: its name, a bar, and the percent, amber then red as it
-/// nears the limit. The per-account block draws the same lines.
-pub fn meter<'a>(t: &'a Theme, locale: Locale, label: String, pct: u8) -> Element<'a, Message> {
-    let level = level_of(pct);
-    let ink = match level {
-        Level::Ok => t.colors.fg_muted,
-        Level::Warn => t.colors.warning,
-        Level::Hot => t.colors.danger,
-    };
-    let track = t.colors.line_strong;
-    let bar = progress_bar(0.0..=100.0, f32::from(pct))
-        .girth(4)
-        .length(Length::Fill)
-        .style(move |_: &iced::Theme| progress_bar::Style {
-            background: Background::Color(track),
-            bar: Background::Color(ink),
-            border: Border {
-                radius: 2.0.into(),
-                ..Border::default()
-            },
-        });
-    row![
-        container(
-            text(label)
-                .size(font_size::CAPTION)
-                .color(t.colors.fg_muted)
-                .wrapping(text::Wrapping::None)
-        )
-        .width(24),
-        container(bar).width(Length::Fill).center_y(Length::Fill),
-        container(
-            text(format_percent(f64::from(pct), locale))
-                .size(font_size::LABEL)
-                .font(fonts::mono())
-                .color(if level == Level::Ok {
-                    t.colors.fg_muted
-                } else {
-                    ink
-                })
-        )
-        .width(34)
-        .align_x(Alignment::End),
-    ]
-    .spacing(space::MD)
-    .align_y(Alignment::Center)
-    .height(16)
-    .into()
-}
-
-/// The hairline over the block.
-pub fn rule<'a>(t: &'a Theme) -> Element<'a, Message> {
-    container(Space::new())
+/// The « Plan » card at the foot of the list, with its tooltip.
+pub fn card<'a>(
+    t: &'a Theme,
+    entries: Vec<Element<'a, Message>>,
+    hint: String,
+) -> Element<'a, Message> {
+    let card = container(column(entries).spacing(space::MD))
         .width(Length::Fill)
-        .height(1)
-        .style(move |_: &iced::Theme| container::Style {
-            background: Some(Background::Color(t.colors.line)),
-            ..container::Style::default()
-        })
-        .into()
+        .padding(scale::space::S3)
+        .style(skin::card(t));
+    container(tooltip(
+        card,
+        container(text(hint).size(font_size::CAPTION_LG))
+            .padding([space::XS - 1.0, space::MD - 1.0])
+            .style(style::container::tooltip(t)),
+        tooltip::Position::Top,
+    ))
+    .padding(space::LG)
+    .into()
 }
 
 #[cfg(test)]

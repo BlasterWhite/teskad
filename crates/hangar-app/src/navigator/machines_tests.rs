@@ -75,7 +75,7 @@ fn machines(locale: Locale, theme: &str) -> Harness {
 fn framed<'a>(st: &'a State, h: &'a Harness) -> Element<'a, Message> {
     let t = h.model.theme();
     let sidebar = container(view(st, h.ctx()))
-        .width(tokens::size::SIDEBAR_WIDTH)
+        .width(tokens::scale::size::SIDEBAR)
         .height(Length::Fill)
         .style(style::container::sidebar(t));
     container(row![sidebar, Space::new().width(Length::Fill)])

@@ -187,7 +187,7 @@ fn the_rows_are_where_the_view_draws_them() {
     let st = crate::navigator::State::default();
     let ctx = crate::navigator::testing::ctx(&model, &pkg);
     let framed = iced::widget::container(crate::navigator::view(&st, ctx))
-        .width(hangar_theme::tokens::size::SIDEBAR_WIDTH)
+        .width(hangar_theme::tokens::scale::size::SIDEBAR)
         .height(iced::Length::Fill);
     let mut ui = crate::navigator::testing::simulate(framed);
 

@@ -51,7 +51,6 @@ use std::time::{Duration, Instant};
 
 use hangar_i18n::{Key, args};
 use hangar_theme::fixed::{ON_WINDOWS_CLOSE, WINDOWS_CLOSE, WINDOWS_CLOSE_PRESSED};
-use hangar_theme::tokens::font_size;
 use hangar_theme::{Theme, fonts, tokens};
 use hangar_ui::{Icon, icon, tip};
 use iced::border::Radius;
@@ -483,7 +482,7 @@ pub fn bare_band<'a>(ctx: Ctx<'a>) -> Option<Element<'a, Message>> {
         .style(rounded_style(
             ctx,
             Corners::top(ctx),
-            hangar_theme::style::container::toolbar(ctx.theme),
+            crate::navigator::skin::window_chrome(ctx.theme),
         ));
     Some(band(ctx, strip))
 }
@@ -511,13 +510,17 @@ pub fn window_title(workspace: Option<&str>, system_bar: bool) -> String {
     }
 }
 
+/// The name as the brand pack's wordmark writes it, set in the display face
+/// beside the symbol: a drawing of the name, not a word to translate.
+pub const WORDMARK: &str = "teskad";
+
 /// How wide the parts of [`brand`] are, in logical pixels, at the sizes they
-/// are set in: Inter semibold 13.5 for the name (61.2), the system's mono
-/// 11.5 for the version (a character is about 6.9), each rounded up, and the
-/// gap between the two.
+/// are set in: Space Grotesk semibold 16 for the wordmark, the mono 11 for
+/// the version (a character is about 6.6), each rounded up, and the gap
+/// between the two.
 const NAME_WIDTH: f32 = 62.0;
 const VERSION_CHAR: f32 = 7.0;
-const BRAND_GAP: f32 = 6.0;
+const BRAND_GAP: f32 = 8.0;
 
 /// What of the brand, beside the name, the room left for it shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -574,8 +577,8 @@ fn brand_parts<'a>(ctx: Ctx<'a>, version: &'static str, shown: Brand) -> Row<'a,
     let t = ctx.theme;
     let name = tip::bottom(
         t,
-        text(NAME)
-            .size(font_size::UI_LG)
+        text(WORDMARK)
+            .size(tokens::scale::type_scale::SUBTITLE.size)
             .font(fonts::display())
             .wrapping(text::Wrapping::None),
         ctx.i18n
@@ -586,9 +589,9 @@ fn brand_parts<'a>(ctx: Ctx<'a>, version: &'static str, shown: Brand) -> Row<'a,
     if shown.version {
         parts = parts.push(
             text(version)
-                .size(font_size::MICRO)
+                .size(tokens::scale::type_scale::LABEL.size)
                 .font(fonts::mono())
-                .color(t.colors.fg_subtle)
+                .color(t.palette.text_muted)
                 .wrapping(text::Wrapping::None),
         );
     }
@@ -882,17 +885,17 @@ mod tests {
     #[test]
     fn the_version_goes_when_the_room_runs_short_and_the_name_never() {
         assert_eq!(Brand::fit(400.0, "2.4.4"), Brand { version: true });
-        assert_eq!(Brand::fit(103.0, "2.4.4"), Brand { version: true });
-        assert_eq!(Brand::fit(102.0, "2.4.4"), Brand { version: false });
+        assert_eq!(Brand::fit(105.0, "2.4.4"), Brand { version: true });
+        assert_eq!(Brand::fit(104.0, "2.4.4"), Brand { version: false });
         assert_eq!(Brand::fit(0.0, "2.4.4"), Brand { version: false });
     }
 
     #[test]
     fn the_version_fits_the_navigators_top_beside_the_name() {
         // What the navigator leaves the brand: its width, less the row's
-        // padding (16 and 10), the mark (15), the hide button (up to 28) and
-        // the two gaps (7) between the three.
-        let room = tokens::size::SIDEBAR_WIDTH - 26.0 - 15.0 - 28.0 - 14.0;
+        // padding (14 and 10), the mark (18), the hide button (28) and the
+        // two gaps (8) between the three.
+        let room = tokens::scale::size::SIDEBAR - 24.0 - 18.0 - 28.0 - 16.0;
         assert!(Brand::fit(room, VERSION).version);
     }
 
@@ -900,7 +903,7 @@ mod tests {
     fn the_title_bar_shows_the_name_and_the_version() {
         let h = Harness::new(Locale::En, "graphite");
         let mut ui = h.show(container(brand(h.ctx())).width(400));
-        assert!(ui.find(NAME).is_ok());
+        assert!(ui.find(WORDMARK).is_ok());
         assert!(ui.find(VERSION).is_ok());
     }
 
@@ -908,7 +911,7 @@ mod tests {
     fn with_no_room_left_the_name_stays_and_the_version_goes() {
         let h = Harness::new(Locale::En, "graphite");
         let mut ui = h.show(container(brand(h.ctx())).width(80));
-        assert!(ui.find(NAME).is_ok());
+        assert!(ui.find(WORDMARK).is_ok());
         assert!(ui.find(VERSION).is_err());
     }
 }

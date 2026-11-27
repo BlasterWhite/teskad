@@ -43,7 +43,7 @@ pub fn entry<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
 
     // The toolbar is the window less the navigator when that is open.
     let navigator = if ctx.model.settings().navigator_open {
-        hangar_theme::tokens::size::SIDEBAR_WIDTH + 1.0
+        hangar_theme::tokens::scale::size::SIDEBAR + 1.0
     } else {
         0.0
     };

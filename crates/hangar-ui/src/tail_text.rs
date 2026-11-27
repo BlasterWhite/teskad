@@ -21,7 +21,7 @@ use iced::advanced::Widget;
 use iced::advanced::layout::{self, Layout};
 use iced::advanced::renderer;
 use iced::advanced::text::{self, Renderer as _, Text};
-use iced::advanced::widget::{Tree, tree};
+use iced::advanced::widget::{Operation, Tree, tree};
 use iced::{Color, Element, Font, Length, Pixels, Point, Rectangle, Size, alignment, mouse};
 
 /// The mark that stands for the part that was cut.
@@ -101,6 +101,7 @@ pub struct TailText {
     color: Option<Color>,
     width: Length,
     cut: Cut,
+    readable: bool,
     /// A last piece that is never cut while there is room for it, in a colour
     /// of its own: the file name after its folder.
     suffix: Option<(String, Color)>,
@@ -118,6 +119,7 @@ pub fn tail_text(content: impl Into<String>) -> TailText {
         color: None,
         width: Length::Fill,
         cut: Cut::Start,
+        readable: false,
         suffix: None,
         head_width: 0.0,
     }
@@ -129,6 +131,13 @@ impl TailText {
     /// whole and shortens the folder before it (`.insp-file__path`).
     pub fn suffix(mut self, suffix: impl Into<String>, color: Color) -> Self {
         self.suffix = Some((suffix.into(), color));
+        self
+    }
+
+    /// Lets a widget operation read the whole text, as it reads iced's own
+    /// `text`: for a name or a title that stands where a `text` would.
+    pub fn readable(mut self) -> Self {
+        self.readable = true;
         self
     }
 
@@ -248,6 +257,20 @@ impl<Message, Theme> Widget<Message, Theme, iced::Renderer> for TailText {
             }
         }
         layout::Node::new(size)
+    }
+
+    /// With [`TailText::readable`], the whole text, as iced's own `text`
+    /// says its own: what is cut is only what is drawn.
+    fn operate(
+        &mut self,
+        _tree: &mut Tree,
+        layout: Layout<'_>,
+        _renderer: &iced::Renderer,
+        operation: &mut dyn Operation,
+    ) {
+        if self.readable {
+            operation.text(None, layout.bounds(), &self.content);
+        }
     }
 
     fn draw(

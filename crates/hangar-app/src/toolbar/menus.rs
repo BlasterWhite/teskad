@@ -121,6 +121,14 @@ pub fn more_entries(
             .on_select(pick(Intent::TogglePalette))
             .into(),
     );
+    entries.push(
+        menu::item(tr.t(Key::BoardDockHint).into_owned())
+            .icon(Icon::Board)
+            .checked(ctx.model.settings().board_dock_open)
+            .shortcut(keys(CommandId::ViewBoardDock))
+            .on_select(pick(Intent::ToggleDock))
+            .into(),
+    );
 
     if crate::needs_you::model::is_orchestrated(ws) {
         entries.push(menu::separator());

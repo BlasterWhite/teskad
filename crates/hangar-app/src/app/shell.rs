@@ -162,7 +162,13 @@ impl App {
             Action::PointerOverDrawer(over) => self.model.ui.pointer.over_drawer = over,
             Action::PointerOverToolbar(over) => self.model.ui.pointer.over_toolbar = over,
             Action::Pressed(w) => {
-                if self.model.is_focused_window(w) && drawer::press_closes(&self.model.ui) {
+                // A press on a line of the toolbar's « … » menu is the
+                // menu's: it hangs over the drawer, and one of its lines
+                // hides the board's.
+                if self.model.is_focused_window(w)
+                    && !self.pkg.toolbar.more_menu_open(w)
+                    && drawer::press_closes(&self.model.ui)
+                {
                     return self.close_drawer(DrawerCloseReason::Outside);
                 }
             }

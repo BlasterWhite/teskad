@@ -19,16 +19,13 @@
 //! under the account's `key`. With accounts of both kinds listed, each line
 //! names its agent: both have a « Main ».
 
-use iced::widget::{Space, column, container, row, text, tooltip};
-use iced::{Alignment, Element, Length, Padding};
+use iced::Element;
 
 use hangar_i18n::{Key, Translator};
-use hangar_theme::tokens::{font_size, space};
-use hangar_theme::{fonts, style};
 
 use crate::ctx::Ctx;
 use crate::message::Message;
-use crate::navigator::plan::{meter, next_reset, reset_text, rule, shown_pct, window_label};
+use crate::navigator::plan::{card, entry};
 use crate::panes_logic::wall_clock_ms;
 use crate::state::live::RateLimit;
 
@@ -104,95 +101,39 @@ pub fn view<'a>(ctx: Ctx<'a>) -> Option<Element<'a, Message>> {
     let named = listed.iter().any(|(kind, ..)| *kind != listed[0].0);
     let t = ctx.theme;
     let tr: Translator = ctx.i18n;
-    let locale = tr.locale();
     let now = i64::try_from(wall_clock_ms()).unwrap_or_default();
 
-    let mut lines = column![
-        text(tr.t(Key::SidebarPlan).into_owned())
-            .size(font_size::CAPTION)
-            .font(fonts::ui_semibold())
-            .color(t.colors.fg_muted)
-    ]
-    .spacing(space::XS);
-
-    for (kind, account, figures) in listed {
-        let windows = figures.map(limits).unwrap_or_default();
-        let name = if named {
-            tr.t_with(
-                Key::AccountsPlanAgentAccount,
-                &hangar_i18n::args!("agent" => kind.info().label, "name" => account.label.as_str()),
-            )
-            .into_owned()
-        } else {
-            account.label.clone()
-        };
-        let mut head = row![
-            container(
-                text(name)
-                    .size(font_size::MICRO)
-                    .wrapping(text::Wrapping::None)
-                    .color(t.colors.fg_secondary),
-            )
-            .max_width(140.0)
-            .clip(true),
-            Space::new().width(Length::Fill),
-        ]
-        .spacing(space::MD)
-        .align_y(Alignment::Center);
-        if let Some(next) = next_reset(&windows, now) {
-            head = head.push(
-                text(reset_text(tr, next, now))
-                    .size(font_size::CAPTION)
-                    .color(t.colors.fg_subtle)
-                    .wrapping(text::Wrapping::None),
-            );
-        }
-        let mut entry = column![head].spacing(0);
-        for limit in &windows {
-            entry = entry.push(meter(
-                t,
-                locale,
-                window_label(tr, &limit.kind),
-                shown_pct(limit, now),
-            ));
-        }
-        if windows.is_empty() {
-            entry = entry.push(
-                text(tr.t(Key::SidebarPlanNoFigures).into_owned())
-                    .size(font_size::CAPTION)
-                    .color(t.colors.fg_subtle),
-            );
-        }
-        lines = lines.push(entry);
-    }
-
-    let block = container(lines).width(Length::Fill).padding(Padding {
-        top: 9.0,
-        right: 16.0,
-        bottom: 10.0,
-        left: 16.0,
-    });
-    Some(
-        column![
-            rule(t),
-            tooltip(
-                block,
-                container(
-                    text(tr.t(Key::AccountsPlanHint).into_owned()).size(font_size::CAPTION_LG)
+    let entries = listed
+        .into_iter()
+        .map(|(kind, account, figures)| {
+            let windows = figures.map(limits).unwrap_or_default();
+            let name = if named {
+                tr.t_with(
+                    Key::AccountsPlanAgentAccount,
+                    &hangar_i18n::args!("agent" => kind.info().label, "name" => account.label.as_str()),
                 )
-                .padding([space::XS - 1.0, space::MD - 1.0])
-                .style(style::container::tooltip(t)),
-                tooltip::Position::Top,
-            )
-        ]
-        .into(),
-    )
+                .into_owned()
+            } else {
+                account.label.clone()
+            };
+            let title = tr
+                .t_with(
+                    Key::SidebarPlanAccount,
+                    &hangar_i18n::args!("name" => name.as_str()),
+                )
+                .into_owned();
+            entry(t, tr, title, &windows, now)
+        })
+        .collect();
+
+    Some(card(t, entries, tr.t(Key::AccountsPlanHint).into_owned()))
 }
 
 #[cfg(test)]
 mod tests {
     use super::super::switch::{Usage, WindowUsage};
     use super::*;
+    use crate::navigator::plan::{next_reset, shown_pct};
 
     fn account(id: &str, logged_in: bool) -> Account {
         Account {

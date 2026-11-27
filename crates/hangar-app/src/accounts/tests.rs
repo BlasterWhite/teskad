@@ -1223,18 +1223,18 @@ fn the_plan_block_has_a_line_per_account_once_several_have_reported() {
     reported(&mut h);
     let block = plan_block(h.ctx()).expect("a block per account");
     let mut ui = h.show(container(block).width(260));
-    for text in ["Plan", "Principal", "Perso", "37%", "22%", "93%"] {
+    for text in ["Plan · Principal", "Plan · Perso", "37%", "22%", "93%"] {
         assert!(ui.find(text).is_ok(), "{text} is in the block");
     }
     // Travail is not logged in and never reported: it is left out.
-    assert!(ui.find("Travail").is_err());
+    assert!(ui.find("Plan · Travail").is_err());
     h.shot(&mut ui, "accounts-plan-en-graphite");
 
     let mut h = Harness::new(Locale::Fr, "github-light");
     reported(&mut h);
     let block = plan_block(h.ctx()).expect("a block per account");
     let mut ui = h.show(container(block).width(260));
-    assert!(ui.find("Forfait").is_ok());
+    assert!(ui.find("Forfait · Principal").is_ok());
     h.shot(&mut ui, "accounts-plan-fr-github-light");
 }
 
@@ -1324,26 +1324,43 @@ fn badge_shift(size: f32) -> f32 {
     space::SM + icon_side(size) + space::XS
 }
 
+/// The navigator's badge is the brand's (a bolt and the name): the name
+/// stands after the capsule's padding, the icon and the gap, and an account
+/// with an icon and a tone of its own wears those instead of the bolt's.
 #[test]
 fn a_styled_account_wears_its_badge_in_the_navigator() {
     let own = ws("w2");
     let plain = Harness::new(Locale::En, "graphite");
-    let plain = x_of(&mut plain.show(badge(plain.ctx(), &own)), "Perso");
+    let t = plain.ctx().theme;
+    assert_eq!(
+        badge::navigator_mark(t, account_style::of(plain.ctx(), C, "perso")),
+        (hangar_ui::Icon::Bolt, t.palette.status.active)
+    );
+    let at = x_of(&mut plain.show(badge(plain.ctx(), &own)), "Perso");
+    // The capsule's padding, the 11 px icon and the 3 px after it.
+    let expected = space::SM + 11.0 + 3.0;
+    assert!((at - expected).abs() < 0.5, "the name starts at {at}");
 
     let h = styled(Harness::new(Locale::En, "graphite"));
+    let mark = account_style::of(h.ctx(), C, "perso");
     assert_eq!(
-        account_style::of(h.ctx(), C, "perso"),
+        mark,
         Mark {
             tone: Some(AccountTone::Success),
             icon: Some(hangar_ui::Icon::Gamepad),
         }
     );
-    let mut ui = h.show(badge(h.ctx(), &own));
-    let shift = x_of(&mut ui, "Perso") - plain;
-    assert!(
-        (shift - badge_shift(font_size::MICRO)).abs() < 0.5,
-        "the name moved {shift}: it is not in its badge"
+    let t = h.ctx().theme;
+    assert_eq!(
+        badge::navigator_mark(t, mark),
+        (
+            hangar_ui::Icon::Gamepad,
+            account_style::ink(t, AccountTone::Success)
+        )
     );
+    let mut ui = h.show(badge(h.ctx(), &own));
+    let at = x_of(&mut ui, "Perso");
+    assert!((at - expected).abs() < 0.5, "the name starts at {at}");
     h.shot(&mut ui, "accounts-badge-styled-en-graphite");
 }
 
@@ -1867,7 +1884,11 @@ fn a_codex_usage_report_counts_for_the_codex_account_and_shows_in_the_plan_block
     );
     let block = plan_block(h.ctx()).expect("a block per account");
     let mut ui = h.show(container(block).width(260));
-    for text in ["Codex · Main", "64%", "Claude Code · Principal"] {
+    for text in [
+        "Plan · Codex · Main",
+        "64%",
+        "Plan · Claude Code · Principal",
+    ] {
         assert!(ui.find(text).is_ok(), "{text} is in the block");
     }
 }

@@ -18,6 +18,7 @@
 
 use hangar_theme::tokens::space;
 use hangar_theme::{Theme, fonts, style};
+use iced::widget::text::Wrapping;
 use iced::widget::{container, progress_bar, row, text};
 use iced::{Alignment, Element, Length};
 
@@ -28,8 +29,8 @@ use crate::tip;
 pub const THICKNESS: f32 = 4.0;
 /// The width of the context bar of a pane's header.
 pub const CONTEXT_WIDTH: f32 = 28.0;
-/// The width the percentage of a row is given: `100%`.
-const FIGURE_WIDTH: f32 = 28.0;
+/// The width the percentage of a row is given: `100 %`.
+const FIGURE_WIDTH: f32 = 34.0;
 /// The width of the label of a plan row (`5 h`, `7 d`).
 const LABEL_WIDTH: f32 = 22.0;
 
@@ -46,19 +47,26 @@ pub fn bar<'a, M: 'a>(t: &'a Theme, pct: u8) -> Element<'a, M> {
     .into()
 }
 
-fn figure<'a, M: 'a>(t: &'a Theme, pct: u8, quiet: iced::Color, width: Length) -> Element<'a, M> {
+fn figure<'a, M: 'a>(
+    t: &'a Theme,
+    words: String,
+    pct: u8,
+    quiet: iced::Color,
+    width: Length,
+) -> Element<'a, M> {
     let ink = match gauge_level(pct) {
         GaugeLevel::Ok => quiet,
         GaugeLevel::Warn => t.colors.warning,
         GaugeLevel::Hot => t.palette.status.failed,
     };
     container(
-        text(format!("{pct}%"))
+        text(words)
             .size(11.0)
             .font(fonts::mono())
             .color(ink)
-            .align_x(iced::alignment::Horizontal::Right),
+            .wrapping(Wrapping::None),
     )
+    .align_x(iced::alignment::Horizontal::Right)
     .width(width)
     .into()
 }
@@ -92,7 +100,13 @@ impl<'a, M: 'a> From<Context<'a>> for Element<'a, M> {
         let t = c.theme;
         let content = row![
             container(bar(t, c.pct)).width(CONTEXT_WIDTH),
-            figure(t, c.pct, t.palette.text_muted, Length::Shrink),
+            figure(
+                t,
+                format!("{}%", c.pct),
+                c.pct,
+                t.palette.text_muted,
+                Length::Shrink
+            ),
         ]
         .spacing(space::SM)
         .align_y(Alignment::Center);
@@ -106,17 +120,30 @@ impl<'a, M: 'a> From<Context<'a>> for Element<'a, M> {
 /// One line of the plan card: the window's name, the bar filling the line,
 /// and the percentage.
 pub fn plan_row<'a, M: 'a>(t: &'a Theme, label: impl Into<String>, pct: u8) -> Element<'a, M> {
+    plan_row_with(t, label, format!("{pct}%"), pct)
+}
+
+/// [`plan_row`] with the percentage written by the caller, in its own
+/// language (`20 %` in French).
+pub fn plan_row_with<'a, M: 'a>(
+    t: &'a Theme,
+    label: impl Into<String>,
+    words: impl Into<String>,
+    pct: u8,
+) -> Element<'a, M> {
     row![
         container(
             text(label.into())
                 .size(11.0)
                 .font(fonts::mono())
-                .color(t.palette.text_secondary),
+                .color(t.palette.text_secondary)
+                .wrapping(Wrapping::None),
         )
         .width(LABEL_WIDTH),
         container(bar(t, pct)).width(Length::Fill),
         figure(
             t,
+            words.into(),
             pct,
             t.palette.text_secondary,
             Length::Fixed(FIGURE_WIDTH)

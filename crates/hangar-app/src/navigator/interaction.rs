@@ -39,7 +39,7 @@ fn run(
     let ctx = ctx(model, &pkg);
     // The frame gives the navigator its width and the window's height.
     let framed = iced::widget::container(view(st, ctx))
-        .width(hangar_theme::tokens::size::SIDEBAR_WIDTH)
+        .width(hangar_theme::tokens::scale::size::SIDEBAR)
         .height(iced::Length::Fill);
     let mut ui = simulate(framed);
     drive(&mut ui);
@@ -337,7 +337,7 @@ fn a_hovered_folder_offers_a_new_workspace_filed_in_it() {
         let pkg = Packages::default();
         let m = model();
         let framed = iced::widget::container(view(&st, ctx(&m, &pkg)))
-            .width(hangar_theme::tokens::size::SIDEBAR_WIDTH)
+            .width(hangar_theme::tokens::scale::size::SIDEBAR)
             .height(iced::Length::Fill);
         let mut ui = simulate(framed);
         let bounds = ui.find("WORK").expect("the folder's heading").bounds();
@@ -356,7 +356,7 @@ fn a_hovered_folder_offers_a_new_workspace_filed_in_it() {
     };
     let y = heading.y + heading.height / 2.0;
     // The buttons sit at the row's end: the plus is left of the « … ».
-    let width = hangar_theme::tokens::size::SIDEBAR_WIDTH;
+    let width = hangar_theme::tokens::scale::size::SIDEBAR;
     let found = (0..40).any(|step| {
         let x = width - 8.0 - step as f32 * 2.0;
         run(&st, &model(), |ui| {

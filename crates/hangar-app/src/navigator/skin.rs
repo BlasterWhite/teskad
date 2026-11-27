@@ -6,7 +6,7 @@
 //! this package because they are the stylesheet's `.nav-ws`, `.update`,
 //! `.voice-pill` and `.activity` rather than a widget anyone else reuses.
 
-use hangar_theme::tokens::{BORDER_WIDTH, radius};
+use hangar_theme::tokens::{BORDER_WIDTH, FOCUS_RING_WIDTH, radius, scale};
 use hangar_theme::{Theme, style};
 use iced::widget::container;
 use iced::{Background, Border, Color, Shadow, Vector};
@@ -38,10 +38,31 @@ pub fn capsule(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
     }
 }
 
+/// The surface of the navigator and of the bar over the workspace: the
+/// window's own (`bg`).
+pub fn window_chrome(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
+    move |_| container::Style {
+        background: Some(Background::Color(t.palette.bg)),
+        text_color: Some(t.palette.text),
+        ..container::Style::default()
+    }
+}
+
+/// The hairline under the navigator's top and the toolbar: `surface_raised`
+/// on a dark theme, `border` on a light one, where the raised surface is too
+/// close to the window's to be seen.
+pub fn header_line(t: &Theme) -> Color {
+    if t.is_dark() {
+        t.palette.surface_raised
+    } else {
+        t.palette.border
+    }
+}
+
 /// What a row of the navigator is drawn on: the selected one on the
-/// selection's colour, the one under the pointer a step lighter, the others on
-/// the navigator's own surface. `dragged` fades the row being dragged, and
-/// `focused` rings the row the keyboard is on.
+/// selection's colour with a lighter hairline, the one under the pointer on the
+/// overlay, the others on the navigator's own surface. `dragged` fades the
+/// row being dragged, and `focused` rings the row the keyboard is on.
 pub fn nav_row(
     t: &Theme,
     active: bool,
@@ -50,37 +71,62 @@ pub fn nav_row(
     focused: bool,
 ) -> impl Fn(&iced::Theme) -> container::Style + '_ {
     move |_| {
+        let p = &t.palette;
         let fill = if active {
-            Some(t.colors.surface_active)
+            Some(p.selection_bg)
         } else if hovered {
-            Some(t.colors.surface_hover)
+            Some(p.hover_overlay)
         } else {
             None
         };
         let fade = if dragged { 0.45 } else { 1.0 };
+        let (edge, width) = if focused {
+            (p.focus_ring, FOCUS_RING_WIDTH)
+        } else if active {
+            (p.border_strong, BORDER_WIDTH)
+        } else {
+            (Color::TRANSPARENT, BORDER_WIDTH)
+        };
         container::Style {
             background: fill.map(|c| Background::Color(c.scale_alpha(fade))),
             text_color: Some(
                 if active || hovered {
-                    t.colors.fg
+                    p.text
                 } else {
-                    t.colors.fg_secondary
+                    p.text_secondary
                 }
                 .scale_alpha(fade),
             ),
-            border: if focused {
-                Border {
-                    width: 2.0,
-                    ..border(t.colors.accent_ring, radius::MD)
-                }
-            } else {
-                Border {
-                    radius: radius::MD.into(),
-                    ..Border::default()
-                }
+            border: Border {
+                color: edge.scale_alpha(fade),
+                width,
+                radius: scale::radius::MD.into(),
             },
             ..container::Style::default()
         }
+    }
+}
+
+/// The « Plan » card: `surface`, a `border` hairline, corners of 12.
+pub fn card(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
+    move |_| container::Style {
+        background: Some(Background::Color(t.palette.surface)),
+        text_color: Some(t.palette.text),
+        border: border(t.palette.border, scale::radius::LG),
+        ..container::Style::default()
+    }
+}
+
+/// The badge of the project manager's door: the accent, filled.
+pub fn hq_badge(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
+    move |_| container::Style {
+        background: Some(Background::Color(t.palette.accent)),
+        text_color: Some(t.palette.on_accent),
+        border: Border {
+            radius: scale::radius::XS.into(),
+            ..Border::default()
+        },
+        ..container::Style::default()
     }
 }
 
@@ -117,21 +163,17 @@ pub fn placeholder(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ 
     }
 }
 
-/// The navigator's filter field (`.nav-field`); ringed in the accent while it
-/// narrows the list.
+/// The navigator's filter field (`.nav-field`): `surface_sunken` and a
+/// hairline; edged in the accent while it narrows the list.
 pub fn field(t: &Theme, narrowing: bool) -> impl Fn(&iced::Theme) -> container::Style + '_ {
-    move |_| container::Style {
-        background: Some(Background::Color(t.colors.line)),
-        text_color: Some(t.colors.fg_muted),
-        border: border(
-            if narrowing {
-                t.colors.accent_ring
-            } else {
-                t.colors.line
-            },
-            radius::MD,
-        ),
-        ..container::Style::default()
+    move |_| {
+        let p = &t.palette;
+        container::Style {
+            background: Some(Background::Color(p.surface_sunken)),
+            text_color: Some(p.text_muted),
+            border: border(if narrowing { p.accent } else { p.border }, radius::MD),
+            ..container::Style::default()
+        }
     }
 }
 

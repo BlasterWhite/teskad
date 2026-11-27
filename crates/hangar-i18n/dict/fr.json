@@ -17,6 +17,7 @@
   "sidebar.planResets": "{window} : {reset}",
   "sidebar.planAccountsHint": "Consommation du forfait de chaque compte Claude, d'après le dernier relevé de ses volets",
   "sidebar.planNoFigures": "Pas encore de relevé",
+  "sidebar.planAccount": "Forfait · {name}",
   "sidebar.renameHint": "Entrée pour valider, Échap pour annuler",
   "sidebar.remove": "Supprimer le workspace",
   "sidebar.newFolder": "Nouveau dossier",

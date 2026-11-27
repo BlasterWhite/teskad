@@ -26,7 +26,7 @@
 use hangar_i18n::{Key, Translator, args};
 use hangar_theme::{style, tokens};
 use hangar_ui::menu;
-use hangar_ui::{Icon, button as ui_button, icon, layer, text as typography, tip};
+use hangar_ui::{Icon, button as ui_button, focus, icon, layer, text as typography, tip};
 use iced::widget::text::Wrapping;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Padding};
@@ -98,6 +98,13 @@ fn press(msg: Msg) -> Message {
     Message::Accounts(msg)
 }
 
+/// Whether the toolbar of this window has the account's button: there is a
+/// workspace to name the account of, and accounts to name.
+pub(super) fn shown(ctx: Ctx<'_>) -> bool {
+    toolbar_workspace(ctx).is_some_and(|ws| ctx.model.workspace(ws).is_some())
+        && !kinds(ctx).is_empty()
+}
+
 pub fn view<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
     let nothing = || Space::new().width(0).height(0).into();
     let t = ctx.theme;
@@ -161,18 +168,17 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
 
     let label = container(
         text(names.join(" · "))
-            .size(tokens::font_size::UI)
+            .size(tokens::scale::type_scale::CAPTION.size)
             .wrapping(Wrapping::None),
     )
     .max_width(120.0 * currents.len() as f32);
     // The account's own icon and tone when it has them, the bolt otherwise:
     // the first kind's.
     let mark = account_style::of(ctx, first.kind, &first.id);
-    let glyph = icon(mark.icon.unwrap_or(Icon::Bolt), tokens::size::ICON);
-    let glyph = match mark.tone {
-        Some(tone) => glyph.color(account_style::ink(t, tone)),
-        None => glyph,
-    };
+    let glyph = icon(mark.icon.unwrap_or(Icon::Bolt), 12.0).color(
+        mark.tone
+            .map_or(t.palette.accent_text, |tone| account_style::ink(t, tone)),
+    );
     // Centred in the button's height, level with the toolbar's other
     // buttons: a button lays its content out from the top.
     let anchor = button(
@@ -183,10 +189,19 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
         )
         .center_y(Length::Fill),
     )
-    .padding(Padding::from([0.0, tokens::space::MD]))
-    .height(tokens::size::CONTROL_HEIGHT)
-    .style(style::button::ghost(t))
+    .padding(Padding::from([0.0, tokens::space::LG]))
+    .height(tokens::scale::size::CONTROL_SM)
+    .style(move |theme: &iced::Theme, status| {
+        // The ghost button's states, inside a hairline.
+        let mut look = style::button::ghost(t)(theme, status);
+        look.border.color = t.palette.border;
+        look.border.width = tokens::BORDER_WIDTH;
+        look
+    })
     .on_press(press(Msg::ToggleMenu));
+    let anchor = focus::ring(t, anchor)
+        .radius(tokens::radius::MD)
+        .on_activate(press(Msg::ToggleMenu));
     let anchor = tip::bottom(t, anchor, title);
 
     // The menu is open for the app, not for a window (its state is one value
@@ -481,7 +496,7 @@ mod tests {
         let mut ui = simulate(view(&st, ctx_in(&h.model, &h.pkg, h.window)));
         let name = ui.find("Principal").expect("the name").bounds();
         let middle = name.y + name.height / 2.0;
-        let button = tokens::size::CONTROL_HEIGHT / 2.0;
+        let button = tokens::scale::size::CONTROL_SM / 2.0;
         assert!(
             (middle - button).abs() <= 1.0,
             "the name's middle is at {middle}, the button's at {button}"

@@ -11,7 +11,7 @@ use iced::widget::{button, row, text, tooltip};
 use iced::{Alignment, Border, Element, Length, Padding};
 
 use hangar_i18n::{Key, Translator, args};
-use hangar_theme::tokens::{font_size, radius, space};
+use hangar_theme::tokens::{font_size, radius, scale::type_scale, space};
 use hangar_theme::{fonts, style};
 use hangar_ui::glyph;
 
@@ -93,22 +93,24 @@ pub fn view<'a>(ctx: Ctx<'a>, workspaces: &[&'a Workspace]) -> Option<Element<'a
         let just_panes: Vec<&Pane> = panes.iter().map(|(_, pane)| *pane).collect();
         let words = who_is(tr, *state, &just_panes);
         let target = go_target(panes, |(_, pane)| &pane.id, current);
-        let ink = match state {
-            AgentActivity::Waiting => t.colors.state_waiting,
-            AgentActivity::Yours => t.colors.state_yours,
-            _ => t.colors.fg_muted,
+        // The count in its state's colour, after the state's shape: the
+        // arc, the dot, the diamond.
+        let (ink, side) = match state {
+            AgentActivity::Waiting => (t.colors.state_waiting, 7.0),
+            AgentActivity::Yours => (t.colors.state_yours, 6.0),
+            _ => (t.colors.state_working, 9.0),
         };
         let face = row![
-            glyph::state(t, reads::activity_glyph(*state), 7.0),
+            glyph::state(t, reads::activity_glyph(*state), side),
             text(panes.len().to_string())
-                .size(font_size::LABEL)
+                .size(type_scale::LABEL.size)
                 .font(fonts::mono())
                 .color(ink),
         ]
-        .spacing(5)
+        .spacing(3)
         .align_y(Alignment::Center);
         let pressed = button(iced::widget::container(face).center_y(Length::Fill))
-            .padding(Padding::from([0.0, 5.0]))
+            .padding(Padding::from([0.0, 3.0]))
             .height(18)
             .on_press_maybe(target.map(|(ws, pane)| {
                 // Not the row's own click, which would only open the

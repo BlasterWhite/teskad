@@ -40,6 +40,26 @@ fn chip<'a>(
     id: &str,
     folder: Option<&str>,
 ) -> Option<Element<'a, Message>> {
+    let (name, title) = words(ctx, kind, accounts, id, folder)?;
+    let label = container(account_style::label(
+        ctx.theme,
+        account_style::of(ctx, kind, id),
+        name,
+        tokens::font_size::MICRO,
+        Some(ctx.theme.colors.fg_secondary),
+    ))
+    .max_width(MAX_WIDTH);
+    Some(tip::over(ctx.theme, label, title))
+}
+
+/// What a badge says and its tooltip, when there is an account to tell apart.
+fn words(
+    ctx: Ctx<'_>,
+    kind: AgentKind,
+    accounts: &[Account],
+    id: &str,
+    folder: Option<&str>,
+) -> Option<(String, String)> {
     if accounts.len() < 2 {
         return None;
     }
@@ -57,15 +77,7 @@ fn chip<'a>(
         ),
     }
     .into_owned();
-    let label = container(account_style::label(
-        ctx.theme,
-        account_style::of(ctx, kind, id),
-        name,
-        tokens::font_size::MICRO,
-        Some(ctx.theme.colors.fg_secondary),
-    ))
-    .max_width(MAX_WIDTH);
-    Some(tip::over(ctx.theme, label, title))
+    Some((name, title))
 }
 
 /// « → Perso »: the pane moves to that account once Hangar knows it has
@@ -124,12 +136,16 @@ pub(super) fn moving_title(t: Translator, name: &str, hold: &Hold) -> String {
 /// default is worth a label, its own or the one it reads from its folder;
 /// one per kind of accounts in use, side by side.
 pub fn workspace<'a>(ctx: Ctx<'a>, ws: &'a WsId) -> Element<'a, Message> {
+    let selected = ctx
+        .model
+        .active_workspace()
+        .is_some_and(|active| active.id == *ws);
     let Some(workspace) = ctx.model.workspace(ws) else {
         return nothing();
     };
     let chips: Vec<Element<'a, Message>> = live(ctx)
         .kinds()
-        .filter_map(|(kind, accounts)| workspace_chip(ctx, workspace, kind, accounts))
+        .filter_map(|(kind, accounts)| workspace_chip(ctx, workspace, kind, accounts, selected))
         .collect();
     if chips.is_empty() {
         return nothing();
@@ -145,6 +161,7 @@ fn workspace_chip<'a>(
     workspace: &crate::state::Workspace,
     kind: AgentKind,
     accounts: &[Account],
+    selected: bool,
 ) -> Option<Element<'a, Message>> {
     let state = ctx.model.state();
     let own = AccountLevels::of_kind(state, workspace, None, kind).resolve(accounts);
@@ -165,7 +182,30 @@ fn workspace_chip<'a>(
     if own.id == default.id {
         return None;
     }
-    chip(ctx, kind, accounts, &own.id, folder)
+    let (name, title) = words(ctx, kind, accounts, &own.id, folder)?;
+    // The brand's account badge, with the person's own icon and tone when
+    // the account has them.
+    let t = ctx.theme;
+    let (lead, ink) = navigator_mark(t, account_style::of(ctx, kind, &own.id));
+    let badge = hangar_ui::badge::account_marked(t, name, selected, lead, ink);
+    Some(tip::over(
+        t,
+        container(badge).max_width(MAX_WIDTH).clip(true),
+        title,
+    ))
+}
+
+/// The icon and the ink of a navigator row's badge: the account's own when
+/// it has them, else the bolt in the badge's colour.
+pub(super) fn navigator_mark(
+    t: &hangar_theme::Theme,
+    mark: account_style::Mark,
+) -> (hangar_ui::Icon, iced::Color) {
+    (
+        mark.icon.unwrap_or(hangar_ui::Icon::Bolt),
+        mark.tone
+            .map_or(t.palette.status.active, |tone| account_style::ink(t, tone)),
+    )
 }
 
 /// A pane header's badge: it names the account of a pane whose agent runs on

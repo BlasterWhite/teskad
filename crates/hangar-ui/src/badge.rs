@@ -176,10 +176,21 @@ pub fn role<'a, M: 'a>(t: &'a Theme, role: Role, label: impl Into<String>) -> El
 /// 4 px corners. `selected` is the one on a selected row. It is the Claude
 /// Code account, not a branch.
 pub fn account<'a, M: 'a>(t: &'a Theme, name: impl Into<String>, selected: bool) -> Element<'a, M> {
-    let ink = t.palette.status.active;
+    account_marked(t, name, selected, Icon::Bolt, t.palette.status.active)
+}
+
+/// [`account`] for an account the person gave a mark of its own: their icon
+/// instead of the bolt, and their tone as the ink of the icon and the name.
+pub fn account_marked<'a, M: 'a>(
+    t: &'a Theme,
+    name: impl Into<String>,
+    selected: bool,
+    lead: Icon,
+    ink: iced::Color,
+) -> Element<'a, M> {
     container(
         row![
-            icon(Icon::Bolt, 11.0).color(ink),
+            icon(lead, 11.0).color(ink),
             text(name.into())
                 .size(font_size::MICRO - 0.5)
                 .font(fonts::ui_medium())

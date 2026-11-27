@@ -15,7 +15,7 @@ use iced_test::selector::Candidate;
 use super::*;
 use crate::app::Packages;
 use crate::navigator::testing::{ctx_in, detach, model_of, pane, workspace};
-use crate::shell::title_bar::NAME;
+use crate::shell::title_bar::WORDMARK;
 use crate::state::types::{AgentId, AppState};
 use crate::workspace_dialog::testing::account;
 
@@ -93,7 +93,7 @@ fn rects(ui: &mut Simulator<'_, Message>) -> Vec<Rectangle> {
 
 /// What of the brand a toolbar shows: the name, the version.
 fn shown(ui: &mut Simulator<'_, Message>) -> (bool, bool) {
-    (ui.find(NAME).is_ok(), ui.find(VERSION).is_ok())
+    (ui.find(WORDMARK).is_ok(), ui.find(VERSION).is_ok())
 }
 
 #[test]
@@ -143,7 +143,7 @@ fn the_brand_comes_before_the_workspaces_name_and_the_views() {
         let (pkg, st) = (Packages::default(), State::default());
         let mut ui = bar(&st, &model, &pkg, window, 1400.0);
         let x = |ui: &mut Simulator<'_, Message>, text: &str| ui.find(text).unwrap().bounds().x;
-        let (name, version) = (x(&mut ui, NAME), x(&mut ui, VERSION));
+        let (name, version) = (x(&mut ui, WORDMARK), x(&mut ui, VERSION));
         let (title, views) = (x(&mut ui, "alpha"), x(&mut ui, "Terminals"));
         assert!(name < version, "{at:?}");
         assert!(version < title && title < views, "{at:?}");
@@ -185,7 +185,7 @@ fn a_long_workspace_name_leaves_the_brand_less_room() {
     drop(short);
     let (model, window) = setup(long, Where::Hidden);
     let mut name = bar(&st, &model, &pkg, window, net);
-    assert!(name.find(NAME).is_ok());
+    assert!(name.find(WORDMARK).is_ok());
     assert!(name.find(VERSION).is_err());
 }
 

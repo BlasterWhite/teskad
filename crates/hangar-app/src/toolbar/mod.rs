@@ -30,11 +30,12 @@ use iced::widget::{Space, container, responsive, row, text};
 use iced::{Alignment, Element, Length, Padding, Subscription, Task, window};
 
 use hangar_i18n::Key;
-use hangar_theme::tokens::{font_size, space};
+use hangar_theme::tokens::{radius, scale, scale::type_scale, space};
 use hangar_theme::{Theme, fonts, style};
 use hangar_ui::layer;
 use hangar_ui::menu::{self as ui_menu};
-use hangar_ui::{Icon, button as ui_button, icon, tip};
+use hangar_ui::tail_text::tail_text;
+use hangar_ui::{Icon, button as ui_button, focus as ring, icon, tip};
 
 use crate::commands::CommandId;
 use crate::ctx::Ctx;
@@ -90,6 +91,13 @@ pub struct State {
     /// so that it never asks about the wrong window's workspace.
     asking_in: Option<window::Id>,
     preset: Option<PresetAsk>,
+}
+
+impl State {
+    /// Whether `window`'s « … » menu is open from its button.
+    pub fn more_menu_open(&self, window: window::Id) -> bool {
+        self.more_open == Some(window)
+    }
 }
 
 /// The package's shared read-model, which other packages may read; lives in
@@ -342,14 +350,14 @@ fn bar<'a>(st: &'a State, ctx: Ctx<'a>, ws: &'a Workspace, width: f32) -> Elemen
 
     // ---- The lead: the window's buttons the desktop puts on the left, the
     // navigator's door, the brand, the name, the views.
-    let mut lead = row![].spacing(space::MD).align_y(Alignment::Center);
+    let mut lead = row![].spacing(LEAD_GAP).align_y(Alignment::Center);
     if let Some(controls) = title_bar::toolbar(ctx, title_bar::Side::Start) {
         lead = lead.push(controls);
     }
     let door = is_main && !settings.navigator_open;
     if door {
         lead = lead.push(
-            ui_button::icon_button(t, Icon::SidebarLeft)
+            tool(t, Icon::SidebarLeft)
                 .tip(tr.t(Key::ToolbarShowNavigator).into_owned())
                 .keys(keys(CommandId::ViewNavigator))
                 .on_press(Message::Intent(Intent::ToggleNavigator)),
@@ -364,24 +372,25 @@ fn bar<'a>(st: &'a State, ctx: Ctx<'a>, ws: &'a Workspace, width: f32) -> Elemen
         folded,
     };
     if let Some(brand) = title_bar::toolbar_brand(ctx, brand_room(width, ws, door, steps)) {
-        lead = lead.push(brand).push(sep(t, 0.0));
+        lead = lead.push(
+            row![brand, sep(t, 0.0)]
+                .spacing(space::MD)
+                .align_y(Alignment::Center),
+        );
     }
     if show_title {
         // The name alone: its folder is a detail, in the tooltip.
         lead = lead.push(tip::bottom(
             t,
             container(
-                text(ws.name.as_str())
-                    .size(font_size::BODY)
-                    .font(fonts::ui_semibold())
-                    .wrapping(text::Wrapping::None),
+                tail_text(ws.name.as_str())
+                    .readable()
+                    .cut_end()
+                    .width(Length::Shrink)
+                    .size(TITLE_SIZE)
+                    .font(fonts::display()),
             )
-            .max_width(200)
-            .clip(true)
-            .padding(Padding {
-                right: space::SM,
-                ..Padding::ZERO
-            }),
+            .max_width(TITLE_MAX),
             format!("{}\n{}", ws.name, ws.cwd),
         ));
     }
@@ -398,24 +407,30 @@ fn bar<'a>(st: &'a State, ctx: Ctx<'a>, ws: &'a Workspace, width: f32) -> Elemen
     let centre = Space::new().width(Length::Fill);
 
     // ---- The trail.
-    let mut trail = row![].spacing(2).align_y(Alignment::Center);
+    let mut trail = row![].spacing(space::XXS).align_y(Alignment::Center);
     trail = trail.push(crate::needs_you::button(&ctx.pkg.needs_you, ctx));
-    trail = trail.push(crate::accounts::switcher(&ctx.pkg.accounts, ctx));
+    // The account, then a hairline before the tools, while there is one.
+    if crate::accounts::has_switcher(ctx) {
+        trail = trail
+            .push(crate::accounts::switcher(&ctx.pkg.accounts, ctx))
+            .push(sep(t, SEP_MARGIN));
+    }
     // The layouts and the tidy arrange the grid, which the chat view hides.
     if terminals && !chat {
         trail = trail.push(layouts(st, ctx, ws));
         if !folded {
-            trail = trail.push(
-                row![
-                    ui_button::icon_button(t, Icon::Tidy)
+            trail = trail
+                .push(
+                    tool(t, Icon::Tidy)
                         .tip(tr.t(Key::ToolbarTidyHint).into_owned())
                         .keys(keys(CommandId::PaneTidy))
                         .on_press_maybe(
                             (ws.panes.len() >= 2)
-                                .then(|| { Message::Intent(Intent::Tidy(ws.id.clone())) })
+                                .then(|| Message::Intent(Intent::Tidy(ws.id.clone()))),
                         ),
-                    sep(t, if icon_views { 3.0 } else { 5.0 }),
-                    ui_button::icon_button(t, Icon::Plus)
+                )
+                .push(
+                    tool(t, Icon::Plus)
                         .tip(tr.t(Key::ToolbarNewTerminalHint).into_owned())
                         .keys(keys(CommandId::PaneSplit))
                         .on_press_maybe((ws.pane_count() < MAX_PANES).then(|| {
@@ -425,38 +440,27 @@ fn bar<'a>(st: &'a State, ctx: Ctx<'a>, ws: &'a Workspace, width: f32) -> Elemen
                                 dir: None,
                             })
                         })),
-                    ui_button::icon_button(t, Icon::Restart)
+                )
+                .push(
+                    tool(t, Icon::Restart)
                         .tip(tr.t(Key::TopbarRestartAllHint).into_owned())
                         .keys(keys(CommandId::PaneRestartAll))
                         .on_press(Message::Intent(menus::restart_all(ws))),
-                ]
-                .spacing(2)
-                .align_y(Alignment::Center)
-                .padding(Padding {
-                    left: space::XS,
-                    ..Padding::ZERO
-                }),
-            );
+                );
         }
     }
     trail = trail.push(more(st, ctx, ws, terminals, folded, is_main, in_own_window));
-    trail = trail.push(sep(t, if icon_views { 3.0 } else { 5.0 }));
+    trail = trail.push(sep(t, SEP_MARGIN));
     if let Some(kits) = kits_button(st, ctx, ws) {
         trail = trail.push(kits);
     }
-    trail = trail
-        .push(
-            ui_button::toggle_button(t, Icon::Board, settings.board_dock_open)
-                .tip(tr.t(Key::BoardDockHint).into_owned())
-                .keys(keys(CommandId::ViewBoardDock))
-                .on_press(Message::Intent(Intent::ToggleDock)),
-        )
-        .push(
-            ui_button::toggle_button(t, Icon::SidebarRight, settings.inspector_open)
-                .tip(tr.t(Key::CmdViewInspector).into_owned())
-                .keys(keys(CommandId::ViewInspector))
-                .on_press(Message::Intent(Intent::ToggleInspector)),
-        );
+    trail = trail.push(
+        tool(t, Icon::SidebarRight)
+            .toggled(settings.inspector_open)
+            .tip(tr.t(Key::CmdViewInspector).into_owned())
+            .keys(keys(CommandId::ViewInspector))
+            .on_press(Message::Intent(Intent::ToggleInspector)),
+    );
     // The window's buttons the desktop puts on the right, last. Windows'
     // are flush with the window's corner: no gap before, no padding after.
     if let Some(controls) = title_bar::toolbar(ctx, title_bar::Side::End) {
@@ -480,7 +484,7 @@ fn bar<'a>(st: &'a State, ctx: Ctx<'a>, ws: &'a Workspace, width: f32) -> Elemen
             space::MD
         },
         bottom: 0.0,
-        left: space::XL,
+        left: space::XXL,
     })
     .align_y(Alignment::Center)
     .height(Length::Fill)
@@ -495,35 +499,50 @@ struct Steps {
     folded: bool,
 }
 
+/// The gap between the parts of the lead.
+const LEAD_GAP: f32 = space::XXL;
+/// The workspace's name: the display face at 15.
+const TITLE_SIZE: f32 = 15.0;
+/// The space on each side of a hairline of the trail.
+const SEP_MARGIN: f32 = 6.0;
+/// The layouts button: its glyph and a chevron.
+const LAYOUTS_WIDTH: f32 = 40.0;
+/// A segment of the views, the padding of their track, and the type they are
+/// set in.
+const SEGMENT_HEIGHT: f32 = 24.0;
+const SEGMENT_PAD_X: f32 = 12.0;
+const TRACK_PADDING: f32 = 3.0;
+const SEGMENT_TEXT: f32 = type_scale::CAPTION.size;
+
 // What the rest of the bar takes, in logical pixels, as it is drawn in a
 // window with Hangar's title bar and no navigator (measured on the bar, with
 // the workspace name `alpha`): the lead's padding, the two gaps around the
 // room in the middle, and the trail's padding...
-const BAR_PADDING: f32 = 44.0;
+const BAR_PADDING: f32 = 48.0;
 /// ...the navigator's door and the gap after it...
-const DOOR: f32 = 34.0;
+const DOOR: f32 = 44.0;
 /// ...the views as icons and as labels...
-const VIEWS_ICONS: f32 = 130.0;
-const VIEWS_LABELS: f32 = 302.0;
-/// ...the workspace's name: the gap before it, its padding, and its text,
-/// of which a character is taken as wide as the widest (a CJK one, 14 px)
-/// up to the box's 200 px...
-const TITLE_FRAME: f32 = 14.0;
-const TITLE_CHAR: f32 = 14.0;
+const VIEWS_ICONS: f32 = 132.0;
+const VIEWS_LABELS: f32 = 296.0;
+/// ...the workspace's name: the gap before it and its text, of which a
+/// character is taken as wide as the widest (a CJK one, 15 px) up to the
+/// box's 200 px...
+const TITLE_FRAME: f32 = LEAD_GAP;
+const TITLE_CHAR: f32 = TITLE_SIZE;
 const TITLE_MAX: f32 = 200.0;
 /// ...and the trail whole, with the views as labels, with them as icons, and
 /// folded.
-const TRAIL_LABELS: f32 = 248.0;
-const TRAIL_ICONS: f32 = 240.0;
-const TRAIL_FOLDED: f32 = 143.0;
-/// The trail also holds what comes and goes: the accounts switcher (110 with
-/// an account called « Principal »), the needs-you button, the Kits button.
-/// The brand leaves the room of the first, the usual one.
-const COMES_AND_GOES: f32 = 110.0;
-/// What the brand adds besides its own width: the gap before it, the gap
-/// between it and the hairline, the hairline, and 8 px of room for a font
-/// that measures wider.
-const BRAND_FRAME: f32 = 8.0 + 8.0 + 1.0 + 8.0;
+const TRAIL_LABELS: f32 = 205.0;
+const TRAIL_ICONS: f32 = 205.0;
+const TRAIL_FOLDED: f32 = 115.0;
+/// The trail also holds what comes and goes: the accounts switcher and its
+/// hairline (122 with an account called « Principal »), the needs-you button,
+/// the Kits button. The brand leaves the room of the first, the usual one.
+const COMES_AND_GOES: f32 = 122.0;
+/// What the brand adds besides its own width: the gap to its hairline, the
+/// hairline, the gap after it, and 8 px of room for a font that measures
+/// wider.
+const BRAND_FRAME: f32 = space::MD + 1.0 + LEAD_GAP + 8.0;
 
 /// The room the brand has in the lead: the bar's `width` (what the window's
 /// buttons leave) less what the rest of it takes at the step it is in
@@ -558,7 +577,7 @@ fn sep<'a>(t: &'a Theme, margin: f32) -> Element<'a, Message> {
             .width(1)
             .height(18)
             .style(move |_: &iced::Theme| container::Style {
-                background: Some(iced::Background::Color(t.colors.line_strong)),
+                background: Some(iced::Background::Color(t.palette.border)),
                 ..container::Style::default()
             }),
     )
@@ -606,8 +625,12 @@ fn views<'a>(ctx: Ctx<'a>, current: View, icons_only: bool) -> Element<'a, Messa
             icon(glyph, 15.0).into()
         } else {
             text(tr.t(label).into_owned())
-                .size(font_size::UI)
-                .font(fonts::ui_medium())
+                .size(SEGMENT_TEXT)
+                .font(if view == current {
+                    fonts::ui_medium()
+                } else {
+                    fonts::ui()
+                })
                 .into()
         };
         let segment = iced::widget::button(container(content).center_y(Length::Fill).center_x(
@@ -620,16 +643,19 @@ fn views<'a>(ctx: Ctx<'a>, current: View, icons_only: bool) -> Element<'a, Messa
         .padding(if icons_only {
             Padding::ZERO
         } else {
-            Padding::from([0.0, 11.0])
+            Padding::from([0.0, SEGMENT_PAD_X])
         })
         .width(if icons_only {
             Length::Fixed(30.0)
         } else {
             Length::Shrink
         })
-        .height(22)
+        .height(SEGMENT_HEIGHT)
         .style(style::button::tab(t, view == current))
         .on_press(Message::Intent(Intent::SetView(view)));
+        let segment = ring::ring(t, segment)
+            .radius(radius::SM)
+            .on_activate(Message::Intent(Intent::SetView(view)));
         tip::keys(
             t,
             segment,
@@ -637,10 +663,7 @@ fn views<'a>(ctx: Ctx<'a>, current: View, icons_only: bool) -> Element<'a, Messa
             &reads::binding(&ctx, command),
         )
     });
-    container(row(segments).spacing(2).align_y(Alignment::Center))
-        .padding(2)
-        .style(style::container::segmented_track(t))
-        .into()
+    track(t, row(segments)).into()
 }
 
 /// « Chat / Panes »: the workspace shown as the chat view or as its grid
@@ -648,36 +671,62 @@ fn views<'a>(ctx: Ctx<'a>, current: View, icons_only: bool) -> Element<'a, Messa
 fn chat_switch<'a>(ctx: Ctx<'a>, ws: &'a Workspace, chat: bool) -> Element<'a, Message> {
     let t = ctx.theme;
     let segment = |label: Key, on: bool| {
-        iced::widget::button(
+        let show = Message::ChatView(crate::chat_view::Msg::SetShown(ws.id.clone(), on));
+        let button = iced::widget::button(
             container(
                 text(ctx.t(label).into_owned())
-                    .size(font_size::UI)
-                    .font(fonts::ui_medium()),
+                    .size(SEGMENT_TEXT)
+                    .font(if chat == on {
+                        fonts::ui_medium()
+                    } else {
+                        fonts::ui()
+                    }),
             )
             .center_y(Length::Fill),
         )
-        .padding(Padding::from([0.0, 11.0]))
-        .height(22)
+        .padding(Padding::from([0.0, SEGMENT_PAD_X]))
+        .height(SEGMENT_HEIGHT)
         .style(style::button::tab(t, chat == on))
-        .on_press(Message::ChatView(crate::chat_view::Msg::SetShown(
-            ws.id.clone(),
-            on,
-        )))
+        .on_press(show.clone());
+        ring::ring(t, button).radius(radius::SM).on_activate(show)
     };
     tip::bottom(
         t,
-        container(
+        track(
+            t,
             row![
                 segment(Key::ChatViewChat, true),
                 segment(Key::ChatViewPanes, false)
-            ]
-            .spacing(2)
-            .align_y(Alignment::Center),
-        )
-        .padding(2)
-        .style(style::container::segmented_track(t)),
+            ],
+        ),
         ctx.t(Key::ChatViewSwitchHint).into_owned(),
     )
+}
+
+/// The track of a segmented control of the bar: `surface`, a `border`
+/// hairline, corners of 8.
+fn track<'a>(
+    t: &'a Theme,
+    segments: iced::widget::Row<'a, Message>,
+) -> iced::widget::Container<'a, Message> {
+    container(segments.spacing(space::XXS).align_y(Alignment::Center))
+        .padding(TRACK_PADDING)
+        .style(move |_: &iced::Theme| container::Style {
+            background: Some(iced::Background::Color(t.palette.surface)),
+            border: iced::Border {
+                color: t.palette.border,
+                width: 1.0,
+                radius: scale::radius::MD.into(),
+            },
+            ..container::Style::default()
+        })
+}
+
+/// A tool of the bar: an icon button of 28.
+fn tool(t: &Theme, which: Icon) -> ui_button::IconBtn<'_, Message> {
+    ui_button::icon_button(t, which)
+        .sized(ui_button::Side::Sm)
+        .icon_size(scale::size::ICON_MD)
 }
 
 /// The layouts: one button showing the one the panes are in, with a menu of
@@ -701,18 +750,22 @@ fn layouts<'a>(st: &'a State, ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, Me
     let button = iced::widget::button(
         container(
             row![
-                icon(menus::layout_icon(current), 16.0),
-                icon(Icon::ChevronDown, 12.0),
+                icon(menus::layout_icon(current), scale::size::ICON_MD),
+                icon(Icon::ChevronDown, 10.0),
             ]
-            .spacing(space::XS)
+            .spacing(space::XXS)
             .align_y(Alignment::Center),
         )
-        .center_y(Length::Fill),
+        .center(Length::Fill),
     )
-    .padding(Padding::from([0.0, space::SM]))
-    .height(hangar_theme::tokens::size::CONTROL_HEIGHT)
+    .padding(0)
+    .width(LAYOUTS_WIDTH)
+    .height(scale::size::CONTROL_SM)
     .style(style::button::toggle(t, open || asking.is_some()))
     .on_press(Message::Toolbar(Msg::ToggleLayouts(ctx.window)));
+    let button = ring::ring(t, button)
+        .radius(radius::MD)
+        .on_activate(Message::Toolbar(Msg::ToggleLayouts(ctx.window)));
     let button = tip::bottom(t, button, tr.t(Key::TopbarLayout).into_owned());
 
     if let Some(ask) = asking {
@@ -765,7 +818,8 @@ fn more<'a>(
     let confirming_reset = ui.confirm_reset && asked_here;
     let confirming_stop = ui.confirm_stop_workers && asked_here;
     let shown = st.more_open == Some(ctx.window) || confirming_reset || confirming_stop;
-    let button = ui_button::toggle_button(t, Icon::More, shown)
+    let button = tool(t, Icon::More)
+        .toggled(shown)
         .tip(tr.t(Key::ToolbarMore).into_owned())
         .on_press(Message::Toolbar(Msg::ToggleMore(ctx.window)));
 
@@ -798,7 +852,8 @@ fn kits_button<'a>(st: &'a State, ctx: Ctx<'a>, ws: &'a Workspace) -> Option<Ele
     let (tabs, loading) = reads::kit_tabs(ctx.model, ws)?;
     let me = (ctx.window, ws.id.clone());
     let open = st.kits_for.as_ref() == Some(&me);
-    let button = ui_button::toggle_button(t, Icon::Window, open)
+    let button = tool(t, Icon::Window)
+        .toggled(open)
         .tip(tr.t(Key::KitsTabMenuHint).into_owned())
         .on_press(Message::Toolbar(Msg::ToggleKits(me.0, me.1.clone())));
     let entries = open.then(|| menus::kits_entries(ctx, ws, &tabs, loading));

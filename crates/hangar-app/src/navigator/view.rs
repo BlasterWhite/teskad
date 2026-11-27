@@ -12,12 +12,13 @@ use iced::widget::{
 };
 use iced::{Alignment, Background, Element, Length, Padding, Vector};
 
-use crate::shell::brand_logo::logo;
+use crate::shell::brand_logo::{logo, mono};
 use hangar_i18n::{Key, args};
-use hangar_theme::tokens::{font_size, radius, size, space};
+use hangar_theme::tokens::{font_size, radius, scale, scale::type_scale, space};
 use hangar_theme::{Theme, fonts, style};
 use hangar_ui::menu as ui_menu;
-use hangar_ui::{Icon, button as ui_button, glyph, icon, keys, tip};
+use hangar_ui::tail_text::tail_text;
+use hangar_ui::{Icon, button as ui_button, focus as ring, glyph, icon, keys, tip};
 
 use super::drag::{self, Drag, DragItem, DragKind, DropTarget, Hit};
 use super::model::{MachineFilter, NavFolder, RowKind, namesake_hints, row_key};
@@ -36,12 +37,23 @@ use crate::state::{AgentActivity, WsId};
 
 /// A workspace's row, and a folder's heading (`--nav-row`).
 pub const ROW_HEIGHT: f32 = geometry::ROW_HEIGHT;
-/// Where a workspace's name starts: the padding, the icon and the gap, which
-/// a drop marker starts at too (`--nav-name-x`).
-const NAME_X: f32 = 32.0;
-/// The padding from a row's edge to its icon, and to a heading's first
+/// Where a workspace's name starts: the padding, the state's cell and the
+/// gap, which a drop marker starts at too (`--nav-name-x`).
+const NAME_X: f32 = PAD + STATE_CELL + PAD;
+/// The padding from a row's edge to its state, and to a heading's first
 /// letter: they line up, so the eye runs straight down the left edge.
 const PAD: f32 = 8.0;
+/// The cell a workspace's state is drawn in: the working arc, the widest.
+const STATE_CELL: f32 = 10.0;
+/// The space between the list and the navigator's edges.
+const LIST_SIDE: f32 = 6.0;
+/// The space between the navigator's edges and its door, card and heading.
+const SIDE: f32 = 10.0;
+/// The side of the symbol at the navigator's top.
+const MARK: f32 = 18.0;
+/// The height of the navigator's foot, and of its filter field and buttons.
+const FOOT_BAR: f32 = 48.0;
+const FOOT_CONTROL: f32 = 30.0;
 
 /// How much of its ink the name of a workspace keeps while its machine
 /// cannot be reached: clearly stepped back, still read at a glance.
@@ -178,9 +190,9 @@ pub fn sidebar<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
             .spacing(space::XS)
             .padding(Padding {
                 top: geometry::LIST_PAD_TOP,
-                right: PAD,
+                right: LIST_SIDE,
                 bottom: 6.0,
-                left: PAD,
+                left: LIST_SIDE,
             }),
     )
     .height(Length::Fill)
@@ -197,6 +209,7 @@ pub fn sidebar<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
 
     let mut body = column![
         top(&frame),
+        header_rule(t),
         manager_door(&frame),
         heading(&frame, &tree.folders),
         scroll,
@@ -225,39 +238,56 @@ fn message<'a>(t: &'a Theme, words: String) -> Element<'a, Message> {
 
 // ---- The top ----------------------------------------------------------------------------------
 
-/// The mark, the name with the site and the version, and the button that
-/// hides the navigator, level with the toolbar beside it so the window reads
-/// as one band: the title bar's left end when Hangar draws it, with the
-/// window's buttons the desktop puts on the left.
+/// The mark, the name with the version, and the button that hides the
+/// navigator, level with the toolbar beside it so the window reads as one
+/// band: the title bar's left end when Hangar draws it, with the window's
+/// buttons the desktop puts on the left.
 fn top<'a>(f: &Frame<'a>) -> Element<'a, Message> {
     let t = f.ctx.theme;
     let tr = f.ctx.i18n;
     let controls = crate::shell::title_bar::navigator(f.ctx);
     let has_controls = controls.is_some();
-    let mut top = row![].spacing(7).align_y(Alignment::Center);
+    let mut top = row![].spacing(PAD).align_y(Alignment::Center);
     if let Some(controls) = controls {
         top = top.push(controls).push(Space::new().width(space::XS));
     }
     let top = top
         .extend([
-            logo(t, 15.0),
-            // The name, the site and the version, in the room the hide button leaves.
+            logo(t, MARK),
+            // The name and the version, in the room the hide button leaves.
             crate::shell::title_bar::brand(f.ctx),
             ui_button::icon_button(t, Icon::SidebarLeft)
                 .tip(tr.t(Key::SidebarHide).into_owned())
                 .keys(reads::binding(&f.ctx, CommandId::ViewNavigator))
-                .icon_size(16.0)
+                .sized(ui_button::Side::Sm)
+                .icon_size(scale::size::ICON_MD)
                 .on_press(msg(Msg::HideNavigator))
                 .into(),
         ])
-        .height(size::TOOLBAR_HEIGHT)
+        .height(scale::size::TITLE_BAR)
         .padding(Padding {
             top: 0.0,
-            right: 10.0,
+            right: SIDE,
             bottom: 0.0,
-            left: if has_controls { 10.0 } else { 16.0 },
+            left: if has_controls { SIDE } else { 14.0 },
         });
     crate::shell::title_bar::band(f.ctx, top)
+}
+
+/// The hairline under the top, level with the toolbar's.
+fn header_rule<'a>(t: &'a Theme) -> Element<'a, Message> {
+    rule(skin::header_line(t))
+}
+
+fn rule<'a>(color: iced::Color) -> Element<'a, Message> {
+    container(Space::new())
+        .width(Length::Fill)
+        .height(1)
+        .style(move |_: &iced::Theme| container::Style {
+            background: Some(Background::Color(color)),
+            ..container::Style::default()
+        })
+        .into()
 }
 
 /// The project manager's HQ: one click opens it, made if it was not there.
@@ -273,36 +303,64 @@ fn manager_door<'a>(f: &Frame<'a>) -> Element<'a, Message> {
         .iter()
         .find(|ws| ws.hq == Some(true));
     let current = hq.is_some_and(|hq| Some(hq.id.as_str()) == f.active);
-    let door = button(
-        row![
-            icon(Icon::Orchestrator, 14.0),
-            text(tr.t(Key::ManagerOpen).into_owned()).size(font_size::UI),
-        ]
-        .spacing(PAD)
-        .align_y(Alignment::Center),
+    let badge = container(
+        text(tr.t(Key::ManagerHqName).into_owned())
+            .size(10.0)
+            .font(fonts::mono())
+            .wrapping(text::Wrapping::None),
     )
-    .width(Length::Fill)
-    .padding([6.0, PAD])
-    .on_press(Message::Intent(Intent::OpenManager))
-    .style(move |_: &iced::Theme, status| {
-        let lit = current || matches!(status, button::Status::Hovered | button::Status::Pressed);
-        button::Style {
-            background: lit.then_some(Background::Color(t.colors.surface_hover)),
-            text_color: t.colors.accent_hi,
-            border: skin::border(t.colors.accent_hi, radius::MD),
-            ..button::Style::default()
-        }
-    });
+    .height(18)
+    .padding([0.0, 5.0])
+    .align_y(Alignment::Center)
+    .style(skin::hq_badge(t));
+    let face = row![
+        badge,
+        text(tr.t(Key::ManagerOpen).into_owned())
+            .size(font_size::UI)
+            .wrapping(text::Wrapping::None),
+    ]
+    .spacing(PAD)
+    .align_y(Alignment::Center);
+    let door = button(container(face).center_y(Length::Fill).clip(true))
+        .width(Length::Fill)
+        .height(scale::size::CONTROL_MD)
+        .padding([0.0, SIDE])
+        .on_press(Message::Intent(Intent::OpenManager))
+        .style(move |_: &iced::Theme, status| {
+            let p = &t.palette;
+            let lit = matches!(status, button::Status::Hovered | button::Status::Pressed);
+            // Selected while the HQ is the workspace on screen.
+            let (fill, edge) = if current {
+                (p.selection_bg, p.accent)
+            } else if lit {
+                (p.surface_raised, p.border_strong)
+            } else {
+                (p.surface, p.border)
+            };
+            button::Style {
+                background: Some(Background::Color(fill)),
+                text_color: if current || lit {
+                    p.text
+                } else {
+                    p.text_secondary
+                },
+                border: skin::border(edge, scale::radius::MD),
+                ..button::Style::default()
+            }
+        });
+    let door = ring::ring(t, door)
+        .radius(scale::radius::MD)
+        .on_activate(Message::Intent(Intent::OpenManager));
     container(tip::bottom(
         t,
         door,
         tr.t(Key::ManagerOpenHint).into_owned(),
     ))
     .padding(Padding {
-        top: 0.0,
-        right: PAD,
-        bottom: 6.0,
-        left: PAD,
+        top: scale::space::S3,
+        right: SIDE,
+        bottom: scale::space::S2,
+        left: SIDE,
     })
     .into()
 }
@@ -320,12 +378,17 @@ fn heading<'a>(f: &Frame<'a>, folders: &[NavFolder<'a>]) -> Element<'a, Message>
     let has_folders = !f.ctx.model.state().folders.is_empty() || !folders.is_empty();
     let label = row![
         text(tr.t(Key::SidebarWorkspaces).to_uppercase())
-            .size(font_size::LABEL)
-            .font(fonts::ui_semibold())
-            .color(if hot { t.colors.fg } else { t.colors.fg_muted }),
+            .size(type_scale::LABEL.size)
+            .font(fonts::mono())
+            .color(if hot {
+                t.palette.text
+            } else {
+                t.palette.text_muted
+            }),
         Space::new().width(Length::Fill),
         ui_button::icon_button(t, Icon::FolderPlus)
-            .small()
+            .side(24.0)
+            .icon_size(scale::size::ICON_SM)
             .tip(tr.t(Key::SidebarNewFolder).into_owned())
             .on_press(msg(Msg::NewFolder)),
     ]
@@ -334,7 +397,7 @@ fn heading<'a>(f: &Frame<'a>, folders: &[NavFolder<'a>]) -> Element<'a, Message>
         .height(ROW_HEIGHT)
         .padding(Padding {
             top: 0.0,
-            right: 2.0,
+            right: SIDE - LIST_SIDE - 2.0,
             bottom: 0.0,
             left: PAD,
         })
@@ -361,10 +424,10 @@ fn heading<'a>(f: &Frame<'a>, folders: &[NavFolder<'a>]) -> Element<'a, Message>
     };
     container(band)
         .padding(Padding {
-            top: 2.0,
-            right: PAD,
+            top: 0.0,
+            right: LIST_SIDE,
             bottom: 0.0,
-            left: PAD,
+            left: LIST_SIDE,
         })
         .into()
 }
@@ -401,7 +464,7 @@ fn row_shell<'a>(
         .height(ROW_HEIGHT)
         .padding(Padding {
             top: 0.0,
-            right: 4.0,
+            right: PAD,
             bottom: 0.0,
             left: PAD,
         })
@@ -518,7 +581,10 @@ fn more_button<'a>(f: &Frame<'a>, kind: RowKind, id: &str) -> Element<'a, Messag
             kind,
             id: id.to_string(),
             // Under the button, at the row's end.
-            at: Vector::new(size::SIDEBAR_WIDTH - 2.0 * PAD - 30.0, ROW_HEIGHT + 4.0),
+            at: Vector::new(
+                scale::size::SIDEBAR - 2.0 * LIST_SIDE - 30.0,
+                ROW_HEIGHT + 4.0,
+            ),
             from_keyboard: false,
         }))
         .into()
@@ -576,15 +642,9 @@ fn workspace_row<'a>(f: &Frame<'a>, ws: &'a Workspace) -> Element<'a, Message> {
     // A row whose machine cannot be reached steps back, name and glyph.
     let away = machine.is_some_and(|look| look.dimmed);
 
-    let glyph_cell = container(icon(Icon::Workspace, 14.0).color(if active {
-        t.colors.accent_hi
-    } else if away {
-        t.colors.fg_muted.scale_alpha(AWAY_ALPHA)
-    } else {
-        t.colors.fg_muted
-    }))
-    .width(16)
-    .align_x(Alignment::Center);
+    let glyph_cell = container(state_glyph(f, ws, away))
+        .width(STATE_CELL)
+        .align_x(Alignment::Center);
 
     let st: &'a State = f.st;
     let renaming = st
@@ -597,19 +657,9 @@ fn workspace_row<'a>(f: &Frame<'a>, ws: &'a Workspace) -> Element<'a, Message> {
             .align_y(Alignment::Center)
             .into(),
         None => {
-            let mut label = row![
-                text(ws.name.as_str())
-                    .size(font_size::UI_LG)
-                    .font(if active {
-                        fonts::ui_semibold()
-                    } else {
-                        fonts::ui_medium()
-                    })
-                    .color_maybe(away.then(|| t.colors.fg_secondary.scale_alpha(AWAY_ALPHA)))
-                    .wrapping(text::Wrapping::None)
-            ]
-            .spacing(space::SM)
-            .align_y(Alignment::Center);
+            let mut label = row![workspace_name(t, &ws.name, active, away)]
+                .spacing(space::SM)
+                .align_y(Alignment::Center);
             // After a name another workspace has too, the folder that tells
             // them apart.
             if let Some(hint) = f.hints.get(&ws.id) {
@@ -624,7 +674,7 @@ fn workspace_row<'a>(f: &Frame<'a>, ws: &'a Workspace) -> Element<'a, Message> {
             // Whatever ends the row: marks, the agents' summary, the « … ».
             // The machine comes first, so the eye finds it at one place down
             // the list.
-            let mut end = row![].spacing(2).align_y(Alignment::Center);
+            let mut end = row![].spacing(space::XS).align_y(Alignment::Center);
             // A row of this computer has one only when its repository is
             // open on another machine too, and then a fainter one: it says
             // where else, not where this is.
@@ -660,21 +710,6 @@ fn workspace_row<'a>(f: &Frame<'a>, ws: &'a Workspace) -> Element<'a, Message> {
             {
                 end = end.push(crate::accounts::badge(f.ctx, &ws.id));
             }
-            if let Some(orchestrator) = orchestrator_of(ws) {
-                let workers = workers_of(ws).len();
-                let words = if workers > 0 {
-                    tr.t_with(
-                        Key::OrchNavMarkWorkers,
-                        &args!("name" => orchestrator.name.as_str(), "n" => workers),
-                    )
-                } else {
-                    tr.t_with(
-                        Key::OrchNavMark,
-                        &args!("name" => orchestrator.name.as_str()),
-                    )
-                };
-                end = end.push(mark(t, Icon::Orchestrator, words.into_owned()));
-            }
             if ws.detached == Some(true) {
                 end = end.push(mark(
                     t,
@@ -691,6 +726,9 @@ fn workspace_row<'a>(f: &Frame<'a>, ws: &'a Workspace) -> Element<'a, Message> {
             }
             if let Some(summary) = status::view(f.ctx, &[ws]) {
                 end = end.push(summary);
+            }
+            if let Some(mark) = orchestration_mark(f, ws, active) {
+                end = end.push(mark);
             }
             let menu_open =
                 f.st.menu
@@ -724,6 +762,80 @@ fn workspace_row<'a>(f: &Frame<'a>, ws: &'a Workspace) -> Element<'a, Message> {
     // The folder it opens in, which the row does not spell out: only a
     // tooltip, for the rare look it is worth.
     tip::right(t, shell, ws.cwd.clone())
+}
+
+/// A workspace's name on one line, ending in an ellipsis when the row's
+/// marks leave it too little room.
+fn workspace_name<'a>(t: &'a Theme, name: &str, active: bool, away: bool) -> Element<'a, Message> {
+    let name = tail_text(name)
+        .readable()
+        .cut_end()
+        .width(Length::Shrink)
+        .size(font_size::UI)
+        .font(if active {
+            fonts::ui_medium()
+        } else {
+            fonts::ui()
+        });
+    if away {
+        name.color(t.palette.text_secondary.scale_alpha(AWAY_ALPHA))
+            .into()
+    } else {
+        name.into()
+    }
+}
+
+/// A workspace's state, ahead of its name: the arc while one of its agents
+/// works, an empty ring at rest. What waits for the person is counted at the
+/// row's end.
+fn state_glyph<'a>(f: &Frame<'a>, ws: &Workspace, away: bool) -> Element<'a, Message> {
+    let t = f.ctx.theme;
+    let working = reads::counts(f.ctx.model, ws).working > 0;
+    let (state, side, ink) = if working {
+        (
+            glyph::GlyphState::Working,
+            STATE_CELL,
+            t.palette.status.running,
+        )
+    } else {
+        (glyph::GlyphState::Idle, 8.0, t.palette.status.inactive)
+    };
+    let alpha = if away { AWAY_ALPHA } else { 1.0 };
+    glyph::state(t, state, side)
+        .tint(ink.scale_alpha(alpha))
+        .into()
+}
+
+/// The Fork symbol at the end of the row of a workspace that orchestrates: in
+/// its colours for the one in front, in the inactive grey for the others. Its
+/// tooltip names the orchestrator and counts its workers.
+fn orchestration_mark<'a>(
+    f: &Frame<'a>,
+    ws: &'a Workspace,
+    active: bool,
+) -> Option<Element<'a, Message>> {
+    let t = f.ctx.theme;
+    let tr = f.ctx.i18n;
+    let orchestrator = orchestrator_of(ws)?;
+    let workers = workers_of(ws).len();
+    let words = if workers > 0 {
+        tr.t_with(
+            Key::OrchNavMarkWorkers,
+            &args!("name" => orchestrator.name.as_str(), "n" => workers),
+        )
+    } else {
+        tr.t_with(
+            Key::OrchNavMark,
+            &args!("name" => orchestrator.name.as_str()),
+        )
+    };
+    let side = scale::size::ICON_SM;
+    let symbol = if active {
+        logo(t, side)
+    } else {
+        mono(side, t.palette.status.inactive)
+    };
+    Some(tip::bottom(t, symbol, words.into_owned()))
 }
 
 /// A small icon at the end of a row with a word in its tooltip (`.nav-mark`).
@@ -894,7 +1006,7 @@ fn filter_bar<'a>(f: &Frame<'a>, machine: &MachineFilter) -> Element<'a, Message
 
     let input = text_input(&tr.t(Key::SidebarFilter), &st.query)
         .id(filter_id())
-        .size(font_size::UI)
+        .size(type_scale::CAPTION.size)
         .padding(0)
         .width(Length::Fill)
         .on_input(|query| msg(Msg::Query(query)))
@@ -947,12 +1059,24 @@ fn filter_bar<'a>(f: &Frame<'a>, machine: &MachineFilter) -> Element<'a, Message
             ..button::Style::default()
         }
     });
+    let scope = ring::ring(t, scope)
+        .radius(radius::XS)
+        .on_activate(msg(Msg::ToggleAttention));
+    // The machines' button beside the field wears the filter's lines while
+    // it narrows nothing: the field takes the magnifying glass then, so the
+    // two never look alike.
+    let machines = machine_button(f, machine);
+    let lead = if machines.is_some() {
+        Icon::Search
+    } else {
+        Icon::Filter
+    };
     let field = container(
         row![
-            icon(Icon::Search, 14.0).color(if narrowing {
-                t.colors.accent_hi
+            icon(lead, scale::size::ICON_SM).color(if narrowing {
+                t.palette.accent_text
             } else {
-                t.colors.fg_muted
+                t.palette.text_muted
             }),
             input,
             tip::bottom(t, scope, tr.t(Key::SidebarAttention).into_owned()),
@@ -960,7 +1084,7 @@ fn filter_bar<'a>(f: &Frame<'a>, machine: &MachineFilter) -> Element<'a, Message
         .spacing(space::SM)
         .align_y(Alignment::Center),
     )
-    .height(24)
+    .height(FOOT_CONTROL)
     .width(Length::Fill)
     .padding(Padding {
         top: 0.0,
@@ -973,7 +1097,8 @@ fn filter_bar<'a>(f: &Frame<'a>, machine: &MachineFilter) -> Element<'a, Message
 
     let mut bar = row![
         ui_button::icon_button(t, Icon::Plus)
-            .icon_size(16.0)
+            .side(FOOT_CONTROL)
+            .icon_size(scale::size::ICON_MD)
             .tip(tr.t(Key::CmdWorkspaceNew).into_owned())
             .keys(reads::binding(&f.ctx, CommandId::WorkspaceNew))
             .on_press(Message::Intent(Intent::OpenOverlay(
@@ -981,33 +1106,24 @@ fn filter_bar<'a>(f: &Frame<'a>, machine: &MachineFilter) -> Element<'a, Message
             ))),
         field,
     ];
-    if let Some(machines) = machine_button(f, machine) {
+    if let Some(machines) = machines {
         bar = bar.push(machines);
     }
     let bar = bar
         .push(
             ui_button::icon_button(t, Icon::Gear)
-                .icon_size(16.0)
+                .side(FOOT_CONTROL)
+                .icon_size(scale::size::ICON_MD)
                 .tip(tr.t(Key::SidebarSettings).into_owned())
                 .keys(reads::binding(&f.ctx, CommandId::ViewSettings))
                 .on_press(Message::Intent(Intent::OpenSettings(None))),
         )
-        .spacing(space::XS)
+        .spacing(space::SM)
         .align_y(Alignment::Center)
-        .height(size::STATUS_BAR_HEIGHT)
-        .padding([0.0, 6.0]);
+        .height(FOOT_BAR)
+        .padding([0.0, SIDE]);
 
-    column![
-        container(Space::new())
-            .width(Length::Fill)
-            .height(1)
-            .style(move |_: &iced::Theme| container::Style {
-                background: Some(Background::Color(t.colors.sep)),
-                ..container::Style::default()
-            }),
-        bar
-    ]
-    .into()
+    column![rule(t.palette.border), bar].into()
 }
 
 // ---- The machines -----------------------------------------------------------------------------
@@ -1085,7 +1201,8 @@ fn machine_button<'a>(f: &Frame<'a>, machine: &MachineFilter) -> Option<Element<
     };
     let open = f.st.machine_menu;
     let button = ui_button::icon_button(t, filter_icon(ctx, machine))
-        .icon_size(16.0)
+        .side(FOOT_CONTROL)
+        .icon_size(scale::size::ICON_MD)
         .tip(words)
         .toggled(narrowed || open)
         .on_press(msg(Msg::MachineMenu(!open)));
@@ -1125,7 +1242,7 @@ const FOOT_INNER: Padding = Padding {
 };
 /// The room the words of the machines' line have, after its icon.
 #[cfg(test)]
-pub(super) const FOOT_ROOM: f32 = size::SIDEBAR_WIDTH
+pub(super) const FOOT_ROOM: f32 = scale::size::SIDEBAR
     - FOOT_OUTER.left
     - FOOT_OUTER.right
     - FOOT_INNER.left

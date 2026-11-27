@@ -4,6 +4,7 @@
 
 use chrono::{Local, NaiveDate, TimeZone};
 use hangar_i18n::Locale;
+use hangar_ui::glyph::{GaugeLevel, gauge_level};
 
 use super::*;
 
@@ -39,12 +40,16 @@ fn limit(kind: &str, used: f64, resets_at: Option<&str>) -> RateLimit {
 
 #[test]
 fn a_window_is_calm_until_seventy_amber_until_ninety_then_red() {
-    assert_eq!(level_of(0), Level::Ok);
-    assert_eq!(level_of(69), Level::Ok);
-    assert_eq!(level_of(70), Level::Warn);
-    assert_eq!(level_of(89), Level::Warn);
-    assert_eq!(level_of(90), Level::Hot);
-    assert_eq!(level_of(100), Level::Hot);
+    for (pct, level) in [
+        (0, GaugeLevel::Ok),
+        (69, GaugeLevel::Ok),
+        (70, GaugeLevel::Warn),
+        (89, GaugeLevel::Warn),
+        (90, GaugeLevel::Hot),
+        (100, GaugeLevel::Hot),
+    ] {
+        assert_eq!(gauge_level(pct), level, "{pct}");
+    }
 }
 
 #[test]

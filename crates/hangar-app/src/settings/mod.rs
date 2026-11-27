@@ -682,6 +682,17 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, category: SettingsCategory) -> Elem
     .align_y(Alignment::Center);
 
     let body: Element<'a, Message> = match active {
+        // The About page opens on the pack's stacked lockup, in the version
+        // that reads on the theme's appearance.
+        Some(category) if category.id == SettingsCategory::About => column![
+            container(crate::shell::brand_logo::stacked_lockup(t)).padding(Padding {
+                top: space::XXXL,
+                ..Padding::ZERO
+            }),
+            rows::page(ctx, st, category),
+        ]
+        .align_x(Alignment::Center)
+        .into(),
         Some(category) => rows::page(ctx, st, category),
         None => container(typography::label(
             t,

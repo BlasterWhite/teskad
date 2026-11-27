@@ -33,6 +33,7 @@ use hangar_ui::layer;
 
 use crate::ctx::Ctx;
 use crate::message::Message;
+use crate::navigator::skin;
 use crate::shell::title_bar::{self, Corners};
 use crate::shell::{Action, BoardVariant, View, WindowKind, overlay, placeholder};
 use crate::state::Workspace;
@@ -56,15 +57,15 @@ pub fn main<'a>(ctx: Ctx<'a>) -> Element<'a, Message> {
         frame = frame
             .push(
                 container(crate::navigator::view(&p.navigator, ctx))
-                    .width(tokens::size::SIDEBAR_WIDTH)
+                    .width(tokens::scale::size::SIDEBAR)
                     .height(Length::Fill)
                     .style(title_bar::rounded_style(
                         ctx,
                         Corners::LEFT,
-                        style::container::see_through(t, style::container::sidebar(t)),
+                        style::container::see_through(t, skin::window_chrome(t)),
                     )),
             )
-            .push(vertical_sep(ctx));
+            .push(rule::vertical(tokens::BORDER_WIDTH).style(hairline(t, t.palette.border)));
     }
     frame = frame.push(container(body).width(Length::Fill).height(Length::Fill));
     title_bar::outline(ctx, layered(ctx, frame_surface(ctx, frame.into())))
@@ -132,7 +133,7 @@ pub fn workspace_window<'a>(ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, Mess
 /// window `width` wide: what `side_panels::place` places in.
 pub fn body_width(width: f32, navigator: bool) -> f32 {
     if navigator {
-        (width - tokens::size::SIDEBAR_WIDTH - tokens::BORDER_WIDTH).max(0.0)
+        (width - tokens::scale::size::SIDEBAR - tokens::BORDER_WIDTH).max(0.0)
     } else {
         width
     }
@@ -154,7 +155,7 @@ fn workspace_body<'a>(ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, Message> {
             .style(title_bar::rounded_style(
                 ctx,
                 Corners::top(ctx),
-                style::container::see_through(t, style::container::toolbar(t)),
+                style::container::see_through(t, skin::window_chrome(t)),
             )),
     ))
     .on_enter(Message::Shell(Action::PointerOverToolbar(true)))
@@ -188,7 +189,7 @@ fn workspace_body<'a>(ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, Message> {
 
     column![
         toolbar,
-        horizontal_sep(ctx),
+        rule::horizontal(tokens::BORDER_WIDTH).style(hairline(t, skin::header_line(t))),
         layers,
         horizontal_sep(ctx),
         status
@@ -414,6 +415,15 @@ fn frame_surface<'a>(ctx: Ctx<'a>, content: Element<'a, Message>) -> Element<'a,
         .into()
 }
 
+/// A separator in a colour of the palette's own, seen through like the
+/// chrome beside it on a translucent window.
+fn hairline(t: &Theme, color: iced::Color) -> impl Fn(&iced::Theme) -> rule::Style + '_ {
+    move |theme| rule::Style {
+        color: t.see_through(color),
+        ..style::rule::sep_see_through(t)(theme)
+    }
+}
+
 fn vertical_sep<'a>(ctx: Ctx<'a>) -> Element<'a, Message> {
     rule::vertical(tokens::BORDER_WIDTH)
         .style(style::rule::sep_see_through(ctx.theme))
@@ -577,7 +587,7 @@ mod tests {
         h.shot(&mut ui, name);
         let picture = over_nothing(&mut ui, theme, name);
 
-        let navigator = area(0.0, 300.0, tokens::size::SIDEBAR_WIDTH - 2.0, 400.0);
+        let navigator = area(0.0, 300.0, tokens::scale::size::SIDEBAR - 2.0, 400.0);
         // The first pane's terminal, below the lines printed in it.
         let terminal = area(300.0, 300.0, 300.0, 100.0);
         // Its header, a bar of text that stays opaque.

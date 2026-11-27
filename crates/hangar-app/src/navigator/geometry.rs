@@ -8,9 +8,9 @@
 use super::model::{NavTree, RowKind, row_key};
 
 /// A workspace's row, and a folder's heading.
-pub const ROW_HEIGHT: f32 = 28.0;
+pub const ROW_HEIGHT: f32 = 32.0;
 /// The space between two children of a column of the list.
-pub const GAP: f32 = 1.0;
+pub const GAP: f32 = 2.0;
 /// The space above a folder, which with its heading is what groups it.
 pub const FOLDER_GAP: f32 = 10.0;
 /// An empty folder's placeholder, and the space under it.

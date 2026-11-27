@@ -3888,6 +3888,8 @@ pub enum Key {
     SidebarNoneWaiting,
     /// `sidebar.plan`
     SidebarPlan,
+    /// `sidebar.planAccount`
+    SidebarPlanAccount,
     /// `sidebar.planAccountsHint`
     SidebarPlanAccountsHint,
     /// `sidebar.planFiveHour`
@@ -6573,6 +6575,7 @@ impl Key {
         Key::SidebarNoMatch,
         Key::SidebarNoneWaiting,
         Key::SidebarPlan,
+        Key::SidebarPlanAccount,
         Key::SidebarPlanAccountsHint,
         Key::SidebarPlanFiveHour,
         Key::SidebarPlanHint,
@@ -8884,6 +8887,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "sidebar.noMatch", en: Text::plain("Nothing matches “{query}”."), fr: Text::plain("Rien ne correspond à «\u{202f}{query}\u{202f}».") },
     Message { id: "sidebar.noneWaiting", en: Text::plain("No agent is waiting for you."), fr: Text::plain("Aucun agent ne t'attend.") },
     Message { id: "sidebar.plan", en: Text::plain("Plan"), fr: Text::plain("Forfait") },
+    Message { id: "sidebar.planAccount", en: Text::plain("Plan · {name}"), fr: Text::plain("Forfait · {name}") },
     Message { id: "sidebar.planAccountsHint", en: Text::plain("Plan usage of each Claude account, as its panes last reported it"), fr: Text::plain("Consommation du forfait de chaque compte Claude, d'après le dernier relevé de ses volets") },
     Message { id: "sidebar.planFiveHour", en: Text::plain("5\u{a0}h"), fr: Text::plain("5\u{a0}h") },
     Message { id: "sidebar.planHint", en: Text::plain("Plan usage, as {agent} last reported it"), fr: Text::plain("Consommation du forfait, d'après le dernier relevé de {agent}") },
