@@ -74,10 +74,11 @@ pub const CARD_RADIUS: f32 = hangar_theme::tokens::scale::radius::LG;
 const HALO: f32 = 3.0;
 const HALO_ALPHA: f32 = 0.16;
 
-/// The width of a pane's card that takes `fraction` of a grid `width` wide:
-/// what its header has to fit in.
-pub fn card_width(fraction: f64, width: f32) -> f32 {
-    (fraction as f32 * (width - CARD_GAP).max(0.0) - CARD_GAP).max(0.0)
+/// The width of a pane's card that takes `fraction` of the `divided` pixels
+/// the grid says it measured (`Msg::GridSized`, its tiles): what the pane's
+/// header has to fit in.
+pub fn card_width(fraction: f64, divided: f32) -> f32 {
+    (fraction as f32 * divided - CARD_GAP).max(0.0)
 }
 
 /// The part of the grid's bounds the split tree divides: half a gap in from
@@ -1521,7 +1522,12 @@ mod tests {
         assert_eq!(first.y - grid.y, CARD_GAP);
         assert_eq!(second.x - (first.x + first.width), CARD_GAP);
         assert_eq!((grid.x + grid.width) - (second.x + second.width), CARD_GAP);
-        assert_eq!(card_width(0.5, grid.width), first.width);
+        assert_eq!(card_width(0.5, tiles(grid).width), first.width);
+        // Zoomed, a gap in from each edge of the grid.
+        assert_eq!(
+            card_width(1.0, tiles(grid).width),
+            grid.shrink(CARD_GAP).width
+        );
     }
 
     fn leaf(id: &str) -> SplitNode {

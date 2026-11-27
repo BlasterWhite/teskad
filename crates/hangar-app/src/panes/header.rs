@@ -68,12 +68,14 @@ const PIN_ICON: f32 = 11.0;
 /// What a header of a given width shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Fit {
-    /// The account badge of a pane on an account of its own.
+    /// The account badge of a pane on an account of its own; else in
+    /// Details.
     pub account: bool,
     /// The worker's task.
     pub task: bool,
     /// The context gauge's bar beside its figure.
     pub gauge_bar: bool,
+    /// The branch; else in Details.
     pub branch: bool,
     pub diff: bool,
     /// The word on the Details button, else its chevron alone.
@@ -88,8 +90,6 @@ pub struct Fit {
     pub short_states: bool,
     /// Actions 22 px wide instead of 26.
     pub narrow_actions: bool,
-    /// The Details button.
-    pub details: bool,
     pub queue: bool,
     /// The delivery chip.
     pub delivery: bool,
@@ -112,7 +112,6 @@ impl Fit {
             node: at_least(300.0),
             short_states: !at_least(504.0),
             narrow_actions: !at_least(220.0),
-            details: at_least(150.0),
             queue: at_least(144.0),
             delivery: at_least(144.0),
         }
@@ -279,7 +278,10 @@ pub fn view<'a>(ctx: Ctx<'a>, head: Head<'a>) -> Element<'a, Message> {
         &pane.id,
         content_width,
     ));
-    if fit.account {
+    // What the line has no room for goes to Details: the account and the
+    // branch.
+    let account_on_line = fit.account;
+    if account_on_line {
         lead = lead.push(crate::accounts::pane_badge(ctx, &head.ws.id, &pane.id));
     }
 
@@ -302,10 +304,8 @@ pub fn view<'a>(ctx: Ctx<'a>, head: Head<'a>) -> Element<'a, Message> {
     if let Some((title, hint)) = task {
         lead = lead.push(task_label(t, title, hint));
     }
-    if delivery.is_none()
-        && fit.branch
-        && let Some(branch) = logic.pane_branch(&folder_of(head.ws, pane))
-    {
+    let branch_on_line = fit.branch && delivery.is_none();
+    if branch_on_line && let Some(branch) = logic.pane_branch(&folder_of(head.ws, pane)) {
         lead = lead.push(branch_label(ctx, branch));
     }
     if !spread {
@@ -422,12 +422,21 @@ pub fn view<'a>(ctx: Ctx<'a>, head: Head<'a>) -> Element<'a, Message> {
     {
         bar = bar.push(gauge::view(ctx, reading, pane.agent, fit.gauge_bar));
     }
-    if fit.details {
-        bar = bar.push(details(ctx, &head, fit, &state));
-    }
+    let folded = OffLine {
+        account: !account_on_line,
+        branch: !branch_on_line,
+    };
+    bar = bar.push(details(ctx, &head, fit, &state, folded));
     bar = bar.push(actions(ctx, &head, fit));
 
     frame(t, bar)
+}
+
+/// What the line had no room for, which Details then holds.
+#[derive(Debug, Clone, Copy, Default)]
+struct OffLine {
+    account: bool,
+    branch: bool,
 }
 
 /// How the pane's state is said: the shell's life until it runs, then the
@@ -518,6 +527,7 @@ fn details<'a>(
     head: &Head<'a>,
     fit: Fit,
     state: &StateWords,
+    off: OffLine,
 ) -> Element<'a, Message> {
     let t = ctx.theme;
     let pane = head.pane;
@@ -546,10 +556,16 @@ fn details<'a>(
             .on_activate(toggle),
     )
     .id(details_id(&pane.id));
-    let anchor = tip::bottom(t, button, ctx.t(Key::PaneDetailsTitle).into_owned());
+    // The chevron alone needs its name said; beside the word, a tip would
+    // only lie over the popover.
+    let anchor: Element<'a, Message> = if fit.details_word {
+        button.into()
+    } else {
+        tip::bottom(t, button, ctx.t(Key::PaneDetailsTitle).into_owned())
+    };
     let content = head.details.then(|| {
         Element::from(
-            popover::popover(t, details_content(ctx, head, state))
+            popover::popover(t, details_content(ctx, head, state, off))
                 .width(popover::WIDTH)
                 .padding(tokens::scale::space::S3),
         )
@@ -563,9 +579,15 @@ fn details<'a>(
         .into()
 }
 
-/// What the line does not say: the agent CLI, the shell, the session, and
-/// the state in words.
-fn details_content<'a>(ctx: Ctx<'a>, head: &Head<'a>, state: &StateWords) -> Element<'a, Message> {
+/// What the line does not say: the agent CLI, the shell, the session and
+/// the state in words, and the account and the branch when it had no room
+/// for them.
+fn details_content<'a>(
+    ctx: Ctx<'a>,
+    head: &Head<'a>,
+    state: &StateWords,
+    off: OffLine,
+) -> Element<'a, Message> {
     let t = ctx.theme;
     let pane = head.pane;
     let said = |key: Key| ctx.t(key).into_owned();
@@ -595,6 +617,24 @@ fn details_content<'a>(ctx: Ctx<'a>, head: &Head<'a>, state: &StateWords) -> Ele
             t,
             said(Key::PaneDetailsSession),
             session_value(ctx, head),
+        ));
+    }
+    if off.account
+        && let Some(badge) = crate::accounts::pane_badge(ctx, &head.ws.id, &pane.id)
+    {
+        lines = lines.push(popover::row(t, said(Key::PaneDetailsAccount), badge));
+    }
+    if off.branch
+        && let Some(branch) = ctx
+            .model
+            .live
+            .panes_logic
+            .pane_branch(&folder_of(head.ws, pane))
+    {
+        lines = lines.push(popover::row(
+            t,
+            said(Key::PaneDetailsBranch),
+            branch_label(ctx, branch),
         ));
     }
     let mut value = row![
@@ -1249,9 +1289,14 @@ mod tests {
             details: true,
         };
         let state = StateWords::of(ctx(m, pkg), entry, rt);
-        iced::widget::container(details_content(ctx(m, pkg), &head, &state))
-            .width(hangar_ui::popover::WIDTH)
-            .into()
+        iced::widget::container(details_content(
+            ctx(m, pkg),
+            &head,
+            &state,
+            OffLine::default(),
+        ))
+        .width(hangar_ui::popover::WIDTH)
+        .into()
     }
 
     fn details_say(m: &Model, pkg: &Packages, pane: &str, words: &str) -> bool {
@@ -1323,6 +1368,84 @@ mod tests {
             ),
             "{sent:?}"
         );
+    }
+
+    /// A narrow header keeps neither the branch nor the account on its line:
+    /// Details then holds them, and a wide one's do not repeat them.
+    #[test]
+    fn what_a_narrow_header_drops_is_in_its_details() {
+        let (mut m, pkg) = two_agents();
+        let ws = m.workspace(WS).expect("the workspace").clone();
+        let folder = folder_of(&ws, &ws.panes[1]);
+        m.live.panes_logic.branches.answered(
+            &folder,
+            Some(PaneBranch::Branch {
+                name: "fix-it".into(),
+                linked_worktree: false,
+            }),
+            0,
+        );
+        // A pane waiting to move to another account.
+        m.live.accounts.accounts = Some(
+            ["main", "perso"]
+                .map(|id| hangar_core::accounts::Account {
+                    id: id.into(),
+                    label: id.into(),
+                    is_main: id == "main",
+                    logged_in: true,
+                    email: None,
+                    plan: None,
+                })
+                .to_vec(),
+        );
+        m.live.accounts.moving.insert(
+            "cl".into(),
+            crate::accounts::Moving {
+                to: "perso".into(),
+                hold: crate::accounts::Hold::Turn,
+            },
+        );
+        let moving = Translator::new(Locale::En)
+            .t_with(Key::AccountsMoving, &args!("name" => "perso"))
+            .into_owned();
+        for (off, there) in [
+            (OffLine::default(), false),
+            (
+                OffLine {
+                    account: true,
+                    branch: true,
+                },
+                true,
+            ),
+        ] {
+            let ws = m.workspace(WS).expect("the workspace");
+            let entry = &ws.panes[1];
+            let rt = &pkg.panes.panes["cl"];
+            let head = Head {
+                ws,
+                pane: entry,
+                rt,
+                focused: true,
+                zoomed: false,
+                can_close: true,
+                can_zoom: true,
+                width: 300.0,
+                index: 1,
+                shell: None,
+                picker: None,
+                details: true,
+            };
+            let state = StateWords::of(ctx(&m, &pkg), entry, rt);
+            let mut ui = simulate(
+                iced::widget::container(details_content(ctx(&m, &pkg), &head, &state, off))
+                    .width(hangar_ui::popover::WIDTH),
+            );
+            for words in ["Branch", "fix-it", "Account", moving.as_str()] {
+                assert_eq!(ui.find(words).is_ok(), there, "{words}");
+            }
+        }
+        let fit = Fit::of(300.0 - PADDING_X);
+        assert!(!fit.account && !fit.branch);
     }
 
     /// The agent picker opens over the Details popover: picking a line there
@@ -1483,7 +1606,7 @@ mod tests {
     fn a_wide_header_shows_everything() {
         let fit = Fit::of(800.0);
         assert!(fit.account && fit.task && fit.branch && fit.gauge && fit.gauge_bar);
-        assert!(fit.details && fit.details_word && fit.diff && fit.commands && fit.zoom);
+        assert!(fit.details_word && fit.diff && fit.commands && fit.zoom);
         assert!(!fit.short_states && !fit.narrow_actions);
     }
 
@@ -1507,9 +1630,9 @@ mod tests {
         let fit = Fit::of(310.0);
         assert!(!fit.commands && fit.zoom);
         let fit = Fit::of(200.0);
-        assert!(!fit.zoom && fit.details && fit.narrow_actions);
+        assert!(!fit.zoom && fit.narrow_actions);
         let fit = Fit::of(140.0);
-        assert!(!fit.details && !fit.queue && !fit.delivery);
+        assert!(!fit.queue && !fit.delivery);
     }
 
     #[test]

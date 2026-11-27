@@ -906,8 +906,13 @@ pub fn plan_block<'a>(ctx: Ctx<'a>) -> Option<Element<'a, Message>> {
     plan::view(ctx)
 }
 
-/// A pane header's account badge.
-pub fn pane_badge<'a>(ctx: Ctx<'a>, ws: &'a WsId, pane: &'a PaneId) -> Element<'a, Message> {
+/// A pane's account badge, on its header or in its Details: `None` when
+/// there is no account to tell apart.
+pub fn pane_badge<'a>(
+    ctx: Ctx<'a>,
+    ws: &'a WsId,
+    pane: &'a PaneId,
+) -> Option<Element<'a, Message>> {
     badge::pane(ctx, ws, pane)
 }
 

@@ -3064,8 +3064,12 @@ pub enum Key {
     PaneDeliveryTipOutcome,
     /// `pane.details`
     PaneDetails,
+    /// `pane.detailsAccount`
+    PaneDetailsAccount,
     /// `pane.detailsAgent`
     PaneDetailsAgent,
+    /// `pane.detailsBranch`
+    PaneDetailsBranch,
     /// `pane.detailsSession`
     PaneDetailsSession,
     /// `pane.detailsState`
@@ -6175,7 +6179,9 @@ impl Key {
         Key::PaneDeliveryTip,
         Key::PaneDeliveryTipOutcome,
         Key::PaneDetails,
+        Key::PaneDetailsAccount,
         Key::PaneDetailsAgent,
+        Key::PaneDetailsBranch,
         Key::PaneDetailsSession,
         Key::PaneDetailsState,
         Key::PaneDetailsTitle,
@@ -8493,7 +8499,9 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "pane.delivery.tip", en: Text::plain("{app} is delivering this task: it merges it, checks it, has it reviewed, then lands it"), fr: Text::plain("{app} livre cette tâche\u{202f}: il la fusionne, la vérifie, la fait relire, puis la fait arriver sur la branche") },
     Message { id: "pane.delivery.tipOutcome", en: Text::plain("Open the task, with the delivery's comment"), fr: Text::plain("Ouvrir la tâche, avec le commentaire de la livraison") },
     Message { id: "pane.details", en: Text::plain("Details"), fr: Text::plain("Détails") },
+    Message { id: "pane.detailsAccount", en: Text::plain("Account"), fr: Text::plain("Compte") },
     Message { id: "pane.detailsAgent", en: Text::plain("Agent CLI"), fr: Text::plain("CLI de l’agent") },
+    Message { id: "pane.detailsBranch", en: Text::plain("Branch"), fr: Text::plain("Branche") },
     Message { id: "pane.detailsSession", en: Text::plain("Session"), fr: Text::plain("Session") },
     Message { id: "pane.detailsState", en: Text::plain("State"), fr: Text::plain("État") },
     Message { id: "pane.detailsTitle", en: Text::plain("Session details"), fr: Text::plain("Détails de la session") },

@@ -155,6 +155,8 @@
   "pane.detailsTitle": "Détails de la session",
   "pane.detailsAgent": "CLI de l’agent",
   "pane.detailsSession": "Session",
+  "pane.detailsAccount": "Compte",
+  "pane.detailsBranch": "Branche",
   "pane.detailsState": "État",
   "pane.copySession": "Copier l’identifiant de la session",
   "pane.newSession": "nouvelle",

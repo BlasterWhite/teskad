@@ -210,37 +210,28 @@ pub(super) fn navigator_mark(
 
 /// A pane header's badge: it names the account of a pane whose agent runs on
 /// another one than its workspace's (a pane-level override), of its agent's
-/// kind. Nothing otherwise.
-pub fn pane<'a>(ctx: Ctx<'a>, ws: &'a WsId, pane: &'a PaneId) -> Element<'a, Message> {
-    let Some(workspace) = ctx.model.workspace(ws) else {
-        return nothing();
-    };
-    let Some(pane) = workspace
+/// kind, or the one it is moving to. `None` otherwise.
+pub fn pane<'a>(ctx: Ctx<'a>, ws: &'a WsId, pane: &'a PaneId) -> Option<Element<'a, Message>> {
+    let workspace = ctx.model.workspace(ws)?;
+    let pane = workspace
         .panes
         .iter()
-        .find(|candidate| candidate.id == *pane)
-    else {
-        return nothing();
-    };
-    let Some(kind) = pane.agent.kind() else {
-        return nothing();
-    };
-    let Some(accounts) = live(ctx).of(kind) else {
-        return nothing();
-    };
+        .find(|candidate| candidate.id == *pane)?;
+    let kind = pane.agent.kind()?;
+    let accounts = live(ctx).of(kind)?;
     // On its way to another account, or held back from it.
     if let Some(moving) = live(ctx).moving.get(&pane.id) {
-        return moving_chip(ctx, accounts, moving);
+        return Some(moving_chip(ctx, accounts, moving));
     }
     let state = ctx.model.state();
     let own = AccountLevels::of_kind(state, workspace, Some(pane), kind).resolve(accounts);
     if own.source != AccountSource::Pane {
-        return nothing();
+        return None;
     }
     // What the workspace runs on: its own, its folder's or the default.
     let base = AccountLevels::of_kind(state, workspace, None, kind).resolve(accounts);
     if own.id == base.id {
-        return nothing();
+        return None;
     }
-    chip(ctx, kind, accounts, &own.id, None).unwrap_or_else(nothing)
+    chip(ctx, kind, accounts, &own.id, None)
 }

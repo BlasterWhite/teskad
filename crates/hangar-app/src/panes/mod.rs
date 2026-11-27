@@ -97,6 +97,10 @@ pub struct State {
     picker: Option<(PaneId, Picker)>,
     /// The pane whose header has its Details popover open.
     details: Option<PaneId>,
+    /// The focused pane of its workspace when Details opened: once the focus
+    /// moves to a third one, Details closes, so that it takes no Tab or
+    /// Escape from a terminal the person went to.
+    details_focus: Option<PaneId>,
     /// The signature of the model the last sync brought the panes in line
     /// with.
     synced: u64,
@@ -486,6 +490,11 @@ fn handle(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Messag
         ]),
         Msg::ToggleDetails(pane) => {
             st.picker = None;
+            st.details_focus = st
+                .panes
+                .get(&pane)
+                .and_then(|rt| m.workspace(&rt.ws))
+                .and_then(|ws| focused_pane(m, ws));
             st.details = (st.details.as_ref() != Some(&pane)).then_some(pane);
             Task::none()
         }
@@ -1777,7 +1786,17 @@ fn sync(st: &mut State, m: &mut Model, sv: &Services) -> Task<Message> {
             .is_some_and(|ws| seen(m, ws, open))
     };
     let picker_gone = st.picker.as_ref().is_some_and(|(open, _)| hidden(open));
-    let details_gone = st.details.as_ref().is_some_and(hidden);
+    let focus_left = |open: &PaneId| {
+        st.panes
+            .get(open)
+            .and_then(|rt| m.workspace(&rt.ws))
+            .and_then(|ws| focused_pane(m, ws))
+            .is_some_and(|now| now != *open && Some(&now) != st.details_focus.as_ref())
+    };
+    let details_gone = st
+        .details
+        .as_ref()
+        .is_some_and(|open| hidden(open) || focus_left(open));
     if picker_gone {
         st.picker = None;
     }
