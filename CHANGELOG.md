@@ -10,6 +10,9 @@ Every release, with its installers, is on the
 
 ## [Unreleased]
 
+### Added
+- Settings › Appearance: the theme grid is walked with the arrow keys, like a radio group. Left and Right move the choice to the card before and after, Up and Down to the card above and below, and the keyboard follows; Tab, Space and Enter work as before.
+
 ## [2.6.0] - 2026-11-27
 
 This fork is independent and not affiliated with the original HangarAI project: the app no longer points at that project's services.

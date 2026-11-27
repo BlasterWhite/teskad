@@ -11,9 +11,6 @@
 //! 2. [`derive_inks`]: [`Inks`], the colours the palette has no token for (a
 //!    state's ink, warning, the shadow, a chart's data colours), computed
 //!    from the palette.
-//! 3. [`derive_colors`]: [`Colors`], the finer tokens views are drawn with
-//!    (a pane header, a hairline), computed from the palette and the inks. It
-//!    is an alias of both, not a second source of colour.
 
 use iced::Color;
 
@@ -23,7 +20,7 @@ use crate::contrast::{
 use crate::inks::{Inks, TextInks, Viz};
 use crate::palette::{Palette, Status};
 use crate::spec::UiOverrides;
-use crate::theme::{Appearance, Colors, StateColors, TerminalColors};
+use crate::theme::{Appearance, StateColors, TerminalColors};
 
 /// Text on the window reads at this ratio at least: WCAG's AA for body text.
 pub const TEXT_CONTRAST: f64 = 4.5;
@@ -438,71 +435,5 @@ pub fn derive_inks(appearance: Appearance, palette: &Palette, terminal: &Termina
             mute: c(ensure_contrast(mix(card, fg, 0.22), &[card], 1.6, Some(fg))),
             line: c(ensure_contrast(mix(card, fg, 0.42), &[card], 3.0, Some(fg))),
         },
-    }
-}
-
-/// Every colour token of the window: [`Colors`], the finer names views are
-/// drawn with, computed from the palette and from [`Inks`], the colours the
-/// palette has no token for. Nothing here is a colour of its own.
-pub fn derive_colors(appearance: Appearance, palette: &Palette, inks: &Inks) -> Colors {
-    let _ = appearance;
-    let p = palette;
-
-    Colors {
-        chrome: p.surface,
-        chrome_bar: p.surface_raised,
-        pane_head: p.surface,
-        pane_head_focus: p.surface_raised,
-        raised: p.surface_raised,
-        card: inks.card,
-        sep: p.surface_sunken,
-        line: p.border,
-        line_strong: p.border_strong,
-        accent_hi: inks.accent_text,
-        state_working: inks.running.text,
-        state_working_fill: inks.running.fill,
-        state_waiting: inks.waiting.text,
-        state_waiting_fill: inks.waiting.fill,
-        state_yours: inks.yours.text,
-        state_yours_fill: inks.yours.fill,
-        state_idle: inks.idle.text,
-        state_idle_fill: inks.idle.fill,
-        bg: p.bg,
-        bg_sunken: p.surface_sunken,
-        surface: p.surface,
-        surface_hover: inks.hover,
-        surface_active: p.selection_bg,
-        border: p.border,
-        border_strong: p.border_strong,
-        fg: inks.text.primary,
-        fg_secondary: inks.text.secondary,
-        fg_muted: inks.text.muted,
-        fg_subtle: inks.text.muted,
-        accent: p.accent,
-        accent_soft: inks.accent_soft,
-        accent_ring: inks.accent_ring,
-        accent_fg: p.on_accent,
-        danger: inks.danger(),
-        danger_soft: inks.danger_soft,
-        success: inks.success(),
-        warning: inks.warning(),
-        shadow: inks.shadow,
-        float_ring: inks.float_ring,
-        // A segmented control: a recessed track, and the chosen segment
-        // raised out of it.
-        seg_track: p.surface_sunken,
-        seg_thumb: inks.seg_thumb,
-        viz_1: inks.viz.series[0],
-        viz_2: inks.viz.series[1],
-        viz_3: inks.viz.series[2],
-        viz_4: inks.viz.series[3],
-        viz_heat_0: inks.viz.heat[0],
-        viz_heat_1: inks.viz.heat[1],
-        viz_heat_2: inks.viz.heat[2],
-        viz_heat_3: inks.viz.heat[3],
-        viz_heat_4: inks.viz.heat[4],
-        viz_heat_5: inks.viz.heat[5],
-        viz_mute: inks.viz.mute,
-        viz_line: inks.viz.line,
     }
 }

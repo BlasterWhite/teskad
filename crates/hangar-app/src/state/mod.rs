@@ -473,10 +473,9 @@ mod tests {
         let tokyo = m.theme();
         assert_eq!((tokyo.id, tokyo.window_opacity), ("tokyo-night", 0.85));
         assert_eq!(tokyo.is_translucent(), cfg!(target_os = "linux"));
-        assert_eq!(
-            tokyo.colors,
-            hangar_theme::by_id_or_default("tokyo-night").colors
-        );
+        let bundled = hangar_theme::by_id_or_default("tokyo-night");
+        assert_eq!(tokyo.palette, bundled.palette);
+        assert_eq!(tokyo.inks, bundled.inks);
         // The workspace follows the global theme: Teskad Dark, at 0.85 too.
         state.workspaces[0].theme_id = None;
         m.hydrate(state);

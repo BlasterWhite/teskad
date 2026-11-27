@@ -38,6 +38,7 @@ pub struct Ring<'a, M> {
     radius: f32,
     on_activate: Option<M>,
     on_arrows: (Option<M>, Option<M>),
+    on_vertical: (Option<M>, Option<M>),
     id: Option<Id>,
     shown: bool,
 }
@@ -50,6 +51,7 @@ pub fn ring<'a, M>(t: &'a Theme, content: impl Into<Element<'a, M>>) -> Ring<'a,
         radius: scale::radius::SM,
         on_activate: None,
         on_arrows: (None, None),
+        on_vertical: (None, None),
         id: None,
         shown: false,
     }
@@ -80,6 +82,14 @@ impl<'a, M> Ring<'a, M> {
     /// control focusable.
     pub fn on_arrows(mut self, left: Option<M>, right: Option<M>) -> Self {
         self.on_arrows = (left, right);
+        self
+    }
+
+    /// What Up and Down send while the control has the keyboard: a step to
+    /// the row above and the row below in a grid of choices. Either makes the
+    /// control focusable.
+    pub fn on_vertical(mut self, up: Option<M>, down: Option<M>) -> Self {
+        self.on_vertical = (up, down);
         self
     }
 
@@ -159,7 +169,13 @@ impl<M: Clone> Widget<M, iced::Theme, iced::Renderer> for Ring<'_, M> {
     ) {
         let state = tree.state.downcast_mut::<State>();
         let (left, right) = &self.on_arrows;
-        if self.on_activate.is_some() || left.is_some() || right.is_some() {
+        let (up, down) = &self.on_vertical;
+        if self.on_activate.is_some()
+            || left.is_some()
+            || right.is_some()
+            || up.is_some()
+            || down.is_some()
+        {
             operation.focusable(self.id.as_ref(), layout.bounds(), state);
         } else {
             // A control that cannot be used cannot keep the ring either.
@@ -216,6 +232,8 @@ impl<M: Clone> Widget<M, iced::Theme, iced::Renderer> for Ring<'_, M> {
                 let step = match key {
                     Key::Named(Named::ArrowLeft) => self.on_arrows.0.clone(),
                     Key::Named(Named::ArrowRight) => self.on_arrows.1.clone(),
+                    Key::Named(Named::ArrowUp) => self.on_vertical.0.clone(),
+                    Key::Named(Named::ArrowDown) => self.on_vertical.1.clone(),
                     _ => None,
                 };
                 if let Some(message) = step {

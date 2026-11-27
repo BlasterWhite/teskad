@@ -333,7 +333,7 @@ mod the_teskad_themes {
             let theme = by_id(id).unwrap();
             let magenta = Rgb::hex("#E040B0").to_color();
             assert_ne!(theme.palette.status.failed, magenta, "{id}");
-            assert_ne!(theme.colors.danger, magenta, "{id}");
+            assert_ne!(theme.inks.danger(), magenta, "{id}");
         }
     }
 }
@@ -420,31 +420,8 @@ mod the_bundled_themes {
             let distinct: HashSet<_> = t.ansi.iter().map(|c| c.into_rgba8()).collect();
             assert!(distinct.len() >= 8, "{}", theme.id);
 
-            assert_eq!(theme.colors.iter().count(), crate::Colors::CSS_NAMES.len());
-            for (name, color) in theme.colors.iter() {
-                for channel in [color.r, color.g, color.b, color.a] {
-                    assert!(
-                        (0.0..=1.0).contains(&channel),
-                        "{}: {name} is out of range",
-                        theme.id
-                    );
-                }
-            }
             assert_eq!(theme.palette.accent, theme.accent());
-            assert_eq!(theme.colors.accent, theme.palette.accent);
         }
-    }
-
-    #[test]
-    fn name_every_css_token_once_and_find_it_again() {
-        let names: HashSet<_> = crate::Colors::CSS_NAMES.iter().collect();
-        assert_eq!(names.len(), crate::Colors::CSS_NAMES.len());
-        let theme = default_theme();
-        for (name, color) in theme.colors.iter() {
-            assert!(name.starts_with("--"));
-            assert_eq!(theme.colors.get(name), Some(color));
-        }
-        assert_eq!(theme.colors.get("--no-such-token"), None);
     }
 
     #[test]
@@ -470,7 +447,7 @@ mod window_opacity {
             assert_eq!(theme.window_opacity, 1.0, "{}", theme.id);
             assert!(!theme.is_translucent(), "{}", theme.id);
             assert_eq!(theme.window_alpha(), 1.0, "{}", theme.id);
-            assert_eq!(theme.see_through(theme.colors.bg), theme.colors.bg);
+            assert_eq!(theme.see_through(theme.palette.bg), theme.palette.bg);
         }
     }
 
@@ -502,16 +479,21 @@ mod window_opacity {
             // borders, its terminal's palette.
             assert_eq!(glass.id, solid.id);
             assert_eq!(glass.accent(), solid.accent(), "{}", theme.id);
-            assert_eq!(glass.colors.fg, solid.colors.fg, "{}", theme.id);
-            assert_eq!(glass.colors, solid.colors, "{}", theme.id);
+            assert_eq!(
+                glass.inks.text.primary, solid.inks.text.primary,
+                "{}",
+                theme.id
+            );
+            assert_eq!(glass.palette, solid.palette, "{}", theme.id);
+            assert_eq!(glass.inks, solid.inks, "{}", theme.id);
             assert_eq!(glass.terminal, solid.terminal, "{}", theme.id);
             if cfg!(target_os = "linux") {
                 assert!(glass.is_translucent());
                 assert_eq!(glass.window_alpha(), 0.85, "{}", theme.id);
                 // Only the alpha of a background goes down.
                 assert_eq!(
-                    glass.see_through(glass.colors.chrome),
-                    solid.colors.chrome.scale_alpha(0.85)
+                    glass.see_through(glass.palette.surface),
+                    solid.palette.surface.scale_alpha(0.85)
                 );
             } else {
                 assert!(!glass.is_translucent());
@@ -544,9 +526,14 @@ mod the_statistics_colours {
     #[test]
     fn step_away_from_the_card_in_order_on_every_theme_the_faintest_still_at_2_to_1() {
         for theme in themes() {
-            let c = &theme.colors;
-            let card = Rgb::from(c.card);
-            let steps = [c.viz_1, c.viz_2, c.viz_3, c.viz_4].map(Rgb::from);
+            let card = Rgb::from(theme.inks.card);
+            let steps = [
+                theme.inks.viz.series[0],
+                theme.inks.viz.series[1],
+                theme.inks.viz.series[2],
+                theme.inks.viz.series[3],
+            ]
+            .map(Rgb::from);
             let away =
                 steps.map(|color| (perceived_lightness(color) - perceived_lightness(card)).abs());
             // Far enough apart to tell neighbours in a stacked column at a glance.
@@ -565,19 +552,18 @@ mod the_statistics_colours {
     #[test]
     fn darken_or_brighten_the_heatmap_with_the_value_from_an_empty_cell_up() {
         for theme in themes() {
-            let c = &theme.colors;
-            let card = Rgb::from(c.card);
+            let card = Rgb::from(theme.inks.card);
             let levels = [
-                c.viz_heat_1,
-                c.viz_heat_2,
-                c.viz_heat_3,
-                c.viz_heat_4,
-                c.viz_heat_5,
+                theme.inks.viz.heat[1],
+                theme.inks.viz.heat[2],
+                theme.inks.viz.heat[3],
+                theme.inks.viz.heat[4],
+                theme.inks.viz.heat[5],
             ];
             let away = |color: Color| {
                 (perceived_lightness(Rgb::from(color)) - perceived_lightness(card)).abs()
             };
-            let mut previous = away(c.viz_heat_0);
+            let mut previous = away(theme.inks.viz.heat[0]);
             for (level, color) in levels.into_iter().enumerate() {
                 let now = away(color);
                 assert!(now > previous, "{} level {}", theme.id, level + 1);
@@ -599,6 +585,6 @@ mod search_colours {
         assert_eq!(Rgb::from(search.match_background), mix(bg, yellow, 0.3));
         assert_eq!(Rgb::from(search.match_border), mix(bg, yellow, 0.65));
         assert_eq!(search.match_marker, theme.terminal.ansi[3]);
-        assert_eq!(search.active_border, theme.colors.accent);
+        assert_eq!(search.active_border, theme.palette.accent);
     }
 }

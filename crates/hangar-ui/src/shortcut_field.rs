@@ -233,13 +233,12 @@ fn at_rest<'a, M: Clone + 'a>(f: ShortcutField<'a, M>) -> Element<'a, M> {
 
 fn recording<'a, M: Clone + 'a>(f: ShortcutField<'a, M>, recorder: &'a Recorder) -> Element<'a, M> {
     let t = f.theme;
-    let c = &t.colors;
 
     let dot = container(iced_space::horizontal())
         .width(7.0)
         .height(7.0)
         .style(move |_: &iced::Theme| container::Style {
-            background: Some(iced::Background::Color(c.danger)),
+            background: Some(iced::Background::Color(t.inks.danger())),
             border: iced::Border {
                 radius: 3.5.into(),
                 ..iced::Border::default()

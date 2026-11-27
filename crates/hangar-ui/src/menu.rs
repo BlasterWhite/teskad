@@ -861,7 +861,6 @@ impl<M: Clone> Menu<'_, M> {
         (highlighted, ringed): (bool, bool),
         (lead, end_checks): (bool, bool),
     ) {
-        let c = &self.theme.colors;
         let p = &self.theme.palette;
         // The line under the pointer or the keys is lit by the palette's
         // overlay and keeps its text: never a fill that changes the colour of
@@ -869,7 +868,7 @@ impl<M: Clone> Menu<'_, M> {
         let lit = Some(p.hover_overlay);
         let (background, text_color, icon_color, keys_color) = if highlighted && item.live() {
             let (text, icon) = if item.danger {
-                (c.danger, c.danger)
+                (self.theme.inks.danger(), self.theme.inks.danger())
             } else {
                 (p.text, p.text_secondary)
             };
@@ -881,7 +880,12 @@ impl<M: Clone> Menu<'_, M> {
         } else if item.disabled {
             (None, p.text_muted, p.text_muted, p.text_muted)
         } else if item.danger {
-            (None, c.danger, c.danger, p.text_muted)
+            (
+                None,
+                self.theme.inks.danger(),
+                self.theme.inks.danger(),
+                p.text_muted,
+            )
         } else {
             let text = if item.checked == Some(true) {
                 p.text

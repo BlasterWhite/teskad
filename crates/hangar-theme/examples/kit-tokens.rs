@@ -14,7 +14,7 @@
 
 use std::process::ExitCode;
 
-use hangar_theme::{by_id, css, kit_default_themes};
+use hangar_theme::{CHROME_TOKEN_NAMES, by_id, chrome_token, css, kit_default_themes};
 use serde_json::{Map, Value};
 
 fn main() -> ExitCode {
@@ -29,10 +29,12 @@ fn main() -> ExitCode {
             eprintln!("no bundled theme has the id {id:?}");
             return ExitCode::FAILURE;
         };
-        let tokens: Map<String, Value> = theme
-            .colors
+        let tokens: Map<String, Value> = CHROME_TOKEN_NAMES
             .iter()
-            .map(|(name, color)| (name.to_owned(), Value::String(css(color))))
+            .map(|name| {
+                let color = chrome_token(theme, name).expect("every listed name resolves");
+                ((*name).to_owned(), Value::String(css(color)))
+            })
             .collect();
         out.insert(id.clone(), Value::Object(tokens));
     }

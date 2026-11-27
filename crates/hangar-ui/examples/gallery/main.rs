@@ -434,7 +434,7 @@ impl Gallery {
         .width(220.0);
         let bar = container(
             row![
-                icon(Icon::Layout4, 16.0).color(t.colors.accent_hi),
+                icon(Icon::Layout4, 16.0).color(t.inks.accent_text),
                 typography::title(t, "Hangar UI"),
                 typography::muted(t, "gallery"),
                 iced::widget::space::horizontal(),

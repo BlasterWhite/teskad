@@ -9,9 +9,9 @@
 //!
 //! # Where each field of the former `Colors` went
 //!
-//! [`crate::Colors`] stays for now, computed from the palette and from these
-//! inks, so that nothing which uses it changes. This is the table the ticket
-//! that removes it follows (`colors.old` → `new`). `palette.*` is
+//! `Colors` is gone. This is the table its uses were moved by (`colors.old` →
+//! `new`), at identical values, and the one [`crate::chrome_token`] resolves
+//! the `--css-name` of each by. `palette.*` is
 //! [`crate::Palette`], `inks.*` is [`Inks`], and `theme.*` a method of
 //! [`crate::Theme`].
 //!
@@ -64,9 +64,8 @@
 //! palette's text and accent text held to 4.5:1 on every surface (the palette's
 //! own check covers only the window and the surface), so they can differ from
 //! their palette token. The same goes for `card`, `surface_hover`, `seg_thumb`
-//! and `float_ring`, which are computed. `Colors` keeps them until the
-//! ticket that removes it picks, for each use, the palette token or the held
-//! colour.
+//! and `float_ring`, which are computed. Text laid on `surface_raised` uses
+//! `inks.text.*`, the held colour, and not the palette's token.
 
 use iced::Color;
 

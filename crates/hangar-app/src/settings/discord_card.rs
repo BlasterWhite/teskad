@@ -175,7 +175,6 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, started_at: i64) -> Element<'a, Mes
 
 fn card<'a>(ctx: Ctx<'a>, presence: &Presence, now: i64, enabled: bool) -> Element<'a, Message> {
     let t = ctx.theme;
-    let c = &t.colors;
     // Off is a preview, not a state: dimmed enough to read as inactive,
     // legible enough to judge the toggles by.
     let dim: f32 = if enabled { 1.0 } else { 0.5 };
@@ -192,8 +191,8 @@ fn card<'a>(ctx: Ctx<'a>, presence: &Presence, now: i64, enabled: bool) -> Eleme
             .and_then(|name| name.chars().next())
         {
             Some(initial) => {
-                let accent = c.accent;
-                let ink = c.accent_fg;
+                let accent = t.palette.accent;
+                let ink = t.palette.on_accent;
                 let badge = container(
                     text(initial.to_string())
                         .size(font_size::CAPTION)
@@ -267,12 +266,11 @@ fn card<'a>(ctx: Ctx<'a>, presence: &Presence, now: i64, enabled: bool) -> Eleme
 
 fn status_line<'a>(st: &'a State, ctx: Ctx<'a>, (tone, key): (Tone, Key)) -> Element<'a, Message> {
     let t = ctx.theme;
-    let c = &t.colors;
     let label = ctx.t(key).into_owned();
     let dot_color = match tone {
-        Tone::Off => c.fg_subtle,
-        Tone::On => c.success,
-        Tone::Waiting => c.warning,
+        Tone::Off => t.inks.text.muted,
+        Tone::On => t.inks.success(),
+        Tone::Waiting => t.inks.warning(),
     };
     let dot = container(iced::widget::Space::new())
         .width(7)

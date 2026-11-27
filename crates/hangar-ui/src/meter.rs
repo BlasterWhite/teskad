@@ -56,7 +56,7 @@ fn figure<'a, M: 'a>(
 ) -> Element<'a, M> {
     let ink = match gauge_level(pct) {
         GaugeLevel::Ok => quiet,
-        GaugeLevel::Warn => t.colors.warning,
+        GaugeLevel::Warn => t.inks.warning(),
         GaugeLevel::Hot => t.palette.status.failed,
     };
     container(

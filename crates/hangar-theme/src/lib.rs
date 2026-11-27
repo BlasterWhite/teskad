@@ -22,7 +22,7 @@
 //!   with which views name a role instead of a colour.
 //! - [`fonts`]: Inter, Space Grotesk and JetBrains Mono, as bytes for iced to load and `Font`s to ask for.
 //! - [`kit_tokens`]: what kits are told of the theme.
-//! - [`contrast`], [`derive_palette`] and [`derive_colors`]: the colour
+//! - [`contrast`], [`derive_palette`] and [`derive_inks`]: the colour
 //!   arithmetic and the rules that turn a terminal palette into a window
 //!   (`docs/teskad-brand/docs/themes.md`), and the contrast check
 //!   ([`contrast_failures`]).
@@ -65,16 +65,16 @@ pub use contrast::{
     hue_distance, mix, over, perceived_lightness, relative_luminance, with_hue, worst_contrast,
 };
 pub use derive::{
-    BORDER_CONTRAST, FILL_CONTRAST, TEXT_CONTRAST, contrast_failures, derive_colors, derive_inks,
-    derive_palette, ink_surfaces,
+    BORDER_CONTRAST, FILL_CONTRAST, TEXT_CONTRAST, contrast_failures, derive_inks, derive_palette,
+    ink_surfaces,
 };
 pub use iced_theme::to_iced;
 pub use inks::{Inks, TextInks, Viz};
-pub use kit::{css, kit_default_themes, kit_tokens};
+pub use kit::{CHROME_TOKEN_NAMES, chrome_token, css, kit_default_themes, kit_tokens};
 pub use palette::{Palette, Status};
 pub use spec::{ThemeSpec, UiOverrides};
 pub use theme::{
-    AgentState, Appearance, Colors, DEFAULT_ID, MIN_WINDOW_OPACITY, SearchColors, StateColors,
+    AgentState, Appearance, DEFAULT_ID, MIN_WINDOW_OPACITY, SearchColors, StateColors,
     TerminalColors, Theme, by_id, by_id_or_default, default_theme, themes,
 };
 

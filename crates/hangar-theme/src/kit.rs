@@ -12,6 +12,127 @@ use crate::Theme;
 /// `tokens.json`, the map the kits' stylesheet is generated from.
 const TOKEN_MAP: &str = include_str!("../../hangar-core/kit-sdk/tokens.json");
 
+/// The CSS name of every chrome token `tokens.json` can name.
+pub const CHROME_TOKEN_NAMES: &[&str] = &[
+    "--chrome",
+    "--chrome-bar",
+    "--pane-head",
+    "--pane-head-focus",
+    "--raised",
+    "--card",
+    "--sep",
+    "--line",
+    "--line-strong",
+    "--accent-hi",
+    "--state-working",
+    "--state-working-fill",
+    "--state-waiting",
+    "--state-waiting-fill",
+    "--state-yours",
+    "--state-yours-fill",
+    "--state-idle",
+    "--state-idle-fill",
+    "--bg",
+    "--bg-sunken",
+    "--surface",
+    "--surface-hover",
+    "--surface-active",
+    "--border",
+    "--border-strong",
+    "--fg",
+    "--fg-secondary",
+    "--fg-muted",
+    "--fg-subtle",
+    "--accent",
+    "--accent-soft",
+    "--accent-ring",
+    "--accent-fg",
+    "--danger",
+    "--danger-soft",
+    "--success",
+    "--warning",
+    "--shadow",
+    "--float-ring",
+    "--seg-track",
+    "--seg-thumb",
+    "--viz-1",
+    "--viz-2",
+    "--viz-3",
+    "--viz-4",
+    "--viz-heat-0",
+    "--viz-heat-1",
+    "--viz-heat-2",
+    "--viz-heat-3",
+    "--viz-heat-4",
+    "--viz-heat-5",
+    "--viz-mute",
+    "--viz-line",
+];
+
+/// A chrome token by its CSS name (`"--chrome-bar"`): the palette's token or
+/// the ink it comes from. This table is what the former `Colors` struct was
+/// computed as, name for name.
+pub fn chrome_token(theme: &Theme, name: &str) -> Option<Color> {
+    let palette = &theme.palette;
+    let inks = &theme.inks;
+    Some(match name {
+        "--chrome" => palette.surface,
+        "--chrome-bar" => palette.surface_raised,
+        "--pane-head" => palette.surface,
+        "--pane-head-focus" => palette.surface_raised,
+        "--raised" => palette.surface_raised,
+        "--card" => inks.card,
+        "--sep" => palette.surface_sunken,
+        "--line" => palette.border,
+        "--line-strong" => palette.border_strong,
+        "--accent-hi" => inks.accent_text,
+        "--state-working" => inks.running.text,
+        "--state-working-fill" => inks.running.fill,
+        "--state-waiting" => inks.waiting.text,
+        "--state-waiting-fill" => inks.waiting.fill,
+        "--state-yours" => inks.yours.text,
+        "--state-yours-fill" => inks.yours.fill,
+        "--state-idle" => inks.idle.text,
+        "--state-idle-fill" => inks.idle.fill,
+        "--bg" => palette.bg,
+        "--bg-sunken" => palette.surface_sunken,
+        "--surface" => palette.surface,
+        "--surface-hover" => inks.hover,
+        "--surface-active" => palette.selection_bg,
+        "--border" => palette.border,
+        "--border-strong" => palette.border_strong,
+        "--fg" => inks.text.primary,
+        "--fg-secondary" => inks.text.secondary,
+        "--fg-muted" => inks.text.muted,
+        "--fg-subtle" => inks.text.muted,
+        "--accent" => palette.accent,
+        "--accent-soft" => inks.accent_soft,
+        "--accent-ring" => inks.accent_ring,
+        "--accent-fg" => palette.on_accent,
+        "--danger" => inks.danger(),
+        "--danger-soft" => inks.danger_soft,
+        "--success" => inks.success(),
+        "--warning" => inks.warning(),
+        "--shadow" => inks.shadow,
+        "--float-ring" => inks.float_ring,
+        "--seg-track" => palette.surface_sunken,
+        "--seg-thumb" => inks.seg_thumb,
+        "--viz-1" => inks.viz.series[0],
+        "--viz-2" => inks.viz.series[1],
+        "--viz-3" => inks.viz.series[2],
+        "--viz-4" => inks.viz.series[3],
+        "--viz-heat-0" => inks.viz.heat[0],
+        "--viz-heat-1" => inks.viz.heat[1],
+        "--viz-heat-2" => inks.viz.heat[2],
+        "--viz-heat-3" => inks.viz.heat[3],
+        "--viz-heat-4" => inks.viz.heat[4],
+        "--viz-heat-5" => inks.viz.heat[5],
+        "--viz-mute" => inks.viz.mute,
+        "--viz-line" => inks.viz.line,
+        _ => return None,
+    })
+}
+
 /// A colour as CSS writes it: `#rrggbb`, or `rgba(r, g, b, a)` when it is
 /// translucent.
 pub fn css(color: Color) -> String {
@@ -44,9 +165,7 @@ pub fn kit_tokens(theme: &Theme) -> Vec<(String, String)> {
         .iter()
         .map(|(kit_name, source)| {
             let source = source.as_str().expect("a token maps to a string");
-            let color = theme
-                .colors
-                .get(source)
+            let color = chrome_token(theme, source)
                 .unwrap_or_else(|| panic!("tokens.json maps {kit_name} to unknown {source}"));
             (kit_name.clone(), css(color))
         })
@@ -149,6 +268,33 @@ mod tests {
         );
     }
 
+    /// Before `Colors` was removed this compared each name with the colour
+    /// `Colors::get` gave it, on all 35 themes, and passed. What stays checks
+    /// the table itself.
+    #[test]
+    fn every_chrome_token_resolves_on_every_theme() {
+        assert_eq!(crate::themes().len(), 35);
+        let names: std::collections::HashSet<_> = CHROME_TOKEN_NAMES.iter().collect();
+        assert_eq!(names.len(), CHROME_TOKEN_NAMES.len());
+        for theme in crate::themes() {
+            for name in CHROME_TOKEN_NAMES {
+                assert!(name.starts_with("--"));
+                let color = chrome_token(theme, name)
+                    .unwrap_or_else(|| panic!("{}: {name} does not resolve", theme.id));
+                for channel in [color.r, color.g, color.b, color.a] {
+                    assert!(
+                        (0.0..=1.0).contains(&channel),
+                        "{}: {name} is out of range",
+                        theme.id
+                    );
+                }
+            }
+            assert_eq!(chrome_token(theme, "--no-such-token"), None);
+            assert_eq!(chrome_token(theme, "--accent"), Some(theme.palette.accent));
+            assert_eq!(chrome_token(theme, "--fg"), Some(theme.inks.text.primary));
+        }
+    }
+
     #[test]
     fn the_default_themes_are_the_ones_the_map_names() {
         assert_eq!(kit_default_themes(), ("graphite", "github-light"));
@@ -182,7 +328,7 @@ mod tests {
                 .unwrap()
                 .iter()
                 .map(|(token, source)| {
-                    let color = theme.colors.get(source.as_str().unwrap()).unwrap();
+                    let color = chrome_token(theme, source.as_str().unwrap()).unwrap();
                     (token.clone(), over(color, page))
                 })
                 .collect()
@@ -195,7 +341,8 @@ mod tests {
         fn pairs(theme: &Theme) -> (Vec<Pair>, Vec<Pair>) {
             let t = tokens(theme);
             let k = |name: &str| t[name];
-            let flat = |name: &str, on: Rgb| over(theme.colors.get(&kit_source(name)).unwrap(), on);
+            let flat =
+                |name: &str, on: Rgb| over(chrome_token(theme, &kit_source(name)).unwrap(), on);
             let bg = k("--kit-bg");
             let well = k("--kit-well");
             let plain = [

@@ -79,3 +79,18 @@ fn the_arrows_step_the_focused_control_and_a_missing_side_does_nothing() {
     ui.key(Named::Enter);
     assert_eq!(ui.into_messages(), vec![Msg::Save]);
 }
+
+#[test]
+fn up_and_down_step_the_focused_control_and_a_missing_side_does_nothing() {
+    let t = default_theme();
+    let control: Element<'_, Msg> = ring(t, text("a card"))
+        .on_vertical(None, Some(Msg::Save))
+        .into();
+    let mut ui = Keyboard::new(control);
+    ui.key(Named::ArrowDown);
+    ui.focus_next();
+    ui.key(Named::ArrowUp);
+    ui.key(Named::ArrowDown);
+    ui.key(Named::ArrowLeft);
+    assert_eq!(ui.into_messages(), vec![Msg::Save]);
+}

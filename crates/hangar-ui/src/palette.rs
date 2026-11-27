@@ -467,7 +467,6 @@ impl<T: Clone> Palette<T> {
 
     /// The palette's panel, to put in a [`Layer`] with [`over`].
     pub fn view<'a>(&'a self, t: &'a Theme, labels: &'a Labels) -> Element<'a, Msg> {
-        let c = &t.colors;
         let shown = self.shown();
         let selected = self.selected();
 
@@ -492,9 +491,13 @@ impl<T: Clone> Palette<T> {
         .style(style::button::icon(t))
         .on_press(Msg::Dismiss);
         let search = container(
-            row![icon(Icon::Search, 18.0).color(c.fg_muted), field, esc,]
-                .spacing(space::XL)
-                .align_y(Alignment::Center),
+            row![
+                icon(Icon::Search, 18.0).color(t.inks.text.muted),
+                field,
+                esc,
+            ]
+            .spacing(space::XL)
+            .align_y(Alignment::Center),
         )
         .padding(Padding {
             top: 0.0,
@@ -624,15 +627,13 @@ impl<T: Clone> Palette<T> {
         at: usize,
         chosen: bool,
     ) -> Element<'a, Msg> {
-        let c = &t.colors;
-
         let lead: Element<'a, Msg> = match &item.lead {
             Lead::None => iced_space::horizontal().width(0).into(),
             Lead::Icon(which) => icon(*which, 13.0).into(),
             Lead::State(state) => {
                 let glyph = glyph::state(t, *state, 7.0);
                 if chosen {
-                    glyph.tint(c.accent_fg).into()
+                    glyph.tint(t.palette.on_accent).into()
                 } else {
                     glyph.into()
                 }
@@ -667,7 +668,7 @@ impl<T: Clone> Palette<T> {
                         if chosen {
                             span
                         } else {
-                            span.color(c.fg_secondary)
+                            span.color(t.inks.text.secondary)
                         }
                     }
                     Piece::State(state, words) => {
@@ -675,7 +676,7 @@ impl<T: Clone> Palette<T> {
                         if chosen {
                             span
                         } else {
-                            span.color(c.state(*state).text)
+                            span.color(t.inks.state(*state).text)
                         }
                     }
                 })
