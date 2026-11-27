@@ -2,7 +2,7 @@
 //! chart of the period, the week's heatmap and the KPI sparklines
 //! (`StatsCharts.tsx`, which drew them by hand in SVG).
 //!
-//! Every colour is a `--viz-*` token of the theme (`Colors::viz_*`), so the
+//! Every colour is a `--viz-*` token of the theme (`Inks::viz`), so the
 //! charts follow the theme like the chrome around them. Text on a canvas is
 //! always drawn above the shapes, so the readout that follows the pointer is
 //! not part of the canvas: it is an ordinary widget stacked over it
@@ -73,12 +73,12 @@ impl Kind {
 
     /// The colour of a kind: steps of one ramp (`--viz-1` … `--viz-4`).
     pub fn color(self, theme: &Theme) -> Color {
-        let c = &theme.colors;
+        let inks = &theme.inks;
         match self {
-            Kind::CacheRead => c.viz_1,
-            Kind::CacheWrite => c.viz_2,
-            Kind::Input => c.viz_3,
-            Kind::Output => c.viz_4,
+            Kind::CacheRead => inks.viz.series[0],
+            Kind::CacheWrite => inks.viz.series[1],
+            Kind::Input => inks.viz.series[2],
+            Kind::Output => inks.viz.series[3],
         }
     }
 

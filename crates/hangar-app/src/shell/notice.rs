@@ -75,11 +75,11 @@ pub fn expire(model: &mut Model, id: u64) {
 /// a muted mark.
 pub fn view<'a>(ctx: Ctx<'a>) -> Option<Element<'a, Message>> {
     let (_, notice) = ctx.model.ui.notice.as_ref()?;
-    let colors = &ctx.theme.colors;
+    let inks = &ctx.theme.inks;
     let (glyph, mark, ink) = match notice {
-        Notice::Problem(_) => (Icon::Alert, colors.danger, colors.danger),
-        Notice::Asleep(_) => (Icon::Moon, colors.fg_muted, colors.fg),
-        Notice::Agent(_) => (Icon::Info, colors.fg_muted, colors.fg),
+        Notice::Problem(_) => (Icon::Alert, inks.danger(), inks.danger()),
+        Notice::Asleep(_) => (Icon::Moon, inks.text.muted, inks.text.primary),
+        Notice::Agent(_) => (Icon::Info, inks.text.muted, inks.text.primary),
     };
     let line = row![
         icon(glyph, tokens::font_size::BODY).color(mark),

@@ -149,7 +149,7 @@ mod tests {
             Row {
                 label: "Output".into(),
                 value: "12".into(),
-                color: Some(theme.colors.viz_4),
+                color: Some(theme.inks.viz.series[3]),
                 strong: false,
             },
             Row {

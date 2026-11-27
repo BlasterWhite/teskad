@@ -25,7 +25,7 @@ pub struct Ctx<'a> {
     pub pkg: &'a Packages,
     /// The interface strings in the person's language (`hangar_i18n`).
     pub i18n: Translator,
-    /// The theme the window is drawn in: its colours (`theme.colors`), for
+    /// The theme the window is drawn in: its palette and inks (`theme.palette`, `theme.inks`), for
     /// the `hangar_theme::style::*` functions. The other tokens (radii,
     /// spacing, sizes) are constants of `hangar_theme::tokens`.
     pub theme: &'static Theme,

@@ -64,7 +64,7 @@ pub fn view<'a>(
         .width(Length::Fill)
         .height(Length::Fill)
         .style(move |_| container::Style {
-            background: Some(Background::Color(t.colors.bg)),
+            background: Some(Background::Color(t.palette.bg)),
             ..Default::default()
         });
     // The viewport takes the mouse and the keys itself; it tells the app only
@@ -364,7 +364,7 @@ fn traveller<'a>(t: &'a Theme, spin: usize, girth: f32) -> Element<'a, Message> 
         .width(Length::FillPortion(TRAVELLER))
         .height(girth)
         .style(move |_| container::Style {
-            background: Some(Background::Color(t.colors.accent)),
+            background: Some(Background::Color(t.palette.accent)),
             border: iced::Border {
                 radius: (girth / 2.0).into(),
                 ..Default::default()
@@ -381,7 +381,7 @@ fn traveller<'a>(t: &'a Theme, spin: usize, girth: f32) -> Element<'a, Message> 
     )
     .width(Length::Fill)
     .style(move |_| container::Style {
-        background: Some(Background::Color(t.colors.line_strong)),
+        background: Some(Background::Color(t.palette.border_strong)),
         border: iced::Border {
             radius: (girth / 2.0).into(),
             ..Default::default()

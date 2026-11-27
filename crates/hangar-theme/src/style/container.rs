@@ -25,14 +25,14 @@ fn fill(color: Color, text: Color) -> Style {
 /// things out over an area that already has its own surface.
 pub fn plain(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
-        text_color: Some(t.colors.fg),
+        text_color: Some(t.inks.text.primary),
         ..Style::default()
     }
 }
 
 /// The page under everything (`body`): the terminal's own background.
 pub fn window(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| fill(t.palette.bg, t.colors.fg)
+    move |_| fill(t.palette.bg, t.inks.text.primary)
 }
 
 /// The page laid straight on the desktop: [`window`] at the window's alpha
@@ -40,7 +40,7 @@ pub fn window(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 /// page and nothing is drawn under: the work area, a placeholder, the whole
 /// window while it starts.
 pub fn backdrop(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| fill(t.see_through(t.palette.bg), t.colors.fg)
+    move |_| fill(t.see_through(t.palette.bg), t.inks.text.primary)
 }
 
 /// The page under a pane that lies on a [`backdrop`]: the page's colour on a
@@ -77,7 +77,7 @@ pub fn see_through<'a>(
 
 /// The navigator (`.sidebar`). Its right edge is a [`super::rule::sep`].
 pub fn sidebar(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| fill(t.palette.surface, t.colors.fg)
+    move |_| fill(t.palette.surface, t.inks.text.primary)
 }
 
 /// The inspector and the other side panels: the same chrome as the navigator.
@@ -87,12 +87,12 @@ pub fn panel(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 
 /// The bar over the workspace (`.toolbar`), a step above the navigator.
 pub fn toolbar(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| fill(t.palette.surface_raised, t.colors.fg)
+    move |_| fill(t.palette.surface_raised, t.inks.text.primary)
 }
 
 /// The bar along the bottom (`.status`).
 pub fn statusbar(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| fill(t.palette.surface, t.colors.fg)
+    move |_| fill(t.palette.surface, t.inks.text.primary)
 }
 
 /// A pane's header (`.pane__bar`), a little lighter while the pane has the
@@ -104,7 +104,7 @@ pub fn pane_head(t: &Theme, focused: bool) -> impl Fn(&iced::Theme) -> Style + '
         } else {
             t.palette.surface
         };
-        fill(color, t.colors.fg)
+        fill(color, t.inks.text.primary)
     }
 }
 
@@ -113,7 +113,7 @@ pub fn pane_head(t: &Theme, focused: bool) -> impl Fn(&iced::Theme) -> Style + '
 pub fn card(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
         border: hairline(t.palette.border, radius::LG),
-        ..fill(t.colors.card, t.colors.fg)
+        ..fill(t.inks.card, t.inks.text.primary)
     }
 }
 
@@ -122,7 +122,7 @@ pub fn card(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 pub fn well(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
         border: hairline(t.palette.border, radius::MD),
-        ..fill(t.palette.bg, t.colors.fg)
+        ..fill(t.palette.bg, t.inks.text.primary)
     }
 }
 
@@ -130,7 +130,7 @@ pub fn well(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 pub fn chip(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
         border: hairline(t.palette.border, radius::SM),
-        ..fill(t.palette.border, t.colors.fg_secondary)
+        ..fill(t.palette.border, t.inks.text.secondary)
     }
 }
 
@@ -195,7 +195,7 @@ pub fn palette(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
         border: hairline(t.palette.border_strong, radius::XL),
         shadow: drop_shadow(t.inks.shadow, 30.0, 80.0),
-        ..fill(t.palette.surface_raised, t.colors.fg)
+        ..fill(t.palette.surface_raised, t.inks.text.primary)
     }
 }
 
@@ -204,7 +204,7 @@ pub fn tooltip(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
         border: hairline(t.palette.border_strong, radius::SM),
         shadow: drop_shadow(t.inks.shadow, 4.0, 12.0),
-        ..fill(t.palette.surface_raised, t.colors.fg)
+        ..fill(t.palette.surface_raised, t.inks.text.primary)
     }
 }
 
@@ -241,8 +241,8 @@ pub fn badge_danger(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 /// A tint of the accent: a selection, a drop target (`--accent-soft`).
 pub fn accent_soft(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
-        background: Some(Background::Color(t.colors.accent_soft)),
-        text_color: Some(t.colors.fg),
+        background: Some(Background::Color(t.inks.accent_soft)),
+        text_color: Some(t.inks.text.primary),
         border: rounded(radius::SM),
         ..Style::default()
     }
@@ -273,7 +273,7 @@ pub fn kbd_conflict(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 pub fn recorder(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
         border: hairline(t.palette.accent, radius::MD),
-        ..fill(t.colors.accent_soft, t.colors.fg)
+        ..fill(t.inks.accent_soft, t.inks.text.primary)
     }
 }
 
@@ -282,7 +282,7 @@ pub fn recorder(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 /// row.
 pub fn palette_icon(t: &Theme, chosen: bool) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| {
-        let c = &t.colors;
+        let inks = &t.inks;
         if chosen {
             Style {
                 background: Some(Background::Color(with_alpha(t.palette.on_accent, 0.18))),
@@ -293,7 +293,7 @@ pub fn palette_icon(t: &Theme, chosen: bool) -> impl Fn(&iced::Theme) -> Style +
         } else {
             Style {
                 background: Some(Background::Color(t.palette.border)),
-                text_color: Some(c.fg_muted),
+                text_color: Some(inks.text.muted),
                 border: rounded(radius::SM),
                 ..Style::default()
             }
@@ -306,7 +306,7 @@ pub fn palette_icon(t: &Theme, chosen: bool) -> impl Fn(&iced::Theme) -> Style +
 pub fn outline(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
         border: hairline(t.palette.border_strong, radius::XS),
-        text_color: Some(t.colors.fg_secondary),
+        text_color: Some(t.inks.text.secondary),
         ..Style::default()
     }
 }
@@ -315,7 +315,7 @@ pub fn outline(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 pub fn tag(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
         background: Some(Background::Color(t.palette.selection_bg)),
-        text_color: Some(t.colors.fg_muted),
+        text_color: Some(t.inks.text.muted),
         border: rounded(radius::XS),
         ..Style::default()
     }
@@ -340,7 +340,7 @@ pub fn badge(t: &Theme, tone: Tone) -> impl Fn(&iced::Theme) -> Style + '_ {
 /// its tone in the edge.
 pub fn toast(t: &Theme, tone: Tone) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| {
-        let c = &t.colors;
+        let inks = &t.inks;
         let edge = match tone {
             Tone::Neutral => t.palette.border_strong,
             Tone::Accent => t.palette.accent,
@@ -351,7 +351,7 @@ pub fn toast(t: &Theme, tone: Tone) -> impl Fn(&iced::Theme) -> Style + '_ {
         Style {
             border: hairline(edge, radius::LG),
             shadow: drop_shadow(t.inks.shadow, 10.0, 28.0),
-            ..fill(t.palette.surface_raised, c.fg)
+            ..fill(t.palette.surface_raised, inks.text.primary)
         }
     }
 }
@@ -363,10 +363,10 @@ pub fn tone_text(t: &Theme, tone: Tone) -> Color {
 
 /// A tone's tint and the colour that reads on it.
 fn tone_colors(t: &Theme, tone: Tone) -> (Color, Color) {
-    let c = &t.colors;
+    let inks = &t.inks;
     match tone {
-        Tone::Neutral => (t.palette.border, c.fg_secondary),
-        Tone::Accent => (c.accent_soft, c.accent_hi),
+        Tone::Neutral => (t.palette.border, inks.text.secondary),
+        Tone::Accent => (inks.accent_soft, inks.accent_text),
         Tone::Success => (with_alpha(t.inks.success(), 0.16), t.inks.success()),
         Tone::Warning => (with_alpha(t.inks.warning(), 0.16), t.inks.warning()),
         Tone::Danger => (t.inks.danger_soft, t.inks.danger()),
@@ -383,7 +383,7 @@ pub fn group(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
 /// (the shortcut list's rows): a faint wash of the text colour.
 pub fn row_hover(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
-        background: Some(Background::Color(with_alpha(t.colors.fg, 0.03))),
+        background: Some(Background::Color(with_alpha(t.inks.text.primary, 0.03))),
         border: rounded(radius::NONE),
         ..Style::default()
     }

@@ -108,9 +108,9 @@ pub fn list<'a>(ui: Ui, list: List<'_>) -> Element<'a, Message> {
 
         // One row picked: it keeps the accent, the others step back.
         let fill = if picking && !on {
-            t.colors.viz_mute
+            t.inks.viz.mute
         } else {
-            t.colors.viz_4
+            t.inks.viz.series[3]
         };
         let portion = bar_portion(value, max);
         let bar: Element<'a, Message> = if portion == 0 {

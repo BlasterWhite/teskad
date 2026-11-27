@@ -123,7 +123,7 @@ pub fn view<'a>(ctx: Ctx<'a>, facts: Facts) -> Element<'a, Message> {
         .padding([1.0, 5.0])
         .style(move |_| container::Style {
             border: Border {
-                color: t.colors.line_strong,
+                color: t.palette.border_strong,
                 width: 1.0,
                 radius: tokens::radius::XS.into(),
             },

@@ -584,7 +584,7 @@ fn unsupported_note<'a>(ctx: Ctx<'a>) -> Option<Element<'a, Message>> {
         .padding(tokens::space::XL)
         .width(Length::Fill)
         .style(move |_: &iced::Theme| iced::widget::container::Style {
-            background: Some(t.colors.danger_soft.into()),
+            background: Some(t.inks.danger_soft.into()),
             border: iced::Border {
                 color: t.palette.status.failed,
                 width: tokens::BORDER_WIDTH,

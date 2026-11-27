@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use std::sync::Arc;
 
 use hangar_i18n::{Key, Locale, Translator, args};
-use hangar_theme::{Colors, Theme};
+use hangar_theme::{Inks, Theme};
 use iced::widget::canvas::{self, Canvas, Path, Stroke};
 use iced::widget::{Space, column, container, responsive, row, stack, text};
 use iced::{Color, Element, Length, Point, Rectangle, Renderer, Size, alignment, mouse};
@@ -33,15 +33,8 @@ const PITCH: f32 = CELL + GAP;
 const ROWS_TOP: f32 = HEAD + GAP;
 
 /// The colour of a level of the heat ramp (`--viz-heat-0` … `-5`).
-pub fn level_color(colors: &Colors, level: usize) -> Color {
-    match level {
-        0 => colors.viz_heat_0,
-        1 => colors.viz_heat_1,
-        2 => colors.viz_heat_2,
-        3 => colors.viz_heat_3,
-        4 => colors.viz_heat_4,
-        _ => colors.viz_heat_5,
-    }
+pub fn level_color(inks: &Inks, level: usize) -> Color {
+    inks.viz.heat[level.min(5)]
 }
 
 /// Where the cells stand in a chart `width` wide.
@@ -133,7 +126,7 @@ impl Heatmap {
                     vec![Row {
                         label: tr.t(Key::StatsKpiActive).into_owned(),
                         value: format::format_duration(value as f64, tr),
-                        color: Some(level_color(&theme.colors, level.max(1))),
+                        color: Some(level_color(&theme.inks, level.max(1))),
                         strong: false,
                     }],
                 ));
@@ -150,7 +143,7 @@ impl Heatmap {
     /// The hour labels, the weekday names and the cells: what the grid's
     /// cache keeps.
     fn draw_cells(&self, frame: &mut canvas::Frame, layout: Layout) {
-        let colors = &self.theme.colors;
+        let inks = &self.theme.inks;
         let palette = &self.theme.palette;
         let summary = &self.summary;
         for (at, label) in self.hours.iter().enumerate() {
@@ -183,7 +176,7 @@ impl Heatmap {
                         Size::new(layout.cell_width, CELL),
                         3.0.into(),
                     ),
-                    level_color(colors, level),
+                    level_color(inks, level),
                 );
             }
         }
@@ -201,7 +194,7 @@ fn legend<'a>(theme: &'static Theme, tr: Translator) -> Element<'a, Message> {
     .spacing(3)
     .align_y(alignment::Vertical::Center);
     for level in 0..6 {
-        let color = level_color(&theme.colors, level);
+        let color = level_color(&theme.inks, level);
         line = line.push(
             container(Space::new())
                 .width(11)
@@ -431,8 +424,8 @@ mod tests {
 
     #[test]
     fn every_level_has_its_own_colour() {
-        let colors = hangar_theme::default_theme().colors;
-        let ramp: Vec<Color> = (0..6).map(|level| level_color(&colors, level)).collect();
+        let inks = hangar_theme::default_theme().inks;
+        let ramp: Vec<Color> = (0..6).map(|level| level_color(&inks, level)).collect();
         for pair in ramp.windows(2) {
             assert_ne!(pair[0], pair[1]);
         }

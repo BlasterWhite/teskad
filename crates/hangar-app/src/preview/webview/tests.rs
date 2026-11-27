@@ -59,7 +59,7 @@ fn a_page_is_opened_by_the_scheme_of_the_model_files_and_may_go_nowhere_else() {
 fn a_page_expects_white_a_player_black_and_the_rest_the_themes_page() {
     assert_eq!(background_of(Kind::Html, theme()), [255, 255, 255]);
     assert_eq!(background_of(Kind::Video, theme()), [0, 0, 0]);
-    let bg = theme().colors.bg;
+    let bg = theme().palette.bg;
     assert_eq!(
         background_of(Kind::Pdf, theme())[0],
         (bg.r * 255.0).round() as u8

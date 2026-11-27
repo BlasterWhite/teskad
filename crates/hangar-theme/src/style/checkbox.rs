@@ -10,7 +10,7 @@ use crate::tokens::radius;
 
 pub fn default(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
     move |_, status| {
-        let c = &t.colors;
+        let inks = &t.inks;
         let (checked, hovered, disabled) = match status {
             Status::Active { is_checked } => (is_checked, false, false),
             Status::Hovered { is_checked } => (is_checked, true, false),
@@ -19,7 +19,7 @@ pub fn default(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
         let (background, edge): (Color, Color) = if checked {
             (t.palette.accent, t.palette.accent)
         } else if hovered {
-            (t.palette.bg, c.fg_subtle)
+            (t.palette.bg, inks.text.muted)
         } else {
             (t.palette.bg, t.palette.border_strong)
         };
@@ -27,14 +27,14 @@ pub fn default(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
             background: Background::Color(background),
             icon_color: t.palette.on_accent,
             border: hairline(edge, radius::XS),
-            text_color: Some(c.fg),
+            text_color: Some(inks.text.primary),
         };
         if disabled {
             Style {
                 background: Background::Color(faded(background)),
                 icon_color: faded(style.icon_color),
                 border: faded_border(style.border),
-                text_color: Some(faded(c.fg)),
+                text_color: Some(faded(inks.text.primary)),
             }
         } else {
             style

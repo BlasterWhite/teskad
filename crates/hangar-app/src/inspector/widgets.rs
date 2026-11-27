@@ -25,7 +25,7 @@ fn tone_color(t: &Theme, tone: Tone) -> Color {
     match tone {
         Tone::Normal => t.palette.status.active,
         // The palette has no warning colour: the derived one.
-        Tone::Warn => t.colors.warning,
+        Tone::Warn => t.inks.warning(),
         Tone::Danger => t.palette.status.failed,
     }
 }

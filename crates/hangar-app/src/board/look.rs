@@ -5,7 +5,7 @@
 //! board's own (a card that is being dragged, the column under the dragged
 //! card, a filter that hides something). Each takes the theme and returns the
 //! closure iced's `.style(..)` wants, and picks every colour from
-//! `theme.colors`.
+//! `theme.palette` and `theme.inks`.
 
 use hangar_theme::Theme;
 use hangar_theme::tokens::{BORDER_WIDTH, radius, scale};
@@ -228,7 +228,7 @@ pub fn sheet(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
         background: Some(Background::Color(t.palette.surface)),
         text_color: Some(t.palette.text),
         shadow: Shadow {
-            color: t.colors.shadow,
+            color: t.inks.shadow,
             offset: Vector::new(0.0, 24.0),
             blur_radius: 64.0,
         },
@@ -308,9 +308,9 @@ pub fn mark(column: super::model::Column) -> hangar_ui::glyph::GlyphState {
 /// when a filter is on while its row is folded away.
 pub fn flag(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
     move |_| container::Style {
-        background: Some(Background::Color(t.colors.accent)),
+        background: Some(Background::Color(t.palette.accent)),
         border: Border {
-            color: t.colors.pane_head,
+            color: t.palette.surface,
             width: 1.5,
             radius: 999.0.into(),
         },
@@ -321,11 +321,11 @@ pub fn flag(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
 /// The dock's section header, a button across the row (`.column__toggle`).
 pub fn fold_button(t: &Theme) -> impl Fn(&iced::Theme, button::Status) -> button::Style + '_ {
     move |_, status| {
-        let c = &t.colors;
+        let (pal, inks) = (&t.palette, &t.inks);
         let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
         button::Style {
-            background: hovered.then_some(Background::Color(c.line)),
-            text_color: c.fg,
+            background: hovered.then_some(Background::Color(pal.border)),
+            text_color: inks.text.primary,
             border: rounded(radius::SM),
             shadow: Shadow::default(),
             ..button::Style::default()
@@ -338,19 +338,19 @@ pub fn fold_button(t: &Theme) -> impl Fn(&iced::Theme, button::Status) -> button
 /// with the accent around it while it has the keyboard.
 pub fn add_field(t: &Theme) -> impl Fn(&iced::Theme, text_input::Status) -> text_input::Style + '_ {
     move |_, status| {
-        let c = &t.colors;
+        let (pal, inks) = (&t.palette, &t.inks);
         let (background, border) = match status {
-            text_input::Status::Focused { .. } => (c.surface, hairline(c.accent, radius::LG)),
-            text_input::Status::Hovered => (c.line, rounded(radius::LG)),
+            text_input::Status::Focused { .. } => (pal.surface, hairline(pal.accent, radius::LG)),
+            text_input::Status::Hovered => (pal.border, rounded(radius::LG)),
             _ => (Color::TRANSPARENT, rounded(radius::LG)),
         };
         text_input::Style {
             background: Background::Color(background),
             border,
-            icon: c.fg_muted,
-            placeholder: c.fg_subtle,
-            value: c.fg,
-            selection: c.accent_ring,
+            icon: inks.text.muted,
+            placeholder: inks.text.muted,
+            value: inks.text.primary,
+            selection: inks.accent_ring,
         }
     }
 }
@@ -358,7 +358,7 @@ pub fn add_field(t: &Theme) -> impl Fn(&iced::Theme, text_input::Status) -> text
 /// The outline of the first read (`.skeleton`).
 pub fn skeleton(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
     move |_| container::Style {
-        background: Some(Background::Color(t.colors.line)),
+        background: Some(Background::Color(t.palette.border)),
         border: rounded(radius::LG),
         ..container::Style::default()
     }
@@ -367,9 +367,9 @@ pub fn skeleton(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
 /// The icon in the empty board (`.board__empty-icon`).
 pub fn empty_icon(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
     move |_| container::Style {
-        background: Some(Background::Color(t.colors.raised)),
-        border: hairline(t.colors.line, radius::XL),
-        text_color: Some(t.colors.fg_muted),
+        background: Some(Background::Color(t.palette.surface_raised)),
+        border: hairline(t.palette.border, radius::XL),
+        text_color: Some(t.inks.text.muted),
         ..container::Style::default()
     }
 }
@@ -377,11 +377,11 @@ pub fn empty_icon(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
 /// Why a move was refused, over the board's foot (`.board__toast`).
 pub fn toast(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
     move |_| container::Style {
-        background: Some(Background::Color(t.colors.chrome_bar)),
-        border: hairline(t.colors.line_strong, radius::LG),
-        text_color: Some(t.colors.fg),
+        background: Some(Background::Color(t.palette.surface_raised)),
+        border: hairline(t.palette.border_strong, radius::LG),
+        text_color: Some(t.inks.text.primary),
         shadow: Shadow {
-            color: t.colors.shadow,
+            color: t.inks.shadow,
             offset: Vector::new(0.0, 8.0),
             blur_radius: 24.0,
         },
@@ -405,7 +405,7 @@ pub fn prio_bar(t: &Theme, lit: bool) -> impl Fn(&iced::Theme) -> container::Sty
 /// The list of a task's dependencies, a hairline around rows.
 pub fn deps(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
     move |_| container::Style {
-        border: hairline(t.colors.line, radius::LG),
+        border: hairline(t.palette.border, radius::LG),
         ..container::Style::default()
     }
 }

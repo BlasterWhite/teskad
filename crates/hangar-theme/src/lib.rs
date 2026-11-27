@@ -69,7 +69,7 @@ pub use derive::{
     derive_palette, ink_surfaces,
 };
 pub use iced_theme::to_iced;
-pub use inks::{Inks, Viz};
+pub use inks::{Inks, TextInks, Viz};
 pub use kit::{css, kit_default_themes, kit_tokens};
 pub use palette::{Palette, Status};
 pub use spec::{ThemeSpec, UiOverrides};

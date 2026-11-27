@@ -20,7 +20,7 @@ use iced::Color;
 use crate::contrast::{
     Rgb, contrast_ratio, ensure_contrast, mix, perceived_lightness, worst_contrast,
 };
-use crate::inks::{Inks, Viz};
+use crate::inks::{Inks, TextInks, Viz};
 use crate::palette::{Palette, Status};
 use crate::spec::UiOverrides;
 use crate::theme::{Appearance, Colors, StateColors, TerminalColors};
@@ -310,6 +310,10 @@ pub fn derive_inks(appearance: Appearance, palette: &Palette, terminal: &Termina
     let card = surfaces.card;
     let text = |color: Rgb| surfaces.text(fg, color);
     let fill = |color: Rgb| surfaces.fill(color);
+    // Labels and the quietest greys answer to the plain surfaces only, as the
+    // palette's own check does; a rule that puts them on a fill takes the
+    // secondary text.
+    let quiet = |color: Color| c(reach(rgb(color), &surfaces.plain, TEXT_CONTRAST, fg));
 
     let waiting = rgb(terminal.ansi[3]);
     let status = p.status;
@@ -390,6 +394,25 @@ pub fn derive_inks(appearance: Appearance, palette: &Palette, terminal: &Termina
     let heat = ramp(0.24, 5);
 
     Inks {
+        text: TextInks {
+            primary: c(text(fg)),
+            secondary: c(text(rgb(p.text_secondary))),
+            muted: quiet(p.text_muted),
+        },
+        accent_text: c(text(rgb(p.accent_text))),
+        card: c(card),
+        hover: c(crate::contrast::over(p.hover_overlay, rgb(p.surface))),
+        seg_thumb: if is_dark { p.surface_raised } else { p.surface },
+        // What floats over the window gets a dark outer edge under its hairline
+        // on a dark theme, so a panel never melts into what is behind it; on a
+        // light theme the shadow does that almost alone.
+        float_ring: if is_dark {
+            Color::from_rgba8(0, 0, 0, 0.55)
+        } else {
+            Color::from_rgba8(0, 0, 0, 0.05)
+        },
+        accent_soft: with_alpha(accent, 0.14),
+        accent_ring: with_alpha(rgb(p.focus_ring), 0.45),
         running: ink(rgb(status.running)),
         waiting: ink(waiting),
         yours: ink(rgb(status.active)),
@@ -422,21 +445,8 @@ pub fn derive_inks(appearance: Appearance, palette: &Palette, terminal: &Termina
 /// drawn with, computed from the palette and from [`Inks`], the colours the
 /// palette has no token for. Nothing here is a colour of its own.
 pub fn derive_colors(appearance: Appearance, palette: &Palette, inks: &Inks) -> Colors {
-    let is_dark = appearance.is_dark();
-    let rgb = Rgb::from;
-    let c = |color: Rgb| Color::from(color);
+    let _ = appearance;
     let p = palette;
-    let accent = rgb(p.accent);
-    let fg = rgb(p.text);
-    let hover = crate::contrast::over(p.hover_overlay, rgb(p.surface));
-    let surfaces = Surfaces::of(appearance, palette);
-    let text = |color: Rgb| surfaces.text(fg, color);
-    // Labels and the quietest greys answer to the plain surfaces only, as the
-    // palette's own check does; a rule that puts them on a fill takes the
-    // secondary text.
-    let quiet = |color: Color| c(reach(rgb(color), &surfaces.plain, TEXT_CONTRAST, fg));
-    let card = surfaces.card;
-    let (raised, surface) = (p.surface_raised, p.surface);
 
     Colors {
         chrome: p.surface,
@@ -444,11 +454,11 @@ pub fn derive_colors(appearance: Appearance, palette: &Palette, inks: &Inks) -> 
         pane_head: p.surface,
         pane_head_focus: p.surface_raised,
         raised: p.surface_raised,
-        card: c(card),
+        card: inks.card,
         sep: p.surface_sunken,
         line: p.border,
         line_strong: p.border_strong,
-        accent_hi: c(text(rgb(p.accent_text))),
+        accent_hi: inks.accent_text,
         state_working: inks.running.text,
         state_working_fill: inks.running.fill,
         state_waiting: inks.waiting.text,
@@ -460,35 +470,28 @@ pub fn derive_colors(appearance: Appearance, palette: &Palette, inks: &Inks) -> 
         bg: p.bg,
         bg_sunken: p.surface_sunken,
         surface: p.surface,
-        surface_hover: c(hover),
+        surface_hover: inks.hover,
         surface_active: p.selection_bg,
         border: p.border,
         border_strong: p.border_strong,
-        fg: c(text(fg)),
-        fg_secondary: c(text(rgb(p.text_secondary))),
-        fg_muted: quiet(p.text_muted),
-        fg_subtle: quiet(p.text_muted),
+        fg: inks.text.primary,
+        fg_secondary: inks.text.secondary,
+        fg_muted: inks.text.muted,
+        fg_subtle: inks.text.muted,
         accent: p.accent,
-        accent_soft: with_alpha(accent, 0.14),
-        accent_ring: with_alpha(rgb(p.focus_ring), 0.45),
+        accent_soft: inks.accent_soft,
+        accent_ring: inks.accent_ring,
         accent_fg: p.on_accent,
         danger: inks.danger(),
         danger_soft: inks.danger_soft,
         success: inks.success(),
         warning: inks.warning(),
         shadow: inks.shadow,
-        // What floats over the window gets a dark outer edge under its hairline
-        // on a dark theme, so a panel never melts into what is behind it; on a
-        // light theme the shadow does that almost alone.
-        float_ring: if is_dark {
-            Color::from_rgba8(0, 0, 0, 0.55)
-        } else {
-            Color::from_rgba8(0, 0, 0, 0.05)
-        },
+        float_ring: inks.float_ring,
         // A segmented control: a recessed track, and the chosen segment
         // raised out of it.
         seg_track: p.surface_sunken,
-        seg_thumb: if is_dark { raised } else { surface },
+        seg_thumb: inks.seg_thumb,
         viz_1: inks.viz.series[0],
         viz_2: inks.viz.series[1],
         viz_3: inks.viz.series[2],

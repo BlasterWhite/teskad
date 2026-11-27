@@ -72,7 +72,7 @@ pub fn stage_message<'a, M: Clone + 'a>(
     let colour = match feel {
         Feel::Calm => t.palette.text_muted,
         Feel::Danger => t.palette.status.failed,
-        Feel::Warning => t.colors.warning,
+        Feel::Warning => t.inks.warning(),
     };
     let mark: Element<'a, M> = match mark {
         Mark::Icon(which) => icon(which, 20.0).color(colour).into(),
@@ -124,7 +124,7 @@ pub fn banner<'a, M: Clone + 'a>(
 ) -> Element<'a, M> {
     let tone = match feel {
         Feel::Danger => t.palette.status.failed,
-        _ => t.colors.warning,
+        _ => t.inks.warning(),
     };
     let mut words = column![
         text(text_line.into())
@@ -331,7 +331,7 @@ pub fn note<'a, M: 'a>(t: &'a Theme, words: impl Into<String>, quiet: bool) -> E
 
 /// The warning colour over the chrome, at 9 % (`color-mix`).
 fn warning_wash(t: &Theme) -> Color {
-    let (wash, base) = (t.colors.warning, t.palette.surface);
+    let (wash, base) = (t.inks.warning(), t.palette.surface);
     let mix = |a: f32, b: f32| b + (a - b) * 0.09;
     Color::from_rgb(
         mix(wash.r, base.r),

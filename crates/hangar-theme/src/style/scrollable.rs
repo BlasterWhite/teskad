@@ -16,7 +16,7 @@ use crate::tokens::radius;
 
 pub fn default(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
     move |_, status| {
-        let c = &t.colors;
+        let inks = &t.inks;
         let rail = |thumb| Rail {
             background: None,
             border: Border::default(),
@@ -33,12 +33,12 @@ pub fn default(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
                 ..
             } => (
                 if is_vertical_scrollbar_hovered {
-                    c.fg_subtle
+                    inks.text.muted
                 } else {
                     t.palette.border_strong
                 },
                 if is_horizontal_scrollbar_hovered {
-                    c.fg_subtle
+                    inks.text.muted
                 } else {
                     t.palette.border_strong
                 },
@@ -49,12 +49,12 @@ pub fn default(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
                 ..
             } => (
                 if is_vertical_scrollbar_dragged {
-                    c.fg_muted
+                    inks.text.muted
                 } else {
                     t.palette.border_strong
                 },
                 if is_horizontal_scrollbar_dragged {
-                    c.fg_muted
+                    inks.text.muted
                 } else {
                     t.palette.border_strong
                 },
@@ -69,7 +69,7 @@ pub fn default(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
                 background: Background::Color(t.palette.surface_raised),
                 border: hairline(t.palette.border_strong, radius::FULL),
                 shadow: drop_shadow(t.inks.shadow, 2.0, 6.0),
-                icon: c.fg,
+                icon: inks.text.primary,
             },
         }
     }

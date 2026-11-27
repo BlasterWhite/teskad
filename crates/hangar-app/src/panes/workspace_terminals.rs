@@ -31,7 +31,7 @@ const UNMEASURED: Size = Size::new(1000.0, 700.0);
 
 pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, Message> {
     let t = ctx.theme;
-    let c = &t.colors;
+    let inks = &t.inks;
     // The pinned panes at the pixels they keep, once the grid knows its size.
     let tree = drawn_tree(&st.grid_sizes, ws);
     let layout = geometry::compute_layout(&tree);
@@ -77,9 +77,9 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, M
         let logic = &ctx.model.live.panes_logic;
         let ring = if logic.needs_attention(&pane.id) {
             Some(if logic.is_waiting(&pane.id) {
-                c.state_waiting_fill
+                inks.waiting.fill
             } else {
-                c.state_yours_fill
+                inks.yours.fill
             })
         } else if is_focused {
             Some(t.palette.accent)

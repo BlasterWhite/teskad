@@ -60,7 +60,7 @@ impl<M> canvas::Program<M> for Sparkline {
         _cursor: mouse::Cursor,
     ) -> Vec<canvas::Geometry> {
         let mut frame = canvas::Frame::new(renderer, bounds.size());
-        let colors = &self.theme.colors;
+        let inks = &self.theme.inks;
         let palette = &self.theme.palette;
         let points: Vec<Point> = points(&self.values)
             .into_iter()
@@ -78,14 +78,14 @@ impl<M> canvas::Program<M> for Sparkline {
         frame.stroke(
             &line,
             Stroke::default()
-                .with_color(colors.viz_line)
+                .with_color(inks.viz.line)
                 .with_width(1.5)
                 .with_line_cap(LineCap::Round)
                 .with_line_join(LineJoin::Round),
         );
         if let Some(last) = points.last() {
             let dot = Path::circle(*last, 2.75);
-            frame.fill(&dot, colors.viz_4);
+            frame.fill(&dot, inks.viz.series[3]);
             frame.stroke(
                 &dot,
                 Stroke::default()

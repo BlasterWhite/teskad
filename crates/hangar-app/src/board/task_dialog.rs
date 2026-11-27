@@ -1602,17 +1602,17 @@ fn dependencies<'a>(v: &View<'a>, dialog: &'a Dialog, task: Option<&'a T>) -> El
         .map(|dep| {
             let done = dep.column == "done";
             let mark = if done {
-                icon(Icon::Check, 11.0).color(t.colors.success)
+                icon(Icon::Check, 11.0).color(t.inks.success())
             } else {
-                icon(Icon::Lock, 11.0).color(t.colors.danger)
+                icon(Icon::Lock, 11.0).color(t.inks.danger())
             };
             let title = text(dep.title.as_str())
                 .size(font_size::UI)
                 .wrapping(text::Wrapping::None)
                 .style(look::ink(if done {
-                    t.colors.fg_muted
+                    t.inks.text.muted
                 } else {
-                    t.colors.fg
+                    t.inks.text.primary
                 }))
                 .width(Length::Fill);
             let column_name = Column::of(dep)

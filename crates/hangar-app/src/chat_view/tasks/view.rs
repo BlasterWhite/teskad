@@ -303,7 +303,7 @@ fn waiting_row<'a>(ctx: Ctx<'a>, ws: &'a Workspace, item: &Waiting) -> Element<'
                 None => Space::new().into(),
             };
             (
-                icon(Icon::Flag, 13.0).color(t.colors.state_waiting).into(),
+                icon(Icon::Flag, 13.0).color(t.inks.waiting.text).into(),
                 lines.into(),
                 action,
             )

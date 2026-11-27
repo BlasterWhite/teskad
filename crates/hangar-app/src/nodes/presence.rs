@@ -207,8 +207,8 @@ pub enum Tone {
 impl Tone {
     pub fn color(self, t: &Theme) -> Color {
         match self {
-            Tone::Muted => t.colors.fg_muted,
-            Tone::Warning => t.colors.warning,
+            Tone::Muted => t.inks.text.muted,
+            Tone::Warning => t.inks.warning(),
         }
     }
 }

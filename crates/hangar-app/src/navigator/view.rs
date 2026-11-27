@@ -698,7 +698,7 @@ fn workspace_row<'a>(f: &Frame<'a>, ws: &'a Workspace) -> Element<'a, Message> {
                 end = end.push(mark_in(
                     t,
                     Icon::Unplugged,
-                    t.colors.warning,
+                    t.inks.warning(),
                     tip.into_owned(),
                 ));
             } else if let (Some(node), Some(look)) = (ws.node.as_deref(), machine) {
@@ -1037,7 +1037,7 @@ fn filter_bar<'a>(f: &Frame<'a>, machine: &MachineFilter) -> Element<'a, Message
     let scope = button(
         container(
             glyph::state(t, reads::activity_glyph(AgentActivity::Waiting), 9.0).tint(if on {
-                t.colors.state_waiting_fill
+                t.inks.waiting.fill
             } else {
                 t.palette.text_muted
             }),
@@ -1052,9 +1052,7 @@ fn filter_bar<'a>(f: &Frame<'a>, machine: &MachineFilter) -> Element<'a, Message
         let lit = matches!(status, button::Status::Hovered | button::Status::Pressed);
         button::Style {
             background: if on {
-                Some(Background::Color(
-                    t.colors.state_waiting_fill.scale_alpha(0.16),
-                ))
+                Some(Background::Color(t.inks.waiting.fill.scale_alpha(0.16)))
             } else if lit {
                 Some(Background::Color(t.palette.hover_overlay))
             } else {
@@ -1304,7 +1302,7 @@ fn machines_foot<'a>(ctx: Ctx<'a>) -> Option<Element<'a, Message>> {
         .spacing(space::SM)
         .align_y(Alignment::Center);
     if let Some(offline) = said.offline {
-        words = words.push(set(offline, t.colors.warning));
+        words = words.push(set(offline, t.inks.warning()));
     }
     // Laid out as a row is: the icon under the rows' glyphs, the words
     // under their names.

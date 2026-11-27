@@ -75,9 +75,9 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
         // Ink: the foreground while it traces a voice, the accent while it
         // marks time.
         let ink = if transcribing {
-            t.colors.accent
+            t.palette.accent
         } else {
-            t.colors.fg
+            t.inks.text.primary
         };
         container(Space::new())
             .width(BAR_WIDTH)
@@ -96,7 +96,7 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
         .height(METER_HEIGHT)
         .align_y(Alignment::Center);
 
-    let rule = t.colors.line_strong;
+    let rule = t.palette.border_strong;
     let separator = container(Space::new())
         .width(1)
         .height(16)

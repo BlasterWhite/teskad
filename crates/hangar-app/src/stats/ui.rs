@@ -128,7 +128,7 @@ pub fn swatch(color: Color, radius: f32) -> impl Fn(&iced::Theme) -> container::
 /// The track a bar fills (`.rank__track`).
 pub fn track(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
     move |_| container::Style {
-        background: Some(Background::Color(t.colors.viz_heat_0)),
+        background: Some(Background::Color(t.inks.viz.heat[0])),
         border: Border {
             radius: radius::XS.into(),
             ..Border::default()

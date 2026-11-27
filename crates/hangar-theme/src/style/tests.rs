@@ -277,7 +277,7 @@ fn on_a_translucent_window_the_desktop_shows_through_the_page_and_the_bars_only(
     // it opaque; its text keeps the theme's colour.
     let page = container_style::page(theme)(dark);
     assert_eq!(fill_of(page), None);
-    assert_eq!(page.text_color, Some(theme.colors.fg));
+    assert_eq!(page.text_color, Some(theme.inks.text.primary));
     // What floats stays opaque.
     for style in [
         container_style::card(theme)(dark),

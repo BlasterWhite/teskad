@@ -34,11 +34,14 @@ enum Note {
 }
 
 fn note_box<'a>(t: &'a Theme, note: Note, body: Element<'a, Message>) -> Element<'a, Message> {
-    let c = &t.colors;
+    let (pal, inks) = (&t.palette, &t.inks);
     let (border, wash) = match note {
-        Note::Plain => (c.line, c.bg),
-        Note::Error => (c.danger.scale_alpha(0.4), c.danger.scale_alpha(0.08)),
-        Note::Warn => (c.warning.scale_alpha(0.4), c.bg),
+        Note::Plain => (pal.border, pal.bg),
+        Note::Error => (
+            inks.danger().scale_alpha(0.4),
+            inks.danger().scale_alpha(0.08),
+        ),
+        Note::Warn => (inks.warning().scale_alpha(0.4), pal.bg),
     };
     container(body)
         .padding(Padding::from([6.0, 6.0]).left(10.0))
@@ -58,11 +61,11 @@ fn note_box<'a>(t: &'a Theme, note: Note, body: Element<'a, Message>) -> Element
 
 /// The words of a notice, in the tone's ink.
 fn note_text<'a>(t: &'a Theme, note: Note, words: impl Into<String>) -> Element<'a, Message> {
-    let c = &t.colors;
+    let inks = &t.inks;
     let ink = match note {
-        Note::Plain => c.fg_muted,
-        Note::Error => c.danger,
-        Note::Warn => c.warning,
+        Note::Plain => inks.text.muted,
+        Note::Error => inks.danger(),
+        Note::Warn => inks.warning(),
     };
     text(words.into())
         .size(font_size::UI)
@@ -256,8 +259,8 @@ fn list_section<'a>(panel: &'a Panel, ctx: Ctx<'a>) -> Element<'a, Message> {
                 .into()
             }
         });
-        let c = &t.colors;
-        let (page, edge) = (c.bg, c.line);
+        let pal = &t.palette;
+        let (page, edge) = (pal.bg, pal.border);
         parts.push(
             container(column(rows))
                 .width(Length::Fill)
@@ -987,7 +990,7 @@ fn cleanup_item<'a>(
 
 fn form<'a>(panel: &'a Panel, ctx: Ctx<'a>) -> Element<'a, Message> {
     let (t, tr) = (ctx.theme, ctx.i18n);
-    let c = &t.colors;
+    let inks = &t.inks;
     let resolved = panel.resolved();
     let sanitized = panel.sanitized();
     let label = |key: Key| -> Element<'a, Message> {
@@ -1005,7 +1008,7 @@ fn form<'a>(panel: &'a Panel, ctx: Ctx<'a>) -> Element<'a, Message> {
         text(words)
             .size(font_size::CAPTION_LG)
             .style(move |_: &iced::Theme| text::Style {
-                color: Some(color.unwrap_or(c.fg_subtle)),
+                color: Some(color.unwrap_or(inks.text.muted)),
             })
             .into()
     };
@@ -1084,7 +1087,7 @@ fn form<'a>(panel: &'a Panel, ctx: Ctx<'a>) -> Element<'a, Message> {
         }
     }
     if let Some(error) = &resolved.error {
-        field = field.push(hint(plan_error_words(error, tr), Some(c.danger)));
+        field = field.push(hint(plan_error_words(error, tr), Some(inks.danger())));
     }
     if panel.form.mode == Mode::Existing
         && let Some(plan) = &resolved.plan

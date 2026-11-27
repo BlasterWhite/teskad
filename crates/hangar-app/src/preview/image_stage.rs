@@ -135,7 +135,7 @@ impl<'a, M> Stage<'a, M> {
         on_stage: impl Fn(FrameSize) -> M + 'a,
         on_gesture: impl Fn(Gesture) -> M + 'a,
     ) -> Self {
-        let c = &t.colors;
+        let (pal, inks) = (&t.palette, &t.inks);
         // A tenth of the text colour over the page: the squares that show
         // what is transparent (`--checker`).
         let mix = |a: Color, b: Color| {
@@ -151,10 +151,10 @@ impl<'a, M> Stage<'a, M> {
             frame,
             natural,
             pixelated: frame.zoom >= PIXELATED,
-            background: c.bg_sunken,
-            checker: mix(c.fg, c.bg),
-            edge: c.line,
-            ring: c.accent_ring,
+            background: pal.surface_sunken,
+            checker: mix(inks.text.primary, pal.bg),
+            edge: pal.border,
+            ring: inks.accent_ring,
             on_measured: Box::new(on_measured),
             on_stage: Box::new(on_stage),
             on_gesture: Box::new(on_gesture),

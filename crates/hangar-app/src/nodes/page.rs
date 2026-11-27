@@ -99,7 +99,7 @@ pub(crate) fn local_hostname() -> Option<&'static str> {
 fn local_row<'a>(ctx: Ctx<'a>) -> Element<'a, Message> {
     let t = ctx.theme;
     let lead =
-        container(icon(presence::LOCAL_ICON, tokens::size::ICON_LG).color(t.colors.fg_muted))
+        container(icon(presence::LOCAL_ICON, tokens::size::ICON_LG).color(t.inks.text.muted))
             .center_x(LEAD)
             .center_y(LEAD);
     let mut lines =
@@ -318,12 +318,12 @@ fn machine_row<'a>(st: &'a State, ctx: Ctx<'a>, node: &'a NodeConfig) -> Element
                 .width(260.0),
         ),
         // A machine that is switched off steps back, as its rows do.
-        None if !node.is_on() => lines.push(name_text(ctx, label.clone()).color(t.colors.fg_muted)),
+        None if !node.is_on() => lines.push(name_text(ctx, label.clone()).color(t.inks.text.muted)),
         None => lines.push(name_text(ctx, label.clone())),
     };
     if alert {
         // What needs a look gets a line of its own, in the warning colour.
-        let warning = t.colors.warning;
+        let warning = t.inks.warning();
         lines = lines
             .push(typography::hint(t, target_words(node)))
             .push(typography::hint(t, state).color(warning));
@@ -458,7 +458,7 @@ fn is_beta(kind: AgentKind) -> bool {
 /// enough to run the node's panes).
 fn tools_line<'a>(ctx: Ctx<'a>, info: &NodeInfo) -> Element<'a, Message> {
     let t = ctx.theme;
-    let warn = t.colors.warning;
+    let warn = t.inks.warning();
     let any_agent = AgentKind::ALL
         .into_iter()
         .any(|kind| info.agent(kind).installed);

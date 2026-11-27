@@ -50,6 +50,16 @@
 //! float_ring           → black at 0.55 (dark) or 0.05 (light); stays a view detail
 //! ```
 //!
+//! The computed ones have their own place:
+//!
+//! ```text
+//! fg → inks.text.primary   fg_secondary → inks.text.secondary
+//! fg_muted, fg_subtle → inks.text.muted   accent_hi → inks.accent_text
+//! card → inks.card   surface_hover → inks.hover   seg_thumb → inks.seg_thumb
+//! float_ring → inks.float_ring   accent_soft → inks.accent_soft
+//! accent_ring → inks.accent_ring
+//! ```
+//!
 //! `fg`, `fg_secondary`, `fg_muted`, `fg_subtle` and `accent_hi` are the
 //! palette's text and accent text held to 4.5:1 on every surface (the palette's
 //! own check covers only the window and the surface), so they can differ from
@@ -65,6 +75,26 @@ use crate::theme::{AgentState, StateColors};
 /// The colours of the window the palette has no token for.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Inks {
+    /// The text, held to 4.5:1 on every surface (see [`TextInks`]).
+    pub text: TextInks,
+    /// The accent's text (a link, a chosen label) held to 4.5:1 on every
+    /// surface; `palette.accent_text` itself only on the window and surface.
+    pub accent_text: Color,
+    /// A card laid on the window: `palette.surface_raised` on a dark theme,
+    /// `palette.bg` on a light one.
+    pub card: Color,
+    /// A row under the pointer: `palette.hover_overlay` over `palette.surface`.
+    pub hover: Color,
+    /// The chosen segment of a segmented control: `palette.surface_raised` on
+    /// a dark theme, `palette.surface` on a light one.
+    pub seg_thumb: Color,
+    /// The outer edge of what floats over the window: black at 0.55 (dark) or
+    /// 0.05 (light). Translucent.
+    pub float_ring: Color,
+    /// The accent at alpha 0.14, behind a selected or hovered accent item.
+    pub accent_soft: Color,
+    /// The focus ring at alpha 0.45, drawn round a focused field.
+    pub accent_ring: Color,
     /// An agent at work (`status.running`): a word at 4.5:1, a fill at 3:1.
     pub running: StateColors,
     /// An agent waiting for an answer. The palette has no colour for it: it is
@@ -114,6 +144,18 @@ impl Inks {
     pub fn warning(&self) -> Color {
         self.waiting.text
     }
+}
+
+/// The text, each held to 4.5:1 on every surface where the palette's own check
+/// covers only the window and the surface, so each can differ from its token.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TextInks {
+    /// `palette.text`, held.
+    pub primary: Color,
+    /// `palette.text_secondary`, held.
+    pub secondary: Color,
+    /// `palette.text_muted`, held to 4.5:1 on the plain surfaces.
+    pub muted: Color,
 }
 
 /// The statistics' data colours.

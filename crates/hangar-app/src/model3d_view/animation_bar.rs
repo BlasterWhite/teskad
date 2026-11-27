@@ -76,7 +76,7 @@ pub fn view<'a>(ctx: Ctx<'a>, clips: Clips<'a>) -> Element<'a, Message> {
         let opener = parts::clickable(
             row![
                 name(&current),
-                hangar_ui::icon(Icon::ChevronDown, 11.0).color(t.colors.fg_muted)
+                hangar_ui::icon(Icon::ChevronDown, 11.0).color(t.inks.text.muted)
             ]
             .spacing(tokens::space::XS)
             .align_y(Alignment::Center),

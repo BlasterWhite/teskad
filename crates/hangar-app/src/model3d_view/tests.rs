@@ -804,7 +804,7 @@ async fn a_snapshot_is_painted_in_the_theme_of_the_models_workspace() {
     let result = snapshots.snapshot(&id, AppAngle::Front, (64, 48)).await;
     let Some(png) = picture(result) else { return };
     let corner = pixel(&png, 1, 1);
-    let background = light.colors.bg.into_rgba8();
+    let background = light.palette.bg.into_rgba8();
     for channel in 0..3 {
         assert!(
             corner[channel].abs_diff(background[channel]) <= 3,

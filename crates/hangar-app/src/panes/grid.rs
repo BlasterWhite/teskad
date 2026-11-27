@@ -1168,7 +1168,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
         viewport: &Rectangle,
     ) {
         let state = tree.state.downcast_ref::<State>();
-        let c = &self.theme.colors;
+        let (pal, inks) = (&self.theme.palette, &self.theme.inks);
         let bounds = layout.bounds();
         // What shows between the cards is the window's `bg`. A window the
         // desktop shows through has the page under the grid (shell/frame.rs)
@@ -1243,7 +1243,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
                 // The pane being dragged stays in place, dimmed, as its own
                 // drop origin.
                 if dragging == Some(index) {
-                    card(renderer, slot, c.bg.scale_alpha(0.55), None);
+                    card(renderer, slot, pal.bg.scale_alpha(0.55), None);
                 }
                 if self.lit[index] {
                     renderer.fill_quad(
@@ -1294,7 +1294,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
                         ..line
                     },
                 };
-                fill(renderer, hairline, c.accent, None);
+                fill(renderer, hairline, pal.accent, None);
                 // And named, so that it is known which two sides the arrows
                 // move (the separator's `aria-label` of the old grid).
                 if held && let Some(label) = &self.boundary_label {
@@ -1304,7 +1304,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
                         &label(&handle),
                         to_px(handle.rect, tiles(bounds)).center(),
                         true,
-                        c.accent,
+                        pal.accent,
                     );
                 }
             }
@@ -1324,7 +1324,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
                     width: hint.width as f32 * rect.width,
                     height: hint.height as f32 * rect.height,
                 };
-                fill(renderer, area, c.accent_soft, Some((c.accent, 1.0)));
+                fill(renderer, area, inks.accent_soft, Some((pal.accent, 1.0)));
             }
 
             // A file from the desktop, over the pane it would land on.
@@ -1332,7 +1332,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
                 && let Some(slot) = layout.children().nth(over)
             {
                 let rect = slot.bounds();
-                fill(renderer, rect, c.accent_soft, Some((c.accent, 1.0)));
+                fill(renderer, rect, inks.accent_soft, Some((pal.accent, 1.0)));
                 let label = (self.drop_label)(count.max(1));
                 chip(
                     renderer,
@@ -1340,7 +1340,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
                     &label,
                     rect.center(),
                     true,
-                    c.line_strong,
+                    pal.border_strong,
                 );
             }
         });
@@ -1352,7 +1352,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for Grid<'_> {
             renderer.with_layer(*viewport, |renderer| {
                 let name = self.names[slot];
                 let origin = Point::new(at.x + 12.0, at.y + 10.0);
-                chip(renderer, self.theme, name, origin, false, c.accent);
+                chip(renderer, self.theme, name, origin, false, pal.accent);
             });
         }
     }
@@ -1432,7 +1432,7 @@ fn chip(
     centred: bool,
     edge: Color,
 ) {
-    let c = &theme.colors;
+    let (pal, inks) = (&theme.palette, &theme.inks);
     let size = tokens::font_size::UI;
     let font = hangar_theme::fonts::ui_semibold();
     let paragraph = <iced::Renderer as core_text::Renderer>::Paragraph::with_text(Text {
@@ -1468,7 +1468,7 @@ fn chip(
             },
             ..Quad::default()
         },
-        Background::Color(c.chrome_bar),
+        Background::Color(pal.surface_raised),
     );
     renderer.fill_text(
         Text {
@@ -1483,7 +1483,7 @@ fn chip(
             wrapping: core_text::Wrapping::None,
         },
         origin + padding,
-        c.fg,
+        inks.text.primary,
         area,
     );
 }

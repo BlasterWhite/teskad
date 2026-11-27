@@ -128,12 +128,16 @@ fn notice<'a>(ctx: Ctx<'a>, content: Element<'a, Message>, error: bool) -> Eleme
         .padding(Padding::from([3.0, tokens::space::LG]))
         .width(Length::Fill)
         .style(move |_: &iced::Theme| {
-            let c = &t.colors;
+            let (pal, inks) = (&t.palette, &t.inks);
             iced::widget::container::Style {
-                background: Some(if error { c.danger_soft } else { c.bg }.into()),
-                text_color: Some(if error { c.danger } else { c.fg_muted }),
+                background: Some(if error { inks.danger_soft } else { pal.bg }.into()),
+                text_color: Some(if error {
+                    inks.danger()
+                } else {
+                    inks.text.muted
+                }),
                 border: Border {
-                    color: if error { c.danger } else { c.line },
+                    color: if error { inks.danger() } else { pal.border },
                     width: tokens::BORDER_WIDTH,
                     radius: tokens::radius::MD.into(),
                 },

@@ -62,7 +62,7 @@ pub fn colour(theme: &Theme, class: Class) -> Option<Color> {
         Class::Comment => palette.text_muted,
         Class::Keyword => palette.accent_text,
         Class::String => palette.status.completed,
-        Class::Number => theme.colors.warning,
+        Class::Number => theme.inks.warning(),
         Class::Title => palette.status.active,
         Class::Attr => palette.text_secondary,
         Class::Meta => palette.text_muted,

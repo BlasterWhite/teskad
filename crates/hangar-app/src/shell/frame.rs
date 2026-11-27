@@ -332,9 +332,9 @@ fn drawer<'a>(
     look: DrawerLook,
 ) -> Element<'a, Message> {
     let t = ctx.theme;
-    // The shadow is the one `colors.shadow` the palette has no token for yet.
+    // The shadow is `inks.shadow`: the palette has no token for it.
     let shadow = iced::Shadow {
-        color: t.colors.shadow,
+        color: t.inks.shadow,
         offset: iced::Vector::new(-8.0, 0.0),
         blur_radius: 24.0,
     };
@@ -643,10 +643,9 @@ mod tests {
     /// nowhere through a hole. Its colours are the theme's.
     fn main_window_lets_the_desktop_through(theme: &str, opacity: f64, name: &str) {
         let (h, theme) = glass(Locale::En, theme, opacity);
-        assert_eq!(
-            theme.colors,
-            hangar_theme::by_id_or_default(theme.id).colors
-        );
+        let bundled = hangar_theme::by_id_or_default(theme.id);
+        assert_eq!(theme.palette, bundled.palette);
+        assert_eq!(theme.inks, bundled.inks);
         let mut ui = show(main(h.ctx()));
         h.shot(&mut ui, name);
         let picture = over_nothing(&mut ui, theme, name);

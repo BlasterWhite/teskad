@@ -294,7 +294,7 @@ fn away_card<'a>(ctx: Ctx<'a>, away: Away) -> Element<'a, Message> {
 /// starts; each one dismissible.
 fn note_row<'a>(ctx: Ctx<'a>, pane: &'a str, note: &'a str) -> Element<'a, Message> {
     let t = ctx.theme;
-    let warning = t.colors.warning;
+    let warning = t.inks.warning();
     container(
         row![
             text(note)

@@ -222,7 +222,7 @@ pub fn frame<'a>(t: &'a Theme, bar: impl Into<Element<'a, Message>>) -> Element<
 
 pub fn view<'a>(ctx: Ctx<'a>, head: Head<'a>) -> Element<'a, Message> {
     let t = ctx.theme;
-    let c = &t.colors;
+    let inks = &t.inks;
     let rt = head.rt;
     let pane = head.pane;
     let logic = &ctx.model.live.panes_logic;
@@ -359,7 +359,7 @@ pub fn view<'a>(ctx: Ctx<'a>, head: Head<'a>) -> Element<'a, Message> {
             .into_owned();
         bar = bar.push(tip::bottom(
             t,
-            icon(Icon::Alert, 13.0).color(c.warning),
+            icon(Icon::Alert, 13.0).color(inks.warning()),
             words,
         ));
     }
@@ -371,7 +371,7 @@ pub fn view<'a>(ctx: Ctx<'a>, head: Head<'a>) -> Element<'a, Message> {
             .into_owned();
         bar = bar.push(tip::bottom(
             t,
-            icon(Icon::Alert, 13.0).color(c.warning),
+            icon(Icon::Alert, 13.0).color(inks.warning()),
             words,
         ));
     }
@@ -382,7 +382,7 @@ pub fn view<'a>(ctx: Ctx<'a>, head: Head<'a>) -> Element<'a, Message> {
         let (_, words) = side_words(ctx.i18n, pane.agent, side, state.bridged);
         bar = bar.push(tip::bottom(
             t,
-            icon(Icon::Alert, 13.0).color(c.warning),
+            icon(Icon::Alert, 13.0).color(inks.warning()),
             words,
         ));
     }
@@ -391,7 +391,7 @@ pub fn view<'a>(ctx: Ctx<'a>, head: Head<'a>) -> Element<'a, Message> {
     if logic.needs_attention(&pane.id) && !reports {
         bar = bar.push(tip::bottom(
             t,
-            icon(Icon::Bell, 13.0).color(c.state_yours_fill),
+            icon(Icon::Bell, 13.0).color(inks.yours.fill),
             ctx.t(Key::PaneAttention).into_owned(),
         ));
     }

@@ -313,7 +313,7 @@ fn control_button<'a>(ctx: Ctx<'a>, control: Control) -> Element<'a, Message> {
         (SIDE, SIDE)
     };
     let glyph: Element<'a, Message> = if windows_style() {
-        windows_glyph(control, maximized(ctx), glyph, t.colors.fg)
+        windows_glyph(control, maximized(ctx), glyph, t.inks.text.primary)
     } else {
         icon(glyph, 13.0).into()
     };
@@ -393,7 +393,7 @@ fn look(
     control: Control,
 ) -> impl Fn(&iced::Theme, button::Status) -> button::Style + '_ {
     move |_, status| {
-        let c = &t.colors;
+        let inks = &t.inks;
         if windows_style() {
             let (background, text_color) = match (control, status) {
                 (Control::Close, button::Status::Hovered) => {
@@ -402,9 +402,21 @@ fn look(
                 (Control::Close, button::Status::Pressed) => {
                     (Some(WINDOWS_CLOSE_PRESSED), ON_WINDOWS_CLOSE)
                 }
-                (_, button::Status::Hovered) => (Some(Color { a: 0.08, ..c.fg }), c.fg),
-                (_, button::Status::Pressed) => (Some(Color { a: 0.05, ..c.fg }), c.fg),
-                _ => (None, c.fg),
+                (_, button::Status::Hovered) => (
+                    Some(Color {
+                        a: 0.08,
+                        ..inks.text.primary
+                    }),
+                    inks.text.primary,
+                ),
+                (_, button::Status::Pressed) => (
+                    Some(Color {
+                        a: 0.05,
+                        ..inks.text.primary
+                    }),
+                    inks.text.primary,
+                ),
+                _ => (None, inks.text.primary),
             };
             return button::Style {
                 background: background.map(Background::Color),
@@ -419,8 +431,11 @@ fn look(
             _ => 0.08,
         };
         button::Style {
-            background: Some(Background::Color(Color { a: disc, ..c.fg })),
-            text_color: c.fg,
+            background: Some(Background::Color(Color {
+                a: disc,
+                ..inks.text.primary
+            })),
+            text_color: inks.text.primary,
             border: Border {
                 radius: (SIDE / 2.0).into(),
                 ..Border::default()
@@ -760,7 +775,7 @@ pub fn outline<'a>(ctx: Ctx<'a>, frame: Element<'a, Message>) -> Element<'a, Mes
         .height(Length::Fill)
         .style(move |_: &iced::Theme| container::Style {
             border: Border {
-                color: t.colors.line_strong,
+                color: t.palette.border_strong,
                 width: tokens::BORDER_WIDTH,
                 radius: RADIUS.into(),
             },

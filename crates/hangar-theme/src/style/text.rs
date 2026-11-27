@@ -16,27 +16,27 @@ fn colored(color: Color) -> Style {
 
 /// Body text.
 pub fn primary(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| colored(t.colors.fg)
+    move |_| colored(t.inks.text.primary)
 }
 
 /// Labels and secondary lines.
 pub fn secondary(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| colored(t.colors.fg_secondary)
+    move |_| colored(t.inks.text.secondary)
 }
 
 /// Metadata.
 pub fn muted(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| colored(t.colors.fg_muted)
+    move |_| colored(t.inks.text.muted)
 }
 
 /// The quietest hints: paths, counts, placeholders.
 pub fn subtle(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| colored(t.colors.fg_subtle)
+    move |_| colored(t.inks.text.muted)
 }
 
 /// Links and the focus.
 pub fn accent(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
-    move |_| colored(t.colors.accent_hi)
+    move |_| colored(t.inks.accent_text)
 }
 
 /// Text on the accent.

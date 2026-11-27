@@ -98,9 +98,9 @@ pub fn view<'a>(ctx: Ctx<'a>, workspaces: &[&'a Workspace]) -> Option<Element<'a
         let (ink, side) = match state {
             // No palette token for waiting yet (the pack has none): the
             // derived state colours keep Waiting apart from Yours.
-            AgentActivity::Waiting => (t.colors.state_waiting, 7.0),
-            AgentActivity::Yours => (t.colors.state_yours, 6.0),
-            _ => (t.colors.state_working, 9.0),
+            AgentActivity::Waiting => (t.inks.waiting.text, 7.0),
+            AgentActivity::Yours => (t.inks.yours.text, 6.0),
+            _ => (t.inks.running.text, 9.0),
         };
         let face = row![
             glyph::state(t, reads::activity_glyph(*state), side),

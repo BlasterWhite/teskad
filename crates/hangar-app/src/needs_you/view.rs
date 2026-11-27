@@ -49,7 +49,7 @@ pub fn entry<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
     };
     let roomy = ctx.metrics.body_width - navigator >= LABEL_FROM;
 
-    let mut face = row![icon(Icon::Flag, 14.0).color(t.colors.state_waiting)]
+    let mut face = row![icon(Icon::Flag, 14.0).color(t.inks.waiting.text)]
         .spacing(space::SM)
         .align_y(Alignment::Center);
     if roomy {
@@ -64,7 +64,7 @@ pub fn entry<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
         text(items.len().to_string())
             .size(font_size::CAPTION)
             .font(fonts::mono())
-            .color(t.colors.state_waiting),
+            .color(t.inks.waiting.text),
     );
 
     let pressed = iced::widget::button(container(face).center_y(Length::Fill))
@@ -84,10 +84,10 @@ pub fn entry<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
                 } else {
                     t.palette.border
                 })),
-                text_color: t.colors.state_waiting,
+                text_color: t.inks.waiting.text,
                 border: skin::border(
                     if lit {
-                        t.colors.state_waiting_fill
+                        t.inks.waiting.fill
                     } else {
                         t.palette.border
                     },
@@ -122,7 +122,7 @@ fn panel<'a>(st: &'a State, ctx: Ctx<'a>, items: &[NeedsYouItem]) -> Element<'a,
             text(items.len().to_string())
                 .size(font_size::CAPTION)
                 .font(fonts::mono())
-                .color(t.colors.state_waiting),
+                .color(t.inks.waiting.text),
         ]
         .spacing(space::MD)
         .align_y(Alignment::Center),
@@ -302,7 +302,7 @@ fn item_row<'a>(st: &'a State, ctx: Ctx<'a>, item: &NeedsYouItem) -> Element<'a,
             }
             actions = actions.push(board());
             (
-                icon(Icon::Flag, 13.0).color(t.colors.state_waiting).into(),
+                icon(Icon::Flag, 13.0).color(t.inks.waiting.text).into(),
                 lines.into(),
                 actions.into(),
             )
@@ -355,7 +355,7 @@ fn item_row<'a>(st: &'a State, ctx: Ctx<'a>, item: &NeedsYouItem) -> Element<'a,
             }))
             .tip(tr.t(Key::NeedsYouLandHint).into_owned());
             (
-                icon(Icon::Merge, 13.0).color(t.colors.state_working).into(),
+                icon(Icon::Merge, 13.0).color(t.inks.running.text).into(),
                 lines.into(),
                 row![land, board()]
                     .spacing(2)

@@ -558,7 +558,7 @@ fn run_view<'a>(
                 ctx.i18n.tn(Key::ChatConvCallsFailed, tally.failed, &[])
             ))
             .size(tokens::font_size::CAPTION)
-            .color(t.colors.warning),
+            .color(t.inks.warning()),
         );
     }
     if tally.running > 0 {
@@ -719,7 +719,7 @@ const NOTE_WORDS: usize = 140;
 /// colour, by what it says.
 fn heard_line(ctx: Ctx<'_>, heard: &Heard) -> (Icon, Color, String) {
     let t = ctx.theme;
-    let c = &t.colors;
+    let inks = &t.inks;
     let say = |key: Key, args: &[(&str, &str)]| {
         let list: Vec<(&str, hangar_i18n::Arg)> = args
             .iter()
@@ -753,15 +753,19 @@ fn heard_line(ctx: Ctx<'_>, heard: &Heard) -> (Icon, Color, String) {
                 DeliveryOutcome::Ready => {
                     (Icon::Merge, t.palette.accent_text, Key::ChatConvHeardReady)
                 }
-                DeliveryOutcome::Conflict => (Icon::Alert, c.warning, Key::ChatConvHeardConflict),
+                DeliveryOutcome::Conflict => {
+                    (Icon::Alert, inks.warning(), Key::ChatConvHeardConflict)
+                }
                 DeliveryOutcome::CheckFailed => {
-                    (Icon::Alert, c.warning, Key::ChatConvHeardCheckFailed)
+                    (Icon::Alert, inks.warning(), Key::ChatConvHeardCheckFailed)
                 }
-                DeliveryOutcome::ChangesRequested => {
-                    (Icon::Alert, c.warning, Key::ChatConvHeardChangesRequested)
-                }
-                DeliveryOutcome::Dirty => (Icon::Alert, c.warning, Key::ChatConvHeardDirty),
-                DeliveryOutcome::Stale => (Icon::Alert, c.warning, Key::ChatConvHeardStale),
+                DeliveryOutcome::ChangesRequested => (
+                    Icon::Alert,
+                    inks.warning(),
+                    Key::ChatConvHeardChangesRequested,
+                ),
+                DeliveryOutcome::Dirty => (Icon::Alert, inks.warning(), Key::ChatConvHeardDirty),
+                DeliveryOutcome::Stale => (Icon::Alert, inks.warning(), Key::ChatConvHeardStale),
                 DeliveryOutcome::Error => (
                     Icon::Alert,
                     t.palette.status.failed,
@@ -776,7 +780,7 @@ fn heard_line(ctx: Ctx<'_>, heard: &Heard) -> (Icon, Color, String) {
         }
         Heard::NeedsYou { task, reason } => (
             Icon::Bell,
-            c.state_waiting,
+            inks.waiting.text,
             say(
                 Key::ChatConvHeardNeedsYou,
                 &[("task", task.as_str()), ("reason", reason.as_str())],
@@ -797,7 +801,7 @@ fn heard_line(ctx: Ctx<'_>, heard: &Heard) -> (Icon, Color, String) {
                     &[("task", task.as_str()), ("reason", reason.as_str())],
                 ),
             };
-            (Icon::Lock, c.warning, words)
+            (Icon::Lock, inks.warning(), words)
         }
         Heard::Unblocked { task } => (
             Icon::Lock,
@@ -806,7 +810,7 @@ fn heard_line(ctx: Ctx<'_>, heard: &Heard) -> (Icon, Color, String) {
         ),
         Heard::RecheckDue { task } => (
             Icon::Clock,
-            c.warning,
+            inks.warning(),
             say(Key::ChatConvHeardRecheck, &[("task", task.as_str())]),
         ),
         Heard::Commented { task, by, text } => {
@@ -862,7 +866,7 @@ fn heard_line(ctx: Ctx<'_>, heard: &Heard) -> (Icon, Color, String) {
             worker, minutes, ..
         } => (
             Icon::Bell,
-            c.state_waiting,
+            inks.waiting.text,
             say(
                 Key::ChatConvHeardWaiting,
                 &[
@@ -873,7 +877,7 @@ fn heard_line(ctx: Ctx<'_>, heard: &Heard) -> (Icon, Color, String) {
         ),
         Heard::Idle { worker, .. } => (
             Icon::Pause,
-            c.warning,
+            inks.warning(),
             say(Key::ChatConvHeardIdle, &[("worker", worker.as_str())]),
         ),
     }
@@ -1026,12 +1030,12 @@ fn delivery_note<'a>(
     };
     let mut files = column![].spacing(tokens::space::XXS);
     for file in changes.files.iter().take(DELIVERY_FILES) {
-        let c = &t.colors;
+        let inks = &t.inks;
         let (mark, tone) = match file.status.as_str() {
             "A" | "C" => ("A", t.palette.status.completed),
             "D" => ("D", t.palette.status.failed),
             "R" => ("R", t.palette.accent_text),
-            _ => ("M", c.warning),
+            _ => ("M", inks.warning()),
         };
         let shown = match &file.old_path {
             Some(old) if file.status == "R" => format!("{old} → {}", file.path),

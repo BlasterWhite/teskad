@@ -15,13 +15,13 @@ use crate::state::Model;
 /// the background, the text colour and the accent for the floor and the
 /// normals, danger and success for the X and Y axes.
 pub fn viewer_theme(theme: &Theme) -> ViewerTheme {
-    let colors = &theme.colors;
+    let (palette, inks) = (&theme.palette, &theme.inks);
     ViewerTheme::derive(
-        colors.bg,
-        colors.fg,
-        colors.accent,
-        colors.danger,
-        colors.success,
+        palette.bg,
+        inks.text.primary,
+        palette.accent,
+        inks.danger(),
+        inks.success(),
         theme.is_dark(),
     )
 }
@@ -47,11 +47,11 @@ mod tests {
     fn the_background_is_the_pages_and_the_axes_are_the_themes_hues() {
         let theme = by_id("graphite").expect("a bundled theme");
         let viewer = viewer_theme(theme);
-        assert_eq!(viewer.background, theme.colors.bg);
-        assert_eq!(viewer.axis_x, theme.colors.danger);
-        assert_eq!(viewer.axis_y, theme.colors.success);
-        assert_eq!(viewer.axis_z, theme.colors.accent);
-        assert_eq!(viewer.normals, theme.colors.accent);
+        assert_eq!(viewer.background, theme.palette.bg);
+        assert_eq!(viewer.axis_x, theme.inks.danger());
+        assert_eq!(viewer.axis_y, theme.inks.success());
+        assert_eq!(viewer.axis_z, theme.palette.accent);
+        assert_eq!(viewer.normals, theme.palette.accent);
         assert_eq!(viewer.dark, theme.is_dark());
     }
 

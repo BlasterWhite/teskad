@@ -627,7 +627,7 @@ pub fn modal<'a>(
     close: Message,
 ) -> Element<'a, Message> {
     let t = ctx.theme;
-    let c = &t.colors;
+    let inks = &t.inks;
     let tr = ctx.i18n;
 
     let mut title = row![
@@ -644,7 +644,7 @@ pub fn modal<'a>(
                 .cut_end()
                 .size(font_size::CAPTION_LG)
                 .font(fonts::mono())
-                .color(c.fg_subtle)
+                .color(inks.text.muted)
                 .width(Length::Shrink),
         );
     }
@@ -687,7 +687,7 @@ pub fn modal<'a>(
 /// way to read again.
 fn bar<'a>(ds: &'a DiffState, ctx: Ctx<'a>, wrap: Wrap) -> Element<'a, Message> {
     let t = ctx.theme;
-    let c = &t.colors;
+    let (pal, inks) = (&t.palette, &t.inks);
     let tr = ctx.i18n;
     let info = match &ds.setup {
         Setup::Ready { info, .. } => Some(info),
@@ -706,7 +706,7 @@ fn bar<'a>(ds: &'a DiffState, ctx: Ctx<'a>, wrap: Wrap) -> Element<'a, Message> 
             tail_text(root.clone())
                 .size(font_size::CAPTION)
                 .font(fonts::mono())
-                .color(c.fg_subtle),
+                .color(inks.text.muted),
             root,
         ))
         .max_width(520.0)
@@ -724,7 +724,7 @@ fn bar<'a>(ds: &'a DiffState, ctx: Ctx<'a>, wrap: Wrap) -> Element<'a, Message> 
         None => info.and_then(|info| info.branch.clone()),
     };
     if let Some(branch) = branch {
-        let fill = c.line;
+        let fill = pal.border;
         line = line.push(
             container(
                 text(branch)
@@ -816,7 +816,7 @@ fn bar<'a>(ds: &'a DiffState, ctx: Ctx<'a>, wrap: Wrap) -> Element<'a, Message> 
         );
     }
 
-    let fill = c.pane_head;
+    let fill = pal.surface;
     container(line)
         .padding(Padding::from([5.0, 12.0]).left(16.0))
         .height(38.0)
@@ -856,11 +856,11 @@ fn empty<'a>(t: &'a Theme, words: String) -> Element<'a, Message> {
 
 /// An error in the danger colour over a faint wash of it (`.notice--error`).
 pub(super) fn error_note<'a>(t: &'a Theme, words: String) -> Element<'a, Message> {
-    let c = &t.colors;
+    let inks = &t.inks;
     let (edge, wash, ink) = (
-        c.danger.scale_alpha(0.4),
-        c.danger.scale_alpha(0.08),
-        c.danger,
+        inks.danger().scale_alpha(0.4),
+        inks.danger().scale_alpha(0.08),
+        inks.danger(),
     );
     container(
         text(words)
@@ -929,13 +929,13 @@ fn content<'a>(ds: &'a DiffState, ctx: Ctx<'a>, wrap: Wrap) -> Element<'a, Messa
 
 /// The color of a status letter (`.diff__status--*`).
 fn status_color(t: &Theme, status: &str) -> Color {
-    let c = &t.colors;
+    let inks = &t.inks;
     match status {
-        "M" => c.warning,
-        "A" | "?" => c.success,
-        "D" | "U" => c.danger,
-        "R" | "C" => c.accent_hi,
-        _ => c.fg_subtle,
+        "M" => inks.warning(),
+        "A" | "?" => inks.success(),
+        "D" | "U" => inks.danger(),
+        "R" | "C" => inks.accent_text,
+        _ => inks.text.muted,
     }
 }
 
@@ -959,7 +959,7 @@ fn status_word(tr: Translator, status: &str) -> String {
 /// The list of files (`.diff__files`).
 fn files<'a>(ds: &'a DiffState, ctx: Ctx<'a>, wrap: Wrap) -> Element<'a, Message> {
     let (t, tr) = (ctx.theme, ctx.i18n);
-    let c = &t.colors;
+    let (pal, inks) = (&t.palette, &t.inks);
     let listed = ds.files();
     let mut rows = column![].spacing(1);
     for file in listed {
@@ -980,9 +980,9 @@ fn files<'a>(ds: &'a DiffState, ctx: Ctx<'a>, wrap: Wrap) -> Element<'a, Message
         .align_x(Alignment::Center);
         // The folder gives way first, from its start; the name stays whole.
         let path = tail_text(dir)
-            .suffix(name, c.fg)
+            .suffix(name, inks.text.primary)
             .size(font_size::UI)
-            .color(c.fg_subtle);
+            .color(inks.text.muted);
         let mut line = row![tip::bottom(t, mark, status_word(tr, &file.status)), path,]
             .spacing(space::MD)
             .align_y(Alignment::Center);
@@ -1038,7 +1038,7 @@ fn files<'a>(ds: &'a DiffState, ctx: Ctx<'a>, wrap: Wrap) -> Element<'a, Message
         );
     }
 
-    let rail = c.sep;
+    let rail = pal.surface_sunken;
     let list = scrollable(container(rows).padding(6).width(Length::Fill))
         .id(list_id())
         .on_scroll(move |viewport| {
@@ -1066,8 +1066,8 @@ fn files<'a>(ds: &'a DiffState, ctx: Ctx<'a>, wrap: Wrap) -> Element<'a, Message
 /// The pane of the selected file's diff (`.diff__view`).
 fn diff_pane<'a>(ds: &'a DiffState, ctx: Ctx<'a>, wrap: Wrap) -> Element<'a, Message> {
     let (t, tr) = (ctx.theme, ctx.i18n);
-    let c = &t.colors;
-    let page = c.bg;
+    let pal = &t.palette;
+    let page = pal.bg;
     let inner: Element<'a, Message> = if ds.current().is_none() {
         empty(t, tr.t(Key::DiffPick).into_owned())
     } else if let Some((_, error)) = &ds.diff_error {
@@ -1101,8 +1101,8 @@ fn diff_pane<'a>(ds: &'a DiffState, ctx: Ctx<'a>, wrap: Wrap) -> Element<'a, Mes
 
 /// A line over the diff saying it is not whole (`.diff__note`).
 fn note<'a>(t: &'a Theme, words: String) -> Element<'a, Message> {
-    let c = &t.colors;
-    let (wash, ink) = (c.warning.scale_alpha(0.08), c.warning);
+    let inks = &t.inks;
+    let (wash, ink) = (inks.warning().scale_alpha(0.08), inks.warning());
     container(
         text(words)
             .size(font_size::CAPTION)
@@ -1175,16 +1175,16 @@ fn diff_row<'a>(
     sign_w: f32,
     total: f32,
 ) -> Element<'a, Message> {
-    let c = &t.colors;
+    let (pal, inks) = (&t.palette, &t.inks);
     let (wash, sign, sign_ink) = match row_of.kind {
-        DiffRowKind::Add => (Some(c.success.scale_alpha(0.11)), "+", c.success),
-        DiffRowKind::Del => (Some(c.danger.scale_alpha(0.11)), "−", c.danger),
-        DiffRowKind::Hunk => (Some(c.accent.scale_alpha(0.08)), "", c.fg_subtle),
-        DiffRowKind::Ctx | DiffRowKind::Note | DiffRowKind::Meta => (None, "", c.fg_subtle),
+        DiffRowKind::Add => (Some(inks.success().scale_alpha(0.11)), "+", inks.success()),
+        DiffRowKind::Del => (Some(inks.danger().scale_alpha(0.11)), "−", inks.danger()),
+        DiffRowKind::Hunk => (Some(pal.accent.scale_alpha(0.08)), "", inks.text.muted),
+        DiffRowKind::Ctx | DiffRowKind::Note | DiffRowKind::Meta => (None, "", inks.text.muted),
     };
     let code_ink = match row_of.kind {
-        DiffRowKind::Hunk | DiffRowKind::Note => c.fg_subtle,
-        _ => c.fg,
+        DiffRowKind::Hunk | DiffRowKind::Note => inks.text.muted,
+        _ => inks.text.primary,
     };
     let number = |n: Option<u32>| -> Element<'a, Message> {
         container(

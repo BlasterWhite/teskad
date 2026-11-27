@@ -30,7 +30,7 @@ pub fn capsule(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
         text_color: Some(t.palette.text),
         border: border(t.palette.border_strong, radius::FULL),
         shadow: Shadow {
-            color: t.colors.shadow,
+            color: t.inks.shadow,
             offset: Vector::new(0.0, 8.0),
             blur_radius: 24.0,
         },

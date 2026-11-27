@@ -102,8 +102,8 @@ fn counts<'a>(s: &Scene<'a>, additions: u32, deletions: u32) -> Element<'a, Mess
         .font(fonts::mono())
     };
     row![
-        side("+", additions, t.colors.success),
-        side("−", deletions, t.colors.danger)
+        side("+", additions, t.inks.success()),
+        side("−", deletions, t.inks.danger())
     ]
     .spacing(4)
     .into()
@@ -111,7 +111,7 @@ fn counts<'a>(s: &Scene<'a>, additions: u32, deletions: u32) -> Element<'a, Mess
 
 fn file_line<'a>(s: &Scene<'a>, line: &FileRow, open: Msg) -> Element<'a, Message> {
     let (t, tr) = (s.theme(), s.tr());
-    let (c, p) = (&t.colors, &t.palette);
+    let (inks, p) = (&t.inks, &t.palette);
     let status = status_name(s, line);
     let hint = match &status {
         Some(status) => tr
@@ -124,9 +124,9 @@ fn file_line<'a>(s: &Scene<'a>, line: &FileRow, open: Msg) -> Element<'a, Messag
     };
 
     let letter_color = match line.status.as_deref() {
-        Some("A") => c.success,
-        Some("D") => c.danger,
-        Some("U") => c.warning,
+        Some("A") => inks.success(),
+        Some("D") => inks.danger(),
+        Some("U") => inks.warning(),
         _ => p.text_muted,
     };
     let letter = match (&line.status, line.settled) {
@@ -191,7 +191,7 @@ pub(super) fn section<'a>(
     changes: Option<&Indexed>,
 ) -> Section<'a, Message> {
     let (t, tr) = (s.theme(), s.tr());
-    let c = &t.colors;
+    let inks = &t.inks;
     let open = Msg::OpenDiff(s.ws.id.clone(), s.pane.id.clone());
     let listing = listing(&insight.edited_files, changes, folder);
     let mut section = s.section(SectionId::Files, Key::InspectorSectionFiles);
@@ -212,7 +212,7 @@ pub(super) fn section<'a>(
                             format!("+{additions}"),
                             type_scale::LABEL.size,
                             if additions > 0 {
-                                c.success
+                                inks.success()
                             } else {
                                 t.palette.text_muted
                             }
@@ -222,7 +222,7 @@ pub(super) fn section<'a>(
                             format!("−{deletions}"),
                             type_scale::LABEL.size,
                             if deletions > 0 {
-                                c.danger
+                                inks.danger()
                             } else {
                                 t.palette.text_muted
                             }

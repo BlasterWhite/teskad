@@ -97,7 +97,7 @@ fn isolated<'a>(
     )
     .padding([2.0, 8.0])
     .style(move |_| container::Style {
-        background: Some(iced::Background::Color(t.colors.accent_soft)),
+        background: Some(iced::Background::Color(t.inks.accent_soft)),
         border: iced::Border {
             radius: tokens::radius::FULL.into(),
             ..Default::default()

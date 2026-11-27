@@ -324,7 +324,7 @@ pub fn preset_question<'a>(ctx: Ctx<'a>, ask: &'a PresetAsk) -> Element<'a, Mess
         .padding([6.0, 8.0])
         .width(Length::Fill)
         .style(move |_: &iced::Theme| container::Style {
-            background: Some(iced::Background::Color(t.colors.line)),
+            background: Some(iced::Background::Color(t.palette.border)),
             border: iced::Border {
                 radius: radius::SM.into(),
                 ..iced::Border::default()

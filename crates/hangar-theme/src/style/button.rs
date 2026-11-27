@@ -234,10 +234,10 @@ fn menu_line(t: &Theme, destructive: bool) -> impl Fn(&iced::Theme, Status) -> S
 /// pointer.
 pub fn row(t: &Theme, selected: bool) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
     move |_, status| {
-        let c = &t.colors;
+        let inks = &t.inks;
         let look = |background: Option<Color>| Look {
             background,
-            text: c.fg,
+            text: inks.text.primary,
             border: rounded(radius::SM),
             shadow: Shadow::default(),
         };
@@ -246,7 +246,7 @@ pub fn row(t: &Theme, selected: bool) -> impl Fn(&iced::Theme, Status) -> Style 
             Status::Active if selected => selected_look().style(),
             Status::Active => look(None).style(),
             Status::Hovered | Status::Pressed if selected => selected_look().style(),
-            Status::Hovered => look(Some(c.surface_hover)).style(),
+            Status::Hovered => look(Some(inks.hover)).style(),
             Status::Pressed => look(Some(t.palette.selection_bg)).style(),
             Status::Disabled => look(None).disabled(),
         }
@@ -278,11 +278,11 @@ pub fn link(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
 /// in a column of other things and must not light up like a tool.
 pub fn plain(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
     move |_, status| {
-        let c = &t.colors;
+        let inks = &t.inks;
         let text = match status {
-            Status::Active => c.fg_muted,
-            Status::Hovered | Status::Pressed => c.fg,
-            Status::Disabled => faded(c.fg_muted),
+            Status::Active => inks.text.muted,
+            Status::Hovered | Status::Pressed => inks.text.primary,
+            Status::Disabled => faded(inks.text.muted),
         };
         Style {
             background: None,
@@ -299,7 +299,7 @@ pub fn plain(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
 /// colour when on, so it reads as pressed in.
 pub fn toggle(t: &Theme, on: bool) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
     move |_, status| {
-        let c = &t.colors;
+        let inks = &t.inks;
         let look = |background: Option<Color>, text: Color| Look {
             background,
             text,
@@ -309,16 +309,22 @@ pub fn toggle(t: &Theme, on: bool) -> impl Fn(&iced::Theme, Status) -> Style + '
         if on {
             return by_status(
                 status,
-                look(Some(t.palette.selection_bg), c.accent_hi),
-                look(Some(t.palette.selection_bg), brightness(c.accent_hi, 1.1)),
-                look(Some(t.palette.selection_bg), brightness(c.accent_hi, 0.9)),
+                look(Some(t.palette.selection_bg), inks.accent_text),
+                look(
+                    Some(t.palette.selection_bg),
+                    brightness(inks.accent_text, 1.1),
+                ),
+                look(
+                    Some(t.palette.selection_bg),
+                    brightness(inks.accent_text, 0.9),
+                ),
             );
         }
         by_status(
             status,
-            look(None, c.fg_muted),
-            look(Some(c.surface_hover), c.fg),
-            look(Some(t.palette.selection_bg), c.fg),
+            look(None, inks.text.muted),
+            look(Some(inks.hover), inks.text.primary),
+            look(Some(t.palette.selection_bg), inks.text.primary),
         )
     }
 }
@@ -328,7 +334,7 @@ pub fn toggle(t: &Theme, on: bool) -> impl Fn(&iced::Theme, Status) -> Style + '
 /// and light up a little under the pointer.
 pub fn tab_strip(t: &Theme, active: bool) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
     move |_, status| {
-        let c = &t.colors;
+        let inks = &t.inks;
         let look = |background: Option<Color>, text: Color| Look {
             background,
             text,
@@ -336,7 +342,7 @@ pub fn tab_strip(t: &Theme, active: bool) -> impl Fn(&iced::Theme, Status) -> St
             shadow: Shadow::default(),
         };
         if active {
-            let front = look(Some(t.palette.surface), c.fg);
+            let front = look(Some(t.palette.surface), inks.text.primary);
             return match status {
                 Status::Disabled => front.disabled(),
                 _ => front.style(),
@@ -344,12 +350,12 @@ pub fn tab_strip(t: &Theme, active: bool) -> impl Fn(&iced::Theme, Status) -> St
         }
         by_status(
             status,
-            look(None, c.fg_muted),
+            look(None, inks.text.muted),
             look(
                 Some(with_alpha(t.palette.border, t.palette.border.a * 0.6)),
-                c.fg,
+                inks.text.primary,
             ),
-            look(Some(t.palette.border), c.fg),
+            look(Some(t.palette.border), inks.text.primary),
         )
     }
 }
@@ -359,10 +365,14 @@ pub fn tab_strip(t: &Theme, active: bool) -> impl Fn(&iced::Theme, Status) -> St
 /// bar with everything on it in the accent's own foreground.
 pub fn palette_row(t: &Theme, chosen: bool) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
     move |_, _| {
-        let c = &t.colors;
+        let inks = &t.inks;
         Style {
             background: chosen.then_some(Background::Color(t.palette.accent)),
-            text_color: if chosen { t.palette.on_accent } else { c.fg },
+            text_color: if chosen {
+                t.palette.on_accent
+            } else {
+                inks.text.primary
+            },
             border: rounded(radius::MD),
             shadow: Shadow::default(),
             ..Style::default()

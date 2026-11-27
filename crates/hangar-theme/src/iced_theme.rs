@@ -12,8 +12,8 @@ use iced::theme::palette::{
     Background, Danger, Extended, Pair, Primary, Secondary, Success, Warning,
 };
 
+use crate::Theme;
 use crate::contrast::{Rgb, contrast_ratio, mix};
-use crate::{Colors, Theme};
 
 /// The `iced::Theme` for a Hangar theme: a custom palette from its page,
 /// text, accent and status colours, and an extended palette laid out on the
@@ -23,11 +23,10 @@ use crate::{Colors, Theme};
 /// Build it once when the theme changes and return it from the application's
 /// `theme` function; it allocates.
 pub fn to_iced(theme: &Theme) -> iced::Theme {
-    let c = &theme.colors;
     let palette = Palette {
-        background: c.bg,
-        text: c.fg,
-        primary: c.accent,
+        background: theme.palette.bg,
+        text: theme.inks.text.primary,
+        primary: theme.palette.accent,
         success: theme.inks.success(),
         warning: theme.inks.warning(),
         danger: theme.inks.danger(),
@@ -38,8 +37,12 @@ pub fn to_iced(theme: &Theme) -> iced::Theme {
 
 /// Whichever of the foreground, the page and the text-on-accent colour
 /// reads best on `color`, so every pair of the palette is legible.
-fn on(c: &Colors, color: Color) -> Color {
-    let candidates = [c.fg, c.bg, c.accent_fg];
+fn on(theme: &Theme, color: Color) -> Color {
+    let candidates = [
+        theme.inks.text.primary,
+        theme.palette.bg,
+        theme.palette.on_accent,
+    ];
     let background = Rgb::from(color);
     candidates
         .into_iter()
@@ -47,28 +50,31 @@ fn on(c: &Colors, color: Color) -> Color {
             contrast_ratio(Rgb::from(*a), background)
                 .total_cmp(&contrast_ratio(Rgb::from(*b), background))
         })
-        .unwrap_or(c.fg)
+        .unwrap_or(theme.inks.text.primary)
 }
 
-fn pair(c: &Colors, color: Color) -> Pair {
-    Pair::new(color, on(c, color))
+fn pair(theme: &Theme, color: Color) -> Pair {
+    Pair::new(color, on(theme, color))
 }
 
 /// A status colour in iced's three strengths: the colour itself, a tint of
 /// it on the page for hovers and backgrounds, and the brighter text variant
 /// for emphasis.
-fn status(c: &Colors, base: Color, text_variant: Color) -> (Pair, Pair, Pair) {
-    let tint = Color::from(mix(Rgb::from(c.bg), Rgb::from(base), 0.25));
-    (pair(c, base), pair(c, tint), pair(c, text_variant))
+fn status(theme: &Theme, base: Color, text_variant: Color) -> (Pair, Pair, Pair) {
+    let tint = Color::from(mix(Rgb::from(theme.palette.bg), Rgb::from(base), 0.25));
+    (
+        pair(theme, base),
+        pair(theme, tint),
+        pair(theme, text_variant),
+    )
 }
 
 fn extended(theme: &Theme) -> Extended {
-    let c = &theme.colors;
-    let i = &theme.inks;
-    let (success_base, success_weak, success_strong) = status(c, i.success(), i.running.fill);
-    let (warning_base, warning_weak, warning_strong) = status(c, i.warning(), i.waiting.fill);
-    let (danger_base, danger_weak, danger_strong) = status(c, i.danger(), i.danger());
-    let (_, primary_weak, primary_strong) = status(c, c.accent, c.accent_hi);
+    let (p, i) = (&theme.palette, &theme.inks);
+    let (success_base, success_weak, success_strong) = status(theme, i.success(), i.running.fill);
+    let (warning_base, warning_weak, warning_strong) = status(theme, i.warning(), i.waiting.fill);
+    let (danger_base, danger_weak, danger_strong) = status(theme, i.danger(), i.danger());
+    let (_, primary_weak, primary_strong) = status(theme, p.accent, i.accent_text);
 
     Extended {
         // The surfaces in the order they step away from the page, which is the
@@ -76,25 +82,25 @@ fn extended(theme: &Theme) -> Extended {
         // colours are the middle steps, and the last is a quiet text grey
         // that carries the page's colour as its text.
         background: Background {
-            base: Pair::new(c.bg, c.fg),
-            weakest: pair(c, c.pane_head),
-            weaker: pair(c, c.chrome),
-            weak: pair(c, c.raised),
-            neutral: pair(c, c.surface_hover),
-            strong: pair(c, c.surface_active),
-            stronger: pair(c, c.border_strong),
-            strongest: Pair::new(c.fg_muted, c.bg),
+            base: Pair::new(p.bg, i.text.primary),
+            weakest: pair(theme, p.surface),
+            weaker: pair(theme, p.surface),
+            weak: pair(theme, p.surface_raised),
+            neutral: pair(theme, i.hover),
+            strong: pair(theme, p.selection_bg),
+            stronger: pair(theme, p.border_strong),
+            strongest: Pair::new(i.text.muted, p.bg),
         },
         primary: Primary {
-            base: Pair::new(c.accent, c.accent_fg),
+            base: Pair::new(p.accent, p.on_accent),
             weak: primary_weak,
             strong: primary_strong,
         },
         // A neutral button: Hangar's secondary is the raised surface.
         secondary: Secondary {
-            base: pair(c, c.raised),
-            weak: pair(c, c.chrome_bar),
-            strong: pair(c, c.surface_hover),
+            base: pair(theme, p.surface_raised),
+            weak: pair(theme, p.surface_raised),
+            strong: pair(theme, i.hover),
         },
         success: Success {
             base: success_base,
@@ -132,7 +138,7 @@ mod tests {
         let iced = to_iced(theme);
         let palette = iced.palette();
         assert_eq!(palette.background, theme.palette.bg);
-        assert_eq!(palette.text, theme.colors.fg);
+        assert_eq!(palette.text, theme.inks.text.primary);
         assert_eq!(palette.primary, theme.palette.accent);
         assert_eq!(palette.danger, theme.inks.danger());
         assert_eq!(iced.to_string(), "Graphite");

@@ -730,20 +730,20 @@ fn heading_size(level: HeadingLevel) -> f32 {
 }
 
 fn settings(t: &Theme) -> Settings {
-    let c = &t.colors;
+    let inks = &t.inks;
     let mut settings = Settings::with_text_size(
         TEXT,
         Style {
             font: fonts::ui(),
             inline_code_highlight: Highlight {
-                background: iced::Background::Color(c.surface_hover),
+                background: iced::Background::Color(inks.hover),
                 border: border::rounded(tokens::radius::XS),
             },
             inline_code_padding: padding::left(3).right(3),
-            inline_code_color: c.fg,
+            inline_code_color: inks.text.primary,
             inline_code_font: fonts::mono(),
             code_block_font: fonts::mono(),
-            link_color: c.accent_hi,
+            link_color: inks.accent_text,
         },
     );
     settings.h1_size = heading_size(HeadingLevel::H1).into();

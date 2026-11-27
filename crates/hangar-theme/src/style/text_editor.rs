@@ -10,14 +10,14 @@ use crate::tokens::radius;
 
 pub fn field(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
     move |_, status| {
-        let c = &t.colors;
+        let inks = &t.inks;
         let edge = |color: Color| hairline(color, radius::LG);
         let base = |border| Style {
             background: Background::Color(t.palette.bg),
             border,
-            placeholder: c.fg_subtle,
-            value: c.fg,
-            selection: c.accent_ring,
+            placeholder: inks.text.muted,
+            value: inks.text.primary,
+            selection: inks.accent_ring,
         };
         match status {
             Status::Active => base(edge(t.palette.border_strong)),
