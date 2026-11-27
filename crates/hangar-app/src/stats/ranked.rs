@@ -68,20 +68,20 @@ pub fn list<'a>(ui: Ui, list: List<'_>) -> Element<'a, Message> {
             one_line(ranked.label.clone())
                 .size(font_size::UI_LG)
                 .font(fonts::ui_medium())
-                .style(style::text::primary(t))
+                .color(t.palette.text)
         ];
         if !second.is_empty() {
             text_column = text_column.push(
                 one_line(second)
                     .size(font_size::CAPTION)
-                    .style(style::text::subtle(t)),
+                    .color(t.palette.text_muted),
             );
         }
         let figure: Element<'a, Message> = if ranked.unpriced && list.measure == Measure::Cost {
             container(
                 one_line(ui.s(Key::StatsUnpriced))
                     .size(font_size::CAPTION)
-                    .style(style::text::muted(t)),
+                    .color(t.palette.text_muted),
             )
             .padding(Padding::from([0.0, space::SM]))
             .style(style::container::chip(t))
@@ -90,7 +90,7 @@ pub fn list<'a>(ui: Ui, list: List<'_>) -> Element<'a, Message> {
             one_line(value_of_totals(&ranked.totals, list.measure, locale))
                 .size(font_size::UI_LG)
                 .font(fonts::ui_semibold())
-                .style(style::text::primary(t))
+                .color(t.palette.text)
                 .into()
         };
         let numbers = row![
@@ -98,7 +98,7 @@ pub fn list<'a>(ui: Ui, list: List<'_>) -> Element<'a, Message> {
             container(
                 one_line(format_share(ranked.share, locale))
                     .size(font_size::CAPTION)
-                    .style(style::text::subtle(t))
+                    .color(t.palette.text_muted)
             )
             .width(34)
             .align_x(alignment::Horizontal::Right),

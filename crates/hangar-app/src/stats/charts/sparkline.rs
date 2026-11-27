@@ -61,6 +61,7 @@ impl<M> canvas::Program<M> for Sparkline {
     ) -> Vec<canvas::Geometry> {
         let mut frame = canvas::Frame::new(renderer, bounds.size());
         let colors = &self.theme.colors;
+        let palette = &self.theme.palette;
         let points: Vec<Point> = points(&self.values)
             .into_iter()
             .map(|(x, y)| Point::new(x + MARGIN, y))
@@ -87,7 +88,9 @@ impl<M> canvas::Program<M> for Sparkline {
             frame.fill(&dot, colors.viz_4);
             frame.stroke(
                 &dot,
-                Stroke::default().with_color(colors.card).with_width(2.0),
+                Stroke::default()
+                    .with_color(palette.surface)
+                    .with_width(2.0),
             );
         }
         vec![frame.into_geometry()]

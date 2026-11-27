@@ -151,12 +151,13 @@ impl Heatmap {
     /// cache keeps.
     fn draw_cells(&self, frame: &mut canvas::Frame, layout: Layout) {
         let colors = &self.theme.colors;
+        let palette = &self.theme.palette;
         let summary = &self.summary;
         for (at, label) in self.hours.iter().enumerate() {
             frame.fill_text(caption(
                 label.clone(),
                 Point::new(layout.x(at * 6), HEAD / 2.0),
-                colors.fg_subtle,
+                palette.text_muted,
                 font_size::LABEL,
                 alignment::Horizontal::Left,
                 alignment::Vertical::Center,
@@ -169,7 +170,7 @@ impl Heatmap {
             frame.fill_text(caption(
                 capitalized(days[day]),
                 Point::new(0.0, top + CELL / 2.0),
-                colors.fg_muted,
+                palette.text_muted,
                 font_size::CAPTION,
                 alignment::Horizontal::Left,
                 alignment::Vertical::Center,
@@ -337,7 +338,7 @@ impl canvas::Program<Message> for Heatmap {
         bounds: Rectangle,
         _cursor: mouse::Cursor,
     ) -> Vec<canvas::Geometry> {
-        let colors = &self.theme.colors;
+        let palette = &self.theme.palette;
         let layout = Layout::new(bounds.width);
         grid.keep_for(self);
         let cells = grid.cells.draw(renderer, bounds.size(), |frame| {
@@ -353,7 +354,7 @@ impl canvas::Program<Message> for Heatmap {
                     Size::new(layout.cell_width + 1.5, CELL + 1.5),
                     3.75.into(),
                 ),
-                Stroke::default().with_color(colors.fg).with_width(1.5),
+                Stroke::default().with_color(palette.text).with_width(1.5),
             );
         }
 
@@ -365,7 +366,7 @@ impl canvas::Program<Message> for Heatmap {
                     6.0.into(),
                 ),
                 Stroke::default()
-                    .with_color(colors.accent_ring)
+                    .with_color(palette.focus_ring)
                     .with_width(2.0),
             );
         }

@@ -17,10 +17,10 @@ use crate::message::Message;
 /// (`.slist__project`).
 fn chip(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
     move |_, status| {
-        let c = &t.colors;
+        let p = &t.palette;
         let (background, text_color) = match status {
-            Status::Hovered | Status::Pressed => (c.accent_soft, c.fg),
-            _ => (c.line, c.fg_secondary),
+            Status::Hovered | Status::Pressed => (p.selection_bg, p.text),
+            _ => (p.border, p.text_secondary),
         };
         Style {
             background: Some(Background::Color(background)),
@@ -43,7 +43,7 @@ pub fn list<'a>(ui: Ui, rows: &[SessionRow], measure: Measure, pick: Pick) -> El
     if rows.is_empty() {
         return text(ui.s(Key::StatsNoData))
             .size(font_size::UI)
-            .style(style::text::subtle(t))
+            .color(t.palette.text_muted)
             .into();
     }
     let mut list = column![];
@@ -56,7 +56,7 @@ pub fn list<'a>(ui: Ui, rows: &[SessionRow], measure: Measure, pick: Pick) -> El
         let separator = || {
             text("·")
                 .size(font_size::CAPTION)
-                .style(style::text::subtle(t))
+                .color(t.palette.text_muted)
         };
         let mut meta = row![hangar_ui::tip::bottom(
             t,
@@ -79,20 +79,20 @@ pub fn list<'a>(ui: Ui, rows: &[SessionRow], measure: Measure, pick: Pick) -> El
             meta = meta.push(separator()).push(
                 one_line(model)
                     .size(font_size::CAPTION)
-                    .style(style::text::muted(t)),
+                    .color(t.palette.text_muted),
             );
         }
         let meta = meta.push(separator()).push(
             one_line(format::day_month(session.last_at, locale))
                 .size(font_size::CAPTION)
-                .style(style::text::muted(t)),
+                .color(t.palette.text_muted),
         );
 
         let main = column![
             one_line(title)
                 .size(font_size::UI_LG)
                 .font(fonts::ui_medium())
-                .style(style::text::primary(t)),
+                .color(t.palette.text),
             container(meta).clip(true).width(Length::Fill),
         ]
         .spacing(2);
@@ -100,7 +100,7 @@ pub fn list<'a>(ui: Ui, rows: &[SessionRow], measure: Measure, pick: Pick) -> El
             one_line(value_of_totals(&session.totals, measure, locale))
                 .size(font_size::UI_LG)
                 .font(fonts::ui_semibold())
-                .style(style::text::primary(t)),
+                .color(t.palette.text),
             one_line(
                 ui.tr
                     .t_with(
@@ -110,7 +110,7 @@ pub fn list<'a>(ui: Ui, rows: &[SessionRow], measure: Measure, pick: Pick) -> El
                     .into_owned()
             )
             .size(font_size::CAPTION)
-            .style(style::text::subtle(t)),
+            .color(t.palette.text_muted),
         ]
         .spacing(2)
         .align_x(alignment::Horizontal::Right);
@@ -120,7 +120,7 @@ pub fn list<'a>(ui: Ui, rows: &[SessionRow], measure: Measure, pick: Pick) -> El
                 text((at + 1).to_string())
                     .size(font_size::CAPTION)
                     .font(fonts::mono())
-                    .style(style::text::subtle(t))
+                    .color(t.palette.text_muted)
             )
             .width(18),
             container(main).width(Length::Fill).clip(true),

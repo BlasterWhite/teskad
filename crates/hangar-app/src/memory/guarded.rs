@@ -40,10 +40,11 @@ fn the_composer_s_title_text_and_tags_leave_it_too() {
         composing: true,
         ..loaded(vec![entry("Build steps")])
     };
-    // The search, the title, the text and the tags.
+    // The title, the text and the tags of the window; the search is under
+    // its veil and out of reach.
     assert_eq!(
         fixture.split_chord(view(&st, fixture.ctx())),
-        ["Noop", "Noop", "Noop", "Noop"]
+        ["Noop", "Noop", "Noop"]
     );
 }
 
@@ -57,9 +58,9 @@ fn the_fields_of_an_entry_being_edited_leave_it_too() {
         id: one.id.clone(),
         draft: Draft::of(&one),
     });
-    // The search, and the entry's title, text and tags.
+    // The entry's title, text and tags, in the window over the page.
     assert_eq!(
         fixture.split_chord(view(&st, fixture.ctx())),
-        ["Noop", "Noop", "Noop", "Noop"]
+        ["Noop", "Noop", "Noop"]
     );
 }

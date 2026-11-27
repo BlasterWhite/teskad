@@ -24,9 +24,9 @@ mod guards;
 pub(crate) mod remote;
 mod view;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
-use iced::widget::{Id, operation, text_editor};
+use iced::widget::{Id, markdown, operation, text_editor};
 use iced::{Element, Subscription, Task};
 
 use hangar_core::memory::{self, MemoryEntry, MemoryPatch, NewMemory};
@@ -105,6 +105,28 @@ pub struct State {
     pub editing: Option<Editing>,
     /// Delete asks twice, like the destructive actions in the settings do.
     pub armed: Option<String>,
+    /// The entry under the pointer: its Edit and Delete show.
+    pub hover: Option<String>,
+    /// The Markdown of each open entry, parsed once, not at every frame.
+    pub rendered: HashMap<String, markdown::Content>,
+}
+
+impl State {
+    /// Parses the content of every open entry again: after a read, and when
+    /// one opens.
+    fn render_open(&mut self) {
+        let entries = self.entries.as_deref().unwrap_or(&[]);
+        self.rendered = entries
+            .iter()
+            .filter(|entry| self.open.contains(&entry.id))
+            .map(|entry| {
+                (
+                    entry.id.clone(),
+                    markdown::Content::parse(&crate::preview::markdown::prepare(&entry.content)),
+                )
+            })
+            .collect();
+    }
 }
 
 /// What the composer would write.
@@ -181,6 +203,12 @@ pub enum Msg {
     /// The cross of the search field, Escape in it, or "Clear search".
     ClearQuery,
     FlipSort,
+    /// A segment of the sort control.
+    SetSort(MemorySort),
+    /// The pointer entered (`Some`) or left (`None`) an entry's row.
+    Hover(Option<String>),
+    /// A link of an entry's text: the memory goes nowhere with it.
+    Ignore,
 
     /// The "New" button: opens the composer, or closes it.
     ToggleComposer,
@@ -294,6 +322,7 @@ pub fn update(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Me
                     // without this, one transient lock leaves its banner over
                     // a healthy list for the rest of the session.
                     st.error = None;
+                    st.render_open();
                 }
                 // `memory_load` fails loudly when memory.json exists but
                 // cannot be read; showing it keeps an unreadable memory from
@@ -340,6 +369,15 @@ pub fn update(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Me
             st.sort = st.sort.flipped();
             Task::none()
         }
+        Msg::SetSort(sort) => {
+            st.sort = sort;
+            Task::none()
+        }
+        Msg::Hover(id) => {
+            st.hover = id;
+            Task::none()
+        }
+        Msg::Ignore => Task::none(),
 
         Msg::ToggleComposer if st.composing => {
             st.composing = false;
@@ -386,6 +424,7 @@ pub fn update(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Me
             if !st.open.remove(&id) {
                 st.open.insert(id);
             }
+            st.render_open();
             Task::none()
         }
         Msg::StartEdit(id) => {

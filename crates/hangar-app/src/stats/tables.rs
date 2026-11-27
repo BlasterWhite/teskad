@@ -29,13 +29,13 @@ fn cell<'a>(
     let t = ui.t;
     let words = one_line(content).size(font_size::UI);
     let words = if head {
-        words.style(style::text::muted(t)).font(fonts::ui_medium())
+        words.color(t.palette.text_muted).font(fonts::ui_medium())
     } else if left {
         words
-            .style(style::text::secondary(t))
+            .color(t.palette.text_secondary)
             .font(fonts::ui_medium())
     } else {
-        words.style(style::text::primary(t))
+        words.color(t.palette.text)
     };
     container(words)
         .width(width.into())
@@ -75,7 +75,7 @@ fn frame<'a>(ui: Ui, rows: Vec<Element<'a, Message>>, sideways: bool) -> Element
     .max_height(MAX_HEIGHT)
     .style(move |_| container::Style {
         border: iced::Border {
-            color: t.colors.line,
+            color: t.palette.border,
             width: 1.0,
             radius: radius::MD.into(),
         },
