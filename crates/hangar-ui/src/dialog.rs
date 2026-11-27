@@ -2,7 +2,8 @@
 //! that puts it over the window (`Backdrop.tsx`).
 //!
 //! A title bar with a close button, a body that scrolls, and a footer with
-//! the actions at the bottom right. A window with a layout of its own (a
+//! the actions at the bottom right. In a window too short for all of it, it
+//! is the body that gives up its room. A window with a layout of its own (a
 //! task's sheet, the settings, the diff) shares the surface
 //! (`style::container::modal`), the [`foot`] and the veil ([`veiled`]).
 //!
@@ -33,6 +34,8 @@ use hangar_theme::tokens::{BORDER_WIDTH, font_size, size, space};
 use hangar_theme::{Theme, style};
 use iced::widget::{Id, column, container, row, rule, scrollable, space as iced_space};
 use iced::{Alignment, Element, Length, Padding};
+
+mod frame;
 
 use crate::button::{Side, icon_button};
 use crate::icon::Icon;
@@ -247,7 +250,8 @@ impl<'a, M: Clone + 'a> From<Dialog<'a, M>> for Element<'a, M> {
         let foot = self::foot(t, foot);
 
         let line = || rule::horizontal(1).style(style::rule::hairline(t));
-        container(column![head, line(), body, line(), foot])
+        let parts = frame::Frame::new(column![head, line()], body, column![line(), foot]);
+        container(parts)
             .width(d.width)
             .style(style::container::modal(t))
             .into()

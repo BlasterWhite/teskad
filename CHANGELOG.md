@@ -51,6 +51,7 @@ This fork is independent and not affiliated with the original HangarAI project: 
 ### Changed (workspace menu and Orchestration window, from the Teskad brand pack)
 - The workspace's menu is 248 px wide (wider for a long machine or folder name). Each agent under « Go to » says its role at the end of its line, « Open with VS Code » and « Kits… » have icons of their own, and « Orchestration… » carries the Fork symbol in colour. In every menu, labels are 13 px in the secondary text colour, group titles are no longer bold, and agent state icons are 12 px. Same entries, in the same order.
 - The Orchestration window takes up to 780 px, with the Fork symbol beside its title. In **Models**, each role has its own symbol, its default, an **opus / sonnet / haiku** segmented control that fills the field (a full model id typed there leaves it unchosen) and the field itself. Codex's three models moved into a **Codex models** (BETA) section that folds; it stays open while one of its names is refused. The footer's buttons are 32 px, and « Cancel » is a secondary button.
+- In a short window, a dialog's body now gives up its room and scrolls, so its head and the buttons of its footer stay in sight.
 - Its three drop-downs now take the keyboard: Tab reaches them, Left and Right change the choice. Same settings, saved the same way.
 
 ### Changed

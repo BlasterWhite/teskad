@@ -292,7 +292,13 @@ pub fn update(st: &mut State, m: &mut Model, msg: PanelMsg) -> iced::Task<Messag
             // the workspace goes back to Codex's own default.
             *codex_model_field(&mut panel.draft, which) = (!text.trim().is_empty()).then_some(text);
         }
-        PanelMsg::FoldCodex => panel.codex_folded = !panel.codex_folded,
+        PanelMsg::FoldCodex => {
+            // Held open by a refused name: the press folds nothing, now or
+            // once the name is fixed.
+            if !codex_refused(&draft_problems(&panel.draft)) {
+                panel.codex_folded = !panel.codex_folded;
+            }
+        }
         PanelMsg::Reset => panel.draft = draft_of(&Workspace::default()),
         PanelMsg::Save => return save(panel, m),
         PanelMsg::CreateOrchestrator => {
@@ -961,6 +967,17 @@ fn model_row<'a>(
     .into()
 }
 
+/// One of Codex's names is refused: its section stays open.
+fn codex_refused(problems: &super::form::Problems) -> bool {
+    [
+        Field::CodexOrchestratorModel,
+        Field::CodexWorkerModel,
+        Field::CodexReviewerModel,
+    ]
+    .into_iter()
+    .any(|field| problems.get(field).is_some())
+}
+
 /// Codex's models, in a block that folds: a field per role, empty being
 /// Codex's own default. A field that is refused keeps the block open, so
 /// that what holds « Save » back is in sight.
@@ -971,14 +988,7 @@ fn codex_models<'a>(
     folded: bool,
 ) -> Element<'a, Message> {
     let t = ctx.theme;
-    let refused = [
-        Field::CodexOrchestratorModel,
-        Field::CodexWorkerModel,
-        Field::CodexReviewerModel,
-    ]
-    .into_iter()
-    .any(|field| problems.get(field).is_some());
-    let open = refused || !folded;
+    let open = codex_refused(problems) || !folded;
     let chevron = if open {
         Icon::ChevronDown
     } else {
@@ -1220,8 +1230,56 @@ mod tests {
             &mut model,
             PanelMsg::CodexModel(ModelField::Worker, "two words".into()),
         );
-        let mut ui = simulate(view(&st, ctx(&model, &pkg), &ws));
-        assert!(ui.find(note).is_ok());
+        {
+            let mut ui = simulate(view(&st, ctx(&model, &pkg), &ws));
+            assert!(ui.find(note).is_ok());
+        }
+        // A press while it is held open changes nothing, then or later.
+        let folded = st.panel.as_ref().unwrap().codex_folded;
+        let _ = update(&mut st, &mut model, PanelMsg::FoldCodex);
+        assert_eq!(st.panel.as_ref().unwrap().codex_folded, folded);
+    }
+
+    /// In the smallest main window (`MAIN_MIN_SIZE`), as in a taller one
+    /// that is still short of the whole dialog, the body gives up its room
+    /// and the foot keeps its buttons.
+    #[test]
+    fn the_foot_stays_in_sight_in_a_short_window() {
+        let mut model = shop(false);
+        let mut st = opened(&model);
+        // Something to save: « Save » is greyed otherwise.
+        let merges = orchestration_defaults().auto_merge;
+        let _ = update(&mut st, &mut model, PanelMsg::AutoMerge(!merges));
+        let pkg = Packages::default();
+        let ws: WsId = "w1".into();
+        for height in [560.0, 600.0, 640.0] {
+            let settings = iced::Settings {
+                fonts: hangar_theme::fonts::ALL
+                    .map(std::borrow::Cow::Borrowed)
+                    .to_vec(),
+                default_font: fonts::ui(),
+                ..iced::Settings::default()
+            };
+            let window = iced::Size::new(900.0, height);
+            let drawn = view(&st, ctx(&model, &pkg), &ws);
+            let mut ui = iced_test::Simulator::with_size(settings, window, drawn);
+            for button in ["Cancel", "Save"] {
+                let words = ui.find(button).expect(button).bounds();
+                assert!(
+                    words.y + words.height <= height - 8.0,
+                    "{button} at {height}: {words:?}"
+                );
+            }
+            ui.click("Save").expect("Save");
+            let said: Vec<Message> = ui.into_messages().collect();
+            assert!(
+                matches!(
+                    said.as_slice(),
+                    [Message::OrchestrationUi(Msg::Panel(PanelMsg::Save))]
+                ),
+                "{height}: {said:?}"
+            );
+        }
     }
 
     #[test]
