@@ -32,7 +32,7 @@ pub const PROPERTY_LABEL: f32 = 136.0;
 /// A card's padding, across.
 pub const CARD_PADDING: f32 = 12.0;
 /// The dock's bar (`.board__bar`).
-pub const DOCK_BAR_HEIGHT: f32 = 30.0;
+pub const DOCK_BAR_HEIGHT: f32 = 40.0;
 /// A column's header (`.column__head`), and the dock's.
 pub const COLUMN_HEAD: f32 = 36.0;
 pub const DOCK_COLUMN_HEAD: f32 = 28.0;
@@ -89,16 +89,34 @@ fn rounded(radius: f32) -> Border {
     }
 }
 
-/// The board itself (`.board`): the page; in the dock, the chrome's colour,
-/// like the inspector.
+/// The board itself (`.board`): the page; in the dock, a panel of `deep`
+/// with a `border` hairline and corners of 12 (`ecrans.md` §8).
 pub fn surface(t: &Theme, in_dock: bool) -> impl Fn(&iced::Theme) -> container::Style + '_ {
     move |_| container::Style {
         background: Some(Background::Color(if in_dock {
-            t.colors.chrome
+            t.deep()
         } else {
             t.palette.bg
         })),
         text_color: Some(t.palette.text),
+        border: if in_dock {
+            hairline(t.palette.border, scale::radius::LG)
+        } else {
+            Border::default()
+        },
+        ..container::Style::default()
+    }
+}
+
+/// The dock's header: `surface`, its top corners inside the panel's hairline.
+pub fn dock_head(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
+    move |_| container::Style {
+        background: Some(Background::Color(t.palette.surface)),
+        text_color: Some(t.palette.text),
+        border: Border {
+            radius: iced::border::top(scale::radius::LG - BORDER_WIDTH),
+            ..Border::default()
+        },
         ..container::Style::default()
     }
 }

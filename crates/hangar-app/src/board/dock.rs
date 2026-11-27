@@ -25,10 +25,10 @@ use super::{Msg, State};
 /// How far an arrow key moves the panel's edge, in interface points.
 pub const KEY_STEP: f32 = 24.0;
 
-/// The width the panel is given back by a double click on its grip
-/// (`DEFAULT_SETTINGS.boardDockWidth`).
+/// The width the panel is given back by a double click on its grip: the
+/// pack's 330 px (`ecrans.md` §8).
 pub fn default_width() -> f32 {
-    crate::state::Settings::default().board_dock_width as f32
+    330.0
 }
 
 /// `clampDock`, bounded by the room actually available, which a window resize
@@ -153,8 +153,8 @@ mod tests {
     }
 
     #[test]
-    fn the_default_width_is_the_settings_default() {
-        assert_eq!(default_width(), 420.0);
+    fn the_default_width_is_the_packs() {
+        assert_eq!(default_width(), 330.0);
     }
 
     #[test]

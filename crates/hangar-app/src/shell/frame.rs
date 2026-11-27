@@ -185,6 +185,7 @@ fn workspace_body<'a>(ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, Message> {
             ctx,
             crate::inspector::view(&p.inspector, ctx),
             inspector.width,
+            DrawerLook::Inspector,
         ));
     }
 
@@ -265,9 +266,7 @@ fn work_area<'a>(ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, Message> {
                 drawer: false,
             },
         );
-        area = area
-            .push(vertical_sep(ctx))
-            .push(side(ctx, board, dock.width));
+        area = area.push(dock_card(board, dock.width));
     }
 
     let mut layers = stack![area].width(Length::Fill).height(Length::Fill);
@@ -280,7 +279,7 @@ fn work_area<'a>(ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, Message> {
                 drawer: true,
             },
         );
-        layers = layers.push(drawer(ctx, board, dock.width));
+        layers = layers.push(drawer(ctx, board, dock.width, DrawerLook::Card));
     }
     layers.into()
 }
@@ -295,23 +294,87 @@ fn side<'a>(ctx: Ctx<'a>, content: Element<'a, Message>, width: f32) -> Element<
         .into()
 }
 
+/// The board panel docked: a rounded card on the window, 8 px from the panes,
+/// the toolbar's rule above and the status bar's below (`ecrans.md` §8).
+fn dock_card<'a>(board: Element<'a, Message>, width: f32) -> Element<'a, Message> {
+    container(board)
+        .width(width + CARD_GAP)
+        .height(Length::Fill)
+        .padding(iced::Padding {
+            top: CARD_GAP,
+            right: CARD_GAP,
+            bottom: CARD_GAP,
+            left: 0.0,
+        })
+        .into()
+}
+
+/// The gap around the board card.
+const CARD_GAP: f32 = 8.0;
+
+/// What a drawer looks like.
+#[derive(Clone, Copy)]
+enum DrawerLook {
+    /// The inspector as an overlay: the window's `bg`, a `border` line on its
+    /// left, and a shadow over the panes (`ecrans.md` §7).
+    Inspector,
+    /// The board card, as docked, lifted by the same shadow.
+    Card,
+}
+
 /// A side panel as a drawer over the right of what is under it. Opaque, so a
 /// press on it never reaches the terminal underneath; its mouse area tells
 /// the shell when the pointer is over it, for "a press outside closes it".
-fn drawer<'a>(ctx: Ctx<'a>, content: Element<'a, Message>, width: f32) -> Element<'a, Message> {
+fn drawer<'a>(
+    ctx: Ctx<'a>,
+    content: Element<'a, Message>,
+    width: f32,
+    look: DrawerLook,
+) -> Element<'a, Message> {
+    let t = ctx.theme;
+    // The shadow is the one `colors.shadow` the palette has no token for yet.
+    let shadow = iced::Shadow {
+        color: t.colors.shadow,
+        offset: iced::Vector::new(-8.0, 0.0),
+        blur_radius: 24.0,
+    };
+    let style = move |_: &iced::Theme| match look {
+        DrawerLook::Inspector => iced::widget::container::Style {
+            background: Some(iced::Background::Color(t.palette.bg)),
+            text_color: Some(t.palette.text),
+            border: iced::Border {
+                color: t.palette.border,
+                width: tokens::BORDER_WIDTH,
+                radius: 0.0.into(),
+            },
+            shadow,
+            ..Default::default()
+        },
+        DrawerLook::Card => iced::widget::container::Style {
+            border: iced::Border {
+                radius: tokens::scale::radius::LG.into(),
+                ..Default::default()
+            },
+            shadow,
+            ..Default::default()
+        },
+    };
     let panel = mouse_area(
         container(content)
             .width(width)
             .height(Length::Fill)
-            .style(style::container::popover(ctx.theme)),
+            .style(style),
     )
     .on_enter(Message::Shell(Action::PointerOverDrawer(true)))
     .on_exit(Message::Shell(Action::PointerOverDrawer(false)));
-    container(opaque(panel))
+    let mut over = container(opaque(panel))
         .width(Length::Fill)
         .height(Length::Fill)
-        .align_x(Alignment::End)
-        .into()
+        .align_x(Alignment::End);
+    if matches!(look, DrawerLook::Card) {
+        over = over.padding(CARD_GAP);
+    }
+    over.into()
 }
 
 /// The floating pieces and the overlays over a window's frame.
