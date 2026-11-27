@@ -5,8 +5,12 @@
 //!
 //! Laid out as a chat reads: the person's messages in bubbles on the right,
 //! the agent's words open on the page, its calls quiet lines of the work log —
-//! an icon for what they do, what they did, folded in runs — and, while it
-//! works, a line that says so at the bottom.
+//! an icon for what they do, what they did, folded in runs in a block of
+//! their own, Teskad's messages in an inset that carries its mark, and, while
+//! it works, a line that says so at the bottom.
+//!
+//! Keyboard: every line that opens, every choice and every setting is in a
+//! focus ring, so Tab reaches it and Space or Enter presses it.
 
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Arc;
@@ -16,11 +20,11 @@ use hangar_core::git::{ChangedFile, Changes};
 use hangar_i18n::{Key, args};
 use hangar_theme::{AgentState, Theme, fonts, style, tokens};
 use hangar_ui::glyph::GlyphState;
-use hangar_ui::{Icon, button as ui_button, empty, icon};
+use hangar_ui::{Icon, button as ui_button, empty, focus, icon};
 use iced::keyboard::{self, key::Named};
 use iced::widget::text_editor::{Binding, KeyPress, Status};
 use iced::widget::{
-    Space, button, column, container, row, rule, scrollable, text, text_editor, text_input,
+    Space, Stack, button, column, container, row, rule, scrollable, text, text_editor, text_input,
 };
 use iced::{Alignment, Background, Border, Color, Element, Length, Padding};
 
@@ -33,6 +37,7 @@ use crate::state::roles::orchestrator_of;
 use crate::state::{AgentActivity, Pane, Workspace};
 
 use super::calls::{self, Kind, Piece};
+use super::dashed::Dashed;
 use super::hangar;
 use super::settled::settled;
 use super::thread::{Outgoing, Sent};
@@ -43,14 +48,40 @@ use crate::orchestration::heard::{Heard, Range};
 /// The widest the column of messages gets: lines longer than this read badly.
 const COLUMN_WIDTH: f32 = 760.0;
 /// How wide a bubble of the person's gets, at most.
-const BUBBLE_WIDTH: f32 = 580.0;
-/// The roundness of a bubble and of the composer.
-const SOFT: f32 = 16.0;
+const BUBBLE_WIDTH: f32 = 520.0;
+/// The line heights of the mock-up: a bubble's 14 px on 21.
+const BUBBLE_LINE: f32 = 1.5;
+/// The header over the conversation.
+const HEADER_HEIGHT: f32 = 44.0;
+/// A block of calls' header line.
+const BLOCK_HEAD_HEIGHT: f32 = 34.0;
+/// The halo around a card that waits on the person.
+const HALO: f32 = 3.0;
+const HALO_ALPHA: f32 = 0.16;
+/// The side of the round Send and Stop buttons, and of a setting's height.
+const ROUND: f32 = 30.0;
+const CHIP_HEIGHT: f32 = 26.0;
+/// A state's glyph.
+const STATE_GLYPH: f32 = 12.0;
 /// The lines of a call's detail or result shown expanded, at most.
 const DETAIL_LINES: usize = 40;
 /// A call's icon, and how far its words sit from the row's edge.
 const CALL_ICON: f32 = 13.0;
 const CALL_INDENT: f32 = tokens::space::SM + CALL_ICON + tokens::space::MD;
+
+/// `content`, a button when there is something to press, in the keyboard's
+/// focus ring: Space and Enter press it too.
+fn ringed<'a>(
+    t: &'a Theme,
+    content: button::Button<'a, Message>,
+    press: Option<Message>,
+    radius: f32,
+) -> Element<'a, Message> {
+    focus::ring(t, content.on_press_maybe(press.clone()))
+        .radius(radius)
+        .on_activate_maybe(press)
+        .into()
+}
 
 /// The input's widget id.
 pub fn input_id() -> iced::widget::Id {
@@ -88,11 +119,41 @@ fn centred<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message>
         .into()
 }
 
+/// Before a first read: the shape of the conversation to come, still, and
+/// the words that say it loads.
 fn loading<'a>(t: &'a Theme, words: String) -> Element<'a, Message> {
-    container(hangar_ui::text::hint(t, words))
-        .center(Length::Fill)
-        .style(style::container::plain(t))
-        .into()
+    let bar = |width: f32, height: f32| {
+        container(Space::new().width(width).height(height)).style(move |_| container::Style {
+            background: Some(Background::Color(t.palette.surface_raised)),
+            border: Border {
+                radius: tokens::scale::radius::MD.into(),
+                ..Border::default()
+            },
+            ..container::Style::default()
+        })
+    };
+    let skeleton = column![
+        row![Space::new().width(Length::Fill), bar(280.0, 40.0)],
+        column![bar(520.0, 14.0), bar(470.0, 14.0), bar(320.0, 14.0)].spacing(tokens::space::MD),
+        bar(440.0, BLOCK_HEAD_HEIGHT),
+        row![
+            hangar_ui::glyph::state(t, GlyphState::Working, STATE_GLYPH),
+            hangar_ui::text::hint(t, words),
+        ]
+        .spacing(tokens::space::MD)
+        .align_y(Alignment::Center),
+    ]
+    .spacing(tokens::space::XXL);
+    container(centred(container(skeleton).padding(Padding {
+        top: 0.0,
+        right: tokens::space::XXXL,
+        bottom: tokens::space::XXXL,
+        left: tokens::space::XXXL,
+    })))
+    .height(Length::Fill)
+    .align_bottom(Length::Fill)
+    .style(style::container::plain(t))
+    .into()
 }
 
 fn no_orchestrator<'a>(ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, Message> {
@@ -145,7 +206,7 @@ fn header<'a>(ctx: Ctx<'a>, pane: &'a Pane) -> Element<'a, Message> {
         row![
             hangar_ui::glyph::state(t, GlyphState::from(state), 7.0),
             text(ctx.t(label))
-                .size(tokens::font_size::CAPTION)
+                .size(tokens::scale::type_scale::CAPTION.size)
                 .style(style::text::state(t, state)),
         ]
         .spacing(tokens::space::SM)
@@ -153,23 +214,23 @@ fn header<'a>(ctx: Ctx<'a>, pane: &'a Pane) -> Element<'a, Message> {
     )
     .padding([tokens::space::XXS, tokens::space::MD])
     .style(move |_| container::Style {
-        background: Some(Background::Color(tint(t.colors.state(state).fill, 0.12))),
         border: Border {
+            color: t.palette.border,
+            width: tokens::BORDER_WIDTH,
             radius: tokens::radius::FULL.into(),
-            ..Border::default()
         },
         ..container::Style::default()
     });
     let mut line = row![
-        icon(Icon::Orchestrator, 15.0).color(t.colors.fg_muted),
+        icon(Icon::Orchestrator, tokens::size::ICON_LG).color(t.palette.accent_text),
         text(pane.name.as_str())
-            .size(tokens::font_size::UI_LG)
-            .font(fonts::ui_semibold())
+            .size(15.0)
+            .font(fonts::display())
             .style(style::text::primary(t)),
         pill,
         Space::new().width(Length::Fill),
     ]
-    .spacing(tokens::space::MD)
+    .spacing(tokens::space::LG)
     .align_y(Alignment::Center);
     let insight = logic.insight(&pane.id);
     let mut meta: Vec<String> = Vec::new();
@@ -187,13 +248,16 @@ fn header<'a>(ctx: Ctx<'a>, pane: &'a Pane) -> Element<'a, Message> {
     if !meta.is_empty() {
         line = line.push(
             text(meta.join(" · "))
-                .size(tokens::font_size::CAPTION)
-                .style(style::text::subtle(t)),
+                .size(tokens::scale::type_scale::LABEL.size)
+                .font(fonts::mono())
+                .style(style::text::muted(t)),
         );
     }
     container(line)
-        .padding([tokens::space::MD, tokens::space::XXL])
+        .padding([0.0, tokens::space::XXL])
         .width(Length::Fill)
+        .height(HEADER_HEIGHT)
+        .align_y(Alignment::Center)
         .into()
 }
 
@@ -204,7 +268,7 @@ fn messages<'a>(
     chat: &'a Chat,
 ) -> Element<'a, Message> {
     let t = ctx.theme;
-    let mut list = column![].spacing(tokens::space::XL).width(Length::Fill);
+    let mut list = column![].spacing(tokens::space::XXL).width(Length::Fill);
     if chat.reading_older {
         list = list.push(centre_line(hangar_ui::text::hint(
             t,
@@ -271,10 +335,10 @@ fn messages<'a>(
     }
     let ws_id = ws.id.clone();
     let content = centred(container(list).padding(Padding {
-        top: tokens::space::XXXL,
-        right: tokens::space::XXL,
+        top: tokens::scale::space::S5,
+        right: tokens::space::XXXL,
         bottom: tokens::space::XL,
-        left: tokens::space::XXL,
+        left: tokens::space::XXXL,
     }));
     // The working line moves on its own clock: outside the laid-out messages.
     let mut page = column![settled(layout_key(ctx, pane, chat, tasks), content)];
@@ -282,9 +346,9 @@ fn messages<'a>(
         page = page.push(centred(container(working).width(Length::Fill).padding(
             Padding {
                 top: 0.0,
-                right: tokens::space::XXL,
+                right: tokens::space::XXXL,
                 bottom: tokens::space::XL,
-                left: tokens::space::XXL,
+                left: tokens::space::XXXL,
             },
         )));
     }
@@ -403,7 +467,7 @@ fn item_view<'a>(
             let mut bubble = column![
                 text(words.as_str())
                     .size(tokens::font_size::BODY)
-                    .line_height(tokens::line_height::BODY)
+                    .line_height(BUBBLE_LINE)
                     .style(style::text::primary(t))
             ]
             .spacing(tokens::space::XS);
@@ -420,35 +484,16 @@ fn item_view<'a>(
             text: words,
             from: Sender::Hangar,
             ..
-        } => hangar_message(ctx, ws, chat, item, words),
+        } => teskad(ctx, item.at, hangar_message(ctx, ws, chat, item, words)),
         Body::Assistant { .. } => {
             let Some((_, content)) = chat.prose.get(&item.id) else {
                 return Space::new().into();
             };
             container(rich::view(t, content, &chat.code))
-                .padding([0.0, tokens::space::SM])
                 .width(Length::Fill)
                 .into()
         }
-        Body::Action {
-            tool,
-            title,
-            detail,
-            result,
-            state,
-        } => action(
-            ctx,
-            ws,
-            chat,
-            item,
-            Action {
-                tool,
-                title: &titles::title(ctx.i18n, tool, title, detail.as_deref(), task_title),
-                detail: detail.as_deref(),
-                result: result.as_ref(),
-                state: *state,
-            },
-        ),
+        Body::Action { .. } => framed(t, action_item(ctx, ws, chat, item, task_title)),
         Body::Question {
             questions, answer, ..
         } => asked(ctx, questions, answer.as_deref()),
@@ -490,23 +535,28 @@ fn run_view<'a>(
     let key = Piece::key(first);
     let open = chat.expanded.contains(&key);
     let tally = calls::tally(run);
+    let state = if tally.running > 0 {
+        GlyphState::Working
+    } else if tally.failed > 0 {
+        GlyphState::Failed
+    } else {
+        GlyphState::Completed
+    };
+    // The icon of what the run does, when it does one thing only.
+    let kind = match tally.kinds.as_slice() {
+        [_] => match &first.body {
+            Body::Action { tool, .. } => call_icon(tool),
+            _ => Icon::Bolt,
+        },
+        _ => Icon::Terminal,
+    };
     let mut line = row![
-        container(
-            icon(
-                if open {
-                    Icon::ChevronDown
-                } else {
-                    Icon::ChevronRight
-                },
-                11.0,
-            )
-            .color(t.colors.fg_subtle)
-        )
-        .width(CALL_ICON)
-        .center_x(CALL_ICON),
+        chevron(t, Some(open)),
+        icon(kind, CALL_ICON).color(t.palette.text_secondary),
         text(calls::summary(ctx.i18n, &tally))
             .size(tokens::font_size::CAPTION)
-            .style(style::text::muted(t)),
+            .font(fonts::ui_medium())
+            .style(style::text::primary(t)),
     ]
     .spacing(tokens::space::MD)
     .align_y(Alignment::Center);
@@ -527,30 +577,83 @@ fn run_view<'a>(
                 ctx.i18n.tn(Key::ChatConvCallsRunning, tally.running, &[])
             ))
             .size(tokens::font_size::CAPTION)
-            .color(t.colors.state_working),
+            .color(t.palette.status.running),
         );
     }
-    let head = button(line)
-        .padding([tokens::space::XS, tokens::space::SM])
-        .width(Length::Fill)
-        .style(style::button::row(t, false))
-        .on_press(msg(Msg::Toggle(ws.id.clone(), key)));
+    let line = line
+        .push(Space::new().width(Length::Fill))
+        .push(hangar_ui::glyph::state(t, state, STATE_GLYPH));
+    let head = block_head(t, line, Some(msg(Msg::Toggle(ws.id.clone(), key))));
     if !open {
-        return head.into();
+        return framed(t, head);
     }
     let mut list = column![].spacing(tokens::space::XXS);
     for item in run {
-        list = list.push(item_view(ctx, ws, chat, item, task_title));
+        list = list.push(action_item(ctx, ws, chat, item, task_title));
     }
-    column![
-        head,
-        container(list).padding(Padding {
-            left: tokens::space::XL,
-            ..Padding::ZERO
+    framed(
+        t,
+        column![
+            head,
+            container(list).padding(Padding {
+                top: 0.0,
+                right: tokens::space::XS,
+                bottom: tokens::space::SM,
+                left: tokens::space::XL,
+            })
+        ],
+    )
+}
+
+/// The block calls are shown in: a framed surface, folded or not.
+fn framed<'a>(t: &'a Theme, content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
+    container(content)
+        .width(Length::Fill)
+        .style(move |_| container::Style {
+            background: Some(Background::Color(t.palette.surface)),
+            border: Border {
+                color: t.palette.border,
+                width: tokens::BORDER_WIDTH,
+                radius: tokens::scale::radius::MD.into(),
+            },
+            ..container::Style::default()
         })
-    ]
-    .spacing(tokens::space::XXS)
-    .into()
+        .into()
+}
+
+/// A block's header line, a button when there is something to open.
+fn block_head<'a>(
+    t: &'a Theme,
+    line: impl Into<Element<'a, Message>>,
+    press: Option<Message>,
+) -> Element<'a, Message> {
+    let head = button(
+        container(line)
+            .height(Length::Shrink)
+            .padding([tokens::space::SM, 0.0]),
+    )
+    .padding(Padding::from([0.0, tokens::space::XL]))
+    .width(Length::Fill)
+    .style(style::button::row(t, false));
+    ringed(t, head, press, tokens::scale::radius::MD)
+}
+
+/// The chevron of a line that opens, or its room on one that does not.
+fn chevron<'a>(t: &'a Theme, open: Option<bool>) -> Element<'a, Message> {
+    let mark: Element<'a, Message> = match open {
+        Some(open) => icon(
+            if open {
+                Icon::ChevronDown
+            } else {
+                Icon::ChevronRight
+            },
+            11.0,
+        )
+        .color(t.palette.text_muted)
+        .into(),
+        None => Space::new().into(),
+    };
+    container(mark).width(CALL_ICON).center_x(CALL_ICON).into()
 }
 
 /// A bubble of the person's, on the right.
@@ -564,18 +667,58 @@ fn mine<'a>(
         .max_width(BUBBLE_WIDTH)
         .style(move |_| container::Style {
             background: Some(Background::Color(tint(
-                t.colors.raised,
+                t.palette.surface_raised,
                 if faded { 0.6 } else { 1.0 },
             ))),
             border: Border {
-                color: t.colors.line,
+                color: t.palette.border,
                 width: tokens::BORDER_WIDTH,
-                radius: SOFT.into(),
+                radius: tokens::scale::radius::LG.into(),
             },
-            text_color: Some(t.colors.fg),
+            text_color: Some(t.palette.text),
             ..container::Style::default()
         });
     row![Space::new().width(Length::Fill), bubble].into()
+}
+
+/// A message of Teskad's, never taken for the person's: an inset of its own,
+/// under its mark and the Fork, with when it was written.
+fn teskad<'a>(ctx: Ctx<'a>, at: i64, content: Element<'a, Message>) -> Element<'a, Message> {
+    let t = ctx.theme;
+    let mut head = row![
+        icon(Icon::Orchestrator, tokens::size::ICON).color(t.palette.accent_text),
+        text(format!("[{}]", hangar_i18n::APP_NAME))
+            .size(tokens::scale::type_scale::LABEL.size)
+            .font(fonts::mono())
+            .color(t.palette.accent_text),
+        Space::new().width(Length::Fill),
+    ]
+    .spacing(tokens::space::MD)
+    .align_y(Alignment::Center);
+    if at > 0 {
+        head = head.push(
+            text(crate::inspector::format::clock_time(at))
+                .size(tokens::scale::type_scale::LABEL.size)
+                .font(fonts::mono())
+                .style(style::text::muted(t)),
+        );
+    }
+    container(
+        column![container(head).padding([0.0, tokens::space::SM]), content]
+            .spacing(tokens::space::SM),
+    )
+    .padding([tokens::space::LG, tokens::space::SM])
+    .width(Length::Fill)
+    .style(move |_| container::Style {
+        background: Some(Background::Color(t.palette.selection_bg)),
+        border: Border {
+            color: t.palette.border_strong,
+            width: tokens::BORDER_WIDTH,
+            radius: tokens::scale::radius::MD.into(),
+        },
+        ..container::Style::default()
+    })
+    .into()
 }
 
 /// How long the first line of a message gets in its one line.
@@ -606,9 +749,19 @@ fn heard_line(ctx: Ctx<'_>, heard: &Heard) -> (Icon, Color, String) {
             ..
         } => {
             let (glyph, colour, key) = match outcome {
-                DeliveryOutcome::Landed => (Icon::Check, c.success, Key::ChatConvHeardLanded),
-                DeliveryOutcome::Done => (Icon::Check, c.success, Key::ChatConvHeardDone),
-                DeliveryOutcome::Ready => (Icon::Merge, c.accent_hi, Key::ChatConvHeardReady),
+                DeliveryOutcome::Landed => (
+                    Icon::Check,
+                    t.palette.status.completed,
+                    Key::ChatConvHeardLanded,
+                ),
+                DeliveryOutcome::Done => (
+                    Icon::Check,
+                    t.palette.status.completed,
+                    Key::ChatConvHeardDone,
+                ),
+                DeliveryOutcome::Ready => {
+                    (Icon::Merge, t.palette.accent_text, Key::ChatConvHeardReady)
+                }
                 DeliveryOutcome::Conflict => (Icon::Alert, c.warning, Key::ChatConvHeardConflict),
                 DeliveryOutcome::CheckFailed => {
                     (Icon::Alert, c.warning, Key::ChatConvHeardCheckFailed)
@@ -618,7 +771,11 @@ fn heard_line(ctx: Ctx<'_>, heard: &Heard) -> (Icon, Color, String) {
                 }
                 DeliveryOutcome::Dirty => (Icon::Alert, c.warning, Key::ChatConvHeardDirty),
                 DeliveryOutcome::Stale => (Icon::Alert, c.warning, Key::ChatConvHeardStale),
-                DeliveryOutcome::Error => (Icon::Alert, c.danger, Key::ChatConvHeardFailed),
+                DeliveryOutcome::Error => (
+                    Icon::Alert,
+                    t.palette.status.failed,
+                    Key::ChatConvHeardFailed,
+                ),
             };
             (
                 glyph,
@@ -653,7 +810,7 @@ fn heard_line(ctx: Ctx<'_>, heard: &Heard) -> (Icon, Color, String) {
         }
         Heard::Unblocked { task } => (
             Icon::Lock,
-            c.fg_muted,
+            t.palette.text_muted,
             say(Key::ChatConvHeardUnblocked, &[("task", task.as_str())]),
         ),
         Heard::RecheckDue { task } => (
@@ -676,11 +833,11 @@ fn heard_line(ctx: Ctx<'_>, heard: &Heard) -> (Icon, Color, String) {
                     &[("task", task.as_str()), ("text", text.as_str())],
                 ),
             };
-            (Icon::Bubble, c.fg_muted, words)
+            (Icon::Bubble, t.palette.text_muted, words)
         }
         Heard::Moved { task, from, to } => (
             Icon::ArrowRight,
-            c.fg_muted,
+            t.palette.text_muted,
             say(
                 Key::ChatConvHeardMoved,
                 &[
@@ -698,16 +855,16 @@ fn heard_line(ctx: Ctx<'_>, heard: &Heard) -> (Icon, Color, String) {
                 ),
                 None => say(Key::ChatConvHeardStarted, &[("worker", worker.as_str())]),
             };
-            (Icon::Play, c.state_working, words)
+            (Icon::Play, t.palette.status.running, words)
         }
         Heard::Stopped { worker, .. } => (
             Icon::Stop,
-            c.fg_muted,
+            t.palette.text_muted,
             say(Key::ChatConvHeardStopped, &[("worker", worker.as_str())]),
         ),
         Heard::Exited { worker, .. } => (
             Icon::Close,
-            c.fg_muted,
+            t.palette.text_muted,
             say(Key::ChatConvHeardExited, &[("worker", worker.as_str())]),
         ),
         Heard::Waiting {
@@ -765,14 +922,13 @@ fn note_line<'a>(
             },
             11.0,
         )
-        .color(t.colors.fg_subtle),
+        .color(t.palette.text_muted),
     );
-    button(line)
+    let line = button(line)
         .padding([tokens::space::XS, tokens::space::SM])
         .width(Length::Fill)
-        .style(style::button::row(t, false))
-        .on_press(press)
-        .into()
+        .style(style::button::row(t, false));
+    ringed(t, line, Some(press), tokens::radius::SM)
 }
 
 /// The most files of a delivery listed under its line; the rest are in the
@@ -852,17 +1008,22 @@ fn delivery_note<'a>(
                 },
                 11.0,
             )
-            .color(t.colors.fg_subtle),
+            .color(t.palette.text_muted),
         ]
         .spacing(tokens::space::MD)
         .align_y(Alignment::Center),
     )
     .padding([tokens::space::XS, tokens::space::SM])
     .width(Length::Fill)
-    .style(style::button::row(t, false))
-    .on_press(msg(Msg::Toggle(ws.id.clone(), key)));
+    .style(style::button::row(t, false));
+    let head = ringed(
+        t,
+        head,
+        Some(msg(Msg::Toggle(ws.id.clone(), key))),
+        tokens::radius::SM,
+    );
     if !open {
-        return head.into();
+        return head;
     }
     let open_at = |file: Option<String>| {
         msg(Msg::OpenChanges {
@@ -876,41 +1037,44 @@ fn delivery_note<'a>(
     for file in changes.files.iter().take(DELIVERY_FILES) {
         let c = &t.colors;
         let (mark, tone) = match file.status.as_str() {
-            "A" | "C" => ("A", c.success),
-            "D" => ("D", c.danger),
-            "R" => ("R", c.accent),
+            "A" | "C" => ("A", t.palette.status.completed),
+            "D" => ("D", t.palette.status.failed),
+            "R" => ("R", t.palette.accent_text),
             _ => ("M", c.warning),
         };
         let shown = match &file.old_path {
             Some(old) if file.status == "R" => format!("{old} → {}", file.path),
             _ => file.path.clone(),
         };
-        files = files.push(
-            button(
-                row![
-                    container(
-                        text(mark)
-                            .size(tokens::font_size::MICRO)
-                            .font(fonts::mono())
-                            .color(tone)
-                    )
-                    .width(CALL_ICON)
-                    .center_x(CALL_ICON),
-                    text(shown)
-                        .size(tokens::font_size::CAPTION)
+        let line = button(
+            row![
+                container(
+                    text(mark)
+                        .size(tokens::font_size::MICRO)
                         .font(fonts::mono())
-                        .width(Length::Fill)
-                        .style(style::text::secondary(t)),
-                    counts(t, file.additions.unwrap_or(0), file.deletions.unwrap_or(0)),
-                ]
-                .spacing(tokens::space::MD)
-                .align_y(Alignment::Center),
-            )
-            .padding([tokens::space::XXS, tokens::space::SM])
-            .width(Length::Fill)
-            .style(style::button::row(t, false))
-            .on_press(open_at(Some(file.path.clone()))),
-        );
+                        .color(tone)
+                )
+                .width(CALL_ICON)
+                .center_x(CALL_ICON),
+                text(shown)
+                    .size(tokens::font_size::CAPTION)
+                    .font(fonts::mono())
+                    .width(Length::Fill)
+                    .style(style::text::secondary(t)),
+                counts(t, file.additions.unwrap_or(0), file.deletions.unwrap_or(0)),
+            ]
+            .spacing(tokens::space::MD)
+            .align_y(Alignment::Center),
+        )
+        .padding([tokens::space::XXS, tokens::space::SM])
+        .width(Length::Fill)
+        .style(style::button::row(t, false));
+        files = files.push(ringed(
+            t,
+            line,
+            Some(open_at(Some(file.path.clone()))),
+            tokens::radius::SM,
+        ));
     }
     let rest = changes.files.len().saturating_sub(DELIVERY_FILES);
     let all = if rest > 0 {
@@ -920,18 +1084,15 @@ fn delivery_note<'a>(
     } else {
         ctx.t(Key::ChatConvChangesAll).into_owned()
     };
+    let all = button(
+        text(all)
+            .size(tokens::font_size::CAPTION)
+            .style(style::text::accent(t)),
+    )
+    .padding([tokens::space::XXS, tokens::space::SM])
+    .style(style::button::row(t, false));
     files = files.push(
-        container(
-            button(
-                text(all)
-                    .size(tokens::font_size::CAPTION)
-                    .style(style::text::accent(t)),
-            )
-            .padding([tokens::space::XXS, tokens::space::SM])
-            .style(style::button::row(t, false))
-            .on_press(open_at(None)),
-        )
-        .padding(Padding {
+        container(ringed(t, all, Some(open_at(None)), tokens::radius::SM)).padding(Padding {
             left: CALL_ICON + tokens::space::MD,
             ..Padding::ZERO
         }),
@@ -968,7 +1129,7 @@ fn hangar_message<'a>(
                 let (glyph, colour, words) = match line {
                     hangar::Line::Heard(heard) => heard_line(ctx, heard),
                     hangar::Line::Said(words) => {
-                        (Icon::Broadcast, t.colors.fg_muted, words.clone())
+                        (Icon::Broadcast, t.palette.text_muted, words.clone())
                     }
                 };
                 let delivered = match line {
@@ -1004,7 +1165,13 @@ fn hangar_message<'a>(
                 )
                 .into_owned();
             (
-                note_line(t, Icon::Bubble, t.colors.fg_muted, words, more.then(toggle)),
+                note_line(
+                    t,
+                    Icon::Bubble,
+                    t.palette.text_muted,
+                    words,
+                    more.then(toggle),
+                ),
                 more.then_some(said),
             )
         }
@@ -1016,7 +1183,13 @@ fn hangar_message<'a>(
                 .into_owned();
             let more = !state.trim().is_empty();
             (
-                note_line(t, Icon::Board, t.colors.fg_muted, words, more.then(toggle)),
+                note_line(
+                    t,
+                    Icon::Board,
+                    t.palette.text_muted,
+                    words,
+                    more.then(toggle),
+                ),
                 more.then_some(state),
             )
         }
@@ -1027,7 +1200,7 @@ fn hangar_message<'a>(
                 note_line(
                     t,
                     Icon::Broadcast,
-                    t.colors.fg_muted,
+                    t.palette.text_muted,
                     line,
                     more.then(toggle),
                 ),
@@ -1081,8 +1254,42 @@ fn clipped(words: &str, at_most: usize) -> String {
     format!("{}\n…", head.join("\n"))
 }
 
+/// The line of call `item`.
+fn action_item<'a>(
+    ctx: Ctx<'a>,
+    ws: &'a Workspace,
+    chat: &'a Chat,
+    item: &'a ChatItem,
+    task_title: &dyn Fn(&str) -> Option<String>,
+) -> Element<'a, Message> {
+    let Body::Action {
+        tool,
+        title,
+        detail,
+        result,
+        state,
+    } = &item.body
+    else {
+        return Space::new().into();
+    };
+    action(
+        ctx,
+        ws,
+        chat,
+        item,
+        Action {
+            tool,
+            title: &titles::title(ctx.i18n, tool, title, detail.as_deref(), task_title),
+            detail: detail.as_deref(),
+            result: result.as_ref(),
+            state: *state,
+        },
+    )
+}
+
 /// A call, a line of the work log: what kind of thing it does, what it did,
-/// how it went; its detail below once pressed.
+/// how it went; its detail below once pressed, the command and then what it
+/// printed.
 fn action<'a>(
     ctx: Ctx<'a>,
     ws: &'a Workspace,
@@ -1091,24 +1298,29 @@ fn action<'a>(
     call: Action<'_>,
 ) -> Element<'a, Message> {
     let t = ctx.theme;
-    let (colour, hint) = match call.state {
+    let (state, colour, hint) = match call.state {
         CallState::Running => (
-            t.colors.state_working,
+            GlyphState::Working,
+            t.palette.status.running,
             Some(ctx.t(Key::ChatConvActionRunning)),
         ),
-        CallState::Done => (t.colors.fg_muted, None),
-        CallState::Error => (t.colors.danger, Some(ctx.t(Key::ChatConvActionFailed))),
+        CallState::Done => (GlyphState::Completed, t.palette.text_secondary, None),
+        CallState::Error => (
+            GlyphState::Failed,
+            t.palette.status.failed,
+            Some(ctx.t(Key::ChatConvActionFailed)),
+        ),
     };
     let more = call.detail.is_some() || call.result.is_some_and(|r| !r.text.trim().is_empty());
     let open = more && chat.expanded.contains(&item.id);
     let mut line = row![
-        container(icon(call_icon(call.tool), CALL_ICON).color(colour))
-            .width(CALL_ICON)
-            .center_x(CALL_ICON),
+        chevron(t, more.then_some(open)),
+        icon(call_icon(call.tool), CALL_ICON).color(colour),
         container(
             text(call.title.to_string())
-                .size(tokens::font_size::UI)
-                .style(style::text::secondary(t)),
+                .size(tokens::font_size::CAPTION)
+                .font(fonts::ui_medium())
+                .style(style::text::primary(t)),
         )
         .width(Length::Fill),
     ]
@@ -1117,43 +1329,38 @@ fn action<'a>(
     if let Some(hint) = hint {
         line = line.push(text(hint).size(tokens::font_size::MICRO).color(colour));
     }
-    if more {
-        line = line.push(
-            icon(
-                if open {
-                    Icon::ChevronDown
-                } else {
-                    Icon::ChevronRight
-                },
-                11.0,
-            )
-            .color(t.colors.fg_subtle),
-        );
-    }
-    let head = button(line)
-        .padding([tokens::space::XS, tokens::space::SM])
-        .width(Length::Fill)
-        .style(style::button::row(t, false))
-        .on_press_maybe(more.then(|| msg(Msg::Toggle(ws.id.clone(), item.id.clone()))));
+    let line = line.push(hangar_ui::glyph::state(t, state, STATE_GLYPH));
+    let head = block_head(
+        t,
+        line,
+        more.then(|| msg(Msg::Toggle(ws.id.clone(), item.id.clone()))),
+    );
     if !open {
-        return head.into();
+        return head;
     }
+    let mono = |words: String| {
+        text(words)
+            .size(tokens::font_size::LABEL)
+            .line_height(tokens::line_height::BODY)
+            .font(fonts::mono())
+            .width(Length::Fill)
+    };
     let mut detail = column![].spacing(tokens::space::SM);
     if let Some(words) = call.detail {
-        detail = detail.push(mono_block(
-            t,
-            clipped(&titles::detail(call.tool, words), DETAIL_LINES),
-        ));
+        detail = detail.push(
+            mono(clipped(&titles::detail(call.tool, words), DETAIL_LINES))
+                .style(style::text::primary(t)),
+        );
     }
     if let Some(result) = call.result.filter(|r| !r.text.trim().is_empty()) {
         detail = detail.push(
             text(ctx.t(Key::ChatConvActionResult))
                 .size(tokens::font_size::MICRO)
                 .font(fonts::ui_semibold())
-                .style(style::text::subtle(t)),
+                .style(style::text::muted(t)),
         );
-        let block = mono_block(t, clipped(&result.text, DETAIL_LINES));
-        detail = detail.push(block);
+        detail =
+            detail.push(mono(clipped(&result.text, DETAIL_LINES)).style(style::text::muted(t)));
         if !result.ok {
             detail = detail.push(
                 text(ctx.t(Key::ChatConvActionFailed))
@@ -1165,10 +1372,10 @@ fn action<'a>(
     column![
         head,
         container(detail).padding(Padding {
-            top: tokens::space::XXS,
-            right: tokens::space::SM,
-            bottom: tokens::space::SM,
-            left: CALL_INDENT,
+            top: 0.0,
+            right: tokens::space::XL,
+            bottom: tokens::space::LG,
+            left: tokens::space::XL + CALL_ICON + tokens::space::MD,
         })
     ]
     .into()
@@ -1179,16 +1386,16 @@ fn mono_block<'a>(t: &'a Theme, words: String) -> Element<'a, Message> {
         text(words)
             .size(tokens::font_size::LABEL)
             .font(fonts::mono())
-            .style(style::text::secondary(t)),
+            .style(style::text::primary(t)),
     )
     .padding([tokens::space::MD, tokens::space::LG])
     .width(Length::Fill)
     .style(move |_| container::Style {
-        background: Some(Background::Color(t.colors.bg_sunken)),
+        background: Some(Background::Color(t.palette.surface_sunken)),
         border: Border {
-            color: t.colors.line,
+            color: t.palette.border,
             width: tokens::BORDER_WIDTH,
-            radius: tokens::radius::LG.into(),
+            radius: tokens::radius::MD.into(),
         },
         ..container::Style::default()
     })
@@ -1239,7 +1446,7 @@ fn asked<'a>(
         stack = stack.push(line);
     }
     row![
-        container(icon(Icon::Bubble, CALL_ICON).color(t.colors.fg_muted))
+        container(icon(Icon::Bubble, CALL_ICON).color(t.palette.text_muted))
             .width(CALL_ICON)
             .center_x(CALL_ICON),
         container(stack).width(Length::Fill),
@@ -1312,7 +1519,7 @@ struct CardParts<'a> {
 }
 
 /// The card of what the pane waits on the person for, in the composer's
-/// place, tinted with the colour of waiting.
+/// place, framed in the accent with its halo.
 fn card<'a>(
     ctx: Ctx<'a>,
     ws: &'a Workspace,
@@ -1371,14 +1578,26 @@ fn card<'a>(
         );
     }
     stack = stack.push(parts.actions);
+    let inside = container(stack)
+        .padding([tokens::space::XL, tokens::space::XL + tokens::space::XXS])
+        .width(Length::Fill)
+        .style(move |_| container::Style {
+            background: Some(Background::Color(t.palette.surface)),
+            border: Border {
+                color: t.palette.accent,
+                width: tokens::BORDER_WIDTH,
+                radius: tokens::scale::radius::MD.into(),
+            },
+            ..container::Style::default()
+        });
     Some(
-        container(stack)
-            .padding([tokens::space::XL, tokens::space::XL])
+        container(inside)
+            .padding(HALO)
             .width(Length::Fill)
             .style(move |_| container::Style {
-                background: Some(Background::Color(tint(t.colors.state_waiting_fill, 0.07))),
+                background: Some(Background::Color(tint(t.palette.accent, HALO_ALPHA))),
                 border: Border {
-                    radius: SOFT.into(),
+                    radius: (tokens::scale::radius::MD + HALO).into(),
                     ..Border::default()
                 },
                 ..container::Style::default()
@@ -1387,13 +1606,16 @@ fn card<'a>(
     )
 }
 
-fn card_title<'a>(t: &'a Theme, words: String) -> Element<'a, Message> {
+/// A card's title: what it is about, and at the end the mark of what waits.
+fn card_title<'a>(t: &'a Theme, glyph: Icon, words: String) -> Element<'a, Message> {
     row![
-        icon(Icon::Bell, 14.0).color(t.colors.state_waiting),
+        icon(glyph, tokens::size::ICON_LG).color(t.palette.accent_text),
         text(words)
-            .size(tokens::font_size::UI_LG)
+            .size(tokens::font_size::UI)
             .font(fonts::ui_semibold())
+            .width(Length::Fill)
             .style(style::text::primary(t)),
+        hangar_ui::glyph::state(t, GlyphState::Waiting, 8.0),
     ]
     .spacing(tokens::space::MD)
     .align_y(Alignment::Center)
@@ -1439,12 +1661,12 @@ fn choice<'a>(
                 .style(style::text::muted(t)),
         );
     }
-    button(
+    let line = button(
         row![
             icon(mark, 12.0).color(if on {
-                t.colors.accent
+                t.palette.accent_text
             } else {
-                t.colors.fg_subtle
+                t.palette.text_muted
             }),
             words
         ]
@@ -1453,9 +1675,8 @@ fn choice<'a>(
     )
     .padding([tokens::space::MD, tokens::space::LG])
     .width(Length::Fill)
-    .style(style::button::toggle(t, on))
-    .on_press_maybe(press)
-    .into()
+    .style(style::button::toggle(t, on));
+    ringed(t, line, press, tokens::radius::MD)
 }
 
 /// The question card: one question at a time, as Claude Code asks them —
@@ -1478,6 +1699,7 @@ fn question_card<'a>(
     let mut title = row![
         container(card_title(
             t,
+            Icon::Bubble,
             ctx.i18n
                 .t_with(
                     Key::ChatConvQuestionTitle,
@@ -1633,12 +1855,13 @@ fn plan_card<'a>(
     let actions = column![
         crate::keymap::guard(ctx, feedback),
         row![
-            Space::new().width(Length::Fill),
-            ui_button::secondary(t, ctx.t(Key::ChatConvPlanKeep))
-                .on_press_maybe(free.then(|| msg(Msg::Plan(ws.id.clone(), false)))),
             ui_button::primary(t, ctx.t(Key::ChatConvPlanApprove))
                 .icon(Icon::Check)
+                .size(ui_button::Size::Large)
                 .on_press_maybe(free.then(|| msg(Msg::Plan(ws.id.clone(), true)))),
+            ui_button::secondary(t, ctx.t(Key::ChatConvPlanKeep))
+                .size(ui_button::Size::Large)
+                .on_press_maybe(free.then(|| msg(Msg::Plan(ws.id.clone(), false)))),
         ]
         .spacing(tokens::space::MD)
         .align_y(Alignment::Center),
@@ -1647,6 +1870,7 @@ fn plan_card<'a>(
     CardParts {
         title: card_title(
             t,
+            Icon::Flag,
             ctx.i18n
                 .t_with(Key::ChatConvPlanTitle, &args!("name" => pane.name.as_str()))
                 .into_owned(),
@@ -1678,7 +1902,7 @@ fn permission_card<'a>(
     let what = titles::title(ctx.i18n, tool, title, detail, &task_title);
     let mut body = column![
         row![
-            container(icon(call_icon(tool), CALL_ICON).color(t.colors.fg_muted))
+            container(icon(call_icon(tool), CALL_ICON).color(t.palette.text_muted))
                 .width(CALL_ICON)
                 .center_x(CALL_ICON),
             text(what)
@@ -1697,18 +1921,19 @@ fn permission_card<'a>(
         ));
     }
     let actions = row![
-        Space::new().width(Length::Fill),
-        ui_button::secondary(t, ctx.t(Key::ChatConvPermissionDeny))
-            .on_press_maybe(free.then(|| msg(Msg::Permit(ws.id.clone(), false)))),
         ui_button::primary(t, ctx.t(Key::ChatConvPermissionAllow))
-            .icon(Icon::Check)
+            .size(ui_button::Size::Large)
             .on_press_maybe(free.then(|| msg(Msg::Permit(ws.id.clone(), true)))),
+        ui_button::text_button(t, ctx.t(Key::ChatConvPermissionDeny))
+            .size(ui_button::Size::Large)
+            .on_press_maybe(free.then(|| msg(Msg::Permit(ws.id.clone(), false)))),
     ]
     .spacing(tokens::space::MD)
     .align_y(Alignment::Center);
     CardParts {
         title: card_title(
             t,
+            Icon::Lock,
             ctx.i18n
                 .t_with(
                     Key::ChatConvPermissionTitle,
@@ -1762,15 +1987,14 @@ fn keys(ws: String) -> impl Fn(KeyPress) -> Option<Binding<Message>> {
 /// The editor inside the composer: no field of its own, the composer is.
 fn bare_editor(t: &Theme) -> impl Fn(&iced::Theme, Status) -> text_editor::Style + '_ {
     move |_, status| {
-        let c = &t.colors;
         let disabled = matches!(status, Status::Disabled);
         let fade = |color: Color| tint(color, if disabled { 0.6 } else { 1.0 });
         text_editor::Style {
             background: Background::Color(Color::TRANSPARENT),
             border: Border::default(),
-            placeholder: fade(c.fg_subtle),
-            value: fade(c.fg),
-            selection: c.accent_ring,
+            placeholder: fade(t.palette.text_muted),
+            value: fade(t.palette.text),
+            selection: t.palette.selection_bg,
         }
     }
 }
@@ -1790,10 +2014,10 @@ fn round<'a>(
 ) -> Element<'a, Message> {
     let on = press.is_some();
     let colour = match (primary, on) {
-        (true, true) => t.colors.accent_fg,
-        (true, false) => tint(t.colors.accent_fg, 0.7),
-        (false, true) => t.colors.fg,
-        (false, false) => t.colors.fg_subtle,
+        (true, true) => t.palette.on_accent,
+        (true, false) => tint(t.palette.on_accent, 0.7),
+        (false, true) => t.palette.text,
+        (false, false) => t.palette.text_muted,
     };
     let mark: Element<'a, Message> = match glyph {
         Glyph::Icon(glyph) => icon(glyph, 14.0).color(colour).into(),
@@ -1810,7 +2034,7 @@ fn round<'a>(
             })
             .into(),
     };
-    button(container(mark).center_x(30.0).center_y(30.0))
+    let round = button(container(mark).center_x(ROUND).center_y(ROUND))
         .padding(0)
         .style(move |theme, status| {
             let mut look = if primary {
@@ -1820,12 +2044,11 @@ fn round<'a>(
             };
             look.border.radius = tokens::radius::FULL.into();
             if primary && !on {
-                look.background = Some(Background::Color(tint(t.colors.accent, 0.35)));
+                look.background = Some(Background::Color(tint(t.palette.accent, 0.35)));
             }
             look
-        })
-        .on_press_maybe(press)
-        .into()
+        });
+    ringed(t, round, press, tokens::radius::FULL)
 }
 
 /// The composer: the input, and under it what to know before sending, Stop
@@ -1839,8 +2062,9 @@ fn chip<'a>(
     on: bool,
     press: Option<Message>,
 ) -> Element<'a, Message> {
-    let mut inside = row![text(words).size(tokens::font_size::CAPTION)]
-        .spacing(tokens::space::XS)
+    let mut inside = row![text(words).size(tokens::scale::type_scale::CAPTION.size)]
+        .spacing(tokens::space::SM)
+        .height(Length::Fill)
         .align_y(Alignment::Center);
     if let Some(open) = open {
         inside = inside.push(
@@ -1852,14 +2076,22 @@ fn chip<'a>(
                 },
                 10.0,
             )
-            .color(t.colors.fg_subtle),
+            .color(t.palette.text_muted),
         );
     }
-    button(inside)
-        .padding([tokens::space::XXS, tokens::space::SM])
-        .style(style::button::toggle(t, on))
-        .on_press_maybe(press)
-        .into()
+    let chip = button(inside)
+        .padding([0.0, tokens::space::LG])
+        .height(CHIP_HEIGHT)
+        .style(move |theme, status| {
+            let mut look = style::button::toggle(t, on)(theme, status);
+            look.border.radius = tokens::radius::SM.into();
+            if !on {
+                look.border.color = t.palette.border;
+                look.border.width = tokens::BORDER_WIDTH;
+            }
+            look
+        });
+    ringed(t, chip, press, tokens::radius::SM)
 }
 
 /// The words of an effort level.
@@ -1941,7 +2173,7 @@ fn settings_chips<'a>(
             ctx.t(plan_hint).into_owned(),
         ),
     ]
-    .spacing(tokens::space::XS)
+    .spacing(tokens::space::SM)
     .align_y(Alignment::Center)
     .into()
 }
@@ -2005,7 +2237,7 @@ fn choices<'a>(
 const QUEUED_WORDS: usize = 120;
 
 /// What the person sent while the orchestrator works, waiting for its turn
-/// to end, at the top of the input: each can be taken back, or taken back
+/// to end, in a dashed frame over the input: each can be taken back, or taken back
 /// into the input to be changed; "Send now" stops the turn, and the first
 /// one goes at once.
 fn queue<'a>(
@@ -2020,19 +2252,16 @@ fn queue<'a>(
     if waiting.is_empty() {
         return None;
     }
+    let title = ctx.i18n.t_with(
+        Key::ChatConvQueueTitle,
+        &args!("name" => pane.name.as_str()),
+    );
     let mut head = row![
-        icon(Icon::Clock, 12.0).color(t.colors.fg_subtle),
-        text(
-            ctx.i18n
-                .t_with(
-                    Key::ChatConvQueueTitle,
-                    &args!("name" => pane.name.as_str())
-                )
-                .into_owned()
-        )
-        .size(tokens::font_size::CAPTION)
-        .width(Length::Fill)
-        .style(style::text::muted(t)),
+        text(format!("{} · {}", title.to_uppercase(), waiting.len()))
+            .size(tokens::scale::type_scale::LABEL.size)
+            .font(fonts::mono())
+            .width(Length::Fill)
+            .style(style::text::muted(t)),
     ]
     .spacing(tokens::space::MD)
     .align_y(Alignment::Center);
@@ -2049,6 +2278,7 @@ fn queue<'a>(
         let id = queued.id.clone();
         list = list.push(
             row![
+                icon(Icon::Clock, CALL_ICON).color(t.palette.text_muted),
                 text(hangar::first_line(&queued.text, QUEUED_WORDS))
                     .size(tokens::font_size::UI)
                     .width(Length::Fill)
@@ -2070,18 +2300,24 @@ fn queue<'a>(
                         edit: false,
                     })),
             ]
-            .spacing(tokens::space::XS)
+            .spacing(tokens::space::MD)
             .align_y(Alignment::Center),
         );
     }
+    let frame = iced::widget::canvas(Dashed {
+        colour: t.palette.border_strong,
+        radius: tokens::scale::radius::MD,
+    })
+    .width(Length::Fill)
+    .height(Length::Fill);
     Some(
-        container(list)
-            .padding(Padding {
-                top: tokens::space::MD,
-                right: tokens::space::MD,
-                bottom: tokens::space::SM,
-                left: tokens::space::XL,
-            })
+        Stack::new()
+            .push(
+                container(list)
+                    .padding([tokens::space::MD, tokens::space::LG])
+                    .width(Length::Fill),
+            )
+            .push(frame)
             .into(),
     )
 }
@@ -2111,7 +2347,7 @@ fn composer<'a>(
             bottom: tokens::space::XS,
             left: tokens::space::XL,
         })
-        .min_height(40.0)
+        .min_height(48.0)
         .max_height(220.0)
         .style(bare_editor(t));
     if why.is_none() {
@@ -2171,17 +2407,14 @@ fn composer<'a>(
     ));
     // What waits on the person takes the input's place: nothing can be sent
     // until it is answered, and the card says what to do.
-    let waiting = chat.thread.pending.is_some();
-    let surface: Element<'a, Message> = match card(ctx, ws, pane, chat) {
-        Some(card) => card,
+    let mut stack = column![].spacing(tokens::space::MD);
+    match card(ctx, ws, pane, chat) {
+        Some(card) => stack = stack.push(card),
         None => {
-            let mut parts = column![];
             if let Some(queue) = queue(ctx, ws, pane, chat, works) {
-                parts = parts.push(queue).push(
-                    container(rule::horizontal(tokens::BORDER_WIDTH).style(style::rule::sep(t)))
-                        .padding([0.0, tokens::space::XL]),
-                );
+                stack = stack.push(queue);
             }
+            let mut parts = column![];
             if let Some(choices) = chat
                 .picker
                 .filter(|_| tunable)
@@ -2189,45 +2422,35 @@ fn composer<'a>(
             {
                 parts = parts.push(choices);
             }
-            parts
-                .push(crate::keymap::guard(ctx, editor))
-                .push(container(footer).padding(Padding {
-                    top: 0.0,
-                    right: tokens::space::MD,
-                    bottom: tokens::space::MD,
-                    left: tokens::space::XL,
-                }))
-                .into()
+            let parts =
+                parts
+                    .push(crate::keymap::guard(ctx, editor))
+                    .push(container(footer).padding(Padding {
+                        top: 0.0,
+                        right: tokens::space::XL,
+                        bottom: tokens::space::LG,
+                        left: tokens::space::XL,
+                    }));
+            stack =
+                stack.push(
+                    container(parts)
+                        .width(Length::Fill)
+                        .style(move |_| container::Style {
+                            background: Some(Background::Color(t.palette.surface)),
+                            border: Border {
+                                color: t.palette.border_strong,
+                                width: tokens::BORDER_WIDTH,
+                                radius: tokens::scale::radius::LG.into(),
+                            },
+                            ..container::Style::default()
+                        }),
+                );
         }
-    };
-    centred(
-        container(
-            container(surface)
-                .width(Length::Fill)
-                .style(move |_| container::Style {
-                    background: Some(Background::Color(t.colors.card)),
-                    border: Border {
-                        color: if waiting {
-                            tint(t.colors.state_waiting_fill, 0.7)
-                        } else {
-                            t.colors.line_strong
-                        },
-                        width: tokens::BORDER_WIDTH,
-                        radius: SOFT.into(),
-                    },
-                    shadow: iced::Shadow {
-                        color: tint(t.colors.shadow, 0.6),
-                        offset: iced::Vector::new(0.0, 2.0),
-                        blur_radius: 12.0,
-                    },
-                    ..container::Style::default()
-                }),
-        )
-        .padding(Padding {
-            top: tokens::space::SM,
-            right: tokens::space::XXL,
-            bottom: tokens::space::XL,
-            left: tokens::space::XXL,
-        }),
-    )
+    }
+    centred(container(stack).padding(Padding {
+        top: tokens::space::MD,
+        right: tokens::space::XXXL,
+        bottom: tokens::space::XL + tokens::space::XXS,
+        left: tokens::space::XXXL,
+    }))
 }

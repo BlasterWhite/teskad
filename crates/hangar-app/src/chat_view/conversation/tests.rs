@@ -154,6 +154,95 @@ fn calls(st: &State) -> Vec<Call> {
     st.calls().iter().map(|(_, call)| call.clone()).collect()
 }
 
+/* ── the keyboard and Teskad's mark ────────────────────────────── */
+
+#[test]
+fn teskad_s_messages_carry_its_mark_and_the_person_s_do_not() {
+    let mut m = shop(true);
+    let mut st = State::default();
+    read_into(&mut st, &mut m, page(vec![person("u1", "Hello")], None));
+    assert!(shown_texts(&st, &m, &["[Teskad]"]).is_empty());
+    let news = item(
+        "h1",
+        Body::User {
+            text: "[Teskad] Briefing — not typed by the person.\n\nBoard: 3 tasks.".into(),
+            from: Sender::Hangar,
+            images: 0,
+        },
+    );
+    read_into(&mut st, &mut m, page(vec![news], None));
+    assert_eq!(shown_texts(&st, &m, &["[Teskad]"]), ["[Teskad]"]);
+}
+
+/// What Space sends after one Tab into `element`: the simulator runs no
+/// focus operation, so the window is driven as the runtime does.
+fn tab_then_space(element: iced::Element<'_, Message>) -> Vec<Msg> {
+    use iced::keyboard::{self, Key, key::Named};
+    use iced_test::core::renderer::Headless;
+    use iced_test::core::widget::operation::{Outcome, focusable};
+    use iced_test::runtime::{UserInterface, user_interface};
+
+    let mut renderer = iced_test::futures::futures::executor::block_on(
+        <iced::Renderer as Headless>::new(hangar_theme::fonts::ui(), iced::Pixels(14.0), None),
+    )
+    .expect("a headless renderer");
+    let mut ui = UserInterface::build(
+        element,
+        iced::Size::new(900.0, 700.0),
+        user_interface::Cache::default(),
+        &mut renderer,
+    );
+    let mut operation: Box<dyn iced_test::core::widget::Operation<()>> =
+        Box::new(focusable::focus_next::<()>());
+    loop {
+        ui.operate(&renderer, operation.as_mut());
+        match operation.finish() {
+            Outcome::Chain(next) => operation = next,
+            _ => break,
+        }
+    }
+    let key = Key::Named(Named::Space);
+    let mut messages = Vec::new();
+    let _ = ui.update(
+        &[iced::Event::Keyboard(keyboard::Event::KeyPressed {
+            key: key.clone(),
+            modified_key: key,
+            physical_key: keyboard::key::Physical::Unidentified(
+                keyboard::key::NativeCode::Unidentified,
+            ),
+            location: keyboard::Location::Standard,
+            modifiers: keyboard::Modifiers::empty(),
+            text: None,
+            repeat: false,
+        })],
+        iced::mouse::Cursor::Unavailable,
+        &mut renderer,
+        &mut iced_test::core::clipboard::Null,
+        &mut messages,
+    );
+    ours(messages.into_iter())
+}
+
+/// Tab goes to the line of a call, which Space opens.
+#[test]
+fn the_keyboard_opens_a_call_s_line() {
+    let mut m = shop(true);
+    let mut st = State::default();
+    let mut opens = call("c1", "Bash", CallState::Done);
+    if let Body::Action { detail, .. } = &mut opens.body {
+        *detail = Some("pnpm test".into());
+    }
+    read_into(&mut st, &mut m, page(vec![opens], None));
+    let pkg = Packages::default();
+    let ctx = ctx(&m, &pkg);
+    let ws = m.workspace(WS).unwrap();
+    let pressed = tab_then_space(view(&st, ctx, ws));
+    assert!(
+        matches!(pressed.as_slice(), [Msg::Toggle(ws, id)] if ws == WS && id == "c1"),
+        "{pressed:?}"
+    );
+}
+
 /* ── empty and loading ─────────────────────────────────────────── */
 
 #[test]
@@ -921,9 +1010,16 @@ fn delivered_files() -> Msg {
 fn a_delivery_on_a_branch_shows_its_files_and_opens_them_in_changes() {
     let mut m = shop(true);
     let mut st = State::default();
-    read_into(&mut st, &mut m, busy_page(None));
+    // The news alone: its lines stay within the window, where they are
+    // pressed.
+    let news = || {
+        let mut view = busy_page(None);
+        view.items.retain(|item| item.id == "h1");
+        view
+    };
+    read_into(&mut st, &mut m, news());
     // Read once, however often the page is read again.
-    read_into(&mut st, &mut m, busy_page(None));
+    read_into(&mut st, &mut m, news());
     assert_eq!(
         calls(&st)
             .into_iter()
@@ -1124,7 +1220,7 @@ fn what_is_sent_while_the_orchestrator_works_waits_in_its_queue_and_can_be_taken
             &st,
             &m,
             &[
-                "Waiting for Leo to finish",
+                "WAITING FOR LEO TO FINISH · 2",
                 "Also add tests",
                 "3 updates in workspace",
                 "And update the README",
@@ -1132,7 +1228,7 @@ fn what_is_sent_while_the_orchestrator_works_waits_in_its_queue_and_can_be_taken
             ]
         ),
         [
-            "Waiting for Leo to finish",
+            "WAITING FOR LEO TO FINISH · 2",
             "Also add tests",
             "And update the README",
             "Send now"

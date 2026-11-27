@@ -38,6 +38,7 @@
 //! the Markdown it was parsed into (`Chat::prose`).
 
 mod calls;
+mod dashed;
 mod hangar;
 mod paths;
 pub mod rich;

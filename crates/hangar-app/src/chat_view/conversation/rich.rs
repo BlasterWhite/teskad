@@ -18,8 +18,9 @@ use crate::message::Message;
 use crate::preview::highlight::{self, Lines};
 use crate::preview::markdown::{CodeBlock, block_key, prepare};
 
-/// The size of a message's text.
-const TEXT: f32 = tokens::font_size::UI_LG;
+/// The size of a message's text, and its paragraphs' line height: 14 on 22.
+const TEXT: f32 = tokens::font_size::BODY;
+const LINE: f32 = 22.0 / 14.0;
 
 /// A message's Markdown, parsed once.
 pub fn parse(source: &str) -> markdown::Content {
@@ -65,20 +66,19 @@ pub fn code_blocks(content: &markdown::Content) -> Vec<CodeBlock> {
 }
 
 fn settings(t: &Theme) -> Settings {
-    let c = &t.colors;
     let mut settings = Settings::with_text_size(
         TEXT,
         Style {
             font: fonts::ui(),
             inline_code_highlight: Highlight {
-                background: iced::Background::Color(c.surface_hover),
+                background: iced::Background::Color(t.palette.hover_overlay),
                 border: border::rounded(tokens::radius::XS),
             },
             inline_code_padding: padding::left(3).right(3),
-            inline_code_color: c.fg,
+            inline_code_color: t.palette.text,
             inline_code_font: fonts::mono(),
             code_block_font: fonts::mono(),
-            link_color: c.accent_hi,
+            link_color: t.palette.accent_text,
         },
     );
     let size = |level: HeadingLevel| {
@@ -127,6 +127,46 @@ impl<'a> markdown::Viewer<'a, Message, iced::Theme, iced::Renderer> for Bubble<'
             .into()
     }
 
+    /// A paragraph, its bold words in the full text colour among the rest.
+    fn paragraph(&self, settings: Settings, words: &markdown::Text) -> Element<'a, Message> {
+        let strong = self.t.palette.text;
+        let spans: Vec<text::Span<'static, Uri, Font>> = words
+            .spans(settings.style)
+            .iter()
+            .cloned()
+            .map(|mut part| {
+                let bold = part
+                    .font
+                    .is_some_and(|font| font.weight == iced::font::Weight::Bold);
+                if bold && part.color.is_none() {
+                    part.color = Some(strong);
+                }
+                part
+            })
+            .collect();
+        rich_text(spans)
+            .size(settings.text_size)
+            .line_height(text::LineHeight::Relative(LINE))
+            .on_link_click(link)
+            .into()
+    }
+
+    fn heading(
+        &self,
+        settings: Settings,
+        level: &'a HeadingLevel,
+        words: &'a markdown::Text,
+        index: usize,
+    ) -> Element<'a, Message> {
+        let colour = self.t.palette.text;
+        container(markdown::heading(settings, level, words, index, link))
+            .style(move |_| container::Style {
+                text_color: Some(colour),
+                ..Default::default()
+            })
+            .into()
+    }
+
     fn code_block(
         &self,
         settings: Settings,
@@ -162,7 +202,7 @@ impl<'a> markdown::Viewer<'a, Message, iced::Theme, iced::Renderer> for Bubble<'
                     rich_text(line.spans(settings.style))
                         .font(mono)
                         .size(settings.code_size)
-                        .color(t.colors.fg)
+                        .color(t.palette.text)
                         .on_link_click(link)
                         .into()
                 })
@@ -179,9 +219,9 @@ impl<'a> markdown::Viewer<'a, Message, iced::Theme, iced::Renderer> for Bubble<'
         )
         .width(Length::Fill)
         .style(move |_| container::Style {
-            background: Some(iced::Background::Color(t.colors.bg_sunken)),
+            background: Some(iced::Background::Color(t.palette.surface_sunken)),
             border: iced::Border {
-                color: t.colors.line,
+                color: t.palette.border,
                 width: 1.0,
                 radius: tokens::radius::MD.into(),
             },
@@ -198,5 +238,15 @@ pub fn view<'a>(
     content: &'a markdown::Content,
     code: &'a HashMap<u64, Arc<Lines>>,
 ) -> Element<'a, Message> {
-    markdown::view_with(content.items(), settings(t), &Bubble { t, code })
+    let colour = t.palette.text_secondary;
+    container(markdown::view_with(
+        content.items(),
+        settings(t),
+        &Bubble { t, code },
+    ))
+    .style(move |_| container::Style {
+        text_color: Some(colour),
+        ..Default::default()
+    })
+    .into()
 }

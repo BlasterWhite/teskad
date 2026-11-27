@@ -3,13 +3,13 @@
 
 use std::time::Instant;
 
-use iced::widget::{Space, button, column, container, progress_bar, row, scrollable, text};
+use iced::widget::{Space, button, column, container, progress_bar, row, rule, scrollable, text};
 use iced::{Alignment, Background, Element, Length, Padding};
 
 use hangar_i18n::{Key, args};
-use hangar_theme::tokens::{font_size, space};
+use hangar_theme::tokens::{self, font_size, radius, scale, space};
 use hangar_theme::{Theme, fonts, style};
-use hangar_ui::{Icon, glyph, icon, tip};
+use hangar_ui::{Icon, focus, glyph, icon, tip};
 
 use super::model::{Group, Overall, Panel, Row, Waiting};
 use super::{Msg, State, msg};
@@ -23,16 +23,26 @@ use crate::needs_you::model::KINDS;
 use crate::needs_you::{LandRequest, Msg as NeedsYouMsg};
 use crate::state::Workspace;
 
+/// A task's title: 13 on 18.
+const TITLE_LINE: f32 = 18.0 / 13.0;
 const BAR: f32 = 6.0;
+const BAR_RADIUS: f32 = 2.0;
+/// The panel folded to its icon.
+pub const RAIL_WIDTH: f32 = 44.0;
+/// The gap at the sides of the list, and a row's own side padding.
+const SIDE: f32 = space::MD;
 
+/// The panel; `fold` when the window is narrow enough that it can go back
+/// to its icon.
 pub fn panel<'a>(
     st: &'a State,
     ctx: Ctx<'a>,
     ws: &'a Workspace,
     panel: &Panel,
+    fold: bool,
 ) -> Element<'a, Message> {
     let t = ctx.theme;
-    let mut body = column![head(ctx, panel)].spacing(space::XL);
+    let mut body = column![].spacing(space::LG);
 
     if !panel.waiting.is_empty() {
         body = body.push(waiting(ctx, ws, &panel.waiting));
@@ -49,71 +59,143 @@ pub fn panel<'a>(
         }
     }
 
-    scrollable(container(body).padding(space::XXL).width(Length::Fill))
+    column![
+        head(ctx, panel, fold),
+        rule::horizontal(tokens::BORDER_WIDTH).style(style::rule::sep(t)),
+        scrollable(
+            container(body)
+                .padding([space::LG, SIDE])
+                .width(Length::Fill)
+        )
         .style(style::scrollable::default(t))
-        .height(Length::Fill)
+        .height(Length::Fill),
+    ]
+    .into()
+}
+
+/// The panel folded: its icon, which opens it, the progress as its badge,
+/// and the mark of what waits on the person.
+pub fn rail<'a>(ctx: Ctx<'a>, panel: &Panel) -> Element<'a, Message> {
+    let t = ctx.theme;
+    let mut rail = column![
+        hangar_ui::button::icon_button(t, Icon::Board)
+            .sized(hangar_ui::button::Side::Sm)
+            .tip(ctx.t(Key::ChatViewTasks).into_owned())
+            .on_press(msg(Msg::Unfold(true))),
+    ]
+    .spacing(space::SM)
+    .align_x(Alignment::Center);
+    if panel.overall.total > 0 {
+        rail = rail.push(
+            container(
+                text(format!("{} %", panel.overall.percent))
+                    .size(scale::type_scale::LABEL.size)
+                    .font(fonts::mono())
+                    .color(t.palette.text_secondary),
+            )
+            .padding([0.0, space::XXS])
+            .style(style::container::chip(t)),
+        );
+    }
+    if !panel.waiting.is_empty() {
+        rail = rail.push(glyph::state(
+            t,
+            reads::activity_glyph(crate::state::AgentActivity::Waiting),
+            8.0,
+        ));
+    }
+    container(rail)
+        .padding([space::LG, 0.0])
+        .center_x(Length::Fill)
         .into()
 }
 
 /// The title and the global progress, with how many tasks are done.
-fn head<'a>(ctx: Ctx<'a>, panel: &Panel) -> Element<'a, Message> {
+fn head<'a>(ctx: Ctx<'a>, panel: &Panel, fold: bool) -> Element<'a, Message> {
     let t = ctx.theme;
     let Overall {
         percent,
         done,
         total,
     } = panel.overall;
-    let mut head = column![
-        row![
-            text(ctx.t(Key::ChatViewTasks))
-                .size(font_size::TITLE)
-                .font(fonts::ui_semibold())
-                .style(style::text::primary(t))
-                .width(Length::Fill),
-        ]
-        .align_y(Alignment::Center)
+    let mut title = row![
+        text(ctx.t(Key::ChatViewTasks))
+            .size(font_size::TITLE)
+            .font(fonts::display())
+            .style(style::text::primary(t))
+            .width(Length::Fill),
     ]
-    .spacing(space::SM);
+    .align_y(Alignment::Center);
+    if fold {
+        title = title.push(
+            hangar_ui::button::icon_button(t, Icon::SidebarRight)
+                .small()
+                .tip(ctx.t(Key::ChatViewTasks).into_owned())
+                .on_press(msg(Msg::Unfold(false))),
+        );
+    }
+    let mut head = column![title].spacing(space::MD);
     if total > 0 {
+        let full = done == total;
         head = head.push(
             row![
-                {
-                    let bar = progress_bar(0.0..=100.0, f32::from(percent)).girth(BAR);
-                    if done == total {
-                        bar.style(style::progress_bar::success(t))
-                    } else {
-                        bar.style(style::progress_bar::accent(t))
-                    }
-                },
+                progress_bar(0.0..=100.0, f32::from(percent))
+                    .girth(BAR)
+                    .style(bar_style(t, full)),
                 text(format!("{percent} %"))
-                    .size(font_size::CAPTION)
+                    .size(scale::type_scale::LABEL.size)
                     .font(fonts::mono())
-                    .style(style::text::secondary(t)),
+                    .color(t.palette.text_secondary),
             ]
             .spacing(space::MD)
             .align_y(Alignment::Center),
         );
         head = head.push(
             text(format!("{} {done}/{total}", ctx.t(Key::BoardDone)))
-                .size(font_size::CAPTION)
+                .size(scale::type_scale::CAPTION.size)
                 .style(style::text::muted(t)),
         );
     }
-    head.into()
+    container(head)
+        .padding(Padding {
+            top: space::XL,
+            right: space::XXL,
+            bottom: space::LG,
+            left: space::XXL,
+        })
+        .width(Length::Fill)
+        .into()
 }
 
+/// A bar with the mock-up's squared ends: green once everything is done.
+fn bar_style(t: &Theme, full: bool) -> impl Fn(&iced::Theme) -> progress_bar::Style + '_ {
+    move |theme| {
+        let mut look = if full {
+            style::progress_bar::success(t)(theme)
+        } else {
+            style::progress_bar::accent(t)(theme)
+        };
+        look.border.radius = BAR_RADIUS.into();
+        look
+    }
+}
+
+/// A group's name in small capitals and how many it holds.
 fn heading<'a>(t: &'a Theme, label: String, count: usize) -> Element<'a, Message> {
-    row![
-        text(label.to_uppercase())
-            .size(font_size::LABEL)
-            .font(fonts::ui_semibold())
-            .color(t.colors.fg_secondary),
-        text(count.to_string())
-            .size(font_size::LABEL)
-            .font(fonts::mono())
-            .color(t.colors.fg_secondary),
-    ]
-    .spacing(space::SM)
+    container(
+        row![
+            text(label.to_uppercase())
+                .size(scale::type_scale::LABEL.size)
+                .font(fonts::mono())
+                .color(t.palette.text_muted),
+            text(count.to_string())
+                .size(scale::type_scale::LABEL.size)
+                .font(fonts::mono())
+                .color(t.palette.text_muted),
+        ]
+        .spacing(space::SM),
+    )
+    .padding([space::XXS, space::MD])
     .into()
 }
 
@@ -127,7 +209,7 @@ fn note<'a>(t: &'a Theme, words: String) -> Element<'a, Message> {
 fn caption<'a>(t: &'a Theme, words: String) -> iced::widget::Text<'a> {
     text(words)
         .size(font_size::CAPTION)
-        .color(t.colors.fg_secondary)
+        .color(t.palette.text_secondary)
 }
 
 fn waiting<'a>(ctx: Ctx<'a>, ws: &'a Workspace, items: &[Waiting]) -> Element<'a, Message> {
@@ -147,7 +229,7 @@ fn waiting<'a>(ctx: Ctx<'a>, ws: &'a Workspace, items: &[Waiting]) -> Element<'a
         .padding(space::MD)
         .width(Length::Fill)
         .style(move |_: &iced::Theme| container::Style {
-            background: Some(Background::Color(t.colors.surface_hover)),
+            background: Some(Background::Color(t.palette.hover_overlay)),
             border: iced::Border {
                 radius: hangar_theme::tokens::radius::MD.into(),
                 ..iced::Border::default()
@@ -164,7 +246,7 @@ fn waiting_row<'a>(ctx: Ctx<'a>, ws: &'a Workspace, item: &Waiting) -> Element<'
         text(words.to_string())
             .size(font_size::UI)
             .font(fonts::ui_medium())
-            .color(t.colors.fg)
+            .color(t.palette.text)
     };
     let (mark, lines, action): (
         Element<'a, Message>,
@@ -244,7 +326,7 @@ fn waiting_row<'a>(ctx: Ctx<'a>, ws: &'a Workspace, item: &Waiting) -> Element<'
                             .into_owned(),
                     )
                     .size(font_size::CAPTION)
-                    .color(t.colors.danger),
+                    .color(t.palette.status.failed),
                 );
             }
             let landing = needs_you.is_landing(ctx.model, base, task, Instant::now());
@@ -268,7 +350,9 @@ fn waiting_row<'a>(ctx: Ctx<'a>, ws: &'a Workspace, item: &Waiting) -> Element<'
             }))
             .tip(tr.t(Key::NeedsYouLandHint).into_owned());
             (
-                icon(Icon::Merge, 13.0).color(t.colors.state_working).into(),
+                icon(Icon::Merge, 13.0)
+                    .color(t.palette.status.running)
+                    .into(),
                 lines.into(),
                 land.into(),
             )
@@ -320,41 +404,30 @@ fn task_row<'a>(
         .clone()
         .unwrap_or_else(|| tr.t(Key::BoardUnassigned).into_owned());
     let mut lines = column![
-        row![
-            icon(
-                if open {
-                    Icon::ChevronDown
-                } else {
-                    Icon::ChevronRight
-                },
-                11.0
-            )
-            .color(t.colors.fg_muted),
-            text(task.title.clone())
-                .size(font_size::UI)
-                .font(fonts::ui_medium())
-                .color(t.colors.fg)
-                .width(Length::Fill),
-        ]
-        .spacing(space::SM)
-        .align_y(Alignment::Center),
-        caption(t, format!("{who} · {}", tr.t(task.column.label_key()))),
+        text(task.title.clone())
+            .size(font_size::UI)
+            .line_height(text::LineHeight::Relative(TITLE_LINE))
+            .color(t.palette.text)
+            .width(Length::Fill),
+        text(format!("{who} · {}", tr.t(task.column.label_key())))
+            .size(scale::type_scale::LABEL.size)
+            .color(t.palette.text_muted),
     ]
     .spacing(space::XXS);
 
     if let Some(reason) = &task.blocked {
         lines = lines.push(
             row![
-                icon(Icon::Lock, 11.0).color(t.colors.danger),
+                glyph::state(t, glyph::GlyphState::Failed, 12.0),
                 text(
                     tr.t_with(Key::BoardBlockedFor, &args!("reason" => reason.as_str()))
                         .into_owned()
                 )
-                .size(font_size::CAPTION)
-                .color(t.colors.danger),
+                .size(scale::type_scale::CAPTION.size)
+                .color(t.palette.status.failed)
+                .width(Length::Fill),
             ]
-            .spacing(space::XS)
-            .align_y(Alignment::Center),
+            .spacing(space::SM),
         );
     }
 
@@ -376,11 +449,11 @@ fn task_row<'a>(
             row![
                 progress_bar(0.0..=100.0, f32::from(progress.percent))
                     .girth(BAR)
-                    .style(style::progress_bar::accent(t)),
+                    .style(bar_style(t, false)),
                 text(format!("{} %", progress.percent))
                     .size(font_size::CAPTION)
                     .font(fonts::mono())
-                    .color(t.colors.fg_secondary),
+                    .color(t.palette.text_secondary),
             ]
             .spacing(space::MD)
             .align_y(Alignment::Center),
@@ -405,7 +478,7 @@ fn task_row<'a>(
                 container(
                     text(task.description.clone())
                         .size(font_size::CAPTION_LG)
-                        .color(t.colors.fg),
+                        .color(t.palette.text),
                 )
                 .padding(Padding {
                     top: space::XS,
@@ -419,20 +492,41 @@ fn task_row<'a>(
                     text(comment.author.clone())
                         .size(font_size::LABEL)
                         .font(fonts::ui_semibold())
-                        .color(t.colors.fg_secondary),
+                        .color(t.palette.text_secondary),
                     text(comment.text.clone())
                         .size(font_size::CAPTION_LG)
-                        .color(t.colors.fg_secondary),
+                        .color(t.palette.text_secondary),
                 ]
                 .spacing(1),
             );
         }
     }
 
-    button(lines)
+    let chevron = icon(
+        if open {
+            Icon::ChevronDown
+        } else {
+            Icon::ChevronRight
+        },
+        11.0,
+    )
+    .color(t.palette.text_muted);
+    // What is being worked on stands out of the list.
+    let current = task.column == Column::Doing;
+    let press = msg(Msg::Toggle(task.id.clone()));
+    let line = button(row![chevron, lines].spacing(space::SM))
         .padding([space::SM, space::MD])
         .width(Length::Fill)
-        .style(style::button::row(t, open))
-        .on_press(msg(Msg::Toggle(task.id.clone())))
+        .style(move |theme, status| {
+            let mut look = style::button::row(t, open)(theme, status);
+            if current && matches!(status, button::Status::Active) {
+                look.background = Some(Background::Color(t.palette.selection_bg));
+            }
+            look
+        })
+        .on_press(press.clone());
+    focus::ring(t, line)
+        .radius(radius::SM)
+        .on_activate(press)
         .into()
 }

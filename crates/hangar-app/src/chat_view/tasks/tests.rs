@@ -101,7 +101,7 @@ fn shop(tasks: Option<Vec<Task>>) -> Model {
 fn on_screen(m: &Model, pkg: &Packages, wanted: &[&str]) -> Vec<String> {
     let ws = m.workspace("shop").unwrap();
     let ctx = ctx(m, pkg);
-    let mut ui = simulate(view(&pkg.chat_view.tasks, ctx, ws));
+    let mut ui = simulate(view(&pkg.chat_view.tasks, ctx, ws, false));
     let _ = ui
         .snapshot(&hangar_theme::to_iced(ctx.theme))
         .expect("it draws");
@@ -115,7 +115,7 @@ fn on_screen(m: &Model, pkg: &Packages, wanted: &[&str]) -> Vec<String> {
 /// The messages a click on `label` in the panel sends.
 fn click(m: &Model, pkg: &Packages, label: &str) -> Vec<Message> {
     let ws = m.workspace("shop").unwrap();
-    let mut ui = simulate(view(&pkg.chat_view.tasks, ctx(m, pkg), ws));
+    let mut ui = simulate(view(&pkg.chat_view.tasks, ctx(m, pkg), ws, false));
     ui.click(label).expect("it is on screen");
     ui.into_messages().collect()
 }
@@ -472,5 +472,29 @@ fn a_failed_check_shows_on_the_row_and_opens_the_task() {
             Message::Intent(crate::message::Intent::OpenTask { task: Some(task), .. }) if task == "t-doing"
         )),
         "{sent:?}"
+    );
+}
+
+#[test]
+fn a_narrow_window_folds_the_panel_to_its_icon_until_asked_for() {
+    let mut m = shop(Some(plain_board()));
+    let mut pkg = Packages::default();
+    let shown = |m: &Model, pkg: &Packages| {
+        let ws = m.workspace("shop").unwrap();
+        let ctx = ctx(m, pkg);
+        let mut ui = simulate(view(&pkg.chat_view.tasks, ctx, ws, true));
+        ["25 %", "Done 1/4", "Search page"]
+            .into_iter()
+            .filter(|text| ui.find(*text).is_ok())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(shown(&m, &pkg), ["25 %"], "the gauge as its badge");
+    let _ = update(&mut pkg.chat_view.tasks, &mut m, Msg::Unfold(true));
+    assert_eq!(shown(&m, &pkg), ["25 %", "Done 1/4", "Search page"]);
+    let _ = update(&mut pkg.chat_view.tasks, &mut m, Msg::Unfold(false));
+    assert_eq!(shown(&m, &pkg), ["25 %"]);
+    assert!(
+        !pkg.chat_view.tasks.folded(false),
+        "a wide window keeps it open"
     );
 }
