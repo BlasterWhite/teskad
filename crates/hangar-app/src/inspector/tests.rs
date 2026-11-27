@@ -342,13 +342,15 @@ mod width {
     fn the_arrows_nudge_inside_the_room_the_focused_window_has() {
         let mut st = State::default();
         let mut m = model();
-        // A row of 940 leaves the terminals their 640 beside a column of at
-        // most 300.
+        // A row of 940 leaves the terminals their 620 beside a column of at
+        // most 320.
         narrow(&mut m, 940.0);
         send(&mut st, &mut m, Msg::Nudge(16));
-        assert_eq!(m.settings().inspector_width, 300.0);
+        assert_eq!(m.settings().inspector_width, 312.0);
+        send(&mut st, &mut m, Msg::Nudge(16));
+        assert_eq!(m.settings().inspector_width, 320.0, "never past the room");
         send(&mut st, &mut m, Msg::Nudge(-16));
-        assert_eq!(m.settings().inspector_width, 284.0);
+        assert_eq!(m.settings().inspector_width, 304.0);
     }
 
     #[test]
@@ -1251,12 +1253,12 @@ mod drawn {
     #[test]
     fn the_column_is_told_the_window_s_room_for_its_grip() {
         // The grip carries the widest the window allows, read where the
-        // column is drawn: here a window of 940 leaves 300.
+        // column is drawn: here a window of 940 leaves 320.
         let mut m = claude_model();
         narrow(&mut m, 940.0);
         let w = main(&m);
         let panels = Panels::of(&m, w);
-        assert_eq!(panels.inspector.max, 300.0);
+        assert_eq!(panels.inspector.max, 320.0);
         assert_eq!(panels.inspector.width, 296.0);
     }
 }

@@ -20,9 +20,12 @@ use iced::window;
 use crate::shell::{Drawer, View, WindowKind};
 use crate::state::Model;
 
-/// What the terminals keep beside docked panels, in pixels: about a 1190 px
-/// window with the navigator and the inspector open.
-pub const TERMINALS_MIN: f32 = 640.0;
+/// What the terminals keep beside docked panels, in pixels: a 1180 px window
+/// with the navigator and a 300 px inspector open leaves 628.
+pub const TERMINALS_MIN: f32 = 620.0;
+/// Under this window width, in pixels, the inspector is an overlay with a
+/// shadow instead of narrowing the panes (`ecrans.md` §7, "Place qui manque").
+pub const INSPECTOR_OVERLAY_BELOW: f32 = 1180.0;
 pub const INSPECTOR_MIN: f32 = 240.0;
 pub const INSPECTOR_MAX: f32 = 440.0;
 pub const DOCK_MIN: f32 = 300.0;
@@ -49,6 +52,8 @@ pub struct PanelInput {
 /// What `place` is asked (`SidePanelsInput`).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SidePanelsInput {
+    /// The whole window's width, in pixels.
+    pub window: f32,
     /// The row the terminals share with the panels, in pixels.
     pub room: f32,
     /// The interface size, 1 for 100 %.
@@ -85,13 +90,14 @@ pub fn clamp_dock(width: f32) -> f32 {
 
 /// `placeSidePanels`.
 ///
-/// When both are open and only one fits, the inspector is the one that turns
-/// into a drawer: the board panel is what the person asked to keep beside the
-/// panes, while the inspector details one pane that its header and the
-/// toolbar already sum up. It reserves the dock's minimum width, not its
-/// saved one, so a wide dock narrows before the inspector gives way.
+/// The inspector is an overlay under `INSPECTOR_OVERLAY_BELOW` of window, or
+/// when it would leave the terminals under their minimum. When both panels are
+/// open and only one fits, the board panel is the one that folds into a
+/// drawer, first (the pack: it stays reachable from the Board tab); a wide
+/// dock narrows to its minimum before it does.
 pub fn place(input: SidePanelsInput) -> SidePanels {
     let SidePanelsInput {
+        window,
         room,
         scale,
         inspector,
@@ -100,17 +106,14 @@ pub fn place(input: SidePanelsInput) -> SidePanels {
     let inspector_px = clamp_inspector(inspector.width) * scale;
     let dock_min_px = DOCK_MIN * scale;
     let dock_wanted = dock.map_or(dock_min_px, |dock| clamp_dock(dock.width) * scale);
-    let dock_open = dock.is_some_and(|dock| dock.open);
 
-    let dock_counts = dock_open && room - dock_min_px >= TERMINALS_MIN;
-    let reserved = if dock_counts { dock_min_px } else { 0.0 };
-    let inspector_fits = room - inspector_px - reserved >= TERMINALS_MIN;
+    let inspector_fits = window >= INSPECTOR_OVERLAY_BELOW && room - inspector_px >= TERMINALS_MIN;
 
     let inspector_place = if inspector_fits {
         PanelPlace {
             fits: true,
             width: inspector_px,
-            max: clamp_inspector((room - reserved - TERMINALS_MIN) / scale),
+            max: clamp_inspector((room - TERMINALS_MIN) / scale),
         }
     } else {
         PanelPlace {
@@ -199,7 +202,16 @@ impl Panels {
             Some(drag) if drag.panel == panel => drag.width,
             _ => saved as f32,
         };
+        // The window is the body row and, in the main window, the navigator.
+        let window = room
+            + if m.live.windows.get(&w) == Some(&WindowKind::Main) && settings.navigator_open {
+                (hangar_theme::tokens::scale::size::SIDEBAR + hangar_theme::tokens::BORDER_WIDTH)
+                    * scale
+            } else {
+                0.0
+            };
         let sides = place(SidePanelsInput {
+            window,
             room,
             scale,
             inspector: PanelInput {
@@ -257,6 +269,8 @@ mod tests {
 
     fn input(patch: impl FnOnce(&mut SidePanelsInput)) -> SidePanelsInput {
         let mut input = SidePanelsInput {
+            // Unset: a window wide enough, unless a case says.
+            window: -1.0,
             room: 1600.0 - NAV,
             scale: 1.0,
             inspector: PanelInput {
@@ -266,6 +280,9 @@ mod tests {
             dock: None,
         };
         patch(&mut input);
+        if input.window < 0.0 {
+            input.window = input.room.max(2000.0);
+        }
         input
     }
     fn open(width: f32) -> Option<PanelInput> {
@@ -311,17 +328,50 @@ mod tests {
     #[test]
     fn switches_exactly_where_the_terminals_would_drop_below_their_minimum() {
         let at = TERMINALS_MIN + 296.0;
-        assert!(place(input(|i| i.room = at)).inspector.fits);
-        assert!(!place(input(|i| i.room = at - 1.0)).inspector.fits);
+        let wide = |room| {
+            place(input(|i| {
+                i.room = room;
+                i.window = 2000.0;
+            }))
+            .inspector
+            .fits
+        };
+        assert!(wide(at));
+        assert!(!wide(at - 1.0));
+    }
+
+    #[test]
+    fn is_an_overlay_under_1180_px_of_window_whatever_the_room() {
+        let at = |window| {
+            place(input(|i| {
+                i.window = window;
+                i.room = 5000.0;
+            }))
+            .inspector
+            .fits
+        };
+        assert!(at(INSPECTOR_OVERLAY_BELOW));
+        assert!(!at(INSPECTOR_OVERLAY_BELOW - 1.0));
+        // A 1180 px window with the navigator keeps the default inspector docked.
+        let docked = place(input(|i| {
+            i.window = 1180.0;
+            i.room = 1180.0 - NAV;
+        }));
+        assert!(docked.inspector.fits);
     }
 
     #[test]
     fn never_lets_a_drag_take_the_terminals_room() {
-        let inspector = place(input(|i| i.room = TERMINALS_MIN + 300.0)).inspector;
+        let inspector = place(input(|i| {
+            i.room = TERMINALS_MIN + 300.0;
+            i.window = 2000.0;
+        }))
+        .inspector;
         assert_eq!(inspector.max, 300.0);
         // Nor below its own minimum, even when that is all there is.
         let narrow = input(|i| {
             i.room = TERMINALS_MIN + INSPECTOR_MIN;
+            i.window = 2000.0;
             i.inspector = PanelInput {
                 open: true,
                 width: INSPECTOR_MIN,
@@ -383,14 +433,13 @@ mod tests {
     }
 
     #[test]
-    fn makes_the_inspector_a_drawer_before_it_squeezes_an_open_dock_below_its_minimum() {
+    fn folds_the_dock_into_a_drawer_first_when_the_inspector_leaves_it_too_little() {
         let sides = place(input(|i| {
             i.room = 1280.0 - NAV;
             i.dock = open(420.0);
         }));
-        assert!(!sides.inspector.fits);
-        assert!(sides.dock.fits);
-        assert_eq!(sides.dock.width, 1280.0 - NAV - TERMINALS_MIN);
+        assert!(sides.inspector.fits);
+        assert!(!sides.dock.fits);
     }
 
     #[test]
@@ -404,7 +453,8 @@ mod tests {
         assert!(sides.dock.fits);
         // The dock gives way first: down to its minimum, never past it.
         assert_eq!(sides.dock.width, DOCK_MIN);
-        assert_eq!(sides.inspector.max, 296.0);
+        // The dock folds before the inspector is held back by it.
+        assert_eq!(sides.inspector.max, INSPECTOR_MAX);
     }
 
     #[test]
@@ -444,6 +494,8 @@ mod tests {
         let room = 1280.0 - NAV;
         let with_open = place(input(|i| {
             i.room = room;
+            // Under 1180 px the inspector is an overlay.
+            i.window = 1100.0;
             i.dock = open(600.0);
         }));
         let with_closed = place(input(|i| {

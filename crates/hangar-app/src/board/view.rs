@@ -141,6 +141,7 @@ pub(super) fn board<'a>(
     let surface = container(body)
         .width(Length::Fill)
         .height(Length::Fill)
+        .clip(in_dock)
         .style(look::surface(t, in_dock));
     match dock_room {
         Some((width, max)) => dock::panel(st, ctx, width, max, surface.into()),
@@ -353,7 +354,7 @@ fn dock_body<'a>(v: View<'a>, width: f32) -> Element<'a, Message> {
             left: space::XL,
         })
         .center_y(look::DOCK_BAR_HEIGHT)
-        .style(style::container::pane_head(t, false));
+        .style(look::dock_head(t));
 
     let mut page = column![bar, rule::horizontal(1).style(style::rule::hairline(t))];
     if v.st.filter_bar {
