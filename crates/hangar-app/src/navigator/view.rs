@@ -1037,7 +1037,7 @@ fn filter_bar<'a>(f: &Frame<'a>, machine: &MachineFilter) -> Element<'a, Message
     let scope = button(
         container(
             glyph::state(t, reads::activity_glyph(AgentActivity::Waiting), 9.0).tint(if on {
-                t.palette.status.active
+                t.colors.state_waiting_fill
             } else {
                 t.palette.text_muted
             }),
@@ -1052,7 +1052,9 @@ fn filter_bar<'a>(f: &Frame<'a>, machine: &MachineFilter) -> Element<'a, Message
         let lit = matches!(status, button::Status::Hovered | button::Status::Pressed);
         button::Style {
             background: if on {
-                Some(Background::Color(t.palette.status.active.scale_alpha(0.16)))
+                Some(Background::Color(
+                    t.colors.state_waiting_fill.scale_alpha(0.16),
+                ))
             } else if lit {
                 Some(Background::Color(t.palette.hover_overlay))
             } else {

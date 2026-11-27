@@ -96,9 +96,11 @@ pub fn view<'a>(ctx: Ctx<'a>, workspaces: &[&'a Workspace]) -> Option<Element<'a
         // The count in its state's colour, after the state's shape: the
         // arc, the dot, the diamond.
         let (ink, side) = match state {
-            AgentActivity::Waiting => (t.palette.status.active, 7.0),
-            AgentActivity::Yours => (t.palette.status.active, 6.0),
-            _ => (t.palette.status.running, 9.0),
+            // No palette token for waiting yet (the pack has none): the
+            // derived state colours keep Waiting apart from Yours.
+            AgentActivity::Waiting => (t.colors.state_waiting, 7.0),
+            AgentActivity::Yours => (t.colors.state_yours, 6.0),
+            _ => (t.colors.state_working, 9.0),
         };
         let face = row![
             glyph::state(t, reads::activity_glyph(*state), side),
