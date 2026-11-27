@@ -1,9 +1,9 @@
 name: Codex schema watch
 
-# Codex ships about three releases a week and Hangar's protocol types come from one of them
+# Codex ships about three releases a week and Teskad's protocol types come from one of them
 # (scripts/codex-protocol/subset.json, docs/native/agents.md §4.6 and decision 2). Every Monday this
 # generates the app-server JSON Schema of that pinned release and of the latest one on npm, diffs
-# them restricted to the methods and types Hangar uses (scripts/codex-protocol/diff-schema.mjs), and
+# them restricted to the methods and types Teskad uses (scripts/codex-protocol/diff-schema.mjs), and
 # when the subset changed opens an issue labelled codex-schema, or updates the one already open:
 # never two. It is a notice, not a gate: no release depends on it, and an unchanged subset does
 # nothing.
@@ -37,7 +37,7 @@ concurrency:
 jobs:
   watch:
     # A fork has no issues of ours to open.
-    if: github.repository == 'BlasterWhite/hangar'
+    if: github.repository == 'BlasterWhite/teskad'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -100,7 +100,7 @@ jobs:
           schema "$PINNED" "$RUNNER_TEMP/schema-pinned"
           schema "$LATEST" "$RUNNER_TEMP/schema-latest"
 
-      - name: Diff the subset Hangar uses
+      - name: Diff the subset Teskad uses
         id: diff
         if: steps.versions.outputs.run == 'true'
         run: |
@@ -134,12 +134,12 @@ jobs:
         run: |
           set -euo pipefail
           label=codex-schema
-          title="Codex $LATEST changes the app-server protocol Hangar uses"
+          title="Codex $LATEST changes the app-server protocol Teskad uses"
           body="$RUNNER_TEMP/issue.md"
           max=55000 # an issue body holds 65536 characters
           {
             echo "<!-- codex-schema-watch latest=$LATEST pinned=$PINNED -->"
-            echo "Codex **$LATEST** changes the part of the app-server protocol Hangar uses. Hangar is pinned to **$PINNED** (\`scripts/codex-protocol/subset.json\`)."
+            echo "Codex **$LATEST** changes the part of the app-server protocol Teskad uses. Teskad is pinned to **$PINNED** (\`scripts/codex-protocol/subset.json\`)."
             echo
             echo "- Release: https://github.com/openai/codex/releases/tag/rust-v$LATEST"
             echo "- npm: https://www.npmjs.com/package/@openai/codex/v/$LATEST"
@@ -152,14 +152,14 @@ jobs:
             fi
             echo '```'
             echo
-            echo "What to do: read the release notes against the diff. If nothing in it changes what Hangar sends or reads, bump the pin (\`scripts/codex-protocol/README.md\`, \"How to bump the pinned Codex version\"). If this release drops something Hangar needs, add it to \`CODEX_BROKEN\` (\`crates/hangar-core/src/codex_app/gate.rs\`) so Hangar runs the plain TUI for it meanwhile. Methods and types outside the subset are listed for information only."
+            echo "What to do: read the release notes against the diff. If nothing in it changes what Teskad sends or reads, bump the pin (\`scripts/codex-protocol/README.md\`, \"How to bump the pinned Codex version\"). If this release drops something Teskad needs, add it to \`CODEX_BROKEN\` (\`crates/hangar-core/src/codex_app/gate.rs\`) so Teskad runs the plain TUI for it meanwhile. Methods and types outside the subset are listed for information only."
             echo
             echo "Opened by the Codex schema watch (\`.github/workflows/codex-schema-watch.yml\`) when the subset differs, and updated, never duplicated, while it stays open."
           } > "$body"
 
           labels="$(gh label list --limit 200 --json name --jq '.[].name')"
           if ! grep -qx "$label" <<< "$labels"; then
-            gh label create "$label" --color 1D76DB --description "The latest Codex release changes the app-server protocol Hangar uses"
+            gh label create "$label" --color 1D76DB --description "The latest Codex release changes the app-server protocol Teskad uses"
           fi
 
           number="$(gh issue list --label "$label" --state open --limit 1 --json number --jq '.[0].number // empty')"

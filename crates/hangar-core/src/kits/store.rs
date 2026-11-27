@@ -580,11 +580,14 @@ impl Store {
         let clone = self.clone_dir(&entry.id);
         let commit = source::fetch(source, &clone)?;
         self.load()?.check_pin(source, &commit)?;
-        let path = match &source.subdir {
-            Some(subdir) => format!("{subdir}/{}", manifest::FILE),
-            None => manifest::FILE.to_string(),
+        // `teskad-kit.json` first, `hangar-kit.json` for a kit made before the rename.
+        let at = |name: &str| match &source.subdir {
+            Some(subdir) => format!("{subdir}/{name}"),
+            None => name.to_string(),
         };
+        let path = at(manifest::FILE);
         let text = source::file_at(&clone, &commit, &path)
+            .or_else(|_| source::file_at(&clone, &commit, &at(manifest::LEGACY_FILE)))
             .map_err(|_| format!("the remote holds no {path} any more"))?;
         // Its id first: a remote that has become another kit is said as such.
         if let Some((remote_id, _)) = manifest::version_of(&text) {
@@ -806,7 +809,7 @@ mod tests {
         assert!(store
             .add_folder(&empty.root.to_string_lossy(), 1)
             .unwrap_err()
-            .contains("no hangar-kit.json"));
+            .contains("no teskad-kit.json (or hangar-kit.json)"));
         empty.file(
             manifest::FILE,
             &json!({ "schema": 1, "id": "X" }).to_string(),
@@ -1112,7 +1115,7 @@ mod tests {
         assert!(store
             .add_git_source(source.clone(), 1)
             .unwrap_err()
-            .contains("no hangar-kit.json"));
+            .contains("no teskad-kit.json (or hangar-kit.json)"));
         assert!(store
             .add_git_source(
                 GitSource {
@@ -1628,7 +1631,7 @@ mod tests {
         ] {
             remote
                 .folder
-                .file("work/hangar-kit.json", &manifest.to_string());
+                .file("work/teskad-kit.json", &manifest.to_string());
             remote.push(why);
             let err = store.check_update("studio", 2, None).unwrap_err();
             assert!(err.contains(why), "{err}");

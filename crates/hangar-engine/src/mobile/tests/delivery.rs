@@ -31,8 +31,8 @@ use super::fake::{App, Fakes, Wait, assert_equal, assert_matches, ready};
 fn failed_check() -> Comment {
     comment(
         "c1",
-        "hangar",
-        "Delivery failed (checkFailed, 1 of 3): The check `pnpm test` failed (exit 1) on hangar/qr merged onto main. It \
+        "teskad",
+        "Delivery failed (checkFailed, 1 of 3): The check `pnpm test` failed (exit 1) on teskad/qr merged onto main. It \
          runs in a fresh checkout of that merge.\n```\nFAIL src/qr.test.ts\n```\nFix it on your branch, then call \
          delivery_submit again.",
         1_000,
@@ -42,8 +42,8 @@ fn failed_check() -> Comment {
 fn changes_requested() -> Comment {
     comment(
         "c2",
-        "hangar",
-        "Delivery failed (changesRequested, 2 of 3): The reviewer asked for changes before hangar/qr lands:\n\
+        "teskad",
+        "Delivery failed (changesRequested, 2 of 3): The reviewer asked for changes before teskad/qr lands:\n\
          - src/qr.ts:12: the code is drawn before it is checked\n- src/i18n.ts: a French string is missing\n\
          Notes: Close.\nFix these on your branch, commit, then call delivery_submit again.",
         2_000,
@@ -53,7 +53,7 @@ fn changes_requested() -> Comment {
 fn passed() -> Comment {
     comment(
         "c3",
-        "hangar",
+        "teskad",
         "Passed: waits for the person to land it on main (tested as abc1234).\n\
          Summary: Settings › Mobile pairs a phone by QR code.\nThe code is single use.\n\
          Check: `pnpm test` passed in 84 s.\n\
@@ -188,7 +188,7 @@ impl DeliveryDeps for FakeDelivery {
         ready(Ok(Plan {
             repo: "C:\\dev\\app".into(),
             queue: "c:/dev/app/.git".into(),
-            branch: "hangar/qr".into(),
+            branch: "teskad/qr".into(),
             target: "main".into(),
             ahead: 3,
             tested: if task.is_some() {
@@ -468,8 +468,8 @@ fn comments_say_what_the_check_and_the_review_of_the_delivery_that_waits_found()
     assert_equal(
         &json!(earlier),
         json!([
-            {"at": 1_000, "outcome": "checkFailed", "text": "The check `pnpm test` failed (exit 1) on hangar/qr merged onto main."},
-            {"at": 2_000, "outcome": "changesRequested", "text": "The reviewer asked for changes before hangar/qr lands:",
+            {"at": 1_000, "outcome": "checkFailed", "text": "The check `pnpm test` failed (exit 1) on teskad/qr merged onto main."},
+            {"at": 2_000, "outcome": "changesRequested", "text": "The reviewer asked for changes before teskad/qr lands:",
              "blocking": [
                 {"file": "src/qr.ts", "line": 12, "problem": "the code is drawn before it is checked"},
                 {"file": "src/i18n.ts", "problem": "a French string is missing"},
@@ -484,11 +484,11 @@ fn comments_say_what_the_check_and_the_review_of_the_delivery_that_waits_found()
 fn comments_read_a_failed_delivery_counted_with_or_without_a_most() {
     let since = comment(
         "c4",
-        "hangar",
+        "teskad",
         &crate::control::delivery_text::failed_comment(
             "conflict",
             4,
-            "Merging hangar/qr onto main conflicts in src/qr.ts.",
+            "Merging teskad/qr onto main conflicts in src/qr.ts.",
         ),
         4_000,
     );
@@ -497,8 +497,8 @@ fn comments_read_a_failed_delivery_counted_with_or_without_a_most() {
     assert_equal(
         &json!(earlier),
         json!([
-            {"at": 1_000, "outcome": "checkFailed", "text": "The check `pnpm test` failed (exit 1) on hangar/qr merged onto main."},
-            {"at": 4_000, "outcome": "conflict", "text": "Merging hangar/qr onto main conflicts in src/qr.ts."},
+            {"at": 1_000, "outcome": "checkFailed", "text": "The check `pnpm test` failed (exit 1) on teskad/qr merged onto main."},
+            {"at": 4_000, "outcome": "conflict", "text": "Merging teskad/qr onto main conflicts in src/qr.ts."},
         ]),
     );
 }
@@ -507,7 +507,7 @@ fn comments_read_a_failed_delivery_counted_with_or_without_a_most() {
 fn comments_read_a_delivery_without_a_summary_a_check_or_a_review() {
     let bare = comment(
         "c",
-        "hangar",
+        "teskad",
         "Passed: waits for the person to land it on dev (tested as 1234567).\nCheck: none set for this workspace.",
         1,
     );
@@ -531,7 +531,7 @@ fn comments_know_the_person_s_local_changes_stood_in_the_way_and_keep_what_a_lan
  {
     let blocked = comment(
         "c4",
-        "hangar",
+        "teskad",
         "Passed, but main's checkout has local changes in the way (src/a.ts, src/b.ts): waits for the person to land \
          it once they are committed or set aside (tested as abc1234).\nLanded as it was checked and reviewed when it was submitted.",
         4_000,
@@ -565,7 +565,7 @@ async fn delivery_says_what_it_brings_what_the_check_and_the_review_said_and_whe
         .unwrap();
     let mut expected = json!({
         "taskId": "t1", "title": "Pair a phone by QR code", "workspace": "App", "workspaceId": "w1", "worker": "Dana",
-        "branch": "hangar/qr", "target": "main",
+        "branch": "teskad/qr", "target": "main",
         "summary": "Settings › Mobile pairs a phone by QR code.\nThe code is single use.",
         "check": {"command": "pnpm test", "passed": true, "seconds": 84},
         "review": {"approved": true, "notes": "Clean split.\nMinor: memoize the canvas.", "blocking": []},

@@ -11,14 +11,19 @@
 </p>
 
 <p align="center">
+  <sub><i>Teskad</i> is Breton for a collection, an anthology or a set (masculine; plural
+  <i>teskadoù</i>; pronounced roughly “tess-kat”): here, a set of coding agents working together.</sub>
+</p>
+
+<p align="center">
   <b>Run a team of coding agents in one native window, and steer them from your phone.</b><br>
   <sub>Claude Code and Codex (beta), side by side. Either one is enough.</sub>
 </p>
 
 <p align="center">
-  <a href="https://github.com/BlasterWhite/hangar/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/BlasterWhite/hangar?style=flat-square"></a>
-  <a href="https://github.com/BlasterWhite/hangar/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/BlasterWhite/hangar/ci.yml?branch=main&style=flat-square&label=CI"></a>
-  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/BlasterWhite/hangar?style=flat-square"></a>
+  <a href="https://github.com/BlasterWhite/teskad/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/BlasterWhite/teskad?style=flat-square"></a>
+  <a href="https://github.com/BlasterWhite/teskad/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/BlasterWhite/teskad/ci.yml?branch=main&style=flat-square&label=CI"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/BlasterWhite/teskad?style=flat-square"></a>
   <img alt="Platforms: Windows, macOS, Linux" src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational?style=flat-square">
 </p>
 
@@ -89,12 +94,12 @@ a session through Teskad's server, that the first of two answers to an approval 
 an image is written in its newer session files. On Windows, Codex panes run without Teskad
 attached for now ([what that changes](docs/guide/codex.md#attached-or-the-plain-terminal)).
 Something wrong in a Codex pane? Use the
-[Codex bug form](https://github.com/BlasterWhite/hangar/issues/new?template=codex-bug.yml).
+[Codex bug form](https://github.com/BlasterWhite/teskad/issues/new?template=codex-bug.yml).
 
 ## Install
 
 Download the installer for your system from this fork's
-**[releases](https://github.com/BlasterWhite/hangar/releases/latest)**
+**[releases](https://github.com/BlasterWhite/teskad/releases/latest)**
 ([install guide](docs/guide/install.md)): the app then updates itself from those releases
 only, which are signed with this fork's own key. Or build it from source (see
 [Build from source](#build-from-source)); a build of your own does not update itself.
@@ -104,7 +109,7 @@ only, which are signed with this fork's own key. Or build it from source (see
 | Linux (x86_64) | `.AppImage`, `.deb` or `.rpm` from the releases, or build the binaries, then the `.rpm` or `.deb` with [`crates/hangar-app/packaging/linux/build.sh`](crates/hangar-app/packaging/linux/build.sh) ([packaging guide](docs/native/PACKAGING.md)), or run `./target/dist/teskad` straight from the build |
 | Windows (x64) | `Teskad_<version>_x64-setup.exe` from the releases, or [build it from source](#build-from-source) |
 | macOS (Apple Silicon + Intel) | `Teskad_<version>_universal.dmg` from the releases, or [build it on your Mac](#build-on-macos) |
-| NixOS / Nix | `nix run github:BlasterWhite/hangar` (builds `main`), or the flake in your config: [NixOS](docs/guide/install.md#nixos-and-nix) |
+| NixOS / Nix | `nix run github:BlasterWhite/teskad` (builds `main`), or the flake in your config: [NixOS](docs/guide/install.md#nixos-and-nix) |
 
 You also need [Claude Code](https://code.claude.com/docs/en/overview) or
 [Codex](https://learn.chatgpt.com/docs/codex/cli) (or both), installed and signed in; Teskad
@@ -119,7 +124,7 @@ SmartScreen, Gatekeeper, WebKitGTK, upgrading from 1.x, first steps:
 ### Build from source
 
 ```bash
-git clone https://github.com/BlasterWhite/hangar && cd hangar
+git clone https://github.com/BlasterWhite/teskad && cd teskad
 scripts/native-dev.sh             # builds and runs Teskad on data of its own
 cargo test --workspace
 ```
@@ -136,7 +141,7 @@ xcode-select --install                 # clang and the SDK
 brew install cmake node pnpm           # cmake for dictation; node + pnpm for Teskad Mobile
 curl https://sh.rustup.rs -sSf | sh    # Rust
 
-git clone https://github.com/BlasterWhite/hangar && cd hangar
+git clone https://github.com/BlasterWhite/teskad && cd teskad
 pnpm install && pnpm mobile:build      # optional: the phone app Teskad serves
 cargo build --profile dist --locked -p hangar-app
 cargo build --profile dist --locked -p hangar-webview --features engine
@@ -166,7 +171,7 @@ Teskad 2.0 against 1.12.1, the last web-view release, on the same Linux machine:
 Ideas, questions, bugs and pull requests on GitHub — start with
 [CONTRIBUTING.md](CONTRIBUTING.md) and the [code of conduct](CODE_OF_CONDUCT.md).
 A bug in a Codex pane: the
-[Codex bug form](https://github.com/BlasterWhite/hangar/issues/new?template=codex-bug.yml).
+[Codex bug form](https://github.com/BlasterWhite/teskad/issues/new?template=codex-bug.yml).
 Security issues: [SECURITY.md](SECURITY.md).
 
 ## 💝 Contributors

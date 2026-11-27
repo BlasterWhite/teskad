@@ -1,4 +1,4 @@
-# Hangar Mobile, the phone app: `pnpm mobile:build` into dist-mobile/, which
+# Teskad Mobile, the phone app: `pnpm mobile:build` into dist-mobile/, which
 # the desktop binary embeds (crates/hangar-core/src/remote/assets.rs).
 {
   lib,

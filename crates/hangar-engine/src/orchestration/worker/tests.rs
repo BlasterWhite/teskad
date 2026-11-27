@@ -672,8 +672,8 @@ async fn claims_the_task_checks_out_a_worktree_from_the_target_branch_opens_the_
         .await
         .unwrap();
 
-    let branch = "hangar/login-form-login1";
-    let path = sibling("hangar-login-form-login1");
+    let branch = "teskad/login-form-login1";
+    let path = sibling("teskad-login-form-login1");
     assert_eq!(spawned["worker"], "Mia");
     assert_eq!(
         spawned["task"],
@@ -760,7 +760,7 @@ async fn runs_the_workspaces_post_create_command_in_the_new_worktree_after_the_c
     app.call("worker_spawn", json!({"task": "t1"}))
         .await
         .unwrap();
-    let path = sibling("hangar-one-t1");
+    let path = sibling("teskad-one-t1");
     let lines: Vec<String> = app
         .log()
         .into_iter()
@@ -1169,8 +1169,8 @@ async fn removes_the_worktree_and_its_branch_when_the_pane_cannot_be_opened() {
     assert_eq!(
         log[log.len() - 3..],
         [
-            format!("unworktree:{}:true", sibling("hangar-one-t1")),
-            "unbranch:hangar/one-t1:true".to_string(),
+            format!("unworktree:{}:true", sibling("teskad-one-t1")),
+            "unbranch:teskad/one-t1:true".to_string(),
             "release:t1:Mia:true".to_string(),
         ]
     );
@@ -1206,8 +1206,8 @@ async fn closes_the_pane_removes_the_worktree_and_gives_the_task_back_when_the_b
         [
             "kill:p10".to_string(),
             "close:p10".to_string(),
-            format!("unworktree:{}:true", sibling("hangar-one-t1")),
-            "unbranch:hangar/one-t1:true".to_string(),
+            format!("unworktree:{}:true", sibling("teskad-one-t1")),
+            "unbranch:teskad/one-t1:true".to_string(),
             "release:t1:Mia:true".to_string(),
         ]
     );
@@ -1238,14 +1238,14 @@ async fn takes_the_next_branch_name_when_an_earlier_attempts_branch_is_still_the
         tasks: vec![job("t1", "One", &["a/**"])],
         ..Options::default()
     });
-    app.branches.lock().unwrap().push("hangar/one-t1".into());
+    app.branches.lock().unwrap().push("teskad/one-t1".into());
 
     let spawned = app
         .call("worker_spawn", json!({"task": "t1"}))
         .await
         .unwrap();
-    assert_eq!(spawned["branch"], "hangar/one-t1-2");
-    assert_eq!(spawned["worktree"], sibling("hangar-one-t1-2").as_str());
+    assert_eq!(spawned["branch"], "teskad/one-t1-2");
+    assert_eq!(spawned["worktree"], sibling("teskad-one-t1-2").as_str());
 }
 
 #[tokio::test]
@@ -1261,15 +1261,15 @@ async fn starts_the_worker_in_the_same_subfolder_of_its_worktree_as_the_workspac
         .await
         .unwrap();
 
-    assert_eq!(spawned["worktree"], sibling("hangar-one-t1").as_str());
+    assert_eq!(spawned["worktree"], sibling("teskad-one-t1").as_str());
     assert_eq!(
         app.pane_named("Mia").unwrap().cwd.as_deref(),
-        Some(format!("{}\\packages\\App", sibling("hangar-one-t1")).as_str())
+        Some(format!("{}\\packages\\App", sibling("teskad-one-t1")).as_str())
     );
     let listed = app.call("worker_list", json!({})).await.unwrap();
     assert_eq!(
         listed["workers"][0]["worktree"],
-        "C:/dev/shop-worktrees/hangar-one-t1"
+        "C:/dev/shop-worktrees/teskad-one-t1"
     );
 
     let stopped = app
@@ -1278,7 +1278,7 @@ async fn starts_the_worker_in_the_same_subfolder_of_its_worktree_as_the_workspac
         .unwrap();
     assert_eq!(
         stopped["worktree"]["path"],
-        "C:/dev/shop-worktrees/hangar-one-t1"
+        "C:/dev/shop-worktrees/teskad-one-t1"
     );
     assert_eq!(stopped["worktree"]["removed"], true);
 }
@@ -1431,7 +1431,7 @@ async fn a_claude_code_orchestrator_starts_a_codex_worker_when_it_names_codex() 
     assert_eq!(spawned["worker"], "Mia");
     assert_eq!(spawned["agent"], "codex");
     assert_eq!(spawned["model"], Value::Null);
-    assert_eq!(spawned["branch"], "hangar/one-t1");
+    assert_eq!(spawned["branch"], "teskad/one-t1");
     assert_eq!(
         spawned["brief"],
         "queued: submitted as soon as its Codex session is ready"
@@ -1441,7 +1441,7 @@ async fn a_claude_code_orchestrator_starts_a_codex_worker_when_it_names_codex() 
     assert_eq!(mia.role, Some(PaneRole::Worker));
     assert_eq!(mia.task_id.as_deref(), Some("t1"));
     let add =
-        json!({"agent": "codex", "cwd": sibling("hangar-one-t1"), "name": "Mia", "near": "p1"})
+        json!({"agent": "codex", "cwd": sibling("teskad-one-t1"), "name": "Mia", "near": "p1"})
             .to_string();
     assert!(app.log().contains(&format!("add:{add}")), "{:?}", app.log());
     // Its brief is a worker's brief, queued from its orchestrator.
@@ -1853,8 +1853,8 @@ async fn sends_a_worker_to_a_node_its_base_pushed_its_worktree_there_and_its_bri
         .call("worker_spawn", json!({"task": "t1", "node": "gpu box"}))
         .await
         .unwrap();
-    let branch = "hangar/one-t1";
-    let path = format!("{NODE_REPO}-worktrees/hangar-one-t1");
+    let branch = "teskad/one-t1";
+    let path = format!("{NODE_REPO}-worktrees/teskad-one-t1");
     assert_eq!(spawned["node"], "n1");
     assert_eq!(spawned["worktree"], path.as_str());
     assert_eq!(spawned["folder"], path.as_str());
@@ -1982,8 +1982,8 @@ async fn a_start_on_a_node_that_fails_undoes_its_worktree_there() {
     assert_eq!(
         undone,
         [
-            format!("unworktree:{NODE_REPO}-worktrees/hangar-one-t1:true"),
-            "unbranch:hangar/one-t1:true".to_string(),
+            format!("unworktree:{NODE_REPO}-worktrees/teskad-one-t1:true"),
+            "unbranch:teskad/one-t1:true".to_string(),
             "release:t1:Mia:true".to_string(),
         ]
     );
@@ -2011,7 +2011,7 @@ async fn stopping_a_worker_on_a_node_removes_its_worktree_there_and_lists_it_wit
     app.call("worker_spawn", json!({"task": "t1", "node": "n1"}))
         .await
         .unwrap();
-    let path = format!("{NODE_REPO}-worktrees/hangar-one-t1");
+    let path = format!("{NODE_REPO}-worktrees/teskad-one-t1");
 
     let listed = app.call("worker_list", json!({})).await.unwrap();
     assert_eq!(listed["nodes"], json!([{"id": "n1", "label": "GPU box"}]));
@@ -2020,7 +2020,7 @@ async fn stopping_a_worker_on_a_node_removes_its_worktree_there_and_lists_it_wit
         mia["node"],
         json!({"id": "n1", "label": "GPU box", "connected": true})
     );
-    assert_eq!(mia["branch"], "hangar/one-t1");
+    assert_eq!(mia["branch"], "teskad/one-t1");
     assert_eq!(mia["worktree"], path.as_str());
 
     app.clear_log();
@@ -2043,9 +2043,9 @@ async fn stopping_a_worker_on_a_node_removes_its_worktree_there_and_lists_it_wit
     assert_eq!(
         git,
         [
-            "ahead@node:main..hangar/one-t1".to_string(),
+            "ahead@node:main..teskad/one-t1".to_string(),
             format!("unworktree:{path}:true"),
-            "unbranch:hangar/one-t1:true".to_string(),
+            "unbranch:teskad/one-t1:true".to_string(),
         ]
     );
 }
@@ -2079,8 +2079,8 @@ async fn lists_each_worker_with_its_task_branch_ports_and_delivery() {
             "task": {"id": "t1", "title": "One", "column": "doing", "attempts": 1},
             "activity": "working",
             "running": true,
-            "branch": "hangar/one-t1",
-            "worktree": sibling("hangar-one-t1"),
+            "branch": "teskad/one-t1",
+            "worktree": sibling("teskad-one-t1"),
             "model": "sonnet",
             "ports": {"base": PORT_POOL_START + 20, "count": 20},
             "delivery": null,
@@ -2152,7 +2152,7 @@ async fn ends_its_processes_closes_it_gives_the_task_back_and_removes_a_worktree
         json!({
             "stopped": "Mia",
             "task": {"id": "t1", "title": "One", "column": "todo"},
-            "worktree": {"path": path, "branch": "hangar/one-t1", "removed": true, "branchDeleted": true},
+            "worktree": {"path": path, "branch": "teskad/one-t1", "removed": true, "branchDeleted": true},
         })
     );
     assert_eq!(
@@ -2161,9 +2161,9 @@ async fn ends_its_processes_closes_it_gives_the_task_back_and_removes_a_worktree
             format!("kill:{}", worker.id),
             format!("close:{}", worker.id),
             "release:t1:Mia:false".to_string(),
-            "ahead:main..hangar/one-t1".to_string(),
+            "ahead:main..teskad/one-t1".to_string(),
             format!("unworktree:{path}:true"),
-            "unbranch:hangar/one-t1:true".to_string(),
+            "unbranch:teskad/one-t1:true".to_string(),
             "announce:closed:Mia:Ava".to_string(),
         ]
     );
@@ -2222,7 +2222,7 @@ async fn keeps_a_worktree_with_uncommitted_changes_and_says_which() {
 #[tokio::test]
 async fn keeps_a_branch_with_commits_the_target_does_not_have() {
     let (app, _, _) = started().await;
-    app.ahead.lock().unwrap().insert("hangar/one-t1".into(), 2);
+    app.ahead.lock().unwrap().insert("teskad/one-t1".into(), 2);
 
     let stopped = app
         .call("worker_stop", json!({"worker": "Mia"}))
@@ -2232,13 +2232,13 @@ async fn keeps_a_branch_with_commits_the_target_does_not_have() {
         stopped["worktree"]["kept"]
             .as_str()
             .unwrap()
-            .contains("hangar/one-t1 has 2 commit(s) that main does not")
+            .contains("teskad/one-t1 has 2 commit(s) that main does not")
     );
     assert!(
         app.branches
             .lock()
             .unwrap()
-            .contains(&"hangar/one-t1".to_string())
+            .contains(&"teskad/one-t1".to_string())
     );
 }
 
@@ -2274,7 +2274,7 @@ async fn does_not_claim_the_branch_went_when_it_did_not() {
         stopped["worktree"]["kept"]
             .as_str()
             .unwrap()
-            .contains("branch hangar/one-t1 could not be deleted")
+            .contains("branch teskad/one-t1 could not be deleted")
     );
 }
 
@@ -2372,7 +2372,7 @@ fn makes_a_branch_from_the_tasks_title_and_id() {
     assert_eq!(task_slug("ログイン"), "task");
     assert_eq!(
         worker_branch("3f2a9c41-0000", "Fix the login form"),
-        "hangar/fix-the-login-form-3f2a9c"
+        "teskad/fix-the-login-form-3f2a9c"
     );
 }
 
@@ -2386,7 +2386,7 @@ fn facts<'a>(owns: &'a [String]) -> BriefFacts<'a> {
         orchestrator: None,
         workspace: "Shop",
         folder: "/w",
-        branch: Some("hangar/t-t"),
+        branch: Some("teskad/t-t"),
         target: Some("main"),
         worktree: Some("/w"),
         port_base: PORT_POOL_START,
@@ -2451,8 +2451,8 @@ fn sanitizes_branch_names_and_places_worktrees_beside_the_checkout() {
     assert_eq!(sanitize_branch_name(".env"), "env");
     assert_eq!(sanitize_branch_name("   "), "");
     assert_eq!(
-        worktree_folder("/home/me/shop/", "hangar/x"),
-        "/home/me/shop-worktrees/hangar-x"
+        worktree_folder("/home/me/shop/", "teskad/x"),
+        "/home/me/shop-worktrees/teskad-x"
     );
     assert_eq!(worktree_folder(REPO, "a b"), sibling("a-b"));
 }

@@ -334,7 +334,7 @@ makensis overflows a stack buffer on very long include paths.
 ```bash
 cargo packager signer generate --ci --path /tmp/test-key --password test
 UPDATER_SIGNING_KEY="$(cat /tmp/test-key)" UPDATER_SIGNING_KEY_PASSWORD=test crates/hangar-app/packaging/sign.sh target/packager/Teskad*
-TAG=v1.13.0 REPO=BlasterWhite/hangar crates/hangar-app/packaging/latest-json.sh target/packager latest.json
+TAG=v1.13.0 REPO=BlasterWhite/teskad crates/hangar-app/packaging/latest-json.sh target/packager latest.json
 cargo run -p hangar-update --example verify_feed -- latest.json target/packager --version v1.13.0 --pubkey /tmp/test-key.pub
 ```
 
@@ -437,7 +437,7 @@ The current key's id is `70C57C3F4975A19B`.
 
 | What an install knows | Kept how |
 | --- | --- |
-| The feed and the key | The fork's own feed (`ENDPOINT`, on `BlasterWhite/hangar`) and key (`PUBKEY`, id `70C57C3F4975A19B`), never the official app's: `hangar-update` refuses anything another key signed (a test checks it). Checked with a key made by `cargo packager signer generate` through `hangar-update`'s `verify_file`. The real key is only in the CI secrets; the publish job's `verify_feed` is what tries it. |
+| The feed and the key | The fork's own feed (`ENDPOINT`, on `BlasterWhite/teskad`) and key (`PUBKEY`, id `70C57C3F4975A19B`), never the official app's: `hangar-update` refuses anything another key signed (a test checks it). Checked with a key made by `cargo packager signer generate` through `hangar-update`'s `verify_file`. The real key is only in the CI secrets; the publish job's `verify_feed` is what tries it. |
 | Asset names | `Teskad…`, in every row of section 1; the download page links to them. The official app's `Hangar.AI…` names are not used. |
 | Identifier, product name, executable | `io.github.blasterwhite.teskad`, `Teskad`, `teskad`, publisher `BlasterWhite`: nothing shared with the official app (`com.simnjs.iabench`, `Hangar.AI`, `hangar-ai`, `simnjs`), which Teskad installs beside. `teskad --mcp` is what agents' MCP configs name: `/usr/bin/teskad`, `…/Teskad.app/Contents/MacOS/teskad`, `%LOCALAPPDATA%\Teskad\teskad.exe`. The helpers `teskad-webview` and `teskad-node` keep their names, they are internal. |
 | `.deb` | Package `teskad`: `dpkg -i` never replaces the official `hangar-ai`. It depends on `libwebkit2gtk-4.1-0` and GTK, `libasound2`, `libstdc++6`, `libc6`. The desktop file is `teskad.desktop`, with `StartupWMClass=teskad`. Icons go in the `hicolor` folders, from 16 to 512 px plus `scalable/apps/teskad.svg`: a rounded tile with room around it, as GNOME and KDE draw app icons (`packaging/icons/linux/`, rendered from its SVG by `render.sh`). |

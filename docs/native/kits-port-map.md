@@ -31,7 +31,7 @@ A port never touches the hangar repository: everything below is in `hangar-kit-s
 
    ```toml
    [dependencies]
-   hangar-kit-sdk = { git = "https://github.com/BlasterWhite/hangar", branch = "feat/native-rust" }
+   hangar-kit-sdk = { git = "https://github.com/BlasterWhite/teskad", branch = "feat/native-rust" }
    serde = { version = "1", features = ["derive"] }
    serde_json = "1"
 

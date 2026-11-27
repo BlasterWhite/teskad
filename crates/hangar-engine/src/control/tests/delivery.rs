@@ -286,7 +286,7 @@ async fn is_done_when_it_delivers_nothing_runs_the_orchestrator_hears_it_and_its
     let comment = s.line("comment:");
     contains(
         &comment,
-        "comment:t1:hangar:Done by Bo in the workspace's folder.",
+        "comment:t1:teskad:Done by Bo in the workspace's folder.",
     );
     contains(&comment, "Summary: Added the button.");
     assert_eq!(s.state().as_deref(), Some("done"));
@@ -345,7 +345,7 @@ async fn a_landed_delivery_finishes_the_task_and_lets_the_worker_go() {
     let comment = s.line("comment:");
     contains(
         &comment,
-        "comment:t1:hangar:Landed on main (abcdef1), fast-forwarded in C:\\dev\\app.",
+        "comment:t1:teskad:Landed on main (abcdef1), fast-forwarded in C:\\dev\\app.",
     );
     contains(&comment, "Summary: Added the button.");
     contains(&comment, "Check: `pnpm test` passed in 42 s.");
@@ -382,7 +382,7 @@ async fn a_failure_goes_back_to_the_worker_with_what_to_do_and_the_task_stays_it
     assert_eq!(s.task().column, "doing");
     assert!(s.fake.logged("close:").is_empty());
     assert!(s.fake.log().contains(&format!(
-        "comment:t1:hangar:Delivery failed (conflict, 1): {detail}"
+        "comment:t1:teskad:Delivery failed (conflict, 1): {detail}"
     )));
     let told = s.line("tell:p2:");
     contains(
@@ -410,7 +410,7 @@ async fn a_third_failure_and_every_one_after_it_go_back_to_the_worker_not_to_the
     // Two as boards on disk carry them, written while there was a most.
     let earlier = |n: u32| Comment {
         id: format!("c{n}"),
-        author: "hangar".into(),
+        author: "teskad".into(),
         text: format!("Delivery failed (checkFailed, {n} of 3): x"),
         created_at: 0,
     };
@@ -428,7 +428,7 @@ async fn a_third_failure_and_every_one_after_it_go_back_to_the_worker_not_to_the
         assert_eq!(s.task().column, "doing");
         assert_eq!(s.task().labels, vec!["ui"], "failure {n}");
         assert!(s.fake.log().contains(&format!(
-            "comment:t1:hangar:Delivery failed (checkFailed, {n}): {detail}"
+            "comment:t1:teskad:Delivery failed (checkFailed, {n}): {detail}"
         )));
         let told = s.fake.logged("tell:p2:").pop().unwrap();
         contains(&told, &format!("Failed deliveries so far: {n}."));
@@ -572,7 +572,7 @@ async fn the_persons_local_changes_in_the_way_make_it_wait_for_them_not_the_work
     contains(&s.line("comment:"), "local changes in the way (src/a.ts)");
     assert!(
         s.fake
-            .logged("comment:t1:hangar:Delivery failed")
+            .logged("comment:t1:teskad:Delivery failed")
             .is_empty()
     );
 }
@@ -649,7 +649,7 @@ async fn landing_needs_a_delivery_that_still_waits() {
 fn failed_before() -> Comment {
     Comment {
         id: "c0".into(),
-        author: "hangar".into(),
+        author: "teskad".into(),
         text: "Delivery failed (conflict, 1 of 3): x".into(),
         created_at: 0,
     }
@@ -739,7 +739,7 @@ async fn with_new_commits_replaces_it_and_takes_the_whole_way_again_only_the_new
     assert_eq!(s.task().column, "doing");
     assert_eq!(s.task().labels, vec!["ui"]);
     assert!(s.fake.log().contains(
-        &"comment:t1:hangar:Submitted again with new commits on worker/t1: the delivery that waited for the person \
+        &"comment:t1:teskad:Submitted again with new commits on worker/t1: the delivery that waited for the person \
           (tested as abcdef1) is withdrawn, and this one is merged, checked and reviewed before it can land."
             .to_string()
     ));
@@ -796,7 +796,7 @@ async fn with_new_commits_that_fail_counts_that_failure_once_and_nothing_waits_a
     assert_eq!(s.task().column, "doing");
     assert_eq!(s.task().labels, vec!["ui"]);
     assert!(s.fake.log().contains(
-        &"comment:t1:hangar:Delivery failed (conflict, 2): Merging worker/t1 onto main conflicts in src/a.ts."
+        &"comment:t1:teskad:Delivery failed (conflict, 2): Merging worker/t1 onto main conflicts in src/a.ts."
             .to_string()
     ));
     contains(&s.line("tell:p2:"), "Failed deliveries so far: 2.");
@@ -830,7 +830,7 @@ async fn is_never_landed_past_the_workers_newer_commits_the_worker_is_asked_to_s
     assert_eq!(s.task().column, "doing");
     assert_eq!(s.task().labels, vec!["ui"]);
     assert!(s.fake.log().contains(
-        &"comment:t1:hangar:Not landed: worker/t1 has commits that were not in the delivery that waited (tested as \
+        &"comment:t1:teskad:Not landed: worker/t1 has commits that were not in the delivery that waited (tested as \
           abcdef1). It is withdrawn; Bo was asked to submit again."
             .to_string()
     ));

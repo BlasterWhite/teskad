@@ -5,7 +5,7 @@ ideas are all welcome. Please follow the [code of conduct](CODE_OF_CONDUCT.md) i
 interaction.
 
 - **Question, or want to talk it through first?** Open an
-  [issue](https://github.com/BlasterWhite/hangar/issues).
+  [issue](https://github.com/BlasterWhite/teskad/issues).
 - **Security issue?** Do not open a public issue. See [SECURITY.md](SECURITY.md).
 - **Bug?** Open an issue with the bug template: OS, Teskad version (2.0 and later are the
   native app, 1.x the web-view one), what the pane ran, and steps.

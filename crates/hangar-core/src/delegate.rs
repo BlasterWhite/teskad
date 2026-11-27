@@ -53,7 +53,7 @@ pub const WAIT_MAX: Duration = Duration::from_secs(45);
 /// How long [`cancel`] gives a child to stop before it answers anyway.
 const CANCEL_WAIT: Duration = Duration::from_secs(15);
 /// Who Hangar's own events come from (`bridge::Queued::from`).
-const HANGAR: &str = "hangar";
+const HANGAR: &str = crate::board::APP_AUTHOR;
 /// Past this, the result an event carries is cut: [`status`] gives it whole.
 const EVENT_RESULT_CHARS: usize = 4_000;
 /// The longest a delegation's task reads in a listing.

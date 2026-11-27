@@ -233,7 +233,7 @@ fn sends_the_events_of_a_few_seconds_as_one_message_from_hangar() {
     let sent = r.sent();
     assert_eq!(sent.len(), 1);
     assert_eq!(sent[0].pane, "o");
-    assert_eq!(sent[0].from, "hangar");
+    assert_eq!(sent[0].from, "teskad");
     let lines: Vec<&str> = sent[0].text.split('\n').collect();
     assert_eq!(lines[0], "2 updates in workspace \"Shop\":");
     assert!(lines[1].contains("Delivery of \"Task t1\" [t1] by worker-1 failed the check"));

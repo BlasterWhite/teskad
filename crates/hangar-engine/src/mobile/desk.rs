@@ -396,7 +396,7 @@ fn item_of(item: &Value) -> Option<ChatItem> {
         "user" => Body::User {
             text: text()?,
             from: match item.get("from").and_then(Value::as_str) {
-                Some("hangar") => Sender::Hangar,
+                Some("teskad" | "hangar") => Sender::Hangar,
                 _ => Sender::Person,
             },
             images: item

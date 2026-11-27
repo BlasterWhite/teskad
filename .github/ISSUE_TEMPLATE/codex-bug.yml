@@ -8,7 +8,7 @@ body:
       value: |
         Codex support is **beta**. Teskad was written against the app-server protocol OpenAI publishes for Codex (its JSON Schema, source and docs), without a recorded Codex session, so what that protocol does not say may be wrong here, and your report is how we find out. Thank you.
 
-        For a problem in a Claude Code or plain shell pane, use the [Bug report](https://github.com/BlasterWhite/hangar/issues/new?template=bug_report.yml) form. For a security problem, do not use a public issue: see [SECURITY.md](https://github.com/BlasterWhite/hangar/blob/main/SECURITY.md).
+        For a problem in a Claude Code or plain shell pane, use the [Bug report](https://github.com/BlasterWhite/teskad/issues/new?template=bug_report.yml) form. For a security problem, do not use a public issue: see [SECURITY.md](https://github.com/BlasterWhite/teskad/blob/main/SECURITY.md).
 
   - type: input
     id: hangar-version

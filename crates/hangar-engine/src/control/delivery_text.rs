@@ -7,7 +7,7 @@ use hangar_core::delivery::Outcome;
 
 /// What the comments and the messages are signed with (bridge.rs
 /// `Queued.from`).
-pub const HANGAR: &str = "hangar";
+pub const HANGAR: &str = hangar_core::board::APP_AUTHOR;
 /// How the board's comments count the failed deliveries: they outlive the app.
 pub const FAILED: &str = "Delivery failed";
 /// What core says when the account behind the review is out of quota.

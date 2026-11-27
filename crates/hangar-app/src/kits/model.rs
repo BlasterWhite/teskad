@@ -1,7 +1,7 @@
 //! What a kit is to the app, and what a workspace holds for it: the pure part
 //! of `lib/kits.ts`.
 //!
-//! A kit is a folder with a `hangar-kit.json`, linked from disk or cloned from
+//! A kit is a folder with a `teskad-kit.json` (`hangar-kit.json` for a kit made before the rename), linked from disk or cloned from
 //! a GitHub link, that brings a domain into Hangar: a Claude Code plugin every
 //! Claude Code pane of a workspace it is enabled on loads, tabs of its own, and
 //! setup commands run once per machine (docs/kits.md). The workspace holds

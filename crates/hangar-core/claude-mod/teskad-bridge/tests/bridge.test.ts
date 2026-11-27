@@ -677,7 +677,19 @@ test("an agent's message reaches an idle session labelled, framed as the mod's, 
   expect(submitted).toEqual([{ text: FROM_AVA + '\n\nReview the API', asUser: undefined, plugin: 'teskad-bridge' }])
 })
 
-test("Hangar's own event is labelled as an event", async ($, on) => {
+test("Teskad's own event is labelled as an event", async ($, on) => {
+  const { clock } = setup(on, PANE_ENV, { next: inboxOf({ text: 'Task "API" moved to review.', from: 'teskad' }) })
+  const submitted = submissions(on)
+
+  await start($)
+  await clock.advance(1500)
+
+  expect(submitted).toEqual([
+    { text: FROM_HANGAR + '\n\nTask "API" moved to review.', asUser: undefined, plugin: 'teskad-bridge' },
+  ])
+})
+
+test("an event queued before the rename, from 'hangar', is labelled as an event too", async ($, on) => {
   const { clock } = setup(on, PANE_ENV, { next: inboxOf({ text: 'Task "API" moved to review.', from: 'hangar' }) })
   const submitted = submissions(on)
 
@@ -707,7 +719,7 @@ test("an agent's slash command is words for the model, not a command run as the 
 
 test('mid-turn, a labelled message joins the turn once the model waits on its tools', async ($, on) => {
   const { clock, sent } = setup(on, PANE_ENV, {
-    next: inboxOf({ text: 'mine, for later' }, { text: 'Worker "api" delivered.', from: 'hangar' }),
+    next: inboxOf({ text: 'mine, for later' }, { text: 'Worker "api" delivered.', from: 'teskad' }),
   })
   const session = mock.session(on)
   const submitted = submissions(on)
@@ -753,7 +765,7 @@ test('mid-turn, a labelled message joins the turn once the model waits on its to
 })
 
 test('mid-turn, nothing is taken while a permission dialog is up', async ($, on) => {
-  const { clock, sent } = setup(on, PANE_ENV, { next: inboxOf({ text: 'mine' }, { text: 'event', from: 'hangar' }) })
+  const { clock, sent } = setup(on, PANE_ENV, { next: inboxOf({ text: 'mine' }, { text: 'event', from: 'teskad' }) })
   const session = mock.session(on)
   const plan = requests(on)
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
@@ -771,7 +783,7 @@ test('mid-turn, nothing is taken while a permission dialog is up', async ($, on)
 })
 
 test('a labelled message appended as the last request went out is handed over again when the turn ends', async ($, on) => {
-  const { clock } = setup(on, PANE_ENV, { next: inboxOf({ text: 'Worker "api" is waiting.', from: 'hangar' }) })
+  const { clock } = setup(on, PANE_ENV, { next: inboxOf({ text: 'Worker "api" is waiting.', from: 'teskad' }) })
   const session = mock.session(on)
   const submitted = submissions(on)
   const plan = requests(on)
@@ -794,7 +806,7 @@ test('a labelled message appended as the last request went out is handed over ag
 })
 
 test('one the person interrupted is left for their next prompt to carry', async ($, on) => {
-  const { clock } = setup(on, PANE_ENV, { next: inboxOf({ text: 'event', from: 'hangar' }) })
+  const { clock } = setup(on, PANE_ENV, { next: inboxOf({ text: 'event', from: 'teskad' }) })
   const session = mock.session(on)
   const submitted = submissions(on)
   const plan = requests(on)

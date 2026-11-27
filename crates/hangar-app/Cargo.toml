@@ -108,7 +108,7 @@ winresource = "0.1"
 productName = "Teskad"
 identifier = "io.github.blasterwhite.teskad"
 publisher = "BlasterWhite"
-homepage = "https://github.com/BlasterWhite/hangar"
+homepage = "https://github.com/BlasterWhite/teskad"
 category = "DeveloperTool"
 longDescription = """
 Hangar runs Claude Code and shells side by side, each in a real terminal pane, around a shared task board and memory that every Claude Code reads and writes over Hangar's MCP server."""
@@ -200,7 +200,7 @@ windowSize = { width = 660, height = 400 }
 name = "Teskad"
 license = "MIT"
 summary = "Terminal multiplexer for CLI coding agents, with a shared task board"
-url = "https://github.com/BlasterWhite/hangar"
+url = "https://github.com/BlasterWhite/teskad"
 # The default is to run ldd on the build machine and require every library it
 # finds, with the versions of the symbols used: a few hundred requirements that
 # only the machine that built the package satisfies (a Fedora has other sonames

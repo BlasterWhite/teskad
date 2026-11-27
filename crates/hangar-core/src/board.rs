@@ -150,8 +150,18 @@ pub struct Blocked {
 pub const MAX_BLOCK_REASON: usize = 500;
 /// The longest note kept with an unblock.
 const MAX_UNBLOCK_NOTE: usize = 500;
-/// Who signs the comments Hangar writes itself on a task.
-pub const APP_AUTHOR: &str = "hangar";
+/// Who signs the comments Teskad writes itself on a task, and the `from` of the
+/// messages it queues.
+pub const APP_AUTHOR: &str = "teskad";
+/// What signed them before the rename: boards and transcripts written by an
+/// older version still carry it, and it is still read as the app.
+pub const LEGACY_APP_AUTHOR: &str = "hangar";
+
+/// Whether `name` is the app's signature, the current or the one before the
+/// rename, exactly (`is_hangar_author` of the engine takes `teskad:delivery`).
+pub fn is_app_name(name: &str) -> bool {
+    name == APP_AUTHOR || name == LEGACY_APP_AUTHOR
+}
 
 /// What blocks a task, as `block_task` takes it.
 #[derive(Debug, Clone, Default, Deserialize)]

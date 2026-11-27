@@ -80,7 +80,7 @@ pub use updater::{Config, ReleaseInfo, State, Updater};
 /// `/releases/latest/download/` to the latest release that is not a draft or a
 /// pre-release. Only this fork's releases are ever read.
 pub const ENDPOINT: &str =
-    "https://github.com/BlasterWhite/hangar/releases/latest/download/latest.json";
+    "https://github.com/BlasterWhite/teskad/releases/latest/download/latest.json";
 
 /// The public half of the key every Teskad release is signed with, base64 of
 /// the minisign `.pub` file (key id 70C57C3F4975A19B). The private half is made

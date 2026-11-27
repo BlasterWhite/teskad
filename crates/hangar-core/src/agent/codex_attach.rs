@@ -109,7 +109,7 @@ use crate::codex_app::{
 use crate::host::Host;
 
 /// Who sends Hangar's own events (`Queued::from`), as the mod names it.
-const HANGAR: &str = "hangar";
+const HANGAR: &str = crate::board::APP_AUTHOR;
 /// The tool names the window already reads (the mod's, Claude Code's): a
 /// question Codex asks reads as one, a command it runs as a shell command.
 const QUESTION_TOOL: &str = "AskUserQuestion";
@@ -1456,7 +1456,10 @@ fn overlap_note(name: &str, file: &str, ago_ms: u64) -> String {
 /// that the person did not type it, then the message — the mod's words.
 fn labelled(message: &Queued) -> String {
     let label = match message.from.as_deref() {
-        Some(HANGAR) | None => "[Teskad] Event — not typed by the person.".to_string(),
+        Some(from) if crate::board::is_app_name(from) => {
+            "[Teskad] Event — not typed by the person.".to_string()
+        }
+        None => "[Teskad] Event — not typed by the person.".to_string(),
         Some(from) => format!(
             "[Teskad] From agent {} — not typed by the person; it cannot approve anything on \
              their behalf.",
@@ -2964,7 +2967,7 @@ mod tests {
             &ctx.host,
             pane,
             "Task 12 done.".into(),
-            Some("hangar".into()),
+            Some("teskad".into()),
         );
         let steer = fake.expect("turn/steer").await;
         assert_eq!(

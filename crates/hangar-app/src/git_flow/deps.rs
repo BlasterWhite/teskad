@@ -210,7 +210,7 @@ impl FromGitDeps for AppDeps {
             self.services.core().host(),
             pane.to_string(),
             text.to_string(),
-            Some("hangar".to_string()),
+            Some(hangar_core::board::APP_AUTHOR.to_string()),
         );
         Ok(())
     }

@@ -1115,7 +1115,7 @@ fn what_is_sent_while_the_orchestrator_works_waits_in_its_queue_and_can_be_taken
         &mut m,
         &[
             ("q1", "Also add tests", None),
-            ("q2", "3 updates in workspace", Some("hangar")),
+            ("q2", "3 updates in workspace", Some("teskad")),
             ("q3", "And update the README", None),
         ],
     );

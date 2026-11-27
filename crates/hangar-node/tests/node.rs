@@ -1308,7 +1308,7 @@ async fn a_control_request_goes_to_the_driving_desktop_and_its_reply_comes_back(
     let (status, body) = tokio::task::spawn_blocking(move || {
         replying.post(
             &format!("/node/control/{id}/reply"),
-            json!({ "ok": true, "value": { "worker": "Nora", "branch": "hangar/t1" } }),
+            json!({ "ok": true, "value": { "worker": "Nora", "branch": "teskad/t1" } }),
         )
     })
     .await
@@ -1318,7 +1318,7 @@ async fn a_control_request_goes_to_the_driving_desktop_and_its_reply_comes_back(
 
     let (text, failed) = agent.await.unwrap();
     assert!(!failed, "{text}");
-    assert!(text.contains("hangar/t1"), "{text}");
+    assert!(text.contains("teskad/t1"), "{text}");
 }
 
 /// Nobody drives the node: its agents hear so at once, rather than after
@@ -1415,7 +1415,7 @@ fn a_worker_s_worktree_is_made_read_and_removed_on_the_node() {
 
     let (status, body) = node.post(
         "/node/worktree",
-        json!({ "repo": repo_s, "path": tree_s, "branch": "hangar/w1", "base": "main" }),
+        json!({ "repo": repo_s, "path": tree_s, "branch": "teskad/w1", "base": "main" }),
     );
     assert_eq!(status, 200, "{body}");
     assert!(tree.join("README").is_file(), "checked out on the node");
@@ -1446,7 +1446,7 @@ fn a_worker_s_worktree_is_made_read_and_removed_on_the_node() {
         .iter()
         .filter_map(|tree| tree["branch"].as_str())
         .collect();
-    assert!(branches.contains(&"hangar/w1"), "{listed}");
+    assert!(branches.contains(&"teskad/w1"), "{listed}");
 
     std::fs::write(tree.join("new.txt"), "x\n").unwrap();
     let (_, changes) = node.post("/node/git", json!({ "op": "changes", "path": tree_s }));
@@ -1461,7 +1461,7 @@ fn a_worker_s_worktree_is_made_read_and_removed_on_the_node() {
     git(&tree, &["commit", "-q", "-m", "work"]);
     let (_, ahead) = node.post(
         "/node/git",
-        json!({ "op": "commits_ahead", "path": repo_s, "base": "main", "head": "hangar/w1" }),
+        json!({ "op": "commits_ahead", "path": repo_s, "base": "main", "head": "teskad/w1" }),
     );
     assert_eq!(ahead["value"], 1, "{ahead}");
 
@@ -1495,7 +1495,7 @@ fn a_worker_s_worktree_is_made_read_and_removed_on_the_node() {
         "DELETE",
         "/node/branch",
         Some(&node.token),
-        Some(json!({ "repo": repo_s, "branch": "hangar/w1", "force": true })),
+        Some(json!({ "repo": repo_s, "branch": "teskad/w1", "force": true })),
     );
     assert_eq!(status, 200, "{deleted}");
     assert_eq!(deleted["value"]["deleted"], true, "{deleted}");
@@ -1532,7 +1532,7 @@ async fn a_worker_claims_its_task_and_is_briefed_on_the_node() {
     }
     let (status, commented) = node.post(
         "/node/board/comment",
-        json!({ "cwd": cwd, "id": id, "author": "hangar", "text": "checked" }),
+        json!({ "cwd": cwd, "id": id, "author": "teskad", "text": "checked" }),
     );
     assert_eq!(status, 200, "{commented}");
     let (status, released) = node.post(
@@ -1544,7 +1544,7 @@ async fn a_worker_claims_its_task_and_is_briefed_on_the_node() {
 
     let (status, queued) = node.post(
         "/node/bridge/pane-1",
-        json!({ "text": "Your brief", "from": "hangar" }),
+        json!({ "text": "Your brief", "from": "teskad" }),
     );
     assert_eq!(status, 200, "{queued}");
     assert_eq!(queued["value"]["text"], "Your brief");
@@ -1590,7 +1590,7 @@ fn a_local_workspace_s_repository_is_made_here_and_its_workers_worktrees_come_fr
         "/node/worktree",
         json!({
             "repo": repo_s, "path": tree.to_str().unwrap(),
-            "branch": "hangar/x-1a2b3c", "base": "main",
+            "branch": "teskad/x-1a2b3c", "base": "main",
         }),
     );
     assert_eq!(status, 200, "{body}");
@@ -1599,7 +1599,7 @@ fn a_local_workspace_s_repository_is_made_here_and_its_workers_worktrees_come_fr
         "/node/git",
         json!({ "op": "repo_info", "path": tree.to_str().unwrap() }),
     );
-    assert_eq!(info["value"]["branch"], "hangar/x-1a2b3c", "{info}");
+    assert_eq!(info["value"]["branch"], "teskad/x-1a2b3c", "{info}");
 }
 
 /// Waits for `found` to answer something, up to `WAIT`.

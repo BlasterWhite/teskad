@@ -822,7 +822,7 @@ mod tests {
                     .starts_with(&format!("Delegation {id} (codex) failed:"))
             })
             .unwrap_or_else(|| panic!("nothing about {id} in {heard:?}"));
-        assert_eq!(event.from.as_deref(), Some("hangar"));
+        assert_eq!(event.from.as_deref(), Some("teskad"));
 
         let listed = op("delegation_list", from("t17-ivy"), &fake).await.unwrap();
         let mine = listed["delegations"]
@@ -929,6 +929,6 @@ mod tests {
                     .starts_with(&format!("Delegation {id} (claude) failed:"))
             })
             .unwrap_or_else(|| panic!("nothing about {id} in {heard:?}"));
-        assert_eq!(event.from.as_deref(), Some("hangar"));
+        assert_eq!(event.from.as_deref(), Some("teskad"));
     }
 }

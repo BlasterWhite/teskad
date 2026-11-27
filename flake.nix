@@ -2,7 +2,7 @@
 #
 #   nix develop                 a shell with everything `scripts/native-dev.sh` and
 #                               `cargo test --workspace` need (docs/guide/building.md)
-#   nix build                   Hangar, its webview helper and Hangar Mobile, in ./result
+#   nix build                   Teskad, its webview helper and Teskad Mobile, in ./result
 #   nix run                     the same, started
 #
 # The window needs nothing at build time: winit and wgpu load Wayland, X11,

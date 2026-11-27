@@ -1,6 +1,6 @@
 name: CI
 
-# The native app on every platform it ships to, and Hangar Mobile, the phone
+# The native app on every platform it ships to, and Teskad Mobile, the phone
 # app it embeds. main and the native branch are checked on every push, other
 # branches through their pull request.
 on:
@@ -120,7 +120,7 @@ jobs:
           key: ${{ env.IMAGE_KEY }}
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      # remote/assets.rs embeds Hangar Mobile's dist-mobile/. The Rust checks
+      # remote/assets.rs embeds Teskad Mobile's dist-mobile/. The Rust checks
       # do not care about its contents, and the mobile job below builds it; an
       # empty folder serves the same placeholder as a missing one.
       - name: Stub the phone app bundle
@@ -140,7 +140,7 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
       # A headless node builds hangar-core without its `desktop` feature: no
-      # whisper.cpp, ALSA, D-Bus notifications, Discord, login item or Hangar
+      # whisper.cpp, ALSA, D-Bus notifications, Discord, login item or Teskad
       # Mobile (docs/native/nodes.md). Linux is where nodes run; checked here
       # so the gates cannot rot while every other build keeps the feature.
       - name: Clippy and tests, hangar-core headless
@@ -180,7 +180,7 @@ jobs:
           # capture tests make their own wgpu device and are not affected.
           ICED_TEST_BACKEND: tiny-skia
 
-  # Hangar Mobile, the phone app the desktop binary embeds, and the interface
+  # Teskad Mobile, the phone app the desktop binary embeds, and the interface
   # strings, which are generated from JSON by Node. Node work is markedly
   # faster on Linux runners, and nothing here is platform-specific.
   mobile:
@@ -210,12 +210,12 @@ jobs:
 
       # The same build the release embeds, so a phone app that no longer
       # builds is a red check on the commit rather than a failed release tag.
-      - name: Build Hangar Mobile
+      - name: Build Teskad Mobile
         run: |
           pnpm mobile:build
           crates/hangar-app/packaging/check-mobile.sh
 
-  # The Nix flake (flake.nix, nix/): it evaluates, and Hangar Mobile builds
+  # The Nix flake (flake.nix, nix/): it evaluates, and Teskad Mobile builds
   # through it. That build fetches the pnpm dependencies against the hash in
   # nix/mobile.nix, which goes stale with every change to pnpm-lock.yaml: the
   # red check is the reminder to update it (the failure prints the new one).
@@ -231,7 +231,7 @@ jobs:
       - name: Evaluate the flake
         run: nix flake check --no-build --all-systems
 
-      - name: Build Hangar Mobile with Nix
+      - name: Build Teskad Mobile with Nix
         run: nix build .#hangar-mobile --print-build-logs
 
       # crates/hangar-i18n/src/generated.rs is committed so that cargo needs no

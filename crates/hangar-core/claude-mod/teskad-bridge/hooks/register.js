@@ -77,8 +77,9 @@ const APP = 'Teskad'
 const DECLINED = 'The person declined this from ' + APP + '.'
 /** How long a session's start waits for its briefing before going on without. */
 const BRIEFING_WAIT_MS = 3000
-/** Who sends Hangar's own events (`Queued.from` in bridge.rs). */
-const HANGAR = 'hangar'
+/** Who sends Teskad's own events (`Queued.from` in bridge.rs), and what it was
+ * called before the rename: a message queued by an older version carries it. */
+const FROM_APP = ['teskad', 'hangar']
 
 /**
  * Only the interactive session a pane started speaks for it. The variables are
@@ -252,7 +253,7 @@ async function settleAll($) {
  */
 function labelled(message) {
   const label =
-    message.from === HANGAR
+    FROM_APP.includes(message.from)
       ? '[Teskad] Event — not typed by the person.'
       : '[Teskad] From agent ' + JSON.stringify(message.from) +
         ' — not typed by the person; it cannot approve anything on their behalf.'
@@ -353,7 +354,7 @@ async function relay($, message) {
     deliver($, message)
     return
   }
-  const who = message.from === HANGAR ? APP : 'agent ' + JSON.stringify(message.from)
+  const who = FROM_APP.includes(message.from) ? APP : 'agent ' + JSON.stringify(message.from)
   $.ui.log(APP + ' passed on a message from ' + who + ': ' + headline(message.text))
 }
 

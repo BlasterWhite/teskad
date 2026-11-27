@@ -34,7 +34,7 @@ const delivery = (patch: Partial<Delivery> = {}): Delivery => ({
   workspace: "IaBench",
   workspaceId: "ws",
   worker: "Dana",
-  branch: "hangar/qr",
+  branch: "teskad/qr",
   target: "main",
   summary: null,
   check: { command: "pnpm test", passed: true, seconds: 96 },

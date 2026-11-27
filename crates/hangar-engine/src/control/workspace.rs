@@ -190,7 +190,9 @@ async fn tell_when_waiting(port: Port, asker: PaneId, orchestrator: PaneId, work
              for them; the orchestrator reads its first message once they have."
         );
         // The asker is gone, or the queue is: nobody is left to tell.
-        let _ = port.enqueue(&asker, &message, Some("hangar")).await;
+        let _ = port
+            .enqueue(&asker, &message, Some(hangar_core::board::APP_AUTHOR))
+            .await;
         return;
     }
 }

@@ -1,14 +1,14 @@
 # Codex app-server protocol types
 
-Hangar talks to Codex through `codex app-server`, a JSON-RPC protocol: attached panes and headless
+Teskad talks to Codex through `codex app-server`, a JSON-RPC protocol: attached panes and headless
 children (docs/native/agents.md §4.1, §4.3, decision D10). Its Rust types are not written by hand:
 they are generated from the JSON Schema the pinned Codex release prints itself
-(`codex app-server generate-json-schema`), reduced to the methods Hangar uses, and checked in. They
+(`codex app-server generate-json-schema`), reduced to the methods Teskad uses, and checked in. They
 are regenerated when the pin moves, and never edited.
 
 | File | What it is |
 |---|---|
-| `subset.json` | The pin (`"codex"`), whether the experimental surface is included (`false`: Hangar sends `experimentalApi: false`), and the methods Hangar uses: requests it sends, notifications and requests it reads. `responseOverrides` names an answer type Codex's `…Params` → `…Response` naming does not give. |
+| `subset.json` | The pin (`"codex"`), whether the experimental surface is included (`false`: Teskad sends `experimentalApi: false`), and the methods Teskad uses: requests it sends, notifications and requests it reads. `responseOverrides` names an answer type Codex's `…Params` → `…Response` naming does not give. |
 | `fetch-schema.sh` | Installs the pinned Codex from npm into a throwaway prefix, runs its `codex app-server generate-json-schema` into a new temporary folder and prints its path. Nothing is installed globally. |
 | `generate.mjs` | Reduces the schema to the subset and writes the outputs below. Node only, no dependencies; needs `rustfmt`. |
 | `diff-schema.mjs` | The schema watch's diff of two Codex releases' schemas, restricted to the subset (below). Node only, no dependencies; its reduction is `generate.mjs`'s. Tested by `diff-schema.test.mjs` (`node --test scripts/codex-protocol/`). |
@@ -20,7 +20,7 @@ are regenerated when the pin moves, and never edited.
 
 - One Rust type per schema type of the subset, with the schema's names and its descriptions as doc
   comments; a field is `snake_case` with its wire name in `#[serde(rename)]`. Optional fields are
-  `Option`s, left out of what Hangar sends when `None`. A struct whose fields allow it derives
+  `Option`s, left out of what Teskad sends when `None`. A struct whose fields allow it derives
   `Default`, so params are written `ThreadStartParams { cwd: Some(…), ..Default::default() }`.
 - Unions follow the schema: a property with one value per alternative is `#[serde(tag = …)]`
   (`ThreadItem` by `type`), strings and single-key objects are serde's default representation
@@ -32,7 +32,7 @@ are regenerated when the pin moves, and never edited.
   `method` (other keys, such as `id`, are left to the client).
 - `CODEX_VERSION` is the pin.
 
-## Lenient, so a newer Codex does not break Hangar
+## Lenient, so a newer Codex does not break Teskad
 
 - Unknown fields are ignored (no `deny_unknown_fields`).
 - Every string enum ends with `Unrecognized(String)`, even one of a single value today
@@ -68,7 +68,7 @@ are regenerated when the pin moves, and never edited.
    no login, an empty `CODEX_HOME`), runs `codex app-server generate-json-schema` into a new
    temporary folder, checks the version it printed and runs `generate.mjs --schema <folder>` on it.
    It needs node, npm and the network; no Codex of yours is used or changed.
-4. Read what changed for Hangar: `git diff scripts/codex-protocol/schema.subset.json` (the protocol
+4. Read what changed for Teskad: `git diff scripts/codex-protocol/schema.subset.json` (the protocol
    itself) and `git diff crates/hangar-core/src/codex_app/generated.rs` (the types).
 5. When the generator stops, it says why:
    - a method of `subset.json` is gone or renamed → follow the release notes, change the list;
@@ -103,7 +103,7 @@ are regenerated when the pin moves, and never edited.
 
 ## Schema watch
 
-Codex ships about three releases a week, and the pin only moves by hand. So that Hangar learns when a
+Codex ships about three releases a week, and the pin only moves by hand. So that Teskad learns when a
 release changes what it uses, `.github/workflows/codex-schema-watch.yml` runs every Monday (05:23 UTC)
 and on demand, on a GitHub runner: no secret, no login.
 
@@ -123,8 +123,8 @@ and on demand, on a GitHub runner: no secret, no login.
    workflow of its own. It fails only when the diff cannot be made, which shows in Actions.
 
 What to do with the issue: read the release notes against the diff, then bump the pin (above), or,
-when the release drops something Hangar needs, list it in `CODEX_BROKEN`
-(`crates/hangar-core/src/codex_app/gate.rs`) so Hangar runs the plain TUI for it meanwhile. Closing the
+when the release drops something Teskad needs, list it in `CODEX_BROKEN`
+(`crates/hangar-core/src/codex_app/gate.rs`) so Teskad runs the plain TUI for it meanwhile. Closing the
 issue is by hand.
 
 **By hand.** Either let the workflow do it for any release

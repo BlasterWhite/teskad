@@ -267,7 +267,7 @@ fn a_kit_being_checked_or_updated_cannot_be_asked_again() {
 fn a_linked_folder_with_no_manifest_cannot_be_reloaded() {
     let mut gone = folder_kit();
     gone.manifest = None;
-    gone.error = Some("no hangar-kit.json".into());
+    gone.error = Some("no teskad-kit.json (or hangar-kit.json)".into());
     assert!(matches!(
         &rows(&Draw::new().kits(vec![gone]).en())[0].actions,
         Actions::Normal {
@@ -300,11 +300,11 @@ fn says_a_linked_folder_is_left_untouched_before_removing_it() {
 #[test]
 fn shows_the_inline_errors_of_both_ways_of_adding() {
     let mut draw = Draw::new();
-    draw.page.folder_error = Some("no hangar-kit.json".into());
+    draw.page.folder_error = Some("no teskad-kit.json (or hangar-kit.json)".into());
     draw.page.git_error = Some("not a GitHub link".into());
     let model = draw.en();
     let out = model.text();
-    assert!(out.contains("no hangar-kit.json"));
+    assert!(out.contains("no teskad-kit.json (or hangar-kit.json)"));
     assert!(out.contains("not a GitHub link"));
     assert_eq!(model.add.git_error.as_deref(), Some("not a GitHub link"));
 }

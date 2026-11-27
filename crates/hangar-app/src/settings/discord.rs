@@ -23,7 +23,7 @@ pub fn app_id(settings: &Settings) -> Option<&str> {
     (!id.is_empty() && id != UPSTREAM_APP_ID).then_some(id)
 }
 
-pub const REPO_URL: &str = "https://github.com/BlasterWhite/hangar";
+pub const REPO_URL: &str = "https://github.com/BlasterWhite/teskad";
 
 /// The logo, served straight from the repository: the same file the README
 /// shows, so the two never drift apart.
@@ -35,7 +35,7 @@ pub const REPO_URL: &str = "https://github.com/BlasterWhite/hangar";
 /// Discord drops the keys it cannot resolve without complaining, so a card
 /// missing its art is still a card.
 const LARGE_IMAGE: &str =
-    "https://raw.githubusercontent.com/BlasterWhite/hangar/main/assets/logo.png";
+    "https://raw.githubusercontent.com/BlasterWhite/teskad/main/assets/logo.png";
 
 fn agent_image(agent: AgentId) -> String {
     format!("agent-{}", agent.as_str())

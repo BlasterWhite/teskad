@@ -501,7 +501,7 @@ impl ManagerFeed {
         }
         let text = render_manager_delta(&events);
         self.last_sent_at = now;
-        let _ = io.enqueue(&manager.id, &text, "hangar");
+        let _ = io.enqueue(&manager.id, &text, hangar_core::board::APP_AUTHOR);
         Some(text)
     }
 

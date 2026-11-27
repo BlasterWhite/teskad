@@ -14,7 +14,7 @@ sub-task to the other.
 > Codex (the schema, source and docs of its app-server, at Codex 0.170.0), without a recorded
 > Codex session, so what that protocol does not say may be wrong here. If something does not
 > work in a Codex pane, please
-> [report it](https://github.com/BlasterWhite/hangar/issues/new?template=codex-bug.yml): the form
+> [report it](https://github.com/BlasterWhite/teskad/issues/new?template=codex-bug.yml): the form
 > asks for `codex --version`, whether the pane was attached, and Teskad's log.
 
 ## Install and sign in

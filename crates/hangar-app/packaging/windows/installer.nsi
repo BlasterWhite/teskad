@@ -55,7 +55,7 @@ ${StrLoc}
 !define PRODUCTNAME "Teskad"
 !define BUNDLEID "io.github.blasterwhite.teskad"
 !define MAINBINARYNAME "teskad"
-!define HOMEPAGE "https://github.com/BlasterWhite/hangar"
+!define HOMEPAGE "https://github.com/BlasterWhite/teskad"
 !define COPYRIGHT ""
 ; Per user, no administrator rights: the app lands in $LOCALAPPDATA\Teskad,
 ; beside the official app's own folder, which it never touches.

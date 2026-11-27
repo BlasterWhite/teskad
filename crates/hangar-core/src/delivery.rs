@@ -601,15 +601,23 @@ fn check_folder(request: &Delivery) -> PathBuf {
 }
 
 /// The folder the workspaces' check worktrees live in: `root` when one is
-/// given, `<data_local>/hangar/c` otherwise.
+/// given, `<data_local>/teskad/c` otherwise.
 fn check_root(root: Option<&str>) -> PathBuf {
     match root.filter(|root| !root.is_empty()) {
         Some(root) => PathBuf::from(root),
         None => dirs::data_local_dir()
             .unwrap_or_else(std::env::temp_dir)
-            .join("hangar")
+            .join("teskad")
             .join("c"),
     }
+}
+
+/// Where the check worktrees lived before the rename, `<data_local>/hangar/c`.
+fn legacy_check_root() -> PathBuf {
+    dirs::data_local_dir()
+        .unwrap_or_else(std::env::temp_dir)
+        .join("hangar")
+        .join("c")
 }
 
 /// A workspace was deleted: its check worktree goes, from `workspace_folder`'s
@@ -646,7 +654,10 @@ fn check_root_canonical(root: Option<&str>) -> PathBuf {
 /// is not Hangar's and stays. Nothing is touched when `repos` is empty: that
 /// is an app that has not loaded its workspaces, not one that has none.
 fn sweep_stale_checks(root: &Path, repos: &[String]) {
-    if repos.is_empty() {
+    // No repository listed: every folder of the legacy root is stale; for the
+    // current root, an empty list means the workspaces are not known yet.
+    let legacy = root == legacy_check_root();
+    if repos.is_empty() && !legacy {
         return;
     }
     let live: std::collections::HashSet<String> = repos
@@ -801,6 +812,8 @@ fn sweep_legacy(root: &Path, repos: &[String]) {
 pub fn sweep_leftovers(repos: &[String]) {
     sweep_legacy(&legacy_root(), repos);
     sweep_stale_checks(&check_root_canonical(None), repos);
+    // Scratch worktrees of a version before the rename: nothing runs in them.
+    sweep_stale_checks(&legacy_check_root(), &[]);
 }
 
 fn tested_ref(task: &str, part: &str) -> String {

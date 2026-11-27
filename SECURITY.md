@@ -7,7 +7,7 @@ themselves: pull and build again to get a fix.
 
 | Version | Supported |
 |---|---|
-| Latest release ([releases/latest](https://github.com/BlasterWhite/hangar/releases/latest)) | Yes |
+| Latest release ([releases/latest](https://github.com/BlasterWhite/teskad/releases/latest)) | Yes |
 | Anything older | No: please update first |
 
 ## Reporting a vulnerability
@@ -15,7 +15,7 @@ themselves: pull and build again to get a fix.
 **Please do not open a public issue for a security problem.**
 
 Report it privately through GitHub Security Advisories. Open the repository's
-[**Security** tab](https://github.com/BlasterWhite/hangar/security), click **Report a
+[**Security** tab](https://github.com/BlasterWhite/teskad/security), click **Report a
 vulnerability**, and fill in the form. Only the maintainer can see the report.
 
 Please include:

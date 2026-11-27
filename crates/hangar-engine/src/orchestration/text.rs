@@ -101,13 +101,15 @@ pub fn same_name(a: &str, b: &str) -> bool {
     a.trim().to_lowercase() == b.trim().to_lowercase()
 }
 
-/// Whether a comment is signed by Hangar itself (`/^hangar\b/i`): "hangar",
-/// "Hangar", "hangar:delivery", but not "hangarbot".
+/// Whether a comment is signed by Teskad itself (`/^(teskad|hangar)\b/i`):
+/// "teskad", "Teskad", "teskad:delivery", but not "teskadbot". The name before
+/// the rename, "hangar", is read the same: boards written by an older version
+/// carry it.
 pub fn is_hangar_author(author: &str) -> bool {
     let Some(head) = author.get(..6) else {
         return false;
     };
-    head.eq_ignore_ascii_case("hangar")
+    (head.eq_ignore_ascii_case("hangar") || head.eq_ignore_ascii_case("teskad"))
         && author[6..]
             .chars()
             .next()
@@ -180,6 +182,10 @@ mod tests {
 
     #[test]
     fn hangar_signs_its_own_comments() {
+        assert!(is_hangar_author("teskad"));
+        assert!(is_hangar_author("Teskad: delivery"));
+        assert!(!is_hangar_author("teskadbot"));
+        // Boards written before the rename.
         assert!(is_hangar_author("hangar"));
         assert!(is_hangar_author("Hangar: delivery"));
         assert!(!is_hangar_author("hangarbot"));

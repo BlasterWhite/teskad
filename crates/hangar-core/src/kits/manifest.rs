@@ -1,4 +1,4 @@
-//! `hangar-kit.json`, schemas 1 and 2: what a kit says it is and brings.
+//! `teskad-kit.json` (or `hangar-kit.json`, its name before the rename), schemas 1 and 2: what a kit says it is and brings.
 //!
 //! Schema 2 only adds native tabs (docs/native/kits-native.md): a tab whose
 //! `entry` is a `.wasm` module. A schema-1 kit may still bring a module beside
@@ -23,7 +23,25 @@ use serde_json::{Map, Value};
 
 use crate::agent::AgentKind;
 
-pub const FILE: &str = "hangar-kit.json";
+/// The manifest's name.
+pub const FILE: &str = "teskad-kit.json";
+
+/// What it was called before the rename: every kit published so far, the
+/// catalogue's included, still uses it. Read when `FILE` is not there.
+pub const LEGACY_FILE: &str = "hangar-kit.json";
+
+/// The manifest of the kit folder `root`: `teskad-kit.json` when it is there,
+/// `hangar-kit.json` otherwise (a kit that has the first is read from it
+/// alone). When neither is there, the path of the first, for a message.
+pub fn file_in(root: &Path) -> PathBuf {
+    let current = root.join(FILE);
+    let legacy = root.join(LEGACY_FILE);
+    if !current.exists() && legacy.exists() {
+        legacy
+    } else {
+        current
+    }
+}
 
 /// The newest schema this Hangar reads; a higher one needs a newer Hangar.
 pub const SCHEMA: u64 = 2;
@@ -417,16 +435,26 @@ pub fn inside(root: &Path, relative: &str) -> Result<PathBuf, String> {
     }
 }
 
-/// Reads and checks `<root>/hangar-kit.json`.
+/// Reads and checks `<root>/teskad-kit.json`, or `<root>/hangar-kit.json` when
+/// the kit has no file by the first name.
 pub fn read(root: &Path) -> Result<Manifest, String> {
     let root = dunce::canonicalize(root)
         .map_err(|_| format!("the kit folder {} is not there", root.display()))?;
-    let text = match fs::read_to_string(root.join(FILE)) {
+    let path = file_in(&root);
+    let name = if path.ends_with(LEGACY_FILE) {
+        LEGACY_FILE
+    } else {
+        FILE
+    };
+    let text = match fs::read_to_string(&path) {
         Ok(text) => text,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-            return Err(format!("no {FILE} in {}", root.display()));
+            return Err(format!(
+                "no {FILE} (or {LEGACY_FILE}) in {}",
+                root.display()
+            ));
         }
-        Err(err) => return Err(format!("{FILE} could not be read: {err}")),
+        Err(err) => return Err(format!("{name} could not be read: {err}")),
     };
     parse(&text, &root)
 }
@@ -1315,6 +1343,42 @@ mod tests {
             tab[key] = value.clone();
         }
         with(minimal(), json!({ "tabs": [tab] }))
+    }
+
+    fn manifest_named(id: &str, name: &str) -> String {
+        with(minimal(), json!({ "id": id, "name": name })).to_string()
+    }
+
+    #[test]
+    fn teskad_kit_json_is_read_first() {
+        let kit = Folder::new("manifest-names-both");
+        kit.file(FILE, &manifest_named("new", "New"))
+            .file(LEGACY_FILE, &manifest_named("old", "Old"));
+        assert_eq!(read(&kit.root).unwrap().id, "new");
+        assert_eq!(file_in(&kit.root), kit.root.join(FILE));
+    }
+
+    #[test]
+    fn hangar_kit_json_is_the_fallback_of_a_kit_made_before_the_rename() {
+        let kit = Folder::new("manifest-names-legacy");
+        kit.file(LEGACY_FILE, &manifest_named("old", "Old"));
+        assert_eq!(read(&kit.root).unwrap().id, "old");
+        assert_eq!(file_in(&kit.root), kit.root.join(LEGACY_FILE));
+        // A problem in it is reported all the same.
+        kit.file(LEGACY_FILE, "{ nope");
+        let why = read(&kit.root).unwrap_err();
+        assert!(why.contains("not valid JSON"), "{why}");
+    }
+
+    #[test]
+    fn a_folder_with_neither_name_says_so() {
+        let kit = Folder::new("manifest-names-none");
+        let why = read(&kit.root).unwrap_err();
+        assert!(
+            why.starts_with("no teskad-kit.json (or hangar-kit.json) in"),
+            "{why}"
+        );
+        assert_eq!(file_in(&kit.root), kit.root.join(FILE));
     }
 
     #[test]

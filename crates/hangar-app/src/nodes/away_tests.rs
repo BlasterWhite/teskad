@@ -64,7 +64,7 @@ fn git_reaches_the_node_with_the_connection_s_ssh() {
         &Mux::Off,
         "/home/me/site",
         "/r",
-        "hangar/x-1a2b3c",
+        "teskad/x-1a2b3c",
     );
     assert_eq!(
         fetch.args,
@@ -78,7 +78,7 @@ fn git_reaches_the_node_with_the_connection_s_ssh() {
             "--quiet",
             "--no-tags",
             "me@gpu:/r",
-            "+refs/heads/hangar/x-1a2b3c:refs/heads/hangar/x-1a2b3c",
+            "+refs/heads/teskad/x-1a2b3c:refs/heads/teskad/x-1a2b3c",
         ]
     );
     // A quote in a config's path stays one word for the shell git uses.
@@ -416,7 +416,7 @@ async fn a_worker_s_branch_goes_to_the_node_and_comes_back() {
     }
 
     // The worker's worktree on the node, and its work there.
-    let branch = "hangar/do-it-1a2b3c";
+    let branch = "teskad/do-it-1a2b3c";
     let tree = format!("{repo}-worktrees/hangar-do-it-1a2b3c");
     engine::worktree_add(&client, &repo, &tree, branch, true, Some("main"))
         .await

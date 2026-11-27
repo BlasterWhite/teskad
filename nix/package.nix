@@ -1,5 +1,5 @@
 # Teskad, its webview helper (teskad-webview, for HTML kit tabs and PDFs) and
-# the embedded Hangar Mobile, as the release workflow builds them for Linux.
+# the embedded Teskad Mobile, as the release workflow builds them for Linux.
 {
   lib,
   rustPlatform,
@@ -102,7 +102,7 @@ rustPlatform.buildRustPackage {
 
   meta = {
     description = "Run a team of Claude Code agents in one native window, and steer them from your phone";
-    homepage = "https://github.com/BlasterWhite/hangar";
+    homepage = "https://github.com/BlasterWhite/teskad";
     license = lib.licenses.mit;
     mainProgram = "teskad";
     platforms = lib.platforms.linux;

@@ -237,9 +237,7 @@ mod tests {
         };
         assert_eq!(
             detail(en, &missing).as_deref(),
-            Some(
-                "Set TESKAD_NODE_BINARY or put teskad-node-riscv64 beside hangar-ai (/opt/hangar)."
-            )
+            Some("Set TESKAD_NODE_BINARY or put teskad-node-riscv64 beside teskad (/opt/hangar).")
         );
     }
 }

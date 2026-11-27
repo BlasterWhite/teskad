@@ -158,7 +158,7 @@ mod tests {
     #[test]
     fn only_https_or_this_machine() {
         for ok in [
-            "https://github.com/BlasterWhite/hangar/releases/latest/download/latest.json",
+            "https://github.com/BlasterWhite/teskad/releases/latest/download/latest.json",
             "HTTPS://example.com/x",
             "http://localhost:8080/latest.json",
             "http://127.0.0.1:1234/x",

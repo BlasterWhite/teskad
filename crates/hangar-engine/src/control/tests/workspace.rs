@@ -133,7 +133,7 @@ async fn tells_the_asking_agent_when_the_pane_waits_for_the_person_on_the_trust_
     contains(&told[0], "waiting for the person");
     contains(&told[0], "trust the cloned folder");
     contains(&told[0], "Only they can answer");
-    assert!(lock(&fake.senders)[0].ends_with("<- hangar"));
+    assert!(lock(&fake.senders)[0].ends_with("<- teskad"));
 }
 
 #[tokio::test]

@@ -49,7 +49,7 @@ an HTML tab.
 
 ```
 hello-kit/
-├── hangar-kit.json
+├── teskad-kit.json
 ├── .claude-plugin/
 │   └── plugin.json
 ├── .mcp.json
@@ -63,7 +63,7 @@ hello-kit/
         └── index.html
 ```
 
-`hangar-kit.json`:
+`teskad-kit.json`:
 
 ```json
 {
@@ -138,9 +138,14 @@ folder:
 The plugin is found by itself here — the root holds `.claude-plugin/` — so the
 manifest does not need a `plugin` field.
 
-## The manifest: `hangar-kit.json`
+## The manifest: `teskad-kit.json`
 
-At the kit's root. Schema 1, or schema 2 for a kit with a [native tab](#native-tabs) as its
+At the kit's root. A kit made before Teskad was named so has its manifest in
+`hangar-kit.json`, and that is still read: Teskad reads `teskad-kit.json` first, and
+`hangar-kit.json` only when the kit has no `teskad-kit.json`. Both files in one kit: the first wins,
+the second is ignored. A new kit writes `teskad-kit.json`.
+
+The manifest holds schema 1, or schema 2 for a kit with a [native tab](#native-tabs) as its
 `entry` (Teskad 2.0 and later):
 
 | Field         | Type              | Required | Rules                                                                                     |
@@ -1489,7 +1494,7 @@ static file of the repository `BlasterWhite/catalog`, `index.json`:
 }
 ```
 
-`id`, `name` and `version` are those of the `hangar-kit.json` at that tag. `repo`
+`id`, `name` and `version` are those of the `teskad-kit.json` (or `hangar-kit.json`) at that tag. `repo`
 is `owner/name`, the kit at the top of it. `tag` is a tag of that repository, not a
 branch: a branch's name there installs a kit that follows that branch.
 `permissionsSummary` is one sentence for the card, never what the activation shows

@@ -25,7 +25,14 @@ pub static EMPTY_INSIGHT: LazyLock<PaneInsight> = LazyLock::new(PaneInsight::def
 /// sending agent's pane name, or Hangar for its own events.
 pub fn queued_by(from: Option<&str>) -> Option<String> {
     let from = from.filter(|from| !from.is_empty())?;
-    Some(if from == "hangar" { "Hangar" } else { from }.to_string())
+    Some(
+        if hangar_core::board::is_app_name(from) {
+            "Teskad"
+        } else {
+            from
+        }
+        .to_string(),
+    )
 }
 
 /// The line the inspector and the toolbar show for an event.
@@ -293,10 +300,10 @@ mod tests {
             said(Key::PaneEventQueued, &args!("text" => "run the tests"))
         );
         assert_eq!(
-            queued("task done", Some("hangar")),
+            queued("task done", Some("teskad")),
             said(
                 Key::PaneEventQueuedBy,
-                &args!("name" => "Hangar", "text" => "task done")
+                &args!("name" => "Teskad", "text" => "task done")
             )
         );
         assert_eq!(
@@ -340,7 +347,9 @@ mod tests {
         assert_eq!(queued_by(None), None);
         assert_eq!(queued_by(Some("")), None);
         assert_eq!(queued_by(Some("Ava")).as_deref(), Some("Ava"));
-        assert_eq!(queued_by(Some("hangar")).as_deref(), Some("Hangar"));
+        assert_eq!(queued_by(Some("teskad")).as_deref(), Some("Teskad"));
+        // A message queued before the rename.
+        assert_eq!(queued_by(Some("hangar")).as_deref(), Some("Teskad"));
     }
 
     #[test]

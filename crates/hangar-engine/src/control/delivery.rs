@@ -1182,7 +1182,9 @@ async fn settle(
     let failures = current
         .comments
         .iter()
-        .filter(|comment| comment.author == HANGAR && comment.text.starts_with(FAILED))
+        .filter(|comment| {
+            hangar_core::board::is_app_name(&comment.author) && comment.text.starts_with(FAILED)
+        })
         .count()
         + 1;
     delivery

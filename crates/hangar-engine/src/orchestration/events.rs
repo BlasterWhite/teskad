@@ -1370,7 +1370,7 @@ impl OrchestratorEngine {
         let text = render(&events, &s.tasks, &ws.name, digest);
         s.last_sent_at = now;
         // A pane that cannot take it now gets the next batch; nothing to undo.
-        let _ = io.enqueue(&orchestrator.id, &text, "hangar");
+        let _ = io.enqueue(&orchestrator.id, &text, hangar_core::board::APP_AUTHOR);
         Some(text)
     }
 

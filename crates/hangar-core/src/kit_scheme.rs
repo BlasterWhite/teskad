@@ -587,7 +587,7 @@ mod tests {
 
     fn kit(tag: &str, id: &str) -> KitRoot {
         let root = dunce::canonicalize(temp_dir(tag)).expect("canonical");
-        write(&root, "hangar-kit.json", b"{}");
+        write(&root, "teskad-kit.json", b"{}");
         write(&root, "tabs/status/index.html", b"<!doctype html><p>hi</p>");
         KitRoot {
             id: id.to_string(),
@@ -928,7 +928,7 @@ mod tests {
             "/hello-kit/tabs//status/index.html",
             "/hello-kit/tabs/status/index.html%00.png",
             "/hello-kit/tabs/status/index.html.",
-            "/hello-kit/hangar-kit.json:stream",
+            "/hello-kit/teskad-kit.json:stream",
         ] {
             let response = answer(&get(path, None), std::slice::from_ref(&hello));
             assert_eq!(status(&response), StatusCode::FORBIDDEN, "{path}");

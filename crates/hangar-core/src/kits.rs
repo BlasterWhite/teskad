@@ -1,7 +1,7 @@
 //! Kits: packages a person links to a workspace to bring a domain — a game
 //! engine, a studio — into Hangar without Hangar knowing anything about it.
 //!
-//! A kit is a folder with a `hangar-kit.json` at its root (manifest.rs). It
+//! A kit is a folder with a `teskad-kit.json` at its root, or `hangar-kit.json` (manifest.rs). It
 //! may hold a Claude Code plugin — skills, commands, agents, MCP servers —
 //! that every Claude Code pane of a workspace the kit is enabled on loads, by
 //! way of `CLAUDE_CODE_PLUGIN_DIRS`, and whose parts Codex can take reach a
@@ -571,7 +571,7 @@ fn fingerprint(store: &Store) -> Vec<(PathBuf, Option<(u64, SystemTime)>)> {
         files.extend(
             entries
                 .into_iter()
-                .map(|entry| stamp(Path::new(&entry.dir).join(manifest::FILE))),
+                .map(|entry| stamp(manifest::file_in(Path::new(&entry.dir)))),
         );
     }
     files

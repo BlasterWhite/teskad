@@ -26,12 +26,16 @@ fn branch_id(task: &Task) -> String {
         .collect()
 }
 
-/// Whether `branch` is the branch Hangar made for a worker on `task`:
-/// `hangar/<slug>-<id>`, or `hangar/<slug>-<id>-<n>` when the first name was
-/// taken.
+/// Whether `branch` is the branch Teskad made for a worker on `task`:
+/// `teskad/<slug>-<id>`, or `teskad/<slug>-<id>-<n>` when the first name was
+/// taken. Branches made before the rename start with `hangar/`: they are still
+/// recognised, so they are cleaned up all the same.
 fn names_task(branch: &str, task: &Task) -> bool {
     let id = branch_id(task);
-    let Some(rest) = branch.strip_prefix("hangar/") else {
+    let Some(rest) = branch
+        .strip_prefix("teskad/")
+        .or_else(|| branch.strip_prefix("hangar/"))
+    else {
         return false;
     };
     if id.is_empty() {
@@ -152,7 +156,7 @@ mod tests {
     }
 
     const FINN: &str = "hangar/endurance-audit-04f8c6";
-    const CLEO: &str = "hangar/audit-rendering-bddfd5";
+    const CLEO: &str = "teskad/audit-rendering-bddfd5";
 
     fn scene() -> Scene {
         let root = crate::testdir::scratch("sweep");
@@ -287,14 +291,19 @@ mod tests {
     #[test]
     fn a_branch_names_its_task_by_the_first_characters_of_its_id() {
         let finn = task("04f8c659-14dd");
+        assert!(names_task("teskad/endurance-audit-04f8c6", &finn));
+        assert!(names_task("teskad/endurance-audit-04f8c6-2", &finn));
+        assert!(!names_task("teskad/endurance-audit-04f8c7", &finn));
+        assert!(!names_task("probe/endurance-04f8c6", &finn));
+        assert!(!names_task("teskad/x-04f8c6x", &finn));
+        // Branches made before the rename keep naming their task.
         assert!(names_task("hangar/endurance-audit-04f8c6", &finn));
         assert!(names_task("hangar/endurance-audit-04f8c6-2", &finn));
         assert!(!names_task("hangar/endurance-audit-04f8c7", &finn));
-        assert!(!names_task("probe/endurance-04f8c6", &finn));
-        assert!(!names_task("hangar/x-04f8c6x", &finn));
         // Two tasks the branch could be: neither decides.
         let twins = [task_in("04f8c6aa", "done"), task_in("04f8c6bb", "doing")];
-        assert!(!finished(Some("hangar/x-04f8c6"), &twins));
+        assert!(!finished(Some("teskad/x-04f8c6"), &twins));
+        assert!(finished(Some("teskad/x-04f8c6"), &twins[..1]));
         assert!(finished(Some("hangar/x-04f8c6"), &twins[..1]));
         assert!(!finished(None, &twins[..1]));
     }

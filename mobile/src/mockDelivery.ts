@@ -16,7 +16,7 @@ const PATCH_MAX_BYTES = 200 * 1024;
 const LAND_MS = { landing: 2_400, done: 4_200 };
 
 const TASK = "t-settings";
-const BRANCH = "hangar/mobile-settings-qr-3e1f0a";
+const BRANCH = "teskad/mobile-settings-qr-3e1f0a";
 const CHECK = "pnpm exec tsc --noEmit && pnpm test && pnpm mobile:build";
 
 /** Each file as git prints its diff against main. */

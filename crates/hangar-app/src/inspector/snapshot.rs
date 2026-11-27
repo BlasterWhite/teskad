@@ -88,7 +88,7 @@ fn insight() -> PaneInsight {
             Queued {
                 id: "q2".into(),
                 text: "Rebase on main".into(),
-                from: Some("hangar".into()),
+                from: Some("teskad".into()),
             },
         ],
         edited_files: vec![
@@ -123,7 +123,7 @@ fn insight() -> PaneInsight {
                 40,
                 PaneEventDetail::Queued {
                     text: "Rebase on main".into(),
-                    from: Some("hangar".into()),
+                    from: Some("teskad".into()),
                 },
             ),
         ],

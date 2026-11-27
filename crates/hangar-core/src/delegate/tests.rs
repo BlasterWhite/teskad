@@ -258,7 +258,7 @@ fn told(parent: &str) -> Vec<String> {
     bridge::bridge_queue(parent.into())
         .into_iter()
         .map(|queued| {
-            assert_eq!(queued.from.as_deref(), Some("hangar"));
+            assert_eq!(queued.from.as_deref(), Some("teskad"));
             queued.text
         })
         .collect()

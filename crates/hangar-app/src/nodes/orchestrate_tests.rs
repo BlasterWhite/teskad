@@ -156,7 +156,7 @@ async fn a_worker_s_worktree_is_made_on_its_node() {
                 &client,
                 "/home/hangar/demo",
                 "/home/hangar/demo-worktrees/w1",
-                "hangar/w1",
+                "teskad/w1",
                 true,
                 Some("main"),
             )
@@ -169,7 +169,7 @@ async fn a_worker_s_worktree_is_made_on_its_node() {
         sent,
         json!({
             "repo": "/home/hangar/demo", "path": "/home/hangar/demo-worktrees/w1",
-            "branch": "hangar/w1", "create": true, "base": "main",
+            "branch": "teskad/w1", "create": true, "base": "main",
         })
     );
     assert_eq!(made, Ok(()));
@@ -205,7 +205,7 @@ async fn the_engine_reads_a_node_s_repository_through_its_known_questions() {
     let trees = json!({ "value": [
         { "path": "/home/hangar/demo", "head": "abc", "branch": "main", "isMain": true,
           "isCurrent": true, "bare": false, "detached": false, "locked": null, "prunable": null },
-        { "path": "/home/hangar/demo-worktrees/w1", "head": "def", "branch": "hangar/w1",
+        { "path": "/home/hangar/demo-worktrees/w1", "head": "def", "branch": "teskad/w1",
           "isMain": false, "isCurrent": false, "bare": false, "detached": false,
           "locked": null, "prunable": null },
     ]});
@@ -215,16 +215,16 @@ async fn the_engine_reads_a_node_s_repository_through_its_known_questions() {
     .await;
     assert_eq!(sent["op"], "worktree_list");
     let listed = listed.unwrap();
-    assert_eq!(listed[1].branch.as_deref(), Some("hangar/w1"));
+    assert_eq!(listed[1].branch.as_deref(), Some("teskad/w1"));
     assert!(listed[0].is_main);
 
     let (_, sent, ahead) = one_call(200, json!({ "value": 2 }), |client| {
-        tokio::spawn(async move { engine::commits_ahead(&client, "/r", "main", "hangar/w1").await })
+        tokio::spawn(async move { engine::commits_ahead(&client, "/r", "main", "teskad/w1").await })
     })
     .await;
     assert_eq!(
         sent,
-        json!({ "op": "commits_ahead", "path": "/r", "base": "main", "head": "hangar/w1" })
+        json!({ "op": "commits_ahead", "path": "/r", "base": "main", "head": "teskad/w1" })
     );
     assert_eq!(ahead, Ok(2));
 
@@ -240,7 +240,7 @@ fn delivery() -> Delivery {
     Delivery {
         workspace: "/home/hangar/demo".into(),
         worktree: "/home/hangar/demo-worktrees/w1".into(),
-        branch: "hangar/w1".into(),
+        branch: "teskad/w1".into(),
         target: "main".into(),
         task: TaskBrief {
             id: "t1".into(),

@@ -207,7 +207,7 @@ fn tells_a_pane_waiting_for_the_person_once_with_workspace_and_pane() {
     r.advance(MAX_WAIT_MS);
     let sent = r.sent();
     assert_eq!(sent.len(), 1);
-    assert_eq!((sent[0].0.as_str(), sent[0].2.as_str()), ("m", "hangar"));
+    assert_eq!((sent[0].0.as_str(), sent[0].2.as_str()), ("m", "teskad"));
     assert!(sent[0].1.contains("Workspace \"Shop\""));
     assert!(sent[0].1.contains("\"worker-1\""));
     r.tick();

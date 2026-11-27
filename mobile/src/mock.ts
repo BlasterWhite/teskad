@@ -215,9 +215,9 @@ function scenery(now: number, locale: Locale) {
     ]),
     pane("ws-iabench", "p-dana", "Dana", "worker", "idle", [
       "⏺ hangar - delivery_submit (MCP)(summary: \"Settings › Mobile pairs a phone by QR code\")",
-      "  ⎿  Teskad merges hangar/mobile-settings-qr-3e1f0a onto main in a separate worktree…",
+      "  ⎿  Teskad merges teskad/mobile-settings-qr-3e1f0a onto main in a separate worktree…",
       "",
-      "⏺ [Teskad] hangar/mobile-settings-qr-3e1f0a passed its check and its review. Automatic",
+      "⏺ [Teskad] teskad/mobile-settings-qr-3e1f0a passed its check and its review. Automatic",
       "  landing is off in this workspace, so it waits for the person to land it on main.",
       "",
       "⏺ Done: the delivery waits for you to merge it.",

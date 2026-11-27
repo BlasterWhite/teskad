@@ -155,12 +155,15 @@ enum Message {
     Shot(iced::window::Screenshot),
 }
 
-/// The kit's root: the folder holding `hangar-kit.json` above the module.
+/// The kit's root: the folder holding `teskad-kit.json` (or `hangar-kit.json`,
+/// its name before the rename) above the module.
 fn kit_root(module: &Path) -> PathBuf {
     module
         .ancestors()
         .skip(1)
-        .find(|folder| folder.join("hangar-kit.json").is_file())
+        .find(|folder| {
+            folder.join("teskad-kit.json").is_file() || folder.join("hangar-kit.json").is_file()
+        })
         .unwrap_or_else(|| module.parent().unwrap_or(Path::new(".")))
         .to_path_buf()
 }

@@ -3,7 +3,7 @@
 [← Teskad](../../README.md) · [Guide](README.md)
 
 Download the file for your system from the
-**[latest release](https://github.com/BlasterWhite/hangar/releases/latest)**, under
+**[latest release](https://github.com/BlasterWhite/teskad/releases/latest)**, under
 **Assets**. You only download once: after that, the app offers each new version and
 installs it in one click. Updates come from this fork's releases only, and only when they are
 signed with the fork's own key: the app never reads the official HangarAI's releases. A build you
@@ -47,17 +47,17 @@ use the flake at the root of the repository instead. It builds Teskad, its webvi
 (HTML kit tabs and PDFs, with WebKitGTK) and Teskad Mobile from source:
 
 ```bash
-nix run github:BlasterWhite/hangar           # try it without installing
+nix run github:BlasterWhite/teskad           # try it without installing
 ```
 
 That builds `main`, the development version. The releases after 2.3.0 carry the flake too:
-pin one with its tag, `github:BlasterWhite/hangar/v<version>`, here and in the input below.
+pin one with its tag, `github:BlasterWhite/teskad/v<version>`, here and in the input below.
 
 To install it, add the flake to your system's `flake.nix` and its package to your packages:
 
 ```nix
 # inputs
-hangar.url = "github:BlasterWhite/hangar";
+hangar.url = "github:BlasterWhite/teskad";
 hangar.inputs.nixpkgs.follows = "nixpkgs";
 
 # environment.systemPackages (or home.packages with Home Manager)

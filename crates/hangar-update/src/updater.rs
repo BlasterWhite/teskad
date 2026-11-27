@@ -511,7 +511,7 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    const RELEASE_BASE: &str = "https://github.com/BlasterWhite/hangar/releases/download/v1.13.0";
+    const RELEASE_BASE: &str = "https://github.com/BlasterWhite/teskad/releases/download/v1.13.0";
 
     struct Fixture {
         server: Server,
@@ -866,7 +866,7 @@ mod tests {
         let config = Config::hangar("1.12.1").unwrap();
         assert_eq!(
             config.endpoint,
-            "https://github.com/BlasterWhite/hangar/releases/latest/download/latest.json"
+            "https://github.com/BlasterWhite/teskad/releases/latest/download/latest.json"
         );
         assert_eq!(config.pubkey, PUBKEY);
         assert_eq!(config.current_version, Version::new(1, 12, 1));

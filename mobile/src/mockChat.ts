@@ -225,7 +225,7 @@ pub fn router(state: RemoteState) -> axum::Router {
     "Every part has its tests and they pass: **22 tests** under `remote::`. Committing, then the session cookie, the last piece.",
     20,
   );
-  c.run('git commit -m "Teskad Mobile: the server, its pairing and its ops"', "[hangar/hangar-mobile-serveur-distant-81070a 4e1c2b9] Teskad Mobile: the server, its pairing and its ops\n 21 files changed, 1904 insertions(+)");
+  c.run('git commit -m "Teskad Mobile: the server, its pairing and its ops"', "[teskad/hangar-mobile-serveur-distant-81070a 4e1c2b9] Teskad Mobile: the server, its pairing and its ops\n 21 files changed, 1904 insertions(+)");
   c.hangar(
     `Delivery review for « Teskad Mobile — serveur distant »: changes requested.
 
@@ -252,7 +252,7 @@ pub fn router(state: RemoteState) -> axum::Router {
   );
   c.run(
     'git commit -m "Teskad Mobile: every refusal says why, the logs keep no secret"',
-    "[hangar/hangar-mobile-serveur-distant-81070a 9a03d1e] Teskad Mobile: every refusal says why, the logs keep no secret\n 10 files changed, 96 insertions(+), 41 deletions(-)",
+    "[teskad/hangar-mobile-serveur-distant-81070a 9a03d1e] Teskad Mobile: every refusal says why, the logs keep no secret\n 10 files changed, 96 insertions(+), 41 deletions(-)",
   );
   c.person("Can the phone reach it without Tailscale, from a café's wifi?", 60 * 6);
   c.claude(

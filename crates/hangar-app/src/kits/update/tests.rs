@@ -709,9 +709,12 @@ fn an_added_kit_is_said_and_the_field_emptied_a_failed_one_is_explained() {
     send(
         &mut st,
         &mut m,
-        Msg::GitAdded(Err("no hangar-kit.json".into())),
+        Msg::GitAdded(Err("no teskad-kit.json (or hangar-kit.json)".into())),
     );
-    assert_eq!(st.page.git_error.as_deref(), Some("no hangar-kit.json"));
+    assert_eq!(
+        st.page.git_error.as_deref(),
+        Some("no teskad-kit.json (or hangar-kit.json)")
+    );
 
     st.page.adding = Some(Adding::Folder);
     send(

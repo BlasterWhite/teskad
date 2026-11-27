@@ -116,7 +116,7 @@ jobs:
 
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
-  # teskad-node, the headless daemon a Hangar node runs (docs/native/nodes.md),
+  # teskad-node, the headless daemon a Teskad node runs (docs/native/nodes.md),
   # for Linux x86_64 and arm64. The desktop uploads it to a node over SSH, and
   # looks for it beside its own executable, so every desktop package carries
   # both - a Mac or a Windows desktop drives Linux nodes too - which is why the
@@ -305,7 +305,7 @@ jobs:
             libclang-dev \
             libssl-dev
 
-      # Node is for Hangar Mobile alone, which only a release builds.
+      # Node is for Teskad Mobile alone, which only a release builds.
       - uses: pnpm/action-setup@v4
         if: env.RELEASING == 'true'
         with:
@@ -358,7 +358,7 @@ jobs:
           key: ${{ env.IMAGE_KEY }}
           save-if: ${{ env.RELEASING != 'true' }}
 
-      # Hangar Mobile, the phone app, is compiled into the executable from
+      # Teskad Mobile, the phone app, is compiled into the executable from
       # dist-mobile/. Without it the build still succeeds and every phone gets
       # a page saying the app is missing, so this job fails instead: the release
       # stays a draft and nothing reaches /releases/latest/. It is checked twice:

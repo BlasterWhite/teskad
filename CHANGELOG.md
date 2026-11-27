@@ -6,7 +6,7 @@ What changed in each Teskad release, newest first. The format loosely follows
 change behaviour as well as add to it. The 0.x history is grouped by minor version.
 
 Every release, with its installers, is on the
-[releases page](https://github.com/BlasterWhite/hangar/releases).
+[releases page](https://github.com/BlasterWhite/teskad/releases).
 
 ## [Unreleased]
 
@@ -21,7 +21,7 @@ This fork is independent and not affiliated with the original HangarAI project: 
 
 ### Changed
 - **A project's folder is `.teskad/`, no longer `.hangar/`** (the task board `board.json`, the phone's `uploads/`, annotations). The first time Teskad opens a project that has a `.hangar/` and no `.teskad/`, it copies the content over and leaves `.hangar/` untouched, so the official app can still use it; a marker, `.teskad/.adopted-from-hangar`, says it was done, and nothing is copied when `.teskad/` exists. The local git exclusion and the `.gitignore` line the playbook adds now cover `.teskad/`; an existing `.hangar/` line is kept.
-- **Teskad updates itself again, from this fork's releases only.** The feed is `https://github.com/BlasterWhite/hangar/releases/latest/download/latest.json` and the public key compiled into the app is the fork's own (key id `70C57C3F4975A19B`): an update signed by any other key, the official HangarAI's included, is refused. The updater's paths follow the packaging (`teskad`, `Teskad.app`, the `Teskad_…` installers). The release and publish workflows and `packaging/sign.sh` read the secrets `UPDATER_SIGNING_KEY` and `UPDATER_SIGNING_KEY_PASSWORD` (made by `cargo packager signer generate`, with a password; docs/native/PACKAGING.md), and the fallback on the Tauri CLI in `sign.sh` is gone. The Codex schema watch runs on `BlasterWhite/hangar`.
+- **Teskad updates itself again, from this fork's releases only.** The feed is `https://github.com/BlasterWhite/teskad/releases/latest/download/latest.json` and the public key compiled into the app is the fork's own (key id `70C57C3F4975A19B`): an update signed by any other key, the official HangarAI's included, is refused. The updater's paths follow the packaging (`teskad`, `Teskad.app`, the `Teskad_…` installers). The release and publish workflows and `packaging/sign.sh` read the secrets `UPDATER_SIGNING_KEY` and `UPDATER_SIGNING_KEY_PASSWORD` (made by `cargo packager signer generate`, with a password; docs/native/PACKAGING.md), and the fallback on the Tauri CLI in `sign.sh` is gone. The Codex schema watch runs on `BlasterWhite/teskad`.
 - One state indicator, as the Teskad brand pack draws it, wherever a state shows (agents, panes, tasks and board columns, the activity log, the status bar, setup steps): a turning arc for work under way (1.4 s a turn, still when the system asks for less motion), a solid dot for your turn, an empty ring for idle, a ticked disc for done, a crossed disc for failed, and the diamond stays for « waiting for an answer ». Colours come from the current theme.
 - **Teskad Dark is the theme of a new install.** A theme you chose stays yours; the 33 other themes are all still there.
 - JetBrains Mono is the terminals' font until you choose one (first in the default stack; a stack you already saved keeps its order), and the font of branches, hashes, paths, versions and shortcuts. Space Grotesk 600 sets view and dialog titles, panel headers and the name in the title bar.
@@ -40,6 +40,9 @@ This fork is independent and not affiliated with the original HangarAI project: 
   - Your projects carry over by themselves. At launch, a `.mcp.json` holding Teskad's server under the name `hangar` gets it renamed `teskad` (the file is first saved as `.mcp.json.hangar-bak`), the playbook block already written in `CLAUDE.md` / `AGENTS.md` is replaced in place, not duplicated, and the old mod Teskad had installed in `~/.teskad/mods/hangar-bridge` is replaced by `teskad-bridge`. The official app's own `hangar` entry, and its `~/.hangar/mods`, are never touched.
   - The variables you set yourself (`TESKAD_DATA_ROOT`, `TESKAD_WEBVIEW`, `TESKAD_NODE_BINARY`, the `TESKAD_DEV_*` and test ones, `TESKAD_PORT_BASE`…) are read under their new name first and, when it is not set, under the old `HANGAR_*` one: a script or a profile of yours keeps working. The ones the app sets for its own children have no fallback.
   - Conversations written before the update still read right: the old `[Hangar]` prefix, the `hangar-bridge` mod and `mcp__hangar__*` calls are recognised in their transcripts.
+- **The last visible « hangar » names are gone.** The repository is `BlasterWhite/teskad` (GitHub redirects the old addresses; every link, the update feed and the Rich Presence image now use the new one; the catalogue stays `BlasterWhite/catalog`). The branch of a worker is `teskad/<task>-<id>` (the cleanup of finished work still recognises the `hangar/…` branches of before). The comments Teskad writes on the board and the messages it queues are signed `teskad`; boards and conversations signed `hangar` still read as the app's.
+  - **A kit's manifest is `teskad-kit.json`.** Teskad reads it first and falls back to `hangar-kit.json`, so every kit that exists, the catalogue's included, keeps working; the kit example and the docs (`docs/kits.md`, `docs/kit-ui.md`) write the new name and mention the fallback.
+  - The folder of the delivery checks is `<local data>/teskad/c` (the old `hangar/c` is emptied at launch). The texts of Settings › Kits (the gallery hint, the folder picker) and the node's « binary not found » help name Teskad.
 
 ### Removed
 - The Hangar account (« Compte Hangar »), whole: Settings › Hangar account, signing in with GitHub, the statistics sync between machines and the « All machines » view of Statistics, the account server (the `hangar-cloud` and `hangar-cloud-api` crates, its Docker image and compose file) and its documentation. HangarAI no longer calls any account server. Statistics of this PC are as they were. An upgrade deletes nothing the account left: if you signed in, the keychain entry `hangar-account` and the files `hangar-account.json`, `cloud-sync.json` and `cloud-machine-id` of the app data folder stay, unread, and what the server holds stays there (delete the account from an earlier version first if you want it gone).
@@ -924,7 +927,7 @@ statistics, workspace sleep and per-workspace MCP servers.
 - Automatic updates from signed GitHub releases.
 - An interface in English and French (0.1.1).
 
-[2.6.0]: https://github.com/BlasterWhite/hangar/releases/tag/v2.6.0
+[2.6.0]: https://github.com/BlasterWhite/teskad/releases/tag/v2.6.0
 [2.5.1]: https://github.com/simnJS/hangar-ai/releases/tag/v2.5.1
 [2.5.0]: https://github.com/simnJS/hangar-ai/releases/tag/v2.5.0
 [2.4.6]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.6

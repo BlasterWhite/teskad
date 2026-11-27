@@ -1985,7 +1985,7 @@ does not:
   file (WorkspaceDialog.tsx); where to save a capture of the 3D preview, a
   `.png` (src/lib/modelCapture.ts), whose path goes to `model_save_png`.
 - **Updates** (`tauri-plugin-updater`): the banner checked
-  `https://github.com/BlasterWhite/hangar/releases/latest/download/latest.json`
+  `https://github.com/BlasterWhite/teskad/releases/latest/download/latest.json`
   against the minisign public key in src-tauri/tauri.conf.json
   (`plugins.updater.pubkey`), downloaded and installed the update with its
   progress, and offered to restart.

@@ -5,7 +5,7 @@
 //! lib/{kits,kitActivation,kitSetup,kitGallery,kitIcon}.ts,
 //! strings/kitsManage.ts (inventory §2.4/1.1–1.3, PACKAGES.md).
 //!
-//! A kit is a folder with a `hangar-kit.json`, linked from disk or cloned from
+//! A kit is a folder with a `teskad-kit.json` (`hangar-kit.json` for a kit made before the rename), linked from disk or cloned from
 //! a GitHub link, that brings a domain into Hangar: a plugin for the agents,
 //! tabs of its own, setup commands (docs/kits.md). This package is where a
 //! person adds one (from a folder, from a GitHub link, from the library),

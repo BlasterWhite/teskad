@@ -448,7 +448,7 @@ pub fn task_slug(title: &str) -> String {
     cut.trim_end_matches('-').to_string()
 }
 
-/// `hangar/<title>-<start of the id>`: whose it is, what it is, and which
+/// `teskad/<title>-<start of the id>`: whose it is, what it is, and which
 /// task (`workerBranch`).
 pub fn worker_branch(id: &str, title: &str) -> String {
     let id: String = id
@@ -456,7 +456,7 @@ pub fn worker_branch(id: &str, title: &str) -> String {
         .filter(|ch| ch.is_ascii_alphanumeric() || *ch == '_')
         .take(6)
         .collect();
-    sanitize_branch_name(&format!("hangar/{}-{id}", task_slug(title)))
+    sanitize_branch_name(&format!("teskad/{}-{id}", task_slug(title)))
 }
 
 /// One line for a failed hook, with its output after it; `None` when it
@@ -1316,7 +1316,8 @@ async fn start_steps(
         shared_checkout,
         node: start.node.as_ref().map(|(_, label)| label.as_str()),
     });
-    port.enqueue(&id, &brief, by.unwrap_or("hangar")).await?;
+    port.enqueue(&id, &brief, by.unwrap_or(hangar_core::board::APP_AUTHOR))
+        .await?;
 
     port.announce(Announcement::Created {
         by: by.map(str::to_string),

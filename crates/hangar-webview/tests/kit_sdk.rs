@@ -51,7 +51,7 @@ fn install(root: &Path) {
     let kit = root.join("source");
     std::fs::create_dir_all(kit.join("page")).unwrap();
     std::fs::write(
-        kit.join("hangar-kit.json"),
+        kit.join("teskad-kit.json"),
         json!({
             "schema": 1,
             "id": KIT,

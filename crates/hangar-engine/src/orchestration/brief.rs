@@ -811,7 +811,7 @@ pub async fn announce_role(
     let Some(text) = text else {
         return Ok(false);
     };
-    port.enqueue(&pane.id, &text, "hangar")?;
+    port.enqueue(&pane.id, &text, hangar_core::board::APP_AUTHOR)?;
     Ok(true)
 }
 
