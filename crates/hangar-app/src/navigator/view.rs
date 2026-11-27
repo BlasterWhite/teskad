@@ -126,7 +126,7 @@ pub fn sidebar<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
         };
         below = below.push(
             column![
-                text(words).size(font_size::UI).color(t.colors.fg_muted),
+                text(words).size(font_size::UI).color(t.palette.text_muted),
                 ui_button::link(
                     t,
                     tr.t(Key::SidebarClearFilter).into_owned(),
@@ -147,7 +147,7 @@ pub fn sidebar<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
     let root_label: Element<'a, Message> = if dragging_workspace {
         text(tr.t(Key::SidebarNoFolder).into_owned())
             .size(font_size::CAPTION)
-            .color(t.colors.fg_muted)
+            .color(t.palette.text_muted)
             .into()
     } else {
         Space::new().into()
@@ -231,7 +231,7 @@ pub fn sidebar<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
 
 /// A line of the kind `.nav-empty` is.
 fn message<'a>(t: &'a Theme, words: String) -> Element<'a, Message> {
-    container(text(words).size(font_size::UI).color(t.colors.fg_muted))
+    container(text(words).size(font_size::UI).color(t.palette.text_muted))
         .padding([12.0, PAD])
         .into()
 }
@@ -674,7 +674,7 @@ fn workspace_row<'a>(f: &Frame<'a>, ws: &'a Workspace) -> Element<'a, Message> {
                 label = label.push(
                     text(hint.clone())
                         .size(font_size::CAPTION)
-                        .color(t.colors.fg_muted)
+                        .color(t.palette.text_muted)
                         .wrapping(text::Wrapping::None),
                 );
             }
@@ -710,7 +710,7 @@ fn workspace_row<'a>(f: &Frame<'a>, ws: &'a Workspace) -> Element<'a, Message> {
                     repos::tip_with_others(model, tr, ws, tip),
                 ));
             } else if let Some(words) = repos::also_on(model, tr, ws) {
-                end = end.push(mark_in(t, Icon::Machines, t.colors.fg_subtle, words));
+                end = end.push(mark_in(t, Icon::Machines, t.palette.text_muted, words));
             }
             // Its own account, or the one it reads from its folder.
             if ws.claude_account.is_some()
@@ -848,7 +848,7 @@ fn orchestration_mark<'a>(
 
 /// A small icon at the end of a row with a word in its tooltip (`.nav-mark`).
 fn mark<'a>(t: &'a Theme, which: Icon, words: String) -> Element<'a, Message> {
-    mark_in(t, which, t.colors.fg_muted, words)
+    mark_in(t, which, t.palette.text_muted, words)
 }
 
 /// A mark in a colour of its own: a machine whose link is down.
@@ -889,11 +889,11 @@ fn folder_block<'a>(f: &Frame<'a>, entry: &NavFolder<'a>) -> Element<'a, Message
         .as_ref()
         .filter(|rename| rename.kind == RowKind::Folder && rename.id == folder.id);
     let ink = if holds_active || into {
-        t.colors.fg
+        t.palette.text
     } else if f.st.hover.as_deref() == Some(key.as_str()) {
-        t.colors.fg_secondary
+        t.palette.text_secondary
     } else {
-        t.colors.fg_muted
+        t.palette.text_muted
     };
     let head: Element<'a, Message> = match renaming {
         Some(rename) => rename_field(f, &rename.draft),
@@ -906,9 +906,9 @@ fn folder_block<'a>(f: &Frame<'a>, entry: &NavFolder<'a>) -> Element<'a, Message
                     .wrapping(text::Wrapping::None),
                 icon(Icon::ChevronRight, 10.0)
                     .color(if holds_active {
-                        t.colors.fg
+                        t.palette.text
                     } else {
-                        t.colors.fg_subtle
+                        t.palette.text_muted
                     })
                     .rotate(if entry.expanded {
                         std::f32::consts::FRAC_PI_2
@@ -967,7 +967,7 @@ fn folder_block<'a>(f: &Frame<'a>, entry: &NavFolder<'a>) -> Element<'a, Message
             let empty = container(
                 text(tr.t(Key::SidebarFolderEmpty).into_owned())
                     .size(font_size::CAPTION)
-                    .color(t.colors.fg_muted),
+                    .color(t.palette.text_muted),
             )
             .height(geometry::PLACEHOLDER_HEIGHT)
             .width(Length::Fill)
@@ -1037,9 +1037,9 @@ fn filter_bar<'a>(f: &Frame<'a>, machine: &MachineFilter) -> Element<'a, Message
     let scope = button(
         container(
             glyph::state(t, reads::activity_glyph(AgentActivity::Waiting), 9.0).tint(if on {
-                t.colors.state_waiting_fill
+                t.palette.status.active
             } else {
-                t.colors.fg_muted
+                t.palette.text_muted
             }),
         )
         .center(Length::Fill),
@@ -1052,11 +1052,9 @@ fn filter_bar<'a>(f: &Frame<'a>, machine: &MachineFilter) -> Element<'a, Message
         let lit = matches!(status, button::Status::Hovered | button::Status::Pressed);
         button::Style {
             background: if on {
-                Some(Background::Color(
-                    t.colors.state_waiting_fill.scale_alpha(0.16),
-                ))
+                Some(Background::Color(t.palette.status.active.scale_alpha(0.16)))
             } else if lit {
-                Some(Background::Color(t.colors.surface_hover))
+                Some(Background::Color(t.palette.hover_overlay))
             } else {
                 None
             },
@@ -1300,7 +1298,7 @@ fn machines_foot<'a>(ctx: Ctx<'a>) -> Option<Element<'a, Message>> {
             .color(ink)
             .wrapping(text::Wrapping::None)
     };
-    let mut words = row![set(said.count, t.colors.fg_muted)]
+    let mut words = row![set(said.count, t.palette.text_muted)]
         .spacing(space::SM)
         .align_y(Alignment::Center);
     if let Some(offline) = said.offline {
@@ -1309,7 +1307,7 @@ fn machines_foot<'a>(ctx: Ctx<'a>) -> Option<Element<'a, Message>> {
     // Laid out as a row is: the icon under the rows' glyphs, the words
     // under their names.
     let line = row![
-        container(icon(Icon::Machines, 13.0).color(t.colors.fg_muted))
+        container(icon(Icon::Machines, 13.0).color(t.palette.text_muted))
             .width(16)
             .align_x(Alignment::Center),
         words,
@@ -1326,7 +1324,7 @@ fn machines_foot<'a>(ctx: Ctx<'a>) -> Option<Element<'a, Message>> {
         .style(move |_: &iced::Theme, status| {
             let lit = matches!(status, button::Status::Hovered | button::Status::Pressed);
             button::Style {
-                background: lit.then_some(Background::Color(t.colors.surface_hover)),
+                background: lit.then_some(Background::Color(t.palette.hover_overlay)),
                 border: skin::border(iced::Color::TRANSPARENT, radius::MD),
                 ..button::Style::default()
             }

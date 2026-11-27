@@ -96,9 +96,9 @@ pub fn view<'a>(ctx: Ctx<'a>, workspaces: &[&'a Workspace]) -> Option<Element<'a
         // The count in its state's colour, after the state's shape: the
         // arc, the dot, the diamond.
         let (ink, side) = match state {
-            AgentActivity::Waiting => (t.colors.state_waiting, 7.0),
-            AgentActivity::Yours => (t.colors.state_yours, 6.0),
-            _ => (t.colors.state_working, 9.0),
+            AgentActivity::Waiting => (t.palette.status.active, 7.0),
+            AgentActivity::Yours => (t.palette.status.active, 6.0),
+            _ => (t.palette.status.running, 9.0),
         };
         let face = row![
             glyph::state(t, reads::activity_glyph(*state), side),
@@ -129,7 +129,7 @@ pub fn view<'a>(ctx: Ctx<'a>, workspaces: &[&'a Workspace]) -> Option<Element<'a
                     // contrast on any row.
                     border: Border {
                         color: if lit {
-                            t.colors.line_strong
+                            t.palette.border_strong
                         } else {
                             iced::Color::TRANSPARENT
                         },

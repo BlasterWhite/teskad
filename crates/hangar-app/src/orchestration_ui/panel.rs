@@ -525,9 +525,9 @@ fn status<'a>(ctx: Ctx<'a>, ws: &'a Workspace) -> Element<'a, Message> {
     let workers = workers_of(ws).len();
     let agents = typography::hint(t, agents::of(ctx.model, ws).sentence(ctx.i18n));
     let tint = if orchestrator.is_some() {
-        t.colors.accent_hi
+        t.palette.accent_text
     } else {
-        t.colors.fg_muted
+        t.palette.text_muted
     };
 
     let words: Element<'a, Message> = match orchestrator {

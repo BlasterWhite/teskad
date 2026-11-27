@@ -30,7 +30,7 @@ pub const UNFOCUSED_OPACITY: f32 = 0.94;
 /// that is `focused` or not. The pane's own background (`var(--bg)`) is what
 /// shows through.
 pub fn dimming(focused: bool, theme: &hangar_theme::Theme) -> Option<(iced::Color, f32)> {
-    (!focused).then_some((theme.colors.bg, UNFOCUSED_OPACITY))
+    (!focused).then_some((theme.palette.bg, UNFOCUSED_OPACITY))
 }
 
 /// Where the pane stands in its grid.
@@ -90,7 +90,7 @@ pub fn view<'a>(
     let away = node_away(ctx, ws, pane);
     if away.is_some() {
         // Greyed while its node is away: what it shows is the last it heard.
-        terminal = terminal.dimmed(t.colors.bg, AWAY_OPACITY);
+        terminal = terminal.dimmed(t.palette.bg, AWAY_OPACITY);
     } else if let Some((behind, opacity)) = dimming(placing.focused, t) {
         terminal = terminal.dimmed(behind, opacity);
     }
@@ -255,7 +255,7 @@ fn away_card<'a>(ctx: Ctx<'a>, away: Away) -> Element<'a, Message> {
     // state's, and the words say the rest.
     let look = presence::look_of(ctx.model, &away.node, ctx.now);
     let machine = presence::icon_of(ctx.model, &away.node);
-    let fg = t.colors.fg;
+    let fg = t.palette.text;
     let words: Element<'a, Message> = text(words)
         .size(tokens::font_size::UI)
         .style(move |_| text::Style { color: Some(fg) })
@@ -576,7 +576,7 @@ mod tests {
         assert_eq!(dimming(true, theme), None);
         let (behind, opacity) = dimming(false, theme).expect("an unfocused pane");
         // The pane's background shows through, at 0.94.
-        assert_eq!(behind, theme.colors.bg);
+        assert_eq!(behind, theme.palette.bg);
         assert_eq!(opacity, 0.94);
     }
 }

@@ -26,9 +26,9 @@ pub fn border(color: Color, radius: f32) -> Border {
 /// opaque to stay legible over a busy terminal.
 pub fn capsule(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
     move |_| container::Style {
-        background: Some(Background::Color(t.colors.chrome_bar.scale_alpha(0.96))),
-        text_color: Some(t.colors.fg),
-        border: border(t.colors.line_strong, radius::FULL),
+        background: Some(Background::Color(t.palette.surface.scale_alpha(0.96))),
+        text_color: Some(t.palette.text),
+        border: border(t.palette.border_strong, radius::FULL),
         shadow: Shadow {
             color: t.colors.shadow,
             offset: Vector::new(0.0, 8.0),
@@ -134,9 +134,9 @@ pub fn hq_badge(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
 /// `.nav-section--drop`, `.nav-root--drop`): the accent's tint with its ring.
 pub fn drop_target(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
     move |_| container::Style {
-        background: Some(Background::Color(t.colors.accent_soft)),
-        text_color: Some(t.colors.fg),
-        border: border(t.colors.accent_ring, radius::MD),
+        background: Some(Background::Color(t.palette.selection_bg)),
+        text_color: Some(t.palette.text),
+        border: border(t.palette.selection_border, radius::MD),
         ..container::Style::default()
     }
 }
@@ -144,7 +144,7 @@ pub fn drop_target(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ 
 /// The insertion line a drag shows between two rows (`--drop-before`).
 pub fn insertion(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
     move |_| container::Style {
-        background: Some(Background::Color(t.colors.accent)),
+        background: Some(Background::Color(t.palette.accent)),
         border: Border {
             radius: 1.0.into(),
             ..Border::default()
@@ -157,8 +157,8 @@ pub fn insertion(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
 /// dashed border).
 pub fn placeholder(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
     move |_| container::Style {
-        border: border(t.colors.line_strong, radius::SM),
-        text_color: Some(t.colors.fg_muted),
+        border: border(t.palette.border_strong, radius::SM),
+        text_color: Some(t.palette.text_muted),
         ..container::Style::default()
     }
 }
