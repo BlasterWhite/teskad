@@ -890,11 +890,12 @@ fn set_pane_account(
 
 // ── the views other packages embed ────────────────────────────────────
 
-/// The toolbar's account switcher (embedded by the toolbar).
+/// Whether [`switcher`] has anything to draw in this window.
 pub fn has_switcher(ctx: Ctx<'_>) -> bool {
     switcher::shown(ctx)
 }
 
+/// The toolbar's account switcher (embedded by the toolbar).
 pub fn switcher<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
     switcher::view(st, ctx)
 }

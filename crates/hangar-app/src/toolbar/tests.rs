@@ -125,6 +125,21 @@ fn restarting_all_names_every_pane() {
     }
 }
 
+/// The chosen view or face stands out of the toolbar's track, which is on
+/// `surface`, on light themes as on dark ones.
+#[test]
+fn the_chosen_segment_stands_out_of_its_track_on_every_theme() {
+    for t in hangar_theme::themes() {
+        let look = segment_style(t, true)(
+            &hangar_theme::to_iced(t),
+            iced::widget::button::Status::Active,
+        );
+        let fill = Some(iced::Background::Color(t.palette.border));
+        assert_eq!(look.background, fill, "{}", t.id);
+        assert_ne!(t.palette.border, t.palette.surface, "{}", t.id);
+    }
+}
+
 #[test]
 fn the_toolbars_breakpoints_are_in_em_of_its_font() {
     // 80 em of 12 px: the width under which the name goes.

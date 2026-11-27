@@ -390,3 +390,66 @@ fn a_question_about_another_workspace_or_view_is_not_asked_here() {
     let mut ui = simulate(view(&st, ctx(&model, &pkg)));
     assert!(ui.find("Close Dan?").is_err());
 }
+
+/// The same, as drawn: in Teskad Light and Teskad Dark, the pixels inside the
+/// chosen view's segment are `border`, and those inside another's are the
+/// track's `surface`.
+#[test]
+fn the_chosen_view_is_drawn_apart_from_the_others_in_teskad_light_and_dark() {
+    for id in ["teskad-light", "teskad-dark"] {
+        let mut model = model();
+        let mut state = model.state().clone();
+        state.settings.theme_id = id.into();
+        model.hydrate(state);
+        model.ui.view = View::Terminals;
+        let pkg = Packages::default();
+        let st = State::default();
+        let ctx = ctx(&model, &pkg);
+        let t = ctx.theme;
+        assert_eq!(t.id, id);
+
+        // Where each label starts: its segment's padding is left of it.
+        let mut ui = simulate(iced::widget::container(view(&st, ctx)).height(44));
+        let beside = |ui: &mut iced_test::Simulator<'_, Message>, label: &str| {
+            let bounds = ui.find(label).expect("the view").bounds();
+            (bounds.x - 6.0, bounds.center_y())
+        };
+        let chosen = beside(&mut ui, "Terminals");
+        let other = beside(&mut ui, "Board");
+        drop(ui);
+
+        let backend = std::env::var("ICED_TEST_BACKEND").ok();
+        let shot = crate::shell::dev_screenshot::render(
+            iced::widget::container(view(&st, ctx)).height(44).into(),
+            crate::navigator::testing::WINDOW,
+            1.0,
+            &hangar_theme::to_iced(t),
+            backend.as_deref(),
+        )
+        .expect("drawn");
+        let pixel = |(x, y): (f32, f32)| {
+            let at = (y as usize * shot.size.width as usize + x as usize) * 4;
+            [shot.rgba[at], shot.rgba[at + 1], shot.rgba[at + 2]]
+        };
+        let near = |seen: [u8; 3], wanted: iced::Color| {
+            let wanted = wanted.into_rgba8();
+            seen.iter()
+                .zip(wanted)
+                .all(|(seen, wanted)| seen.abs_diff(wanted) <= 2)
+        };
+        assert!(
+            near(pixel(chosen), t.palette.border),
+            "{id}: the chosen segment is {:?}",
+            pixel(chosen)
+        );
+        assert!(
+            near(pixel(other), t.palette.surface),
+            "{id}: another segment is {:?}",
+            pixel(other)
+        );
+        if let Some(folder) = hangar_core::env::var_os("TESKAD_TOOLBAR_SNAPSHOTS") {
+            let path = std::path::PathBuf::from(folder).join(format!("toolbar-{id}.png"));
+            crate::shell::dev_screenshot::write(&path, &shot).expect("written");
+        }
+    }
+}

@@ -20,9 +20,11 @@
 //! (`brand_room`), gives up its version as the bar narrows, and goes with its
 //! name when even that does not fit, rather than push the trail out.
 //!
-//! Gap: iced 0.14's buttons take no keyboard focus, so the view switcher's
-//! arrow-key walk (a radio group) is not here; the `view.*` shortcuts do the
-//! same from anywhere.
+//! Keyboard: each control sits in a focus ring (`hangar_ui::focus`), so Tab
+//! reaches it and Space or Enter press it.
+//!
+//! Gap: the view switcher's arrow-key walk (a radio group) is not here; the
+//! `view.*` shortcuts do the same from anywhere.
 
 pub mod menus;
 
@@ -268,9 +270,8 @@ pub fn subscription(_st: &State, _m: &Model) -> Subscription<Message> {
     Subscription::none()
 }
 
-/// What takes the focus when F6 reaches region `Toolbar`: nothing, since an
-/// iced button takes no keyboard focus; the region is reached and its keys
-/// are the shortcuts'.
+/// What takes the focus when F6 reaches region `Toolbar`: no control in
+/// particular; the region is reached and its keys are the shortcuts'.
 pub fn focus_entry(_st: &State, _m: &Model, _region: Region) -> Option<Task<Message>> {
     None
 }
@@ -651,7 +652,7 @@ fn views<'a>(ctx: Ctx<'a>, current: View, icons_only: bool) -> Element<'a, Messa
             Length::Shrink
         })
         .height(SEGMENT_HEIGHT)
-        .style(style::button::tab(t, view == current))
+        .style(segment_style(t, view == current))
         .on_press(Message::Intent(Intent::SetView(view)));
         let segment = ring::ring(t, segment)
             .radius(radius::SM)
@@ -686,7 +687,7 @@ fn chat_switch<'a>(ctx: Ctx<'a>, ws: &'a Workspace, chat: bool) -> Element<'a, M
         )
         .padding(Padding::from([0.0, SEGMENT_PAD_X]))
         .height(SEGMENT_HEIGHT)
-        .style(style::button::tab(t, chat == on))
+        .style(segment_style(t, chat == on))
         .on_press(show.clone());
         ring::ring(t, button).radius(radius::SM).on_activate(show)
     };
@@ -701,6 +702,22 @@ fn chat_switch<'a>(ctx: Ctx<'a>, ws: &'a Workspace, chat: bool) -> Element<'a, M
         ),
         ctx.t(Key::ChatViewSwitchHint).into_owned(),
     )
+}
+
+/// A segment on [`track`]: the shared tab, except that the chosen one is
+/// filled with `border` on every theme (`ecrans.md` §1). The shared tab fills
+/// it with `surface` on a light theme, which is this track's own colour.
+fn segment_style(
+    t: &Theme,
+    active: bool,
+) -> impl Fn(&iced::Theme, iced::widget::button::Status) -> iced::widget::button::Style + '_ {
+    move |theme, status| {
+        let mut look = style::button::tab(t, active)(theme, status);
+        if active {
+            look.background = Some(iced::Background::Color(t.palette.border));
+        }
+        look
+    }
 }
 
 /// The track of a segmented control of the bar: `surface`, a `border`
