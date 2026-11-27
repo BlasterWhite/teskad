@@ -1,4 +1,4 @@
-# Teskad — Brand & UI pack v2
+# Teskad — Brand & UI pack v3
 
 Pack d'identité visuelle et de maquettes pour la refonte de Teskad, l'application desktop (Rust) qui orchestre des agents de code IA en parallèle.
 
@@ -35,11 +35,21 @@ teskad-brand/
 
 ## Les écrans
 
+Chaque écran : `maquettes/ecrans/<nom>.png` (rendu 2×, Teskad Dark), `maquettes/ecrans/html/<nom>.html` (source), section dans `docs/ecrans.md` avec son tableau avant → nouveau, capture d'origine dans `maquettes/avant/`.
+
 | Nouveau | Avant |
 |---|---|
-| `maquettes/ecrans/01-workspace-terminals.png` | `maquettes/avant/01-workspace-terminals.png` |
-| `maquettes/ecrans/02-settings-general.png` | `maquettes/avant/02-settings-general.png` (et `02b-settings-appearance.png`, pas encore refait) |
-| `maquettes/ecrans/03-workspace-menu-orchestration.png` | `maquettes/avant/03a-workspace-menu.png`, `03b-orchestration.png` |
+| `01-workspace-terminals` | `01-workspace-terminals.png` |
+| `02-settings-general` | `02-settings-general.png` |
+| `03-workspace-menu-orchestration` | `03a-workspace-menu.png`, `03b-orchestration.png` |
+| `04-board`, `04-board-light` (Teskad Light), `04b-board-task` | `04-board.png` |
+| `05-memory`, `05b-memory-new-entry` | `05-memory.png` |
+| `06-statistics` | `06-statistics.png` |
+| `07-inspector` | `07-inspector.png` |
+| `08-hq` | `08-hq.png` |
+| `09-chat-view` | `09-chat-view.png` |
+| `10-settings-appearance` (proposition à valider) | `10-settings-appearance.png` |
+| `11-states` : états vide, chargement et erreur | — |
 
 Les fichiers HTML de `maquettes/*/html/` s'ouvrent directement dans un navigateur et utilisent les polices de `fonts/`.
 
@@ -55,4 +65,5 @@ Les fichiers HTML de `maquettes/*/html/` s'ouvrent directement dans un navigateu
 ## Points ouverts
 
 - L'action de panneau dont l'icône ressemble à un « % barré » doit garder son libellé actuel (marqué `[Action à confirmer]` dans les maquettes).
-- Pas encore maquettés : Board, Memory, Statistics, Réglages › Appearance, l'inspecteur, le gestionnaire de projets. Ils reprennent les mêmes composants (voir la fin de `docs/ecrans.md`).
+- Les textes d'interface qui n'apparaissent pas dans les captures sont listés à la fin de `docs/ecrans.md` (« Textes d'interface à confirmer »).
+- L'écran 10 (Appearance) est une proposition à valider avant implémentation.

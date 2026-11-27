@@ -62,13 +62,18 @@ Dans cet ordre, en suivant `docs/ecrans.md` :
 4. barre d'envoi groupé ;
 5. fenêtre Réglages (navigation regroupée, blocs) ;
 6. menu du workspace ;
-7. fenêtre Orchestration.
+7. fenêtre Orchestration ;
+8. barre d'outils et barre d'état communes (cadre des écrans 04 à 11) ;
+9. Board (04), puis Memory (05), Statistics (06), inspecteur (07), HQ (08), Chat view (09) ;
+10. états vide, chargement et erreur (11) ;
+11. Appearance (10), seulement une fois la proposition validée.
 
 Puis appliquer les mêmes composants aux écrans non maquettés.
 
 ### 6. Vérifications
 
-- [ ] Chaque fonction visible dans `maquettes/avant/` est toujours accessible (au besoin via un sous-menu).
+- [ ] Chaque fonction visible dans `maquettes/avant/` est toujours accessible (au besoin via un sous-menu) : vérifier ligne par ligne les tableaux avant → nouveau de `docs/ecrans.md`.
+- [ ] Les textes listés dans « Textes d'interface à confirmer » sont remplacés par les textes réels de l'app quand ils existent.
 - [ ] Aucune couleur codée en dur hors du moteur de thème.
 - [ ] Teskad Dark rendu identique aux maquettes. Teskad Light cohérent.
 - [ ] Changer de thème recolore toute la fenêtre, mais pas les polices, les arrondis, les espacements, les icônes ni le logo.
