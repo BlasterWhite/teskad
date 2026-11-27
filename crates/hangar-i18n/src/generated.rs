@@ -3534,6 +3534,14 @@ pub enum Key {
     SettingsFontCustom,
     /// `settings.fontHint`
     SettingsFontHint,
+    /// `settings.groupAgents`
+    SettingsGroupAgents,
+    /// `settings.groupApplication`
+    SettingsGroupApplication,
+    /// `settings.groupConnections`
+    SettingsGroupConnections,
+    /// `settings.groupTerminal`
+    SettingsGroupTerminal,
     /// `settings.hibernate`
     SettingsHibernate,
     /// `settings.hibernateDelay`
@@ -3588,6 +3596,8 @@ pub enum Key {
     SettingsProjectsFolderDialog,
     /// `settings.projectsFolderHint`
     SettingsProjectsFolderHint,
+    /// `settings.projectsFolderLabel`
+    SettingsProjectsFolderLabel,
     /// `settings.projectsFolderPlaceholder`
     SettingsProjectsFolderPlaceholder,
     /// `settings.reset`
@@ -6414,6 +6424,10 @@ impl Key {
         Key::SettingsFont,
         Key::SettingsFontCustom,
         Key::SettingsFontHint,
+        Key::SettingsGroupAgents,
+        Key::SettingsGroupApplication,
+        Key::SettingsGroupConnections,
+        Key::SettingsGroupTerminal,
         Key::SettingsHibernate,
         Key::SettingsHibernateDelay,
         Key::SettingsHibernateDelayHint,
@@ -6441,6 +6455,7 @@ impl Key {
         Key::SettingsProjectsFolder,
         Key::SettingsProjectsFolderDialog,
         Key::SettingsProjectsFolderHint,
+        Key::SettingsProjectsFolderLabel,
         Key::SettingsProjectsFolderPlaceholder,
         Key::SettingsReset,
         Key::SettingsResetConfirm,
@@ -8734,6 +8749,10 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "settings.font", en: Text::plain("Font"), fr: Text::plain("Police") },
     Message { id: "settings.fontCustom", en: Text::plain("Custom"), fr: Text::plain("Personnalisée") },
     Message { id: "settings.fontHint", en: Text::plain("Monospace stacks — the first one installed wins"), fr: Text::plain("Piles monospace — la première installée l'emporte") },
+    Message { id: "settings.groupAgents", en: Text::plain("Agents"), fr: Text::plain("Agents") },
+    Message { id: "settings.groupApplication", en: Text::plain("Application"), fr: Text::plain("Application") },
+    Message { id: "settings.groupConnections", en: Text::plain("Connections"), fr: Text::plain("Connexions") },
+    Message { id: "settings.groupTerminal", en: Text::plain("Terminal"), fr: Text::plain("Terminal") },
     Message { id: "settings.hibernate", en: Text::plain("Put idle workspaces to sleep"), fr: Text::plain("Mettre en veille les workspaces inactifs") },
     Message { id: "settings.hibernateDelay", en: Text::plain("Put to sleep after"), fr: Text::plain("Mettre en veille après") },
     Message { id: "settings.hibernateDelayHint", en: Text::plain("Without a keystroke, a click or an agent sending it anything"), fr: Text::plain("Sans frappe, clic ni envoi d'un agent") },
@@ -8760,7 +8779,8 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "settings.preview", en: Text::plain("Preview"), fr: Text::plain("Aperçu") },
     Message { id: "settings.projectsFolder", en: Text::plain("Projects folder"), fr: Text::plain("Dossier des projets") },
     Message { id: "settings.projectsFolderDialog", en: Text::plain("Projects folder"), fr: Text::plain("Dossier des projets") },
-    Message { id: "settings.projectsFolderHint", en: Text::plain("Where repositories cloned from Git go. Empty: next to the current workspace's folder"), fr: Text::plain("Où vont les dépôts clonés depuis Git. Vide\u{202f}: à côté du dossier du workspace actuel") },
+    Message { id: "settings.projectsFolderHint", en: Text::plain("Empty: next to the current workspace's folder"), fr: Text::plain("Vide\u{202f}: à côté du dossier du workspace actuel") },
+    Message { id: "settings.projectsFolderLabel", en: Text::plain("Where repositories cloned from Git go"), fr: Text::plain("Où vont les dépôts clonés depuis Git") },
     Message { id: "settings.projectsFolderPlaceholder", en: Text::plain("Next to the current workspace"), fr: Text::plain("À côté du workspace actuel") },
     Message { id: "settings.reset", en: Text::plain("Restore defaults"), fr: Text::plain("Rétablir les valeurs par défaut") },
     Message { id: "settings.resetConfirm", en: Text::plain("Confirm"), fr: Text::plain("Confirmer") },

@@ -151,15 +151,15 @@ fn the_categories_come_in_the_order_of_the_page() {
         [
             Icon::Sliders,
             Icon::Appearance,
+            Icon::Keyboard,
             Icon::Terminal,
             Icon::Prompt,
-            Icon::Bell,
-            Icon::Broadcast,
-            Icon::Plug,
             Icon::Bolt,
+            Icon::Plug,
+            Icon::Bell,
+            Icon::Phone,
             Icon::Mic,
             Icon::Gamepad,
-            Icon::Keyboard,
             Icon::Info,
         ]
     );
@@ -595,10 +595,8 @@ fn attaching_hangar_to_codex_is_a_switch_that_explains_itself_and_its_fallback()
     let mut world = World::new();
     let built = world.build();
     let attach = find(&built, "codexAttach");
-    assert_eq!(
-        attach.label.as_deref(),
-        Some("Attach Teskad to Codex (beta)")
-    );
+    assert_eq!(attach.label.as_deref(), Some("Attach Teskad to Codex"));
+    assert_eq!(attach.badge.as_deref(), Some("beta"));
     let hint = attach.hint.as_deref().unwrap_or_default();
     assert!(hint.contains("Codex's own server"), "{hint}");
     // The fallback: the plain terminal, when it is off or cannot be attached.
@@ -622,18 +620,16 @@ fn the_codex_rows_say_they_are_in_beta_in_both_languages_and_claude_code_does_no
         world.locale = locale;
         let built = world.build();
         for id in ["codexAttach", "agentCommand.codex"] {
-            let label = find(&built, id).label.clone().unwrap_or_default();
-            assert!(label.ends_with(&format!("({beta})")), "{id}: {label}");
+            assert_eq!(find(&built, id).badge.as_deref(), Some(beta), "{id}");
         }
         let Kind::Select { choices, .. } = &find(&built, "defaultOrchestratorAgent").kind else {
             panic!("a select");
         };
         assert_eq!(choices[1].label, "Claude Code");
         assert_eq!(choices[2].label, format!("Codex ({beta})"));
-        assert_eq!(
-            find(&built, "agentCommand.claude").label.as_deref(),
-            Some("Claude Code")
-        );
+        let claude = find(&built, "agentCommand.claude");
+        assert_eq!(claude.label.as_deref(), Some("Claude Code"));
+        assert_eq!(claude.badge, None);
     }
 }
 
@@ -1111,4 +1107,25 @@ fn hangar_on_discord_opens_the_discord_page_while_its_experiment_is_on() {
             ..
         }
     ));
+}
+
+#[test]
+fn the_list_goes_group_after_group_and_every_group_but_the_foot_is_headed() {
+    use crate::settings::schema::Group;
+    let mut groups: Vec<Group> = ORDER.iter().map(|id| Group::of(*id)).collect();
+    groups.dedup();
+    // Deduplicated, each group appears once: its categories stand together.
+    assert_eq!(
+        groups,
+        [
+            Group::Application,
+            Group::Terminal,
+            Group::Agents,
+            Group::Connections,
+            Group::Foot,
+        ]
+    );
+    for group in groups {
+        assert_eq!(group.heading().is_none(), group == Group::Foot, "{group:?}");
+    }
 }

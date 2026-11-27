@@ -535,6 +535,31 @@ where
         .into()
 }
 
+/// [`select`] that also takes the keyboard: Tab reaches it and shows the
+/// ring, and Left and Right choose the option before and after the chosen
+/// one, as on a browser's closed list. iced's own list takes no focus.
+pub fn keyboard_select<'a, T, M>(
+    t: &'a Theme,
+    options: Vec<T>,
+    selected: Option<T>,
+    on_select: impl Fn(T) -> M + 'a,
+) -> Element<'a, M>
+where
+    T: ToString + PartialEq + Clone + 'a,
+    M: Clone + 'a,
+{
+    let at = selected
+        .as_ref()
+        .and_then(|chosen| options.iter().position(|option| option == chosen));
+    let send = |index: usize| options.get(index).cloned().map(&on_select);
+    let left = at.and_then(|at| at.checked_sub(1)).and_then(send);
+    let right = send(at.map_or(0, |at| at + 1));
+    focus::ring(t, select(t, options, selected, on_select))
+        .radius(radius::LG)
+        .on_arrows(left, right)
+        .into()
+}
+
 /// A tick box with its label.
 #[must_use]
 pub struct Checkbox<'a, M> {
@@ -672,6 +697,9 @@ impl<'a, M: Clone + 'a> From<Switch<'a, M>> for Element<'a, M> {
     }
 }
 
+/// The room a slider's value is set in.
+const SLIDER_VALUE_WIDTH: f32 = 56.0;
+
 /// A slider with the value it stands at written beside it
 /// (`.set-range` and `.set-value`).
 #[must_use]
@@ -683,6 +711,7 @@ pub struct Slider<'a, M> {
     on_release: Option<M>,
     step: f32,
     display: Option<String>,
+    keyboard: bool,
 }
 
 pub fn slider<'a, M>(
@@ -699,6 +728,7 @@ pub fn slider<'a, M>(
         on_release: None,
         step: 1.0,
         display: None,
+        keyboard: false,
     }
 }
 
@@ -715,6 +745,13 @@ impl<'a, M> Slider<'a, M> {
         self
     }
 
+    /// Lets the track take the keyboard: Tab reaches it and shows the ring,
+    /// and Left and Right move the value one step.
+    pub fn keyboard(mut self) -> Self {
+        self.keyboard = true;
+        self
+    }
+
     /// Sent when the knob is let go: the moment to save, where `on_change`
     /// is sent for every step of the drag.
     pub fn on_release(mut self, message: M) -> Self {
@@ -726,6 +763,17 @@ impl<'a, M> Slider<'a, M> {
 impl<'a, M: Clone + 'a> From<Slider<'a, M>> for Element<'a, M> {
     fn from(s: Slider<'a, M>) -> Self {
         let t = s.theme;
+        // Worked out first: the widget takes the closure.
+        let (left, right) = if s.keyboard {
+            let (low, high) = (*s.range.start(), *s.range.end());
+            let at = |value: f32| {
+                let value = value.clamp(low, high);
+                (value != s.value).then(|| (s.on_change)(value))
+            };
+            (at(s.value - s.step), at(s.value + s.step))
+        } else {
+            (None, None)
+        };
         let mut track = iced_slider(s.range, s.value, s.on_change)
             .step(s.step)
             .height(style::slider::HEIGHT)
@@ -733,17 +781,26 @@ impl<'a, M: Clone + 'a> From<Slider<'a, M>> for Element<'a, M> {
         if let Some(message) = s.on_release {
             track = track.on_release(message);
         }
-        let mut line = row![track].spacing(space::LG).align_y(Alignment::Center);
+        let track: Element<'a, M> = if s.keyboard {
+            focus::ring(t, track)
+                .radius(radius::SM)
+                .on_arrows(left, right)
+                .into()
+        } else {
+            track.into()
+        };
+        let mut line = row![track].spacing(space::XL).align_y(Alignment::Center);
         if let Some(display) = s.display {
             line = line.push(
                 container(
                     text(display)
-                        .size(font_size::CAPTION)
+                        .size(font_size::LABEL)
                         .font(fonts::mono())
-                        .style(style::text::muted(t))
+                        .color(t.palette.text_secondary)
+                        .width(Length::Fill)
                         .align_x(iced::alignment::Horizontal::Right),
                 )
-                .width(52.0),
+                .width(SLIDER_VALUE_WIDTH),
             );
         }
         line.into()

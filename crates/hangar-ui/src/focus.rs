@@ -37,6 +37,7 @@ pub struct Ring<'a, M> {
     content: Element<'a, M>,
     radius: f32,
     on_activate: Option<M>,
+    on_arrows: (Option<M>, Option<M>),
     id: Option<Id>,
     shown: bool,
 }
@@ -48,6 +49,7 @@ pub fn ring<'a, M>(t: &'a Theme, content: impl Into<Element<'a, M>>) -> Ring<'a,
         content: content.into(),
         radius: scale::radius::SM,
         on_activate: None,
+        on_arrows: (None, None),
         id: None,
         shown: false,
     }
@@ -70,6 +72,14 @@ impl<'a, M> Ring<'a, M> {
     /// [`on_activate`](Self::on_activate) of something that may not be.
     pub fn on_activate_maybe(mut self, message: Option<M>) -> Self {
         self.on_activate = message;
+        self
+    }
+
+    /// What Left and Right send while the control has the keyboard: a step
+    /// down and a step up of a slider or of a closed list. Either makes the
+    /// control focusable.
+    pub fn on_arrows(mut self, left: Option<M>, right: Option<M>) -> Self {
+        self.on_arrows = (left, right);
         self
     }
 
@@ -148,7 +158,8 @@ impl<M: Clone> Widget<M, iced::Theme, iced::Renderer> for Ring<'_, M> {
         operation: &mut dyn Operation,
     ) {
         let state = tree.state.downcast_mut::<State>();
-        if self.on_activate.is_some() {
+        let (left, right) = &self.on_arrows;
+        if self.on_activate.is_some() || left.is_some() || right.is_some() {
             operation.focusable(self.id.as_ref(), layout.bounds(), state);
         } else {
             // A control that cannot be used cannot keep the ring either.
@@ -202,6 +213,16 @@ impl<M: Clone> Widget<M, iced::Theme, iced::Renderer> for Ring<'_, M> {
                     && !modifiers.alt()
                     && !modifiers.logo() =>
             {
+                let step = match key {
+                    Key::Named(Named::ArrowLeft) => self.on_arrows.0.clone(),
+                    Key::Named(Named::ArrowRight) => self.on_arrows.1.clone(),
+                    _ => None,
+                };
+                if let Some(message) = step {
+                    shell.publish(message);
+                    shell.capture_event();
+                    shell.request_redraw();
+                }
                 let pressed = matches!(key, Key::Named(Named::Enter) | Key::Named(Named::Space))
                     || matches!(key, Key::Character(c) if c.as_str() == " ");
                 if let (true, Some(message)) = (pressed, self.on_activate.clone()) {

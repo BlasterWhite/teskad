@@ -170,6 +170,9 @@ pub struct Item {
     /// A custom block may have none.
     pub label: Option<String>,
     pub hint: Option<String>,
+    /// The word of the outlined badge set after the label ("beta"), matched
+    /// by the search with the rest.
+    pub badge: Option<String>,
     /// Extra words the search box matches, beyond the label and the hint.
     pub keywords: String,
     pub kind: Kind,
@@ -285,29 +288,72 @@ pub const VOICE_LANGUAGES: [&str; 11] = [
     "en", "fr", "de", "es", "it", "pt", "nl", "pl", "ru", "uk", "sv",
 ];
 
-/// The categories in the order of the page.
+/// The categories in the order of the page: group after group ([`Group`]),
+/// which is also the order Up and Down walk them in.
 pub const ORDER: [SettingsCategory; 14] = [
     SettingsCategory::General,
     SettingsCategory::Appearance,
+    SettingsCategory::Shortcuts,
     SettingsCategory::Terminal,
     SettingsCategory::Shell,
+    SettingsCategory::Accounts,
+    SettingsCategory::Kits,
     SettingsCategory::Notifications,
     SettingsCategory::Mobile,
-    SettingsCategory::Kits,
-    SettingsCategory::Accounts,
     SettingsCategory::Voice,
     SettingsCategory::Discord,
-    SettingsCategory::Shortcuts,
     SettingsCategory::Nodes,
     SettingsCategory::Experimental,
     SettingsCategory::About,
 ];
+
+/// A group of the list of categories.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Group {
+    Application,
+    Terminal,
+    Agents,
+    Connections,
+    /// Set apart at the foot of the list, with no heading.
+    Foot,
+}
+
+impl Group {
+    /// The group a category is listed in.
+    pub fn of(category: SettingsCategory) -> Group {
+        match category {
+            SettingsCategory::General
+            | SettingsCategory::Appearance
+            | SettingsCategory::Shortcuts => Group::Application,
+            SettingsCategory::Terminal | SettingsCategory::Shell => Group::Terminal,
+            SettingsCategory::Accounts | SettingsCategory::Kits => Group::Agents,
+            SettingsCategory::Notifications
+            | SettingsCategory::Mobile
+            | SettingsCategory::Voice
+            | SettingsCategory::Discord
+            | SettingsCategory::Nodes => Group::Connections,
+            SettingsCategory::Experimental | SettingsCategory::About => Group::Foot,
+        }
+    }
+
+    /// What the list heads the group with.
+    pub fn heading(self) -> Option<Key> {
+        match self {
+            Group::Application => Some(Key::SettingsGroupApplication),
+            Group::Terminal => Some(Key::SettingsGroupTerminal),
+            Group::Agents => Some(Key::SettingsGroupAgents),
+            Group::Connections => Some(Key::SettingsGroupConnections),
+            Group::Foot => None,
+        }
+    }
+}
 
 fn item(id: &str, label: Option<String>, kind: Kind) -> Item {
     Item {
         id: id.to_string(),
         label,
         hint: None,
+        badge: None,
         keywords: String::new(),
         kind,
     }
@@ -320,6 +366,11 @@ fn toggle(id: &str, label: String, value: bool, target: Target) -> Item {
 impl Item {
     fn hint(mut self, hint: impl Into<String>) -> Item {
         self.hint = Some(hint.into());
+        self
+    }
+
+    fn badge(mut self, badge: impl Into<String>) -> Item {
+        self.badge = Some(badge.into());
         self
     }
 
@@ -345,8 +396,8 @@ impl Section {
     }
 }
 
-/// A row or a choice that belongs to Codex says so: it is in beta
-/// (docs/native/agents.md, D21), and a search for "beta" finds it.
+/// A choice that belongs to Codex says so: it is in beta
+/// (docs/native/agents.md, D21). A row says it with its [`Item::badge`].
 fn beta(t: Translator, label: impl AsRef<str>) -> String {
     format!("{} ({})", label.as_ref(), t.t(Key::SettingsAgentBeta))
 }
@@ -428,7 +479,7 @@ pub fn build_categories(ctx: &Context) -> Vec<Category> {
 
     let shell_choices = || shells.iter().map(|s| Choice::new(&s.id, s.label.clone()));
 
-    vec![
+    let mut categories: Vec<Category> = vec![
         general(ctx, locale),
         Category {
             id: SettingsCategory::Appearance,
@@ -634,7 +685,7 @@ pub fn build_categories(ctx: &Context) -> Vec<Category> {
         entry_point(
             SettingsCategory::Mobile,
             tx(Key::SettingsCatMobile),
-            Icon::Broadcast,
+            Icon::Phone,
             "mobile",
             Some(tx(Key::MobileSwitchHint)),
             tx(Key::MobileKeywords),
@@ -699,7 +750,9 @@ pub fn build_categories(ctx: &Context) -> Vec<Category> {
     .chain(nodes(ctx))
     .chain(experimental(ctx, &experiments))
     .chain([about(ctx, version)])
-    .collect()
+    .collect();
+    categories.sort_by_key(|category| ORDER.iter().position(|id| *id == category.id));
+    categories
 }
 
 fn general(ctx: &Context, locale: Locale) -> Category {
@@ -746,7 +799,7 @@ fn general(ctx: &Context, locale: Locale) -> Category {
                 vec![
                     item(
                         "projectsFolder",
-                        Some(tx(Key::SettingsProjectsFolder)),
+                        Some(tx(Key::SettingsProjectsFolderLabel)),
                         Kind::Custom {
                             bare: false,
                             block: Block::ProjectsFolder,
@@ -779,10 +832,11 @@ fn general(ctx: &Context, locale: Locale) -> Category {
                     .keywords("mod plugin teskad-bridge claude code permission usage forfait"),
                     toggle(
                         "codexAttach",
-                        beta(t, tx(Key::SettingsCodexAttach)),
+                        tx(Key::SettingsCodexAttach),
                         settings.codex_attach,
                         Target::CodexAttach,
                     )
+                    .badge(tx(Key::SettingsAgentBeta))
                     .hint(tx(Key::SettingsCodexAttachHint))
                     .keywords(
                         "codex attach attacher attached attaché openai app-server remote tui plain terminal fallback repli bêta beta",
@@ -872,13 +926,14 @@ fn general(ctx: &Context, locale: Locale) -> Category {
                     .keywords("claude command commande launch lancement alias"),
                     item(
                         "agentCommand.codex",
-                        Some(codex_label(t)),
+                        Some(AgentKind::Codex.info().label.to_string()),
                         Kind::Input {
                             value: settings.agent_commands.codex.clone().unwrap_or_default(),
                             placeholder: AgentKind::Codex.info().program.into(),
                             target: Target::CodexCommand,
                         },
                     )
+                    .badge(tx(Key::SettingsAgentBeta))
                     .keywords("codex command commande launch lancement alias openai beta bêta"),
                 ],
             )
@@ -1402,7 +1457,7 @@ fn experimental(ctx: &Context, experiments: &[Experiment]) -> Option<Category> {
     Some(Category {
         id: SettingsCategory::Experimental,
         label: tx(Key::SettingsCatExperimental),
-        icon: Icon::Bolt,
+        icon: Icon::Flask,
         sections: vec![
             section(
                 "experiments",

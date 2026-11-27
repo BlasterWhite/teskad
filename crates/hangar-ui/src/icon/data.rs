@@ -95,11 +95,13 @@ pub enum Icon {
     MoveToMachine,
     MachinePlus,
     Pin,
+    Phone,
+    Flask,
 }
 
 impl Icon {
     /// All of them, in the order of the web app's table.
-    pub const ALL: [Icon; 89] = [
+    pub const ALL: [Icon; 91] = [
         Icon::Layout1,
         Icon::Layout2,
         Icon::Layout4,
@@ -189,6 +191,8 @@ impl Icon {
         Icon::MoveToMachine,
         Icon::MachinePlus,
         Icon::Pin,
+        Icon::Phone,
+        Icon::Flask,
     ];
 
     /// The name the web app knows it by (`"splitRight"`), which is what the
@@ -284,6 +288,8 @@ impl Icon {
             Icon::MoveToMachine => "moveToMachine",
             Icon::MachinePlus => "machinePlus",
             Icon::Pin => "pin",
+            Icon::Phone => "phone",
+            Icon::Flask => "flask",
         }
     }
 
@@ -389,6 +395,9 @@ impl Icon {
             Icon::MachinePlus => r##"<rect x="1.75" y="2.25" width="12.5" height="8.5" rx="1.8"/><path d="M8 10.75v2.75M5.25 13.5h5.5M8 4.65v3.7M6.15 6.5h3.7"/>"##,
             // A push pin, upright: a pane pinned to its edge of the grid.
             Icon::Pin => r##"<path d="M5 2.25h6M6.25 2.25v4.1L3.9 9.6h8.2L9.75 6.35v-4.1M8 9.6v4.65"/>"##,
+            Icon::Phone => r##"<rect x="4.5" y="1.75" width="7" height="12.5" rx="1.6"/><path d="M7 12h2"/>"##,
+            // A flask: what is still being tried out.
+            Icon::Flask => r##"<path d="M6 1.75h4M7 1.75v4L3.2 12.8a1 1 0 0 0 .9 1.45h7.8a1 1 0 0 0 .9-1.45L9 5.75v-4"/>"##,
         }
     }
 }

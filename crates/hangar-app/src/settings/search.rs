@@ -18,6 +18,7 @@ fn haystack(item: &Item, section: &Section, category: &Category) -> String {
         &[
             item.label.as_deref().unwrap_or(""),
             item.hint.as_deref().unwrap_or(""),
+            item.badge.as_deref().unwrap_or(""),
             &item.keywords,
             &section.title,
             &category.label,
@@ -86,6 +87,7 @@ mod tests {
             id: id.into(),
             label: Some(label.into()),
             hint: hint.map(str::to_string),
+            badge: None,
             keywords: keywords.into(),
             kind: Kind::Toggle {
                 value: false,
@@ -145,6 +147,7 @@ mod tests {
                             id: "themePick".into(),
                             label: None,
                             hint: None,
+                            badge: None,
                             keywords: "theme Nord Dracula".into(),
                             kind: Kind::Custom {
                                 bare: false,
@@ -166,6 +169,7 @@ mod tests {
                         id: "shellDefault".into(),
                         label: Some("Default shell".into()),
                         hint: None,
+                        badge: None,
                         keywords: String::new(),
                         kind: Kind::Select {
                             value: String::new(),

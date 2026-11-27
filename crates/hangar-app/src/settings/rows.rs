@@ -6,8 +6,8 @@
 //! the app and the page draws no colour of its own.
 
 use hangar_i18n::Key;
-use iced::widget::{column, container, mouse_area};
-use iced::{Element, Length, Padding};
+use iced::Element;
+use iced::widget::{column, mouse_area};
 
 use hangar_theme::tokens::space;
 use hangar_ui::{button, form, input, text as typography};
@@ -86,7 +86,7 @@ fn control<'a>(
             let selected: Option<Choice> = choices.iter().find(|c| c.value == value).cloned();
             let target = target.clone();
             (
-                input::select(t, choices, selected, move |choice: Choice| {
+                input::keyboard_select(t, choices, selected, move |choice: Choice| {
                     changed(&target, Value::Text(choice.value))
                 }),
                 false,
@@ -147,6 +147,7 @@ fn control<'a>(
             })
             .step(step as f32)
             .display(display)
+            .keyboard()
             .into(),
             false,
             None,
@@ -180,11 +181,12 @@ fn action<'a>(
     let id = item.id.clone();
     let run = send(Msg::Act(act));
     let Some(confirm) = confirm else {
-        return if danger {
-            button::danger(t, label).on_press(run).into()
+        let plain = if danger {
+            button::danger(t, label)
         } else {
-            button::secondary(t, label).on_press(run).into()
+            button::secondary(t, label)
         };
+        return plain.size(button::Size::Large).on_press(run).into();
     };
     if st.armed.as_deref() == Some(id.as_str()) {
         let sure = if danger {
@@ -193,13 +195,16 @@ fn action<'a>(
             button::primary(t, confirm)
         };
         iced::widget::row![
-            button::ghost(t, ctx.t(Key::CreateCancel).into_owned()).on_press(send(Msg::Disarm)),
-            sure.on_press(run),
+            button::ghost(t, ctx.t(Key::CreateCancel).into_owned())
+                .size(button::Size::Large)
+                .on_press(send(Msg::Disarm)),
+            sure.size(button::Size::Large).on_press(run),
         ]
         .spacing(space::MD)
         .into()
     } else {
         button::secondary(t, label)
+            .size(button::Size::Large)
             .on_press(send(Msg::Arm(id)))
             .into()
     }
@@ -242,6 +247,9 @@ fn row<'a>(ctx: Ctx<'a>, st: &'a State, item: Item) -> Element<'a, Message> {
     if let Some(hint) = hint {
         line = line.hint(hint);
     }
+    if let Some(word) = &item.badge {
+        line = line.badge(word.to_uppercase());
+    }
     if wide {
         line = line.wide();
     }
@@ -254,7 +262,7 @@ fn row<'a>(ctx: Ctx<'a>, st: &'a State, item: Item) -> Element<'a, Message> {
 }
 
 /// A section: its head when it has something to say that its page does not,
-/// then a card of rows, or the bare blocks when all of them are boxes of their
+/// then a block of rows, or the bare blocks when all of them are boxes of their
 /// own.
 fn section<'a>(
     ctx: Ctx<'a>,
@@ -271,18 +279,16 @@ fn section<'a>(
         .iter()
         .all(|item| matches!(item.kind, Kind::Custom { bare: true, .. }));
 
-    let mut stack = column![].spacing(space::MD);
+    let mut stack = column![].spacing(space::LG);
     if titled || section.hint.is_some() {
         let mut head = column![].spacing(2);
         if titled {
-            head = head.push(
-                typography::heading(t, section.title).size(hangar_theme::tokens::font_size::BODY),
-            );
+            head = head.push(form::title(t, section.title));
         }
         if let Some(hint) = section.hint {
-            head = head.push(typography::hint(t, hint));
+            head = head.push(form::hint(t, hint));
         }
-        stack = stack.push(container(head).padding(Padding::from([0.0, space::XS])));
+        stack = stack.push(head);
     }
 
     if bare {
@@ -313,10 +319,7 @@ pub fn page<'a>(ctx: Ctx<'a>, st: &'a State, category: Category) -> Element<'a, 
         .into_iter()
         .map(|one| section(ctx, st, one, &label))
         .collect();
-    container(form::page(sections))
-        .max_width(680)
-        .width(Length::Fill)
-        .into()
+    form::page(sections)
 }
 
 #[cfg(test)]

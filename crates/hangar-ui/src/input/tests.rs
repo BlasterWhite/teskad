@@ -106,3 +106,37 @@ mod number_field {
         assert_eq!(field.value(), 20.0);
     }
 }
+
+mod keyboard {
+    use iced::keyboard::key::Named;
+
+    use super::*;
+    use crate::testing::Keyboard;
+
+    #[test]
+    fn a_slider_that_takes_the_keyboard_moves_a_step_with_left_and_right() {
+        let t = hangar_theme::default_theme();
+        let track: Element<'_, f32> = slider(t, 0.0..=10.0, 5.0, |value| value)
+            .step(1.0)
+            .keyboard()
+            .into();
+        let mut ui = Keyboard::new(track);
+        ui.focus_next();
+        ui.key(Named::ArrowLeft);
+        ui.key(Named::ArrowRight);
+        assert_eq!(ui.into_messages(), vec![4.0, 6.0]);
+    }
+
+    #[test]
+    fn a_closed_list_that_takes_the_keyboard_chooses_its_neighbours() {
+        let t = hangar_theme::default_theme();
+        let list: Element<'_, &str> =
+            keyboard_select(t, vec!["a", "b", "c"], Some("a"), |chosen| chosen);
+        let mut ui = Keyboard::new(list);
+        ui.focus_next();
+        // Nothing before the first.
+        ui.key(Named::ArrowLeft);
+        ui.key(Named::ArrowRight);
+        assert_eq!(ui.into_messages(), vec!["b"]);
+    }
+}

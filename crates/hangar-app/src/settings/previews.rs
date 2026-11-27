@@ -19,7 +19,7 @@ use iced::{Alignment, Background, Border, Color, Element, Font, Length, Padding}
 
 use hangar_theme::tokens::{font_size, radius, space};
 use hangar_theme::{Appearance, Theme, fonts, style};
-use hangar_ui::{button as buttons, input, text as typography};
+use hangar_ui::{button as buttons, focus, input, text as typography};
 
 use super::Msg;
 use super::change::{Change, Target};
@@ -145,15 +145,19 @@ fn theme_card<'a>(ctx: Ctx<'a>, theme: &'static Theme, active: bool) -> Element<
     } else {
         name
     };
-    button(
+    let pick = change(Target::Theme, theme.id);
+    let card = button(
         column![picture, container(name).center_x(Length::Fill)]
             .spacing(space::SM)
             .width(CARD_WIDTH + 4.0),
     )
     .padding(0)
     .style(style::button::plain(t))
-    .on_press(change(Target::Theme, theme.id))
-    .into()
+    .on_press(pick.clone());
+    focus::ring(t, card)
+        .radius(radius::MD)
+        .on_activate(pick)
+        .into()
 }
 
 /// Dark and light palettes are listed apart: the two rarely interest the same
@@ -284,13 +288,13 @@ pub fn font_grid<'a>(ctx: Ctx<'a>) -> Element<'a, Message> {
                     },
                     ..container::Style::default()
                 });
-            line_row = line_row.push(
-                button(face)
-                    .padding(0)
-                    .width(Length::FillPortion(1))
-                    .style(style::button::plain(t))
-                    .on_press(change(Target::FontFamily, stack)),
-            );
+            let pick = change(Target::FontFamily, stack);
+            let card = button(face)
+                .padding(0)
+                .width(Length::FillPortion(1))
+                .style(style::button::plain(t))
+                .on_press(pick.clone());
+            line_row = line_row.push(focus::ring(t, card).radius(radius::MD).on_activate(pick));
         }
         // A short last row keeps its cards the width of the others.
         for _ in chunk.len()..3 {
@@ -432,6 +436,7 @@ pub fn projects_folder<'a>(ctx: Ctx<'a>) -> Element<'a, Message> {
                 .on_input(|text| change(Target::ProjectsFolder, &text)),
         ),
         buttons::secondary(t, ctx.t(Key::CreateBrowse).into_owned())
+            .size(buttons::Size::Large)
             .on_press(Message::Settings(Msg::BrowseProjects)),
     ]
     .spacing(space::MD)

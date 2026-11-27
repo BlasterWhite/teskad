@@ -27,20 +27,78 @@
 //! Also here: [`block`], for a control that is too big for a row, such as a
 //! preview or a grid of themes, and [`group`], for the card around rows.
 
-use hangar_theme::tokens::space;
-use hangar_theme::{Theme, style};
-use iced::widget::{column, container, rule};
-use iced::{Alignment, Element, Length, Padding};
+use hangar_theme::tokens::{font_size, space};
+use hangar_theme::{Theme, fonts, style};
+use iced::widget::text::Text;
+use iced::widget::{column, container, rule, text};
+use iced::{Alignment, Background, Color, Element, Length, Padding};
 
+use crate::badge;
 use crate::button::icon_button;
 use crate::icon::Icon;
-use crate::text as typography;
 
 /// The room above and below a row's text: 14 px, as in the mockups.
 const ROW_PADDING_Y: f32 = 14.0;
 
-/// The width a row's control takes when it asks for [`Row::wide`].
-const WIDE: f32 = 240.0;
+/// The least height of a row.
+const MIN_ROW_HEIGHT: f32 = 48.0;
+
+/// The width a row's control takes when it asks for [`Row::wide`]: a slider's
+/// 180 px track, its gap and its value.
+const WIDE: f32 = 248.0;
+
+/// The widest a row's description runs before it wraps.
+const HINT_MAX_WIDTH: f32 = 560.0;
+
+/// Between two sections of a page.
+const SECTION_GAP: f32 = 20.0;
+
+/// The room at both sides of a page.
+const PAGE_PADDING_X: f32 = 32.0;
+
+/// How far from `surface` towards `surface_raised` a block is filled: a step
+/// lighter than the window it lies in.
+const BLOCK_LIFT: f32 = 0.4;
+
+/// `from` taken `amount` of the way (0 to 1) to `to`: the steps between two
+/// colours of the palette that the mockups use for a block or a side column.
+pub fn between(from: Color, to: Color, amount: f32) -> Color {
+    let mix = |a: f32, b: f32| a + (b - a) * amount;
+    Color {
+        r: mix(from.r, to.r),
+        g: mix(from.g, to.g),
+        b: mix(from.b, to.b),
+        a: mix(from.a, to.a),
+    }
+}
+
+/// What a block of settings is filled with.
+pub fn block_fill(t: &Theme) -> Color {
+    between(t.palette.surface, t.palette.surface_raised, BLOCK_LIFT)
+}
+
+/// What a row is called: 13 px, medium.
+pub fn label<'a>(t: &'a Theme, content: impl text::IntoFragment<'a>) -> Text<'a> {
+    Text::new(content)
+        .size(font_size::UI)
+        .font(fonts::ui_medium())
+        .color(t.palette.text)
+}
+
+/// What a row or a section does: 12 px, muted.
+pub fn hint<'a>(t: &'a Theme, content: impl text::IntoFragment<'a>) -> Text<'a> {
+    Text::new(content)
+        .size(font_size::LABEL)
+        .color(t.palette.text_muted)
+}
+
+/// A section's small title: 12 px, semibold, muted.
+pub fn title<'a>(t: &'a Theme, content: impl text::IntoFragment<'a>) -> Text<'a> {
+    Text::new(content)
+        .size(font_size::LABEL)
+        .font(fonts::ui_semibold())
+        .color(t.palette.text_muted)
+}
 
 /// A row of the form.
 #[must_use]
@@ -53,6 +111,7 @@ pub struct Row<'a, M> {
     modified: bool,
     on_reset: Option<M>,
     reset_tip: String,
+    badge: Option<String>,
 }
 
 /// A row labelled `label` with `control` at its right.
@@ -70,6 +129,7 @@ pub fn row<'a, M: 'a>(
         modified: false,
         on_reset: None,
         reset_tip: String::from("Reset to default"),
+        badge: None,
     }
 }
 
@@ -80,7 +140,14 @@ impl<'a, M: 'a> Row<'a, M> {
         self
     }
 
-    /// Gives the control the form's common width, 240 px.
+    /// The outlined badge after the label, of a setting that is not finished
+    /// ("BETA").
+    pub fn badge(mut self, words: impl Into<String>) -> Self {
+        self.badge = Some(words.into());
+        self
+    }
+
+    /// Gives the control the form's common width, 248 px.
     pub fn wide(mut self) -> Self {
         self.wide = true;
         self
@@ -110,9 +177,15 @@ impl<'a, M: Clone + 'a> From<Row<'a, M>> for Element<'a, M> {
     fn from(r: Row<'a, M>) -> Self {
         let t = r.theme;
         let has_hint = r.hint.is_some();
-        let mut text = column![typography::body(t, r.label)].spacing(2);
-        if let Some(hint) = r.hint {
-            text = text.push(typography::hint(t, hint));
+        let mut name = iced::widget::row![label(t, r.label)]
+            .spacing(space::MD)
+            .align_y(Alignment::Center);
+        if let Some(words) = r.badge {
+            name = name.push(badge::beta(t, words));
+        }
+        let mut text = column![name].spacing(2);
+        if let Some(words) = r.hint {
+            text = text.push(container(hint(t, words)).max_width(HINT_MAX_WIDTH));
         }
         let mut control = iced::widget::row![]
             .spacing(space::MD)
@@ -145,7 +218,11 @@ impl<'a, M: Clone + 'a> From<Row<'a, M>> for Element<'a, M> {
         if has_hint {
             line.into()
         } else {
-            line.height(48.0).align_y(Alignment::Center).into()
+            // A minimum, which iced has not for a height: a strut beside the
+            // line holds it open without capping a taller control.
+            iced::widget::row![iced::widget::Space::new().height(MIN_ROW_HEIGHT), line]
+                .align_y(Alignment::Center)
+                .into()
         }
     }
 }
@@ -162,21 +239,22 @@ pub fn block<'a, M: 'a>(
     let mut stack = column![].spacing(space::LG);
     if label.is_some() || hint.is_some() {
         let mut text = column![].spacing(2);
-        if let Some(label) = label {
-            text = text.push(typography::body(t, label.to_string()));
+        if let Some(words) = label {
+            text = text.push(self::label(t, words.to_string()));
         }
-        if let Some(hint) = hint {
-            text = text.push(typography::hint(t, hint.to_string()));
+        if let Some(words) = hint {
+            text = text.push(self::hint(t, words.to_string()));
         }
         stack = stack.push(text);
     }
     stack = stack.push(content.into());
-    container(stack).padding(space::XXL).into()
+    container(stack)
+        .padding(Padding::from([ROW_PADDING_Y, space::XXL]))
+        .width(Length::Fill)
+        .into()
 }
 
-/// A card around rows, a hairline between them inset at both ends like the
-/// system's grouped lists: the line separates two rows, it does not cut the
-/// box in two.
+/// A block around rows, a hairline between each two.
 pub fn group<'a, M: 'a>(t: &'a Theme, rows: Vec<Element<'a, M>>) -> Element<'a, M> {
     let mut stack = column![];
     for (at, one) in rows.into_iter().enumerate() {
@@ -185,9 +263,16 @@ pub fn group<'a, M: 'a>(t: &'a Theme, rows: Vec<Element<'a, M>>) -> Element<'a, 
         }
         stack = stack.push(one);
     }
+    let look = style::container::settings_block(t);
+    let fill = block_fill(t);
     container(stack)
         .width(Length::Fill)
-        .style(style::container::group(t))
+        // One pixel in, so a row's wash stays inside the block's hairline.
+        .padding(1)
+        .style(move |theme: &iced::Theme| container::Style {
+            background: Some(Background::Color(fill)),
+            ..look(theme)
+        })
         .into()
 }
 
@@ -232,18 +317,11 @@ impl<'a, M: 'a> Section<'a, M> {
 impl<'a, M: 'a> From<Section<'a, M>> for Element<'a, M> {
     fn from(s: Section<'a, M>) -> Self {
         let t = s.theme;
-        let mut head =
-            column![typography::heading(t, s.title).size(hangar_theme::tokens::font_size::BODY)]
-                .spacing(2);
-        if let Some(hint) = s.hint {
-            head = head.push(typography::hint(t, hint));
+        let mut head = column![title(t, s.title)].spacing(2);
+        if let Some(words) = s.hint {
+            head = head.push(hint(t, words));
         }
-        let mut stack = column![container(head).padding(Padding {
-            left: space::XS,
-            right: space::XS,
-            ..Padding::ZERO
-        })]
-        .spacing(space::MD);
+        let mut stack = column![head].spacing(space::LG);
         if let Some(body) = s.body {
             stack = stack.push(body);
         }
@@ -251,11 +329,19 @@ impl<'a, M: 'a> From<Section<'a, M>> for Element<'a, M> {
     }
 }
 
-/// A page of sections, spaced the way the settings space theirs.
-pub fn page<'a, M: 'a>(sections: Vec<Element<'a, M>>) -> Element<'a, M> {
+/// Sections one under the other, spaced the way the settings space theirs:
+/// for a page's own parts, drawn inside another page.
+pub fn stack<'a, M: 'a>(sections: Vec<Element<'a, M>>) -> Element<'a, M> {
     iced::widget::Column::with_children(sections)
-        .spacing(space::XXXL)
-        .padding(Padding::from([space::XXL, space::XXXL]))
+        .spacing(SECTION_GAP)
+        .width(Length::Fill)
+        .into()
+}
+
+/// A page of sections, with the room a settings page keeps around them.
+pub fn page<'a, M: 'a>(sections: Vec<Element<'a, M>>) -> Element<'a, M> {
+    container(stack(sections))
+        .padding(Padding::from([SECTION_GAP, PAGE_PADDING_X]))
         .width(Length::Fill)
         .into()
 }

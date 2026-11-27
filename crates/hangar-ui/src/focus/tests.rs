@@ -62,3 +62,20 @@ fn a_press_of_the_pointer_takes_the_ring_off() {
     ui.key(Named::Enter);
     assert!(ui.into_messages().is_empty());
 }
+
+#[test]
+fn the_arrows_step_the_focused_control_and_a_missing_side_does_nothing() {
+    let t = default_theme();
+    // A slider at the bottom of its range: nothing to its left.
+    let control: Element<'_, Msg> = ring(t, text("a track"))
+        .on_arrows(None, Some(Msg::Save))
+        .into();
+    let mut ui = Keyboard::new(control);
+    ui.key(Named::ArrowRight);
+    ui.focus_next();
+    ui.key(Named::ArrowLeft);
+    ui.key(Named::ArrowRight);
+    // Space and Enter have nothing to press.
+    ui.key(Named::Enter);
+    assert_eq!(ui.into_messages(), vec![Msg::Save]);
+}

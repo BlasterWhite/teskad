@@ -703,7 +703,7 @@ fn draw<'a>(
     }
 
     sections.push(add_view(ctx, st, &model.add));
-    form::page(sections)
+    form::stack(sections)
 }
 
 fn row_view<'a>(ctx: Ctx<'a>, one: &RowModel, installed: &[KitInfo]) -> Element<'a, Message> {

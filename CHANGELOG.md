@@ -36,6 +36,12 @@ This fork is independent and not affiliated with the original HangarAI project: 
 - The view switcher, the « Chat / Panes » switch, the account and layout buttons, the project manager's button and the « only what waits » filter now take the keyboard, with the focus ring.
 - Settings › About shows the stacked Teskad logo, in the version for the theme's light or dark appearance.
 
+### Changed (Settings window, from the Teskad brand pack)
+- The Settings window takes up to 1040 × 840. Its 240 px list **groups the categories**: Application (General, Appearance, Shortcuts), Terminal (Terminal, Shell), Agents (Accounts, Kits), Connections (Notifications, Mobile, Voice, Discord, and Nodes while its experiment is on), with Experimental and About set apart at the foot. Up and Down follow that order. Every category and every setting is still there, and the search works as before. Mobile and Experimental have icons of their own.
+- Every category is laid out the same way: a 56 px header with the category's name in Space Grotesk, then sections with a small title over a block of settings, hairlines between its rows. Appearance keeps its content as it was.
+- The settings of Codex show a **BETA** badge after their name instead of « (beta) ». The projects folder's row now says « Where repositories cloned from Git go » under its section's title.
+- The keyboard reaches more of it: Tab goes to the categories, the theme and font cards, the drop-downs and the sliders; Enter or Space picks, and Left and Right move a slider or change a drop-down's choice.
+
 ### Changed (agent panes and broadcast bar, from the Teskad brand pack)
 - Each pane is a card of its own: corners of 12, a `border` hairline, 8 px between cards. The focused one has an accent border and a halo; a pane that waits for you keeps its state's colour on its edge. Dragging, zooming, resizing and pinning work as before.
 - **A pane's header is one 40 px line**: the state's glyph, the name, the role's pill, the account when the pane has its own, a worker's task, the branch, the context bar and its percentage, **Details ▾**, and the actions, now on every pane (saved commands, changes, zoom, « … », close). A narrow pane folds them in order, and the « … » menu takes in what folds, as before.

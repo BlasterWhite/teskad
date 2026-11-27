@@ -234,3 +234,17 @@ fn the_agent_rows_can_be_laid_out_and_found_with_everything_set() {
         );
     }
 }
+
+#[test]
+fn the_mockups_window_in_teskad_dark_and_light_can_be_laid_out() {
+    // 1440 × 900, as `maquettes/ecrans/02-settings-general` is drawn.
+    for theme in ["teskad-dark", "teskad-light"] {
+        sheet(
+            SettingsCategory::General,
+            hangar_i18n::Locale::En,
+            theme,
+            "",
+            Size::new(1440.0, 900.0),
+        );
+    }
+}

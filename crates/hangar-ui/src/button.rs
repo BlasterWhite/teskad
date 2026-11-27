@@ -204,9 +204,9 @@ impl<'a, M: Clone + 'a> From<Btn<'a, M>> for Element<'a, M> {
 
         // The strut keeps the button at its size's height; a label that wraps
         // in a narrow button makes it taller instead of spilling out of it.
-        let strut = Space::new()
-            .width(0)
-            .height(b.size.height() - 2.0 * PADDING_Y);
+        // Its width is left to shrink to nothing: iced drops a child of a
+        // fixed width of 0 from a row, and the height with it.
+        let strut = Space::new().height(b.size.height() - 2.0 * PADDING_Y);
         let content = row![strut, content].align_y(Alignment::Center);
         let mut centred = container(content);
         if b.width == Length::Fill {
@@ -516,4 +516,32 @@ pub fn link<'a, M: Clone + 'a>(
     .radius(radius::XS)
     .on_activate(on_press)
     .into()
+}
+
+#[cfg(test)]
+mod height_tests {
+    use hangar_theme::default_theme;
+
+    use super::*;
+    use crate::testing::simulate;
+
+    /// Each size holds its button at its height: the strut that does it is
+    /// not dropped from the row.
+    #[test]
+    fn a_button_is_as_tall_as_its_size() {
+        let t = default_theme();
+        for size in [Size::Medium, Size::Large] {
+            let button: Element<'_, ()> = secondary(t, "Browse").size(size).into();
+            // A column under it starts where it ends.
+            let page: Element<'_, ()> =
+                iced::widget::column![button, iced::widget::text("under")].into();
+            let mut ui = simulate(page);
+            let under = ui.find("under").expect("the line under").bounds().y;
+            assert!(
+                (under - size.height()).abs() < 0.5,
+                "{size:?}: {under} for {}",
+                size.height()
+            );
+        }
+    }
 }

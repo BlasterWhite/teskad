@@ -8,7 +8,8 @@
 //! # How it is put together
 //!
 //! - `schema` describes the settings as data, rebuilt for every frame from the
-//!   persisted settings; `search` filters it; `rows` draws a category from
+//!   persisted settings; `search` filters it; `nav` draws the list of
+//!   categories in its groups; `rows` draws a category from
 //!   hangar-ui's form widgets; `change` says what a row edits and turns an
 //!   edit into a store action. Every write goes through `Model::apply`.
 //! - Blocks that are more than a row have a module each: `previews` (theme
@@ -35,6 +36,7 @@ mod format;
 mod mobile;
 mod mobile_model;
 mod mobile_page;
+mod nav;
 mod previews;
 mod rows;
 mod schema;
@@ -48,14 +50,14 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use hangar_i18n::{Key, Translator, args};
-use hangar_ui::menu_nav::{Step, arrow_step};
-use hangar_ui::{Icon, button, icon, input, keys, text as typography};
+use hangar_ui::menu_nav::Step;
+use hangar_ui::{Icon, button, input, keys, text as typography};
 use iced::keyboard::{Key as KeyboardKey, key::Named};
-use iced::widget::{self, button as plain_button, column, container, row, scrollable, text};
+use iced::widget::{self, column, container, row, scrollable};
 use iced::{Alignment, Element, Length, Padding, Subscription, Task};
 
 use hangar_theme::style;
-use hangar_theme::tokens::{font_size, space};
+use hangar_theme::tokens::{scale, space};
 
 use self::change::{Change, Scope, Target};
 use self::discord::{Publisher, now_ms};
@@ -593,64 +595,7 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, category: SettingsCategory) -> Elem
         .on_clear(Message::Settings(Msg::ClearQuery)),
     );
 
-    let mut nav = column![].spacing(1);
-    for (id, label, icon_name, count) in entries {
-        let current = Some(id) == active_id;
-        let mut line = row![
-            icon(icon_name, 15.0),
-            text(label)
-                .size(font_size::BODY)
-                .width(Length::Fill)
-                .wrapping(text::Wrapping::None),
-        ]
-        .spacing(space::MD)
-        .align_y(Alignment::Center);
-        if searching {
-            line = line.push(
-                text(count.to_string())
-                    .size(font_size::LABEL)
-                    .font(hangar_theme::fonts::mono())
-                    .style(style::text::secondary(t)),
-            );
-        }
-        nav = nav.push(
-            plain_button(container(line).center_y(Length::Fill))
-                .width(Length::Fill)
-                .height(28)
-                .padding(Padding::from([0.0, space::MD]))
-                .style(style::button::row(t, current))
-                .on_press(Message::Settings(Msg::Pick(id))),
-        );
-    }
-    let nav_active = st.nav_active;
-    let nav = keys::on_key(nav, move |key, _| {
-        arrow_step(key)
-            .filter(|_| nav_active)
-            .map(|step| Message::Settings(Msg::Step(step)))
-    });
-
-    let side = container(column![
-        container(search_field).padding(Padding {
-            top: space::XL,
-            right: space::LG + 2.0,
-            bottom: space::LG + 2.0,
-            left: space::LG + 2.0,
-        }),
-        scrollable(container(nav).padding(Padding::from([0.0, space::MD])))
-            .height(Length::Fill)
-            .style(style::scrollable::default(t)),
-    ])
-    .width(200)
-    .height(Length::Fill)
-    .style(move |theme: &iced::Theme| container::Style {
-        // Its own corners round with the sheet's: the sheet clips to its
-        // bounds, not to its radius, so a square fill would cover them.
-        border: iced::Border {
-            radius: iced::border::left(INNER_RADIUS),
-            ..iced::Border::default()
-        },
-        ..style::container::sidebar(t)(theme)
-    });
+    let side = nav::side(ctx, st, search_field, entries, active_id, searching);
 
     let title = active.as_ref().map_or_else(
         || ctx.t(Key::SettingsTitle).into_owned(),
@@ -659,8 +604,9 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, category: SettingsCategory) -> Elem
     let close = Message::Intent(Intent::CloseOverlay);
     let head = container(
         row![
-            container(typography::title(t, title)).width(Length::Fill),
+            container(typography::title(t, title).size(TITLE_SIZE)).width(Length::Fill),
             button::icon_button(t, Icon::Close)
+                .sized(button::Side::Md)
                 .tip(
                     ctx.i18n
                         .t_with(
@@ -673,10 +619,10 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, category: SettingsCategory) -> Elem
         ]
         .align_y(Alignment::Center),
     )
-    .height(48)
+    .height(HEAD_HEIGHT)
     .padding(Padding {
-        left: space::XXXL,
-        right: space::LG,
+        left: scale::space::S8,
+        right: scale::space::S3,
         ..Padding::ZERO
     })
     .align_y(Alignment::Center);
@@ -710,30 +656,15 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, category: SettingsCategory) -> Elem
         .height(Length::Fill)
         .style(style::scrollable::default(t));
 
-    // Content on a well, rows on raised groups; in the light the other way
-    // round: white groups on a grey page, the way the system draws them.
-    let page_color = if t.is_dark() {
-        t.colors.bg_sunken
-    } else {
-        t.colors.chrome_bar
-    };
-    let line = t.colors.line;
-    let main = container(column![head, hairline(line), content])
+    let main = column![head, hairline(t.palette.border), content]
         .width(Length::Fill)
-        .height(Length::Fill)
-        .style(move |_: &iced::Theme| container::Style {
-            background: Some(iced::Background::Color(page_color)),
-            border: iced::Border {
-                radius: iced::border::right(INNER_RADIUS),
-                ..iced::Border::default()
-            },
-            ..container::Style::default()
-        });
+        .height(Length::Fill);
 
     // One pixel in from the sheet's edge, so its hairline shows all round.
-    let sheet = container(row![side, main])
-        .width(980)
-        .height(700)
+    // The size is the most it takes: a smaller window shrinks it.
+    let sheet = container(row![side, nav::divider(t), main])
+        .width(SHEET_WIDTH)
+        .height(SHEET_HEIGHT)
         .padding(1)
         .clip(true)
         .style(style::container::modal(t));
@@ -757,6 +688,14 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, category: SettingsCategory) -> Elem
     .escape(false)
     .into()
 }
+
+/// The most the sheet takes of the window.
+const SHEET_WIDTH: f32 = 1040.0;
+const SHEET_HEIGHT: f32 = 840.0;
+
+/// The bar over the page, and the size of the category's name in it.
+const HEAD_HEIGHT: f32 = 56.0;
+const TITLE_SIZE: f32 = 18.0;
 
 /// The corners of what fills the sheet: the sheet's own radius, less the one
 /// pixel of its hairline they sit inside.

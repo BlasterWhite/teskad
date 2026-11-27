@@ -355,14 +355,10 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
             .collect();
         stack = stack.push(
             column![
-                container(typography::heading(
-                    t,
-                    ctx.t(section.label_key()).into_owned()
-                ))
-                .padding(Padding::from([0.0, space::XS])),
+                hangar_ui::form::title(t, ctx.t(section.label_key()).into_owned()),
                 hangar_ui::form::group(t, rows),
             ]
-            .spacing(space::MD),
+            .spacing(space::LG),
         );
     }
     stack.into()
