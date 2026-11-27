@@ -10,9 +10,6 @@ Every release, with its installers, is on the
 
 ## [Unreleased]
 
-### Added
-- Settings › Appearance: the theme grid is walked with the arrow keys, like a radio group. Left and Right move the choice to the card before and after, Up and Down to the card above and below, and the keyboard follows; Tab, Space and Enter work as before.
-
 ## [2.6.0] - 2026-11-27
 
 This fork is independent and not affiliated with the original HangarAI project: the app no longer points at that project's services.
@@ -22,6 +19,7 @@ This fork is independent and not affiliated with the original HangarAI project: 
 - Settings › Appearance has a **Mode**: Dark, Light or System. Dark and Light each keep their own theme, picked from the one grid; System follows the desktop's appearance (the freedesktop portal's `color-scheme` on Linux, the system setting on Windows and macOS) and changes with it, live. The grid shows a real preview of each theme (navigator, a pane's header with the three states and the accent, terminal lines), Teskad Dark and Teskad Light pinned first, the chosen one with an accent border, a halo and a check (two under System); it wraps to three and two columns in a narrow window. Window opacity moves into the Interface rows. A theme chosen before keeps its theme and its mode (a light one opens in Light); `themeId` always holds the theme the window shows, so an older version still reads the file.
 - Space Grotesk and JetBrains Mono are bundled, with their SIL Open Font License.
 - Teskad Mobile wears the brand: the pack's colour tokens (dark by default, light when the phone asks for it), Inter, Space Grotesk and JetBrains Mono served from the app itself (no CDN, it works offline over Tailscale), and one status icon, with a shape as well as a colour, for agents and tasks.
+- Settings › Appearance: the theme grid is walked with the arrow keys, like a radio group. Left and Right move the choice to the card before and after, Up and Down to the card above and below, and the keyboard follows; Tab, Space and Enter work as before.
 
 ### Changed (tab frame and Board, from the Teskad brand pack)
 - Board, Memory and Statistics share a 48 px tab bar (count, filters or search, MCP note, main action) and a 32 px status bar: the folder, the agents' news (a click goes to the first pane in that state), the branch and the panes. Under 1280 px the MCP note is its icon (the words in a tip), the Board's filters fold into one « Filters ▾ » button with the number that are on, and the status bar drops the folder first, then the dictation keys, the branch and the panes.
