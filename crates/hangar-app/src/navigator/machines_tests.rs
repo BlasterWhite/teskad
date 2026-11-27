@@ -860,3 +860,34 @@ fn the_filter_button_wears_the_machine_it_keeps() {
     assert_eq!(icon(MachineFilter::Node("gpu".into())), Icon::Tower);
     assert_eq!(icon(MachineFilter::Node("vps".into())), Icon::Cloud);
 }
+
+/// « Go to » says what each agent is, at the end of its line (`ecrans.md` §3).
+#[test]
+fn the_menu_names_the_role_of_each_agent_to_go_to() {
+    let mut h = mirrors(Locale::En, "graphite");
+    let mut state = h.model.state().clone();
+    for ws in &mut state.workspaces {
+        for pane in &mut ws.panes {
+            if pane.id == "w3-p" {
+                pane.role = Some(crate::state::types::PaneRole::Worker);
+            }
+        }
+    }
+    h.model.hydrate(state);
+    h.model.live.panes_logic.seed_activity(
+        "w3-p",
+        "w3",
+        crate::state::live::AgentActivity::Working,
+    );
+    let ends: Vec<(String, Option<String>)> = menu::workspace_entries(h.ctx(), "w3")
+        .into_iter()
+        .filter_map(|entry| match entry {
+            hangar_ui::menu::Entry::Item(item) => {
+                Some((item.label().to_owned(), item.ending().map(str::to_owned)))
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(ends[0], ("Mia".to_owned(), Some("Worker".to_owned())));
+    assert!(ends[1..].iter().all(|(_, end)| end.is_none()), "{ends:?}");
+}

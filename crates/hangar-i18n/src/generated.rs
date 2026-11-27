@@ -2870,12 +2870,10 @@ pub enum Key {
     OrchCodexModelDefault,
     /// `orch.codexModelHint`
     OrchCodexModelHint,
-    /// `orch.codexOrchestratorModel`
-    OrchCodexOrchestratorModel,
-    /// `orch.codexReviewerModel`
-    OrchCodexReviewerModel,
-    /// `orch.codexWorkerModel`
-    OrchCodexWorkerModel,
+    /// `orch.codexSection`
+    OrchCodexSection,
+    /// `orch.codexSectionNote`
+    OrchCodexSectionNote,
     /// `orch.default`
     OrchDefault,
     /// `orch.intro`
@@ -6092,9 +6090,8 @@ impl Key {
         Key::OrchCheckPlaceholder,
         Key::OrchCodexModelDefault,
         Key::OrchCodexModelHint,
-        Key::OrchCodexOrchestratorModel,
-        Key::OrchCodexReviewerModel,
-        Key::OrchCodexWorkerModel,
+        Key::OrchCodexSection,
+        Key::OrchCodexSectionNote,
         Key::OrchDefault,
         Key::OrchIntro,
         Key::OrchModelInvalid,
@@ -8384,7 +8381,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "notify.title", en: Text::plain("{name} · {agent}"), fr: Text::plain("{name} · {agent}") },
     Message { id: "notify.trustFolder", en: Text::plain("Waiting for you: Claude Code asks whether to trust this folder"), fr: Text::plain("Attend toi\u{202f}: Claude Code demande s'il doit faire confiance à ce dossier") },
     Message { id: "orch.agentNotInstalled", en: Text::plain("{agent} is not installed on this computer: its workers would not start."), fr: Text::plain("{agent} n'est pas installé sur cet ordinateur\u{202f}: ses workers ne démarreraient pas.") },
-    Message { id: "orch.applies", en: Text::plain("Applies to the next worker started and the next delivery"), fr: Text::plain("S'applique au prochain worker lancé et à la prochaine livraison") },
+    Message { id: "orch.applies", en: Text::plain("Applies to the next worker started and the next delivery."), fr: Text::plain("S'applique au prochain worker lancé et à la prochaine livraison.") },
     Message { id: "orch.autoMerge", en: Text::plain("Merge by itself"), fr: Text::plain("Fusion automatique") },
     Message { id: "orch.autoMergeHint", en: Text::plain("A delivery that passes its check and its review lands on the branch. Off, it waits for you in “Needs you”. Nothing is ever pushed."), fr: Text::plain("Une livraison qui passe sa vérification et sa relecture arrive seule sur la branche. Désactivée, elle t'attend dans «\u{202f}Besoin de toi\u{202f}». Rien n'est jamais poussé.") },
     Message { id: "orch.badgeManager", en: Text::plain("Project manager"), fr: Text::plain("Chef de projet") },
@@ -8416,15 +8413,14 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "orch.checkHint", en: Text::plain("Run by your shell in a clean copy of the delivery, before it lands: install what it needs in the same command"), fr: Text::plain("Lancée par ton shell dans une copie propre de la livraison, avant qu'elle arrive\u{202f}: installe ce qu'il lui faut dans la même commande") },
     Message { id: "orch.checkPlaceholder", en: Text::plain("none — pnpm test, cargo test…"), fr: Text::plain("aucune — pnpm test, cargo test…") },
     Message { id: "orch.codexModelDefault", en: Text::plain("Codex's own default"), fr: Text::plain("Celui que Codex choisit") },
-    Message { id: "orch.codexModelHint", en: Text::plain("A Codex model id. Empty: the model Codex picks itself. Used when this role runs on Codex."), fr: Text::plain("Un identifiant de modèle Codex. Vide\u{202f}: le modèle que Codex choisit lui-même. Vaut quand ce rôle tourne sur Codex.") },
-    Message { id: "orch.codexOrchestratorModel", en: Text::plain("Orchestrator, Codex (beta)"), fr: Text::plain("Orchestrateur, Codex (bêta)") },
-    Message { id: "orch.codexReviewerModel", en: Text::plain("Reviewer, Codex (beta)"), fr: Text::plain("Relecteur, Codex (bêta)") },
-    Message { id: "orch.codexWorkerModel", en: Text::plain("Workers, Codex (beta)"), fr: Text::plain("Workers, Codex (bêta)") },
+    Message { id: "orch.codexModelHint", en: Text::plain("A Codex model id. Empty: the model Codex picks itself."), fr: Text::plain("Un identifiant de modèle Codex. Vide\u{202f}: le modèle que Codex choisit lui-même.") },
+    Message { id: "orch.codexSection", en: Text::plain("Codex models"), fr: Text::plain("Modèles Codex") },
+    Message { id: "orch.codexSectionNote", en: Text::plain("Used when a role runs on Codex"), fr: Text::plain("Utilisés quand un rôle tourne sur Codex") },
     Message { id: "orch.default", en: Text::plain("default: {value}"), fr: Text::plain("par défaut\u{202f}: {value}") },
     Message { id: "orch.intro", en: Text::plain("A Claude Code or Codex pane pinned as orchestrator plans the work on the board and hands each task to a worker of its own, in a worktree. It decides how many workers run at once and how many times a task is tried. What is set here, {app} holds itself, whatever the prompt says."), fr: Text::plain("Un panneau Claude Code ou Codex épinglé comme orchestrateur planifie le travail au tableau et confie chaque tâche à un worker à lui, dans un worktree. C'est lui qui décide combien de workers tournent en même temps et combien de fois une tâche est retentée. Ce qui est réglé ici, {app} le tient lui-même, quoi que dise le prompt.") },
     Message { id: "orch.modelInvalid", en: Text::plain("No spaces or quotes in a model name"), fr: Text::plain("Pas d'espace ni de guillemet dans un nom de modèle") },
     Message { id: "orch.modelsAsking", en: Text::plain("Asking {agent} for its models…"), fr: Text::plain("Demande de ses modèles à {agent}…") },
-    Message { id: "orch.modelsHint", en: Text::plain("An alias (opus, sonnet, haiku) or a full model id. The orchestrator's applies the next time it starts."), fr: Text::plain("Un alias (opus, sonnet, haiku) ou l'identifiant complet d'un modèle. Celui de l'orchestrateur s'applique à son prochain lancement.") },
+    Message { id: "orch.modelsHint", en: Text::plain("An alias or a full model id. The orchestrator's model applies the next time it starts."), fr: Text::plain("Un alias ou l'identifiant complet d'un modèle. Celui de l'orchestrateur s'applique à son prochain lancement.") },
     Message { id: "orch.navMark", en: Text::plain("Orchestrator: {name}"), fr: Text::plain("Orchestrateur\u{202f}: {name}") },
     Message { id: "orch.navMarkWorkers", en: Text::plural("Orchestrator: {name}, {n} worker running", "Orchestrator: {name}, {n} workers running"), fr: Text::plural("Orchestrateur\u{202f}: {name}, {n} worker en cours", "Orchestrateur\u{202f}: {name}, {n} workers en cours") },
     Message { id: "orch.noRoom", en: Text::plain("No room for another pane in {workspace}"), fr: Text::plain("Plus de place pour un panneau dans {workspace}") },

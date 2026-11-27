@@ -34,10 +34,21 @@ use hangar_theme::{Theme, style};
 use iced::widget::{Id, column, container, row, rule, scrollable, space as iced_space};
 use iced::{Alignment, Element, Length, Padding};
 
-use crate::button::icon_button;
+use crate::button::{Side, icon_button};
 use crate::icon::Icon;
 use crate::layer::{self, Layer};
 use crate::text as typography;
+
+/// The head of a window with a [`Dialog::mark`]: its padding, the gap after
+/// the symbol and the size of its title.
+const MARKED_HEAD_PADDING: Padding = Padding {
+    top: 20.0,
+    right: 16.0,
+    bottom: 18.0,
+    left: 24.0,
+};
+const MARK_GAP: f32 = 14.0;
+const MARKED_TITLE_SIZE: f32 = 18.0;
 
 /// The height of a modal window's foot.
 const FOOT_HEIGHT: f32 = 52.0;
@@ -52,6 +63,7 @@ pub struct Dialog<'a, M> {
     actions: Vec<Element<'a, M>>,
     note: Option<String>,
     lead: Option<Element<'a, M>>,
+    mark: Option<Element<'a, M>>,
     width: f32,
     body_max_height: f32,
     body_id: Option<Id>,
@@ -74,6 +86,7 @@ pub fn dialog<'a, M: Clone + 'a>(
         actions: Vec::new(),
         note: None,
         lead: None,
+        mark: None,
         width: size::DIALOG_WIDTH,
         // Room for the head and the foot in a window of about 600.
         body_max_height: 420.0,
@@ -109,6 +122,14 @@ impl<'a, M: Clone + 'a> Dialog<'a, M> {
     /// has it.
     pub fn lead(mut self, lead: impl Into<Element<'a, M>>) -> Self {
         self.lead = Some(lead.into());
+        self
+    }
+
+    /// A symbol before the title, for the window of a thing that has one:
+    /// the head is then the roomy one of `ecrans.md` §3, the title larger,
+    /// the symbol and the close button level with its top.
+    pub fn mark(mut self, mark: impl Into<Element<'a, M>>) -> Self {
+        self.mark = Some(mark.into());
         self
     }
 
@@ -157,25 +178,45 @@ impl<'a, M: Clone + 'a> From<Dialog<'a, M>> for Element<'a, M> {
     fn from(d: Dialog<'a, M>) -> Self {
         let t = d.theme;
 
-        let mut titles = column![typography::title(t, d.title)].spacing(1);
+        let marked = d.mark.is_some();
+        let mut title = typography::title(t, d.title);
+        if marked {
+            title = title.size(MARKED_TITLE_SIZE);
+        }
+        let mut titles = column![title].spacing(if marked { space::XS } else { 1.0 });
         if let Some(sub) = d.sub.clone() {
-            titles = titles.push(typography::mono(t, sub).size(font_size::CAPTION));
+            let size = if marked {
+                font_size::LABEL
+            } else {
+                font_size::CAPTION
+            };
+            titles = titles.push(typography::mono(t, sub).size(size));
         }
         let close = icon_button(t, Icon::Close)
             .tip(format!("{} · Esc", d.close_tip))
             .on_press_maybe(d.on_close.clone());
-        let head = row![titles.width(Length::Fill), close]
-            .spacing(space::XL)
-            .align_y(Alignment::Center);
-        let head = container(head)
-            .padding(Padding {
+        let head = row![]
+            .push(d.mark)
+            .push(titles.width(Length::Fill))
+            .push(close.sized(if marked { Side::Md } else { Side::Xs }))
+            .spacing(if marked { MARK_GAP } else { space::XL })
+            .align_y(if marked {
+                Alignment::Start
+            } else {
+                Alignment::Center
+            });
+        let padding = if marked {
+            MARKED_HEAD_PADDING
+        } else {
+            Padding {
                 top: space::MD,
                 right: space::LG,
                 bottom: space::MD,
                 left: 18.0,
-            })
-            .align_y(Alignment::Center);
-        let head = if d.sub.is_some() {
+            }
+        };
+        let head = container(head).padding(padding).align_y(Alignment::Center);
+        let head = if d.sub.is_some() || marked {
             head
         } else {
             head.height(48.0)

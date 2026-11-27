@@ -862,6 +862,75 @@ where
         .into()
 }
 
+/// [`segmented_labels`] as a choice that is the point of its row (the model
+/// of a role): the chosen segment is filled with the accent, and each is as
+/// wide as its words and a 12 px margin. A `selected` that is none of the
+/// options leaves every segment unchosen.
+pub fn segmented_accent<'a, V, M>(
+    t: &'a Theme,
+    options: Vec<(V, String)>,
+    selected: &V,
+    on_select: impl Fn(V) -> M,
+) -> Element<'a, M>
+where
+    V: Clone + PartialEq,
+    M: Clone + 'a,
+{
+    let segments = options.into_iter().map(|(value, label)| {
+        let chosen = &value == selected;
+        let font = if chosen {
+            fonts::ui_semibold()
+        } else {
+            fonts::ui()
+        };
+        let face = text(label).size(font_size::LABEL).font(font);
+        let message = on_select(value);
+        let segment = button(container(face).center_y(Length::Fill))
+            .padding(Padding::from([0.0, space::XL]))
+            .height(Length::Fill)
+            .style(accent_segment(t, chosen))
+            .on_press(message.clone());
+        Element::from(
+            focus::ring(t, segment)
+                .radius(radius::SM)
+                .on_activate(message),
+        )
+    });
+    container(row(segments).spacing(space::XXS))
+        .padding(SEGMENT_PADDING)
+        .height(size::CONTROL_HEIGHT + 2.0 * SEGMENT_PADDING)
+        .style(style::container::segmented(t))
+        .into()
+}
+
+/// A segment of [`segmented_accent`]: the chosen one on the accent, the
+/// others quiet words that a wash lights under the pointer.
+fn accent_segment(
+    t: &Theme,
+    chosen: bool,
+) -> impl Fn(&iced::Theme, button::Status) -> button::Style + '_ {
+    move |_, status| {
+        let p = &t.palette;
+        let pointed = matches!(status, button::Status::Hovered | button::Status::Pressed);
+        let (background, text_color) = match (chosen, status) {
+            (true, button::Status::Hovered) => (Some(p.accent_hover), p.on_accent),
+            (true, button::Status::Pressed) => (Some(p.accent_pressed), p.on_accent),
+            (true, _) => (Some(p.accent), p.on_accent),
+            (false, _) if pointed => (Some(p.hover_overlay), p.text),
+            (false, _) => (None, p.text_muted),
+        };
+        button::Style {
+            background: background.map(iced::Background::Color),
+            text_color,
+            border: iced::Border {
+                radius: radius::SM.into(),
+                ..iced::Border::default()
+            },
+            ..button::Style::default()
+        }
+    }
+}
+
 /// One segment of [`segmented_icons`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct Segment<V> {
