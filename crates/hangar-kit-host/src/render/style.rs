@@ -317,7 +317,7 @@ mod tests {
         assert_eq!(KitStyle::light().theme.id, "github-light");
         assert_eq!(
             KitStyle::dark().palette.bg,
-            Color::from_rgb8(0x1b, 0x1c, 0x1f)
+            Color::from_rgb8(0x19, 0x1a, 0x1d)
         );
     }
 }
