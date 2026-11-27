@@ -45,7 +45,7 @@ fn there_are_twenty_six_dark_themes_and_nine_light_ones_to_pick_from() {
     let themes = hangar_theme::themes();
     let dark = themes
         .iter()
-        .filter(|theme| theme.appearance == Appearance::Dark)
+        .filter(|theme| theme.appearance == hangar_theme::Appearance::Dark)
         .count();
     assert_eq!((dark, themes.len() - dark), (26, 9));
 }

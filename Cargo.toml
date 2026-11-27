@@ -36,7 +36,7 @@ hangar-model3d = { path = "crates/hangar-model3d" }
 # JPEG, GIF, WebP and BMP (and AVIF, which it decodes itself). The formats it
 # reads are the `image` entry's below, which every crate here shares; the 3D
 # view adds the texture formats it reads (hangar-model3d's Cargo.toml).
-iced = { version = "0.14", features = ["tokio", "advanced", "canvas", "image-without-codecs", "svg", "lazy", "markdown", "highlighter"] }
+iced = { version = "0.14", features = ["tokio", "advanced", "canvas", "image-without-codecs", "svg", "lazy", "markdown", "highlighter", "linux-theme-detection"] }
 alacritty_terminal = "0.26"
 portable-pty = "0.9.0"
 # A native kit tab is a core module compiled by Cranelift, run with epoch

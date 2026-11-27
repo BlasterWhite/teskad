@@ -306,6 +306,10 @@ impl App {
                 screenshot,
                 hooks,
                 layout,
+                // The desktop's appearance now; its changes come by the
+                // settings' subscription.
+                iced::system::theme()
+                    .map(|mode| Message::Settings(crate::settings::Msg::Desktop(mode))),
                 crate::model3d_view::ask_system_motion(),
             ]),
         )
@@ -445,6 +449,9 @@ impl App {
         self.model.hydrate_read(loaded.state, loaded.kept);
         // Hydrating is not a change: nothing to save until something changes.
         self.saved = self.model.revision();
+        // The desktop may have answered before the state came in: under the
+        // System mode the window takes its theme now.
+        crate::settings::follow_desktop(&mut self.model);
         self.last_active = self.model.state().active_workspace_id.clone();
         self.publish_snapshot();
 

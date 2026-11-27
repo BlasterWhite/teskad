@@ -42,6 +42,7 @@ mod rows;
 mod schema;
 mod search;
 mod shortcuts;
+mod theme_grid;
 mod voice_card;
 
 pub use change::{set_shells_only, shells_only};
@@ -158,6 +159,9 @@ pub enum Msg {
     Publish,
     /// A debug build opens the sheet on a category by itself.
     DevOpen(SettingsCategory),
+    /// The desktop's appearance, asked at the start and again each time it
+    /// changes: what the System mode follows.
+    Desktop(iced::theme::Mode),
 }
 
 /// The version of the app (`getVersion()`).
@@ -461,8 +465,36 @@ pub fn update(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Me
             st.dev_opened = true;
             Task::done(Message::Intent(Intent::OpenSettings(Some(category))))
         }
+        Msg::Desktop(mode) => {
+            // A desktop with no preference is a dark one, as before it was asked.
+            crate::state::appearance::set_desktop_light(mode == iced::theme::Mode::Light);
+            follow_desktop(m);
+            Task::none()
+        }
     };
     Task::batch([task, sync(st, m, sv)])
+}
+
+/// Under the System mode, the window takes the theme of the desktop's
+/// appearance; under another mode, or in a file from before the modes,
+/// nothing moves. Nothing is written unless the theme changes.
+pub fn follow_desktop(m: &mut Model) {
+    use crate::state::appearance;
+    if !m.live.hydrated {
+        return;
+    }
+    let settings = m.settings();
+    if settings.theme_mode != Some(crate::state::types::ThemeMode::System)
+        || appearance::wanted_id(settings, appearance::desktop_is_light()) == settings.theme_id
+    {
+        return;
+    }
+    let light = appearance::desktop_is_light();
+    m.apply(crate::state::store::StoreAction::UpdateSettings(
+        crate::state::store::Patch::new(move |s: &mut crate::state::types::Settings| {
+            appearance::follow_desktop(s, light)
+        }),
+    ));
 }
 
 /// The category a debug build is asked to open at start, by the id the TS
@@ -480,7 +512,11 @@ fn dev_category() -> Option<SettingsCategory> {
 }
 
 pub fn subscription(st: &State, m: &Model) -> Subscription<Message> {
-    let mut all = Vec::new();
+    // The desktop's appearance, live: the System mode follows it. Linux asks
+    // the freedesktop portal (`org.freedesktop.appearance color-scheme`),
+    // Windows and macOS the system's own setting.
+    let mut all =
+        vec![iced::system::theme_changes().map(|mode| Message::Settings(Msg::Desktop(mode)))];
 
     if m.live.hydrated
         && (m.settings().discord_presence || st.publisher.is_showing() || !st.publisher.has_sent())

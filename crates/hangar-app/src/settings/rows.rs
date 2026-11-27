@@ -97,6 +97,25 @@ fn control<'a>(
             value,
             choices,
             target,
+        } if choices.iter().any(|choice| choice.icon.is_some()) => {
+            let options = choices
+                .iter()
+                .map(|choice| {
+                    input::Segment::new(choice.value.clone(), choice.icon, choice.label.to_string())
+                })
+                .collect();
+            (
+                input::segmented_icons(t, options, &value, move |picked: String| {
+                    changed(&target, Value::Text(picked))
+                }),
+                false,
+                None,
+            )
+        }
+        Kind::Segmented {
+            value,
+            choices,
+            target,
         } => {
             let options: Vec<(String, &'static str)> = choices
                 .iter()
@@ -214,7 +233,7 @@ fn action<'a>(
 fn block<'a>(ctx: Ctx<'a>, st: &'a State, block: Block) -> Element<'a, Message> {
     match block {
         Block::ProjectsFolder => super::previews::projects_folder(ctx),
-        Block::Themes { active } => super::previews::theme_grid(ctx, &active),
+        Block::Themes { active } => super::theme_grid::view(ctx, &active),
         Block::TerminalPreview => super::previews::terminal_preview(ctx),
         Block::Fonts => super::previews::font_grid(ctx),
         Block::Mobile => super::mobile::view(&st.mobile, ctx),

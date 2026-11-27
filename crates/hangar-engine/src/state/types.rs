@@ -786,6 +786,32 @@ pub enum DropZone {
     Center,
 }
 
+/// Which of the two theme lists the window follows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ThemeMode {
+    Dark,
+    Light,
+    /// The desktop's own appearance, and again when it changes.
+    System,
+}
+
+impl ThemeMode {
+    pub fn id(self) -> &'static str {
+        match self {
+            ThemeMode::Dark => "dark",
+            ThemeMode::Light => "light",
+            ThemeMode::System => "system",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<ThemeMode> {
+        [ThemeMode::Dark, ThemeMode::Light, ThemeMode::System]
+            .into_iter()
+            .find(|mode| mode.id() == id)
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum CursorStyle {
@@ -853,7 +879,24 @@ fn text_or_none<'de, D: serde::Deserializer<'de>>(
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
+    /// The theme the window shows: what every reader of the settings takes.
+    /// With a mode it is kept in line with it (`state::appearance`), the
+    /// dark pick or the light one; in a file from before the mode it is the
+    /// one theme chosen, light or dark.
     pub theme_id: String,
+    /// Dark, Light or System. None until it is chosen: a file from before
+    /// the mode has none, and then the mode is the one of the theme it
+    /// already had, so the window looks as it did. Written only when set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub theme_mode: Option<ThemeMode>,
+    /// The theme the dark list has picked. None: `theme_id` when that is a
+    /// dark one, else the default. Written only when set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dark_theme_id: Option<String>,
+    /// The theme the light list has picked. None: `theme_id` when that is a
+    /// light one, else the default light theme. Written only when set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub light_theme_id: Option<String>,
     /// `null` follows the system's language.
     pub locale: Option<Locale>,
     /// `null`: the first shell detected.
@@ -1103,6 +1146,9 @@ impl Default for Settings {
     fn default() -> Self {
         Settings {
             theme_id: DEFAULT_THEME_ID.into(),
+            theme_mode: None,
+            dark_theme_id: None,
+            light_theme_id: None,
             locale: None,
             shell_id: None,
             font_family: r#""JetBrains Mono", "Cascadia Code", Consolas, "Courier New", monospace"#

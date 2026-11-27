@@ -30,8 +30,8 @@ use crate::keymap::KeymapIndex;
 use crate::panes_logic::agents::DEFAULT_CLAUDE_COMMAND;
 use crate::shell::SettingsCategory;
 use crate::state::types::{
-    AgentId, AgentKind, CursorStyle, Settings, ShellInfo, UI_SCALE_MAX, UI_SCALE_MIN, VoiceEngine,
-    Workspace,
+    AgentId, AgentKind, CursorStyle, Settings, ShellInfo, ThemeMode, UI_SCALE_MAX, UI_SCALE_MIN,
+    VoiceEngine, Workspace,
 };
 
 /// A choice of a select or a segmented control.
@@ -45,6 +45,8 @@ use crate::state::types::{
 pub struct Choice {
     pub value: String,
     pub label: Cow<'static, str>,
+    /// Leads the label in a segmented control.
+    pub icon: Option<Icon>,
 }
 
 impl Choice {
@@ -52,7 +54,13 @@ impl Choice {
         Choice {
             value: value.into(),
             label: label.into(),
+            icon: None,
         }
+    }
+
+    fn with_icon(mut self, icon: Icon) -> Choice {
+        self.icon = Some(icon);
+        self
     }
 
     /// The label for a control that borrows it. Empty for a label that was
@@ -86,9 +94,10 @@ pub enum Act {
 pub enum Block {
     /// The path field and its Browse button.
     ProjectsFolder,
-    /// The theme cards, `active` being the one the window shows.
+    /// The theme cards, `active` being the ones chosen: the window's, or the
+    /// dark list's and the light list's under System.
     Themes {
-        active: String,
+        active: Vec<String>,
     },
     TerminalPreview,
     Fonts,
@@ -462,7 +471,22 @@ pub fn build_categories(ctx: &Context) -> Vec<Category> {
 
     // A workspace can pin its own theme; otherwise it follows the global one.
     let pinned_theme = workspace.and_then(|ws| ws.theme_id.as_deref());
-    let effective_theme = pinned_theme.unwrap_or(&settings.theme_id);
+    // The themes the grid marks as chosen: the workspace's own; else the
+    // dark list's pick, the light list's, or both under System.
+    let chosen_themes: Vec<String> = match pinned_theme {
+        Some(id) => vec![id.to_string()],
+        None => {
+            use crate::state::appearance as look;
+            match look::mode(settings) {
+                ThemeMode::Dark => vec![look::dark_id(settings).to_string()],
+                ThemeMode::Light => vec![look::light_id(settings).to_string()],
+                ThemeMode::System => vec![
+                    look::dark_id(settings).to_string(),
+                    look::light_id(settings).to_string(),
+                ],
+            }
+        }
+    };
 
     // The keymap as the person has it, so a hint that names a key stays true
     // after the command has been rebound, and says nothing once it is
@@ -541,10 +565,59 @@ pub fn build_categories(ctx: &Context) -> Vec<Category> {
                             "title bar barre de titre fenêtre window decorations décorations buttons boutons gnome kde windows",
                         )
                     }))
+                    // Linux's only: its windows are made transparent, the
+                    // others' are not and stay opaque. Every theme's.
+                    .chain((ctx.platform == Some(Platform::Linux)).then(|| {
+                        let percent = window_opacity_percent(settings.window_opacity);
+                        slider(
+                            "windowOpacity",
+                            tx(Key::SettingsWindowOpacity),
+                            percent,
+                            (WINDOW_OPACITY_MIN, 100.0),
+                            1.0,
+                            format!("{} %", plain(percent)),
+                            Target::WindowOpacity,
+                        )
+                        .hint(tx(Key::SettingsWindowOpacityHint))
+                        .keywords(
+                            "opacity opacité transparency transparence transparent translucent translucide window fenêtre desktop bureau blur flou",
+                        )
+                    }))
                     .collect(),
                 ),
                 section("theme", tx(Key::SettingsTheme), {
-                    let mut items = Vec::new();
+                    let mode = crate::state::appearance::mode(settings);
+                    let mut items = vec![
+                        item(
+                            "themeMode",
+                            Some(tx(Key::SettingsThemeMode)),
+                            Kind::Segmented {
+                                value: mode.id().to_string(),
+                                choices: vec![
+                                    Choice::new(
+                                        ThemeMode::Dark.id(),
+                                        t.t(Key::SettingsThemeModeDark),
+                                    )
+                                    .with_icon(Icon::Moon),
+                                    Choice::new(
+                                        ThemeMode::Light.id(),
+                                        t.t(Key::SettingsThemeModeLight),
+                                    )
+                                    .with_icon(Icon::Sun),
+                                    Choice::new(
+                                        ThemeMode::System.id(),
+                                        t.t(Key::SettingsThemeModeSystem),
+                                    )
+                                    .with_icon(Icon::Monitor),
+                                ],
+                                target: Target::ThemeMode,
+                            },
+                        )
+                        .hint(tx(Key::SettingsThemeModeHint))
+                        .keywords(
+                            "mode dark light system sombre clair système apparence appearance desktop bureau jour nuit day night",
+                        ),
+                    ];
                     if let Some(ws) = workspace {
                         items.push(
                             toggle(
@@ -561,42 +634,27 @@ pub fn build_categories(ctx: &Context) -> Vec<Category> {
                             ),
                         );
                     }
+                    items
+                }),
+                // The palettes, outside the box of rows above them and under
+                // their own line (the section is named like its page, so it
+                // has no title of its own).
+                section("themes", tx(Key::SettingsCatAppearance), {
                     let names: Vec<&str> =
                         hangar_theme::themes().iter().map(|theme| theme.name).collect();
-                    items.push(
+                    vec![
                         item(
                             "themePick",
                             None,
                             Kind::Custom {
-                                bare: false,
+                                bare: true,
                                 block: Block::Themes {
-                                    active: effective_theme.to_string(),
+                                    active: chosen_themes,
                                 },
                             },
                         )
                         .keywords(format!("theme {}", names.join(" "))),
-                    );
-                    // Linux's only: its windows are made transparent, the
-                    // others' are not and stay opaque. Every theme's.
-                    if ctx.platform == Some(Platform::Linux) {
-                        let percent = window_opacity_percent(settings.window_opacity);
-                        items.push(
-                            slider(
-                                "windowOpacity",
-                                tx(Key::SettingsWindowOpacity),
-                                percent,
-                                (WINDOW_OPACITY_MIN, 100.0),
-                                1.0,
-                                format!("{} %", plain(percent)),
-                                Target::WindowOpacity,
-                            )
-                            .hint(tx(Key::SettingsWindowOpacityHint))
-                            .keywords(
-                                "opacity opacité transparency transparence transparent translucent translucide window fenêtre desktop bureau blur flou",
-                            ),
-                        );
-                    }
-                    items
+                    ]
                 })
                 .hint(tx(Key::SettingsThemeHint)),
             ],

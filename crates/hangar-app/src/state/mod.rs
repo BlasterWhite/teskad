@@ -7,6 +7,7 @@
 //! `apply(StoreAction)` (PACKAGES.md, rule 3), so a save and a snapshot never
 //! miss a change.
 
+pub mod appearance;
 pub mod live;
 pub mod persist;
 pub mod snapshot;
