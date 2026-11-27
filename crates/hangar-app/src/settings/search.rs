@@ -152,7 +152,7 @@ mod tests {
                             kind: Kind::Custom {
                                 bare: false,
                                 block: Block::Themes {
-                                    active: "nord".into(),
+                                    active: vec!["nord".into()],
                                 },
                             },
                         },
@@ -176,6 +176,7 @@ mod tests {
                             choices: vec![Choice {
                                 value: String::new(),
                                 label: "Auto".into(),
+                                icon: None,
                             }],
                             target: Target::ShellDefault,
                         },

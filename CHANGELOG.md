@@ -16,6 +16,7 @@ This fork is independent and not affiliated with the original HangarAI project: 
 
 ### Added
 - Two themes from the Teskad brand pack, **Teskad Dark** and **Teskad Light** (Settings › Appearance). Terminals follow: their background is the pack's sunken surface, ANSI red is the failure coral, green the « done » green, and the brand magenta is ANSI magenta only.
+- Settings › Appearance has a **Mode**: Dark, Light or System. Dark and Light each keep their own theme, picked from the one grid; System follows the desktop's appearance (the freedesktop portal's `color-scheme` on Linux, the system setting on Windows and macOS) and changes with it, live. The grid shows a real preview of each theme (navigator, a pane's header with the three states and the accent, terminal lines), Teskad Dark and Teskad Light pinned first, the chosen one with an accent border, a halo and a check (two under System); it wraps to three and two columns in a narrow window. Window opacity moves into the Interface rows. A theme chosen before keeps its theme and its mode (a light one opens in Light); `themeId` always holds the theme the window shows, so an older version still reads the file.
 - Space Grotesk and JetBrains Mono are bundled, with their SIL Open Font License.
 - Teskad Mobile wears the brand: the pack's colour tokens (dark by default, light when the phone asks for it), Inter, Space Grotesk and JetBrains Mono served from the app itself (no CDN, it works offline over Tailscale), and one status icon, with a shape as well as a colour, for agents and tasks.
 

@@ -90,6 +90,8 @@ pub enum Target {
     WindowOpacity,
     /// The workspace pins the theme it shows (on), or follows the global one.
     ThemeScope,
+    /// Dark, Light or System (`themeMode`).
+    ThemeMode,
     /// A theme card: the workspace's own when it pins one, else the global.
     Theme,
     // Terminal
@@ -290,7 +292,11 @@ pub fn apply(settings: &mut Settings, target: &Target, value: &Value) -> bool {
             settings.window_opacity =
                 super::schema::window_opacity_percent(*percent / 100.0) / 100.0;
         }
-        (T::Theme, Text(id)) => settings.theme_id = id.clone(),
+        (T::Theme, Text(id)) => crate::state::appearance::pick(settings, id),
+        (T::ThemeMode, Text(id)) => match crate::state::types::ThemeMode::from_id(id) {
+            Some(mode) => crate::state::appearance::set_mode(settings, mode),
+            None => return false,
+        },
         (T::FontFamily, Text(stack)) => settings.font_family = stack.clone(),
         (T::FontSize, Number(px)) => settings.font_size = *px,
         (T::LineHeight, Number(factor)) => settings.line_height = *factor,
@@ -760,6 +766,50 @@ mod tests {
             action(scope, &Change::text(Target::Theme, "nord")),
             Some(StoreAction::UpdateSettings(_))
         ));
+    }
+
+    #[test]
+    fn a_mode_keeps_the_picks_and_moves_the_window_to_the_one_of_its_list() {
+        use crate::state::types::ThemeMode;
+        // From a file that has one dark theme and no mode.
+        let mut s = Settings {
+            theme_id: "dracula".into(),
+            ..Settings::default()
+        };
+        assert!(apply(
+            &mut s,
+            &Target::ThemeMode,
+            &Value::Text("light".into())
+        ));
+        assert_eq!(s.theme_mode, Some(ThemeMode::Light));
+        assert_eq!(s.theme_id, "teskad-light");
+        assert!(apply(
+            &mut s,
+            &Target::ThemeMode,
+            &Value::Text("dark".into())
+        ));
+        assert_eq!(s.theme_id, "dracula");
+        // A mode nobody offers changes nothing.
+        assert!(!apply(
+            &mut s,
+            &Target::ThemeMode,
+            &Value::Text("dusk".into())
+        ));
+        // A theme of the other list picks that mode, unless it is System.
+        assert!(apply(
+            &mut s,
+            &Target::Theme,
+            &Value::Text("teskad-light".into())
+        ));
+        assert_eq!(s.theme_mode, Some(ThemeMode::Light));
+        assert!(apply(
+            &mut s,
+            &Target::ThemeMode,
+            &Value::Text("system".into())
+        ));
+        assert!(apply(&mut s, &Target::Theme, &Value::Text("nord".into())));
+        assert_eq!(s.theme_mode, Some(ThemeMode::System));
+        assert_eq!(s.light_theme_id.as_deref(), Some("teskad-light"));
     }
 
     #[test]

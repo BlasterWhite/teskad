@@ -3678,16 +3678,24 @@ pub enum Key {
     SettingsSystemTitleBarHint,
     /// `settings.theme`
     SettingsTheme,
-    /// `settings.themeDark`
-    SettingsThemeDark,
     /// `settings.themeHint`
     SettingsThemeHint,
-    /// `settings.themeLight`
-    SettingsThemeLight,
+    /// `settings.themeMode`
+    SettingsThemeMode,
+    /// `settings.themeModeDark`
+    SettingsThemeModeDark,
+    /// `settings.themeModeHint`
+    SettingsThemeModeHint,
+    /// `settings.themeModeLight`
+    SettingsThemeModeLight,
+    /// `settings.themeModeSystem`
+    SettingsThemeModeSystem,
     /// `settings.themePerWorkspace`
     SettingsThemePerWorkspace,
     /// `settings.themePerWorkspaceHint`
     SettingsThemePerWorkspaceHint,
+    /// `settings.themePinned`
+    SettingsThemePinned,
     /// `settings.title`
     SettingsTitle,
     /// `settings.typography`
@@ -6530,11 +6538,15 @@ impl Key {
         Key::SettingsSystemTitleBar,
         Key::SettingsSystemTitleBarHint,
         Key::SettingsTheme,
-        Key::SettingsThemeDark,
         Key::SettingsThemeHint,
-        Key::SettingsThemeLight,
+        Key::SettingsThemeMode,
+        Key::SettingsThemeModeDark,
+        Key::SettingsThemeModeHint,
+        Key::SettingsThemeModeLight,
+        Key::SettingsThemeModeSystem,
         Key::SettingsThemePerWorkspace,
         Key::SettingsThemePerWorkspaceHint,
+        Key::SettingsThemePinned,
         Key::SettingsTitle,
         Key::SettingsTypography,
         Key::SettingsUiScale,
@@ -8872,11 +8884,15 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "settings.systemTitleBar", en: Text::plain("Use the system's title bar"), fr: Text::plain("Utiliser la barre de titre du système") },
     Message { id: "settings.systemTitleBarHint", en: Text::plain("{app} draws its own, in its theme, with the buttons your system shows. Turn this on for the bar your system draws instead."), fr: Text::plain("{app} dessine la sienne, aux couleurs de son thème, avec les boutons que montre ton système. Active ceci pour retrouver celle que dessine ton système.") },
     Message { id: "settings.theme", en: Text::plain("Theme"), fr: Text::plain("Thème") },
-    Message { id: "settings.themeDark", en: Text::plain("Dark"), fr: Text::plain("Sombres") },
     Message { id: "settings.themeHint", en: Text::plain("Terminal palette — the whole window follows it"), fr: Text::plain("Palette des terminaux — toute la fenêtre la suit") },
-    Message { id: "settings.themeLight", en: Text::plain("Light"), fr: Text::plain("Clairs") },
+    Message { id: "settings.themeMode", en: Text::plain("Mode"), fr: Text::plain("Mode") },
+    Message { id: "settings.themeModeDark", en: Text::plain("Dark"), fr: Text::plain("Sombre") },
+    Message { id: "settings.themeModeHint", en: Text::plain("Dark and light pick from their own list below; System follows your desktop."), fr: Text::plain("Sombre et Clair choisissent dans leur propre liste ci-dessous\u{202f}; Système suit votre bureau.") },
+    Message { id: "settings.themeModeLight", en: Text::plain("Light"), fr: Text::plain("Clair") },
+    Message { id: "settings.themeModeSystem", en: Text::plain("System"), fr: Text::plain("Système") },
     Message { id: "settings.themePerWorkspace", en: Text::plain("Specific to this workspace"), fr: Text::plain("Propre à ce workspace") },
     Message { id: "settings.themePerWorkspaceHint", en: Text::plain("{name} keeps its own theme"), fr: Text::plain("{name} garde son propre thème") },
+    Message { id: "settings.themePinned", en: Text::plain("Pinned at the top"), fr: Text::plain("Épinglé en tête") },
     Message { id: "settings.title", en: Text::plain("Settings"), fr: Text::plain("Réglages") },
     Message { id: "settings.typography", en: Text::plain("Typography"), fr: Text::plain("Typographie") },
     Message { id: "settings.uiScale", en: Text::plain("Interface size"), fr: Text::plain("Taille de l'interface") },

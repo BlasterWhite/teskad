@@ -436,6 +436,38 @@ mod tests {
     }
 
     #[test]
+    fn the_theme_mode_is_written_once_chosen_and_a_file_from_before_has_none() {
+        use crate::state::types::ThemeMode;
+        // Not in the file until it is chosen: a file from before is written
+        // back as it was, its one theme with it.
+        let untouched = serde_json::to_value(Settings::default()).unwrap();
+        for key in ["themeMode", "darkThemeId", "lightThemeId"] {
+            assert!(untouched.get(key).is_none(), "{key}");
+        }
+        let (before, _) = read(json!({"settings": {"themeId": "dracula"}}));
+        assert_eq!(before.settings.theme_mode, None);
+        assert_eq!(before.settings.theme_id, "dracula");
+        // Chosen, it round-trips, with the two picks.
+        let set = Settings {
+            theme_id: "teskad-light".into(),
+            theme_mode: Some(ThemeMode::System),
+            dark_theme_id: Some("dracula".into()),
+            light_theme_id: Some("teskad-light".into()),
+            ..Settings::default()
+        };
+        let written = serde_json::to_value(&set).unwrap();
+        assert_eq!(written["themeMode"], json!("system"));
+        assert_eq!(app_state(json!({ "settings": written })).settings, set);
+        // A mode this version does not know costs that field only.
+        let (state, kept) = read(json!({
+            "settings": {"themeMode": "dusk", "themeId": "nord"}
+        }));
+        assert_eq!(state.settings.theme_mode, None);
+        assert_eq!(state.settings.theme_id, "nord");
+        assert_eq!(kept.len(), 1);
+    }
+
+    #[test]
     fn a_document_that_is_not_an_object_is_turned_down_not_read_as_empty() {
         for root in [json!([]), json!(null), json!("state"), json!(3)] {
             assert!(read_checked(root.clone()).is_err(), "{root}");

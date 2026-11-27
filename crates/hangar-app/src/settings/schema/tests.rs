@@ -205,9 +205,11 @@ fn appearance_terminal_shell_and_notifications_have_every_row_too() {
     if crate::shell::title_bar::has_own_bar() {
         appearance.push("systemTitleBar: toggle SystemTitleBar = false");
     }
-    appearance.push(r#"themePick: custom Themes { active: "teskad-dark" }"#);
-    // Linux's, the platform of the world these tests build.
+    // Linux's, the platform of the world these tests build: with the other
+    // rows of the interface, as in the mockup.
     appearance.push(r#"windowOpacity: slider WindowOpacity = 100 [50..100 by 1] "100 %""#);
+    appearance.push(r#"themeMode: segmented ThemeMode = "dark""#);
+    appearance.push(r#"themePick: custom Themes { active: ["teskad-dark"] } (bare)"#);
     assert_eq!(table(&built, SettingsCategory::Appearance), appearance);
     assert_eq!(
         table(&built, SettingsCategory::Terminal),
@@ -378,7 +380,7 @@ fn the_rows_that_need_a_workspace_exist_only_with_one() {
     if crate::shell::title_bar::has_own_bar() {
         appearance.push("systemTitleBar");
     }
-    appearance.extend(["themeScope", "themePick", "windowOpacity"]);
+    appearance.extend(["windowOpacity", "themeMode", "themeScope", "themePick"]);
     assert_eq!(
         ids(category(&with, SettingsCategory::Appearance)),
         appearance
@@ -413,7 +415,7 @@ fn a_pinned_theme_is_the_one_the_cards_show_as_active() {
     );
     assert_eq!(
         describe(find(&built, "themePick")),
-        r#"custom Themes { active: "dracula" }"#
+        r#"custom Themes { active: ["dracula"] } (bare)"#
     );
     // Without a pin the cards show the global theme.
     let mut follows = World::new();
@@ -421,7 +423,40 @@ fn a_pinned_theme_is_the_one_the_cards_show_as_active() {
     follows.workspace = Some(workspace("Shop"));
     assert_eq!(
         describe(find(&follows.build(), "themePick")),
-        r#"custom Themes { active: "nord" }"#
+        r#"custom Themes { active: ["nord"] } (bare)"#
+    );
+}
+
+#[test]
+fn the_mode_row_offers_dark_light_and_system_and_a_file_from_before_has_the_mode_of_its_theme() {
+    let built = World::new().build();
+    let Kind::Segmented { value, choices, .. } = &find(&built, "themeMode").kind else {
+        panic!("a segmented control");
+    };
+    assert_eq!(value, "dark");
+    assert_eq!(
+        choices.iter().map(|c| c.value.as_str()).collect::<Vec<_>>(),
+        ["dark", "light", "system"]
+    );
+    assert!(choices.iter().all(|choice| choice.icon.is_some()));
+    // A light theme chosen before the modes existed is the Light mode.
+    let mut light = World::new();
+    light.settings.theme_id = "teskad-light".into();
+    assert_eq!(
+        describe(find(&light.build(), "themeMode")),
+        r#"segmented ThemeMode = "light""#
+    );
+}
+
+#[test]
+fn under_system_the_grid_marks_two_themes_one_for_each_appearance() {
+    let mut world = World::new();
+    world.settings.theme_id = "dracula".into();
+    world.settings.theme_mode = Some(crate::state::types::ThemeMode::System);
+    world.settings.light_theme_id = Some("teskad-light".into());
+    assert_eq!(
+        describe(find(&world.build(), "themePick")),
+        r#"custom Themes { active: ["dracula", "teskad-light"] } (bare)"#
     );
 }
 

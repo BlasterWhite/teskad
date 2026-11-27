@@ -51,7 +51,7 @@ fn said(
         default_font: hangar_theme::fonts::ui(),
         ..WindowSettings::default()
     };
-    let mut ui = Simulator::with_size(window, Size::new(1360.0, 860.0), view(&st, ctx, category));
+    let mut ui = Simulator::with_size(window, Size::new(1360.0, 1200.0), view(&st, ctx, category));
     act(&mut ui);
     ui.into_messages()
         .map(|message| format!("{message:?}"))
@@ -89,9 +89,23 @@ fn clicking_attach_hangar_to_codex_turns_it_off() {
 #[test]
 fn clicking_a_theme_card_picks_the_theme() {
     let words = said(SettingsCategory::Appearance, State::default(), |ui| {
-        ui.click("Dracula").expect("the card is on the page");
+        ui.click("Teskad Light").expect("the card is on the page");
     });
-    assert_eq!(words, [r#"Settings(Change(Set(Theme, Text("dracula"))))"#]);
+    assert_eq!(
+        words,
+        [r#"Settings(Change(Set(Theme, Text("teskad-light"))))"#]
+    );
+}
+
+#[test]
+fn clicking_a_mode_picks_it() {
+    let words = said(SettingsCategory::Appearance, State::default(), |ui| {
+        ui.click("System").expect("the segment is on the page");
+    });
+    assert_eq!(
+        words,
+        [r#"Settings(Change(Set(ThemeMode, Text("system"))))"#]
+    );
 }
 
 #[test]
