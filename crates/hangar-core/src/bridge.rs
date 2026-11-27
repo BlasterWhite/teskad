@@ -2,7 +2,7 @@
 //!
 //! Hangar launches Claude Code itself, so it can load a mod into every pane's
 //! session without the user installing anything: the mod's files ship inside
-//! this binary, are written under `~/.hangar/mods/` on first use, and reach
+//! this binary, are written under `~/.teskad/mods/` on first use, and reach
 //! Claude Code through `CLAUDE_CODE_PLUGIN_DIRS` in the pane's environment,
 //! along with the pane id and the loopback API's URL and token.
 //!

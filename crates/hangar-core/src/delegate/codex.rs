@@ -725,7 +725,7 @@ mod spec_tests {
     /// A shadow home's `CODEX_HOME` (accounts.rs), as a pane on that account gets it.
     #[test]
     fn the_account_is_the_childs_codex_home() {
-        let home = PathBuf::from("/home/ada/.hangar/accounts/codex/team");
+        let home = PathBuf::from("/home/ada/.teskad/accounts/codex/team");
         let env = crate::accounts::env_for(Some(AgentKind::Codex.id()), Some(&home));
         assert!(
             env.iter()

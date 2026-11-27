@@ -121,7 +121,7 @@ fn report(outcome: Result<(), String>) -> i32 {
 
 /// The node publishes its agents' API to a file of its own
 /// (`~/.local/state/teskad-node/endpoint.json`), never the desktop's
-/// `~/.hangar/endpoint.json`, so a desktop Hangar on the same account keeps
+/// `~/.teskad/endpoint.json`, so a desktop Teskad on the same account keeps
 /// its agents. The proxy finds it through `TESKAD_ENDPOINT_FILE`, unless the
 /// caller already names one.
 #[cfg(target_os = "linux")]

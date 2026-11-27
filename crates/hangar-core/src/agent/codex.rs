@@ -750,7 +750,7 @@ mod tests {
 
     fn spaced_socket(shell: ShellSyntax) -> String {
         line(&LaunchRequest {
-            server_socket: some("/home/Ann Lee/.hangar/run/codex-p1.sock"),
+            server_socket: some("/home/Ann Lee/.teskad/run/codex-p1.sock"),
             resume: None,
             permission_mode: None,
             model: None,
@@ -771,7 +771,7 @@ mod tests {
             .unwrap();
             assert_eq!(
                 spaced_socket(shell),
-                "codex --remote 'unix:///home/Ann Lee/.hangar/run/codex-p1.sock'",
+                "codex --remote 'unix:///home/Ann Lee/.teskad/run/codex-p1.sock'",
                 "{id}"
             );
         }
@@ -781,7 +781,7 @@ mod tests {
     fn fish_types_a_spaced_socket_in_single_quotes() {
         assert_eq!(
             spaced_socket(ShellSyntax::Fish),
-            "codex --remote 'unix:///home/Ann Lee/.hangar/run/codex-p1.sock'"
+            "codex --remote 'unix:///home/Ann Lee/.teskad/run/codex-p1.sock'"
         );
     }
 
@@ -924,7 +924,7 @@ mod tests {
             kind: AgentKind::Codex,
             extra_roots: strings(&["D:\\shared", "C:\\Users\\Ann Lee\\repo"]),
             hangar_mcp: some("C:\\Program Files\\Hangar\\hangar-ai.exe"),
-            trusted: strings(&["C:\\Users\\Ann Lee\\.hangar\\worktrees\\wt-1"]),
+            trusted: strings(&["C:\\Users\\Ann Lee\\.teskad\\worktrees\\wt-1"]),
             shell: Some(ShellSyntax::PowerShell),
             ..Default::default()
         };
@@ -938,7 +938,7 @@ mod tests {
         assert_eq!(
             variable(&spec, TRUST_VAR),
             Some(&OsString::from(
-                "projects={'C:\\Users\\Ann Lee\\.hangar\\worktrees\\wt-1'={trust_level='trusted'}}"
+                "projects={'C:\\Users\\Ann Lee\\.teskad\\worktrees\\wt-1'={trust_level='trusted'}}"
             ))
         );
         assert_eq!(
@@ -1111,7 +1111,7 @@ mod tests {
                 "roblox_studio".into(),
                 serde_json::json!({
                     "args": ["--stdio", "C:\\Users\\Ann Lee\\kits\\roblox"],
-                    "command": "/home/Ann Lee/.hangar/kits/roblox/bin/studio",
+                    "command": "/home/Ann Lee/.teskad/kits/roblox/bin/studio",
                     "env": { "STUDIO_PORT": "7777" },
                     "env_vars": ["ROBLOX_KEY"],
                     "tool_timeout_sec": 30.5,
@@ -1126,7 +1126,7 @@ mod tests {
 
     const OTHER_SERVERS: &str =
         "mcp_servers={roblox_studio={args=['--stdio','C:\\Users\\Ann Lee\\kits\\roblox'],\
-         command='/home/Ann Lee/.hangar/kits/roblox/bin/studio',env={STUDIO_PORT='7777'},\
+         command='/home/Ann Lee/.teskad/kits/roblox/bin/studio',env={STUDIO_PORT='7777'},\
          env_vars=['ROBLOX_KEY'],tool_timeout_sec=30.5},github={command='npx',enabled=false}}";
 
     /// The other servers are one table, given before Hangar's own: set
@@ -1384,7 +1384,7 @@ mod tests {
             ]
         );
 
-        let home = PathBuf::from("/home/me/.hangar/accounts/codex-work");
+        let home = PathBuf::from("/home/me/.teskad/accounts/codex-work");
         let spec = build(&LaunchRequest {
             kind: AgentKind::Codex,
             account_dir: Some(home.clone()),

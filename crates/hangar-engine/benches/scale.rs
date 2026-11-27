@@ -376,7 +376,7 @@ fn bench_board() {
         for _ in 0..reads {
             read = hangar_core::board_load(cwd.clone()).tasks.len();
         }
-        let size = std::fs::metadata(root.path().join(".hangar").join("board.json"))
+        let size = std::fs::metadata(root.path().join(".teskad").join("board.json"))
             .map(|m| m.len())
             .unwrap_or(0);
         println!(

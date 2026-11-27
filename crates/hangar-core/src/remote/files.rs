@@ -5,7 +5,7 @@
 //!   even after the agent deletes or changes the original. Only the last 200
 //!   shares, or 2 GB, are kept.
 //! - Uploads: a file the phone sends is saved in the workspace's own folder,
-//!   under `.hangar/uploads/`, and its path goes back to the phone.
+//!   under `.teskad/uploads/`, and its path goes back to the phone.
 //!
 //! Every name that reaches the disk comes through `sanitize_name`: a phone or
 //! an agent does not get to choose a path, only a file name.
@@ -407,14 +407,15 @@ impl hyper::body::Body for FileBody {
     }
 }
 
-/// Saves a phone's file as `<cwd>/.hangar/uploads/<stamp>-<name>`, and
+/// Saves a phone's file as `<cwd>/.teskad/uploads/<stamp>-<name>`, and
 /// returns where. A second of the same stamp and name does not overwrite the
 /// first.
 pub fn save_upload(cwd: &Path, name: &str, bytes: &[u8], stamp: &str) -> Result<PathBuf, String> {
     if !cwd.is_dir() {
         return Err(format!("{} is not a folder", cwd.display()));
     }
-    let dir = cwd.join(".hangar").join("uploads");
+    crate::project_dir::adopt(cwd);
+    let dir = crate::project_dir::project_dir(cwd).join("uploads");
     fs::create_dir_all(&dir).map_err(|err| format!("could not create {}: {err}", dir.display()))?;
     // An upload is no part of the project: kept out of its git status.
     let ignore = dir.join(".gitignore");
@@ -846,25 +847,25 @@ pub(super) mod tests {
     }
 
     #[test]
-    fn an_upload_lands_under_hangar_uploads_with_its_stamp() {
+    fn an_upload_lands_under_teskad_uploads_with_its_stamp() {
         let cwd = scratch("upload");
         let path = save_upload(&cwd, "../../x/IMG 1.jpg", b"jpeg", "2026-10-28-203800").unwrap();
         assert_eq!(
             path,
-            cwd.join(".hangar")
+            cwd.join(".teskad")
                 .join("uploads")
                 .join("2026-10-28-203800-IMG 1.jpg")
         );
         assert_eq!(fs::read(&path).unwrap(), b"jpeg");
         assert_eq!(
-            fs::read_to_string(cwd.join(".hangar/uploads/.gitignore")).unwrap(),
+            fs::read_to_string(cwd.join(".teskad/uploads/.gitignore")).unwrap(),
             "*\n"
         );
         // The same second and name: a file of its own, the first untouched.
         let second = save_upload(&cwd, "IMG 1.jpg", b"other", "2026-10-28-203800").unwrap();
         assert_ne!(second, path);
         assert_eq!(fs::read(&path).unwrap(), b"jpeg");
-        assert!(second.starts_with(cwd.join(".hangar/uploads")));
+        assert!(second.starts_with(cwd.join(".teskad/uploads")));
     }
 
     #[test]

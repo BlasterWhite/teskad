@@ -65,6 +65,7 @@ pub mod paths;
 pub mod preview;
 pub mod pricing;
 pub mod procs;
+pub mod project_dir;
 pub mod pty;
 #[cfg(feature = "desktop")]
 pub mod remote;

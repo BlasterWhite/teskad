@@ -775,7 +775,7 @@ everything else is main's ("auth overlay"):
 
 - **main** is the person's own Codex home (`$CODEX_HOME` if set, `~/.codex`
   otherwise): always there, only ever read.
-- every other account is `~/.hangar/accounts/codex/<id>/`, listed in the same
+- every other account is `~/.teskad/accounts/codex/<id>/`, listed in the same
   `accounts.json` with `kind: "codex"`. Private to it: `auth.json`,
   `auth.lock`, `models_cache.json` — and, when the person's Codex keeps
   credentials in the system keyring, the keyring entry, which Codex already
@@ -879,7 +879,7 @@ to load a plugin or a skill folder for one launch, as Claude Code's
 | Plugin part | Claude Code | Codex |
 |---|---|---|
 | MCP servers (`.mcp.json`) | plugin servers | per launch, `-c mcp_servers.<kit>_<server>.*` on the pane's server, `${CLAUDE_PLUGIN_ROOT}` written out as the kit's folder (as `kits/plugin.rs` already does for Claude's strict mode). Works on every launch, nothing installed |
-| Skills (`skills/<name>/SKILL.md`) | loaded with the plugin | in a Codex plugin Hangar builds from the kit (`~/.hangar/kits/<id>/codex-plugin/`: a `.codex-plugin/plugin.json`, links to the kit's `skills/`, its hooks), published in a local marketplace Hangar keeps; « Add to Codex » on the kit runs `codex plugin marketplace add` and `codex plugin add` once, with the person's consent, and « Remove from Codex » undoes it |
+| Skills (`skills/<name>/SKILL.md`) | loaded with the plugin | in a Codex plugin Hangar builds from the kit (`~/.teskad/kits/<id>/codex-plugin/`: a `.codex-plugin/plugin.json`, links to the kit's `skills/`, its hooks), published in a local marketplace Hangar keeps; « Add to Codex » on the kit runs `codex plugin marketplace add` and `codex plugin add` once, with the person's consent, and « Remove from Codex » undoes it |
 | Hooks (`hooks/hooks.json`) | plugin hooks | in that Codex plugin, for the events Codex has with the same name; a hook whose matcher names a Claude tool (`Edit`, `Bash`…) is listed as "Claude Code only" |
 | Commands, agents, output styles | yes | listed as "Claude Code only" |
 
@@ -1016,7 +1016,7 @@ Where what landed differs from this page:
 - **Kits (§6.4, D18; T7, T27):** a manifest with no `agents` means Claude Code
   alone, the one agent kits were written for: a kit reaches Codex only when it
   names `codex`. The Codex plugin of a kit lives in a local marketplace Hangar
-  keeps, `~/.hangar/codex-plugins/` (`hangar-kits`), and holds copies of the
+  keeps, `~/.teskad/codex-plugins/` (`hangar-kits`), and holds copies of the
   kit's skills, since Codex's install skips links.
 - **Install (§6.3, D17; T21):** Codex is installed with OpenAI's standalone
   installer (`install.sh`, `install.ps1`); npm and Homebrew are the documented
@@ -1206,7 +1206,7 @@ the places that today stop a Codex-only machine.
 | Place | What it assumes today |
 |---|---|
 | `hangar-core/claude-mod/teskad-bridge/**` | the Claude Code mod: hooks module (`session.start`, `turn.*`, `prompt.compose`, `classic.*`), inbox poll every 1.5 s, `$.prompt.submit`, `$.session.append` mid-turn, briefing in the system prompt |
-| `hangar-core/src/bridge.rs` | installs the mod under `~/.hangar/mods/`, `CLAUDE_CODE_PLUGIN_DIRS`, Claude's managed-settings sideloading policy, the inbox (`Queued`), held asks, edits |
+| `hangar-core/src/bridge.rs` | installs the mod under `~/.teskad/mods/`, `CLAUDE_CODE_PLUGIN_DIRS`, Claude's managed-settings sideloading policy, the inbox (`Queued`), held asks, edits |
 | `hangar-core/src/server.rs` | `/api/bridge/{pane}/{event,next,conflict,briefing,ask/{id}}` routes, called by the mod |
 | `hangar-engine/src/panes/{pane_agent,agent_state,bridge_events,activity,pane_insight}.rs`, `live.rs` | `bridged` = the mod said hello; guesses from output stand down then |
 | `hangar-engine/src/control/panes.rs` | `pane_create {prompt}` and `pane_send {when_idle}` only for Claude Code; the paste-then-Enter delay is tuned for Claude's input |

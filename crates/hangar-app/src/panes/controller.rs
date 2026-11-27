@@ -3283,7 +3283,7 @@ mod tests {
             env: Vec::new(),
         };
         let file = crate::nodes::remote::RemoteScope {
-            path: "/home/far/.hangar/mcp/w1.json".into(),
+            path: "/home/far/.teskad/mcp/w1.json".into(),
             servers: vec!["teskad".into()],
             missing: Vec::new(),
         };

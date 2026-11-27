@@ -1247,7 +1247,7 @@
   "mcp.title": "Connecter Claude Code au tableau",
   "mcp.intro": "{app} s'enregistre comme serveur MCP dans la configuration Claude Code de ce projet (.mcp.json). Le port et le jeton ne sont jamais écrits dans ce fichier : ils sont résolus au lancement, donc la configuration reste valable après un redémarrage.",
   "mcp.playbook": "Écrire le mode d'emploi pour les agents",
-  "mcp.playbookHint": "CLAUDE.md · ajoute .hangar/ au .gitignore",
+  "mcp.playbookHint": "CLAUDE.md · ajoute .teskad/ au .gitignore",
   "mcp.alreadyThere": "déjà présent",
   "mcp.configured": "déjà configuré",
   "mcp.stale": "cassé — à réparer",

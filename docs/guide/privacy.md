@@ -5,7 +5,7 @@
 Teskad has no account, no telemetry and no backend. Your workspaces, the board, the memory
 and the statistics stay on your machine:
 
-- each workspace's board is in `.hangar/board.json` in the project. Teskad keeps it out of
+- each workspace's board is in `.teskad/board.json` in the project (copied from `.hangar/` once, if the project had one). Teskad keeps it out of
   `git status` through `.git/info/exclude`, unless you commit it yourself;
 - the app state and the memory are in the app's data folder;
 - the statistics are computed from the transcripts the agents already keep locally, and

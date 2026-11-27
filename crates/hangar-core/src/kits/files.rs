@@ -347,7 +347,7 @@ fn land(
     permissions: Option<fs::Permissions>,
 ) -> Result<(), TabError> {
     let cannot = |err: std::io::Error| failed(format!("{raw} cannot be written: {err}"));
-    let tmp = dir.join(format!(".hangar-{}.tmp", uuid::Uuid::new_v4().simple()));
+    let tmp = dir.join(format!(".teskad-{}.tmp", uuid::Uuid::new_v4().simple()));
     let done = (|| {
         let mut file = fs::OpenOptions::new()
             .write(true)
@@ -441,7 +441,7 @@ fn exists(raw: &str) -> TabError {
 /// whole of the image or nothing.
 fn land_new(dir: &Path, target: &Path, bytes: &[u8], raw: &str) -> Result<(), TabError> {
     let cannot = |err: std::io::Error| failed(format!("{raw} cannot be written: {err}"));
-    let tmp = dir.join(format!(".hangar-{}.tmp", uuid::Uuid::new_v4().simple()));
+    let tmp = dir.join(format!(".teskad-{}.tmp", uuid::Uuid::new_v4().simple()));
     let done = (|| {
         let mut file = fs::OpenOptions::new()
             .write(true)
@@ -811,7 +811,7 @@ mod tests {
     fn write_binary_makes_an_image_with_its_folders_and_reads_back() {
         let (folder, root) = project("wb");
         for (path, kind) in [
-            (".hangar/annotations/a.png", "png"),
+            (".teskad/annotations/a.png", "png"),
             ("b/c.JPG", "jpg"),
             ("d.jpeg", "jpg"),
             ("e.webp", "webp"),
@@ -820,7 +820,7 @@ mod tests {
             let read = read_binary(&root, path, true).unwrap();
             assert_eq!(read.base64, image_b64(kind), "{path}");
         }
-        assert!(folder.root.join(".hangar/annotations/a.png").is_file());
+        assert!(folder.root.join(".teskad/annotations/a.png").is_file());
     }
 
     #[test]

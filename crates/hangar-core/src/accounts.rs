@@ -14,9 +14,9 @@
 //! - **main** is Claude Code's own configuration, the one Hangar was started
 //!   with (`CLAUDE_CONFIG_DIR` if it was set, `~/.claude` otherwise). It is
 //!   always there, cannot be removed, and its files are only ever read.
-//! - every other account is a profile Hangar made, `~/.hangar/accounts/<id>/`
+//! - every other account is a profile Hangar made, `~/.teskad/accounts/<id>/`
 //!   (beside `TESKAD_ENDPOINT_FILE` for a development build, like the mods of
-//!   bridge.rs), listed in `~/.hangar/accounts/accounts.json` as
+//!   bridge.rs), listed in `~/.teskad/accounts/accounts.json` as
 //!   `{ id, label, dir, addedAt }` (store.rs).
 //!
 //! A Claude Code pane on a profile is started with `CLAUDE_CONFIG_DIR` set to
@@ -93,7 +93,7 @@
 //! A Codex account is a *shadow* `CODEX_HOME` (codex_home.rs,
 //! docs/native/agents.md §6.1): main is the person's own (`CODEX_HOME` if
 //! Hangar was started with it, `~/.codex` otherwise), only ever read; every
-//! other account is `~/.hangar/accounts/codex/<id>/`, with its own
+//! other account is `~/.teskad/accounts/codex/<id>/`, with its own
 //! `auth.json` and models cache and links to main's configuration, tools and
 //! conversations. A pane on it — the agent and its server — is started with
 //! `CODEX_HOME` naming it and `CODEX_SQLITE_HOME` naming main's SQLite folder

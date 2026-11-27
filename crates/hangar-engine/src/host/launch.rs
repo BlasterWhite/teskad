@@ -458,7 +458,7 @@ mod tests {
 
     const THREAD: &str = "0199a5c4-7b3e-7c51-a2f4-6d0e8c1b9f20";
     const HANGAR: &str = "/home/Ann Lee/.local/bin/hangar-ai";
-    const MCP_FILE: &str = "/home/Ann Lee/.hangar/mcp/shop.json";
+    const MCP_FILE: &str = "/home/Ann Lee/.teskad/mcp/shop.json";
 
     fn shop(permission_mode: Option<&str>) -> Workspace {
         Workspace {

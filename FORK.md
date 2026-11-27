@@ -36,8 +36,9 @@ the same time.
 | Login item | `Teskad` (registry `Run` value, `~/.config/autostart/Teskad.desktop`, `~/Library/LaunchAgents/Teskad.plist`) | `Hangar.AI` |
 | Notifications (Windows AUMID) | the identifier above | `com.simnjs.iabench` |
 
-Your project folders are shared, as they are the same projects: the `.hangar/` folder inside
-each one (the task board, uploads) keeps its name. What agents see is Teskad's own: its MCP
+Your project folders are shared, as they are the same projects. Teskad keeps its task board and
+uploads in a `.teskad/` folder inside each one; the first time it opens a project that only has the
+official app's `.hangar/`, it copies it there (the original is left as it is, for the official app). What agents see is Teskad's own: its MCP
 server is named `teskad` (tools `mcp__teskad__*`), its Claude Code mod `teskad-bridge`, its
 messages to agents start with `[Teskad]`, and the variables it sets are `TESKAD_*`. The
 official app's `hangar` entry in a project's `.mcp.json` is never touched: the two servers sit

@@ -537,7 +537,7 @@ mod per_agent {
             hooks: Vec::new(),
             codex,
             add: vec![
-                "codex plugin marketplace add /home/me/.hangar/codex-plugins".into(),
+                "codex plugin marketplace add /home/me/.teskad/codex-plugins".into(),
                 "codex plugin add roblox@hangar-kits".into(),
             ],
             remove: vec!["codex plugin remove roblox@hangar-kits".into()],

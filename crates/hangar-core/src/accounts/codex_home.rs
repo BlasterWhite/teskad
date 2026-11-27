@@ -374,7 +374,7 @@ mod tests {
     #[test]
     fn a_pane_on_a_shadow_home_names_it_and_mains_state() {
         let main = CodexHome::at(PathBuf::from("/home/me/.codex"));
-        let team = PathBuf::from("/home/me/.hangar/accounts/codex/team");
+        let team = PathBuf::from("/home/me/.teskad/accounts/codex/team");
 
         assert_eq!(sqlite_home(&main, None), main.dir);
         assert_eq!(sqlite_home(&main, Some(" ".into())), main.dir);

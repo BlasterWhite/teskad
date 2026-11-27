@@ -463,7 +463,7 @@ mod tests {
 
     #[test]
     fn the_review_spends_the_workspace_s_codex_account() {
-        let home = PathBuf::from("/home/me/.hangar/accounts/codex/work");
+        let home = PathBuf::from("/home/me/.teskad/accounts/codex/work");
         let env = crate::accounts::env_for(Some("codex"), Some(&home));
         let command = exec_command(
             Path::new("codex"),

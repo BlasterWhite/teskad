@@ -43,9 +43,9 @@ pub struct Headless {
 /// start.
 ///
 /// `endpoint_file` is where the API's port and outside token are published:
-/// `None` for the usual place (`~/.hangar/endpoint.json`, or
+/// `None` for the usual place (`~/.teskad/endpoint.json`, or
 /// `TESKAD_ENDPOINT_FILE`, endpoint.rs), a path to keep a node apart from a
-/// desktop Hangar running for the same account.
+/// desktop Teskad running for the same account.
 ///
 /// The API runs on `runtime`, which must outlive the node. This waits for it
 /// to listen, so it is called from outside the runtime (a plain thread, `main`

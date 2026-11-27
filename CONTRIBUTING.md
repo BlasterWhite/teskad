@@ -125,9 +125,9 @@ Some things to know:
   `~/.hangar` and `hangar-ai` appear in the code only in `hangar_core::paths`
   (`OFFICIAL_*`) and `hangar_core::migrate`, which copies from them once and never writes
   there. Never write a path, key or name of the official app: build home paths with
-  `paths::home_folder()`, not `.join(".hangar")`. What keeps its `hangar` name on purpose is
-  what projects already hold: the `.hangar/` folder in a project (for now), and the
-  `hangar-*` crates. What agents see is `teskad`: the MCP server and its `mcp__teskad__*`
+  `paths::home_folder()`, not `.join(".hangar")`. A project's own folder is `.teskad/`, named by
+  `hangar_core::project_dir::PROJECT_DIR_NAME`; `project_dir::adopt` copies an old `.hangar/` to it
+  once (never moves it). What keeps its `hangar` name on purpose is the `hangar-*` crates. What agents see is `teskad`: the MCP server and its `mcp__teskad__*`
   tools, the `teskad-bridge` mod, the `[Teskad]` prefix of the app's messages and the
   `TESKAD_*` variables. A variable a person can set is read through `hangar_core::env`
   (`TESKAD_X`, then `HANGAR_X`, documented in [FORK.md](FORK.md)); one the app sets for its

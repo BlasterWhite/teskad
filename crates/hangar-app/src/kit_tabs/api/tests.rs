@@ -820,7 +820,7 @@ fn calls() -> Vec<(&'static str, Option<Value>, Value)> {
         ),
         (
             "files.writeBinary",
-            Some(json!({ "path": ".hangar/annotations/1.png", "base64": "iVBORw==" })),
+            Some(json!({ "path": ".teskad/annotations/1.png", "base64": "iVBORw==" })),
             json!({}),
         ),
         (
@@ -1606,7 +1606,7 @@ mod files_write_binary {
         assert_eq!(
             s.result_of(
                 "files.writeBinary",
-                json!({ "path": ".hangar\\annotations/./1.png", "base64": "iVBORw==" })
+                json!({ "path": ".teskad\\annotations/./1.png", "base64": "iVBORw==" })
             ),
             json!({})
         );
@@ -1614,7 +1614,7 @@ mod files_write_binary {
             s.fake.calls_of("writeBinaryFile"),
             vec![json!([
                 "C:/projects/game",
-                ".hangar/annotations/1.png",
+                ".teskad/annotations/1.png",
                 "iVBORw=="
             ])]
         );

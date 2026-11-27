@@ -602,7 +602,7 @@ mod tests {
         for theirs in [
             json!({ "command": "/opt/hangar/hangar-ai" }),
             json!({ "command": "C:\\Hangar\\hangar.exe" }),
-            json!({ "command": "node", "env": { "HANGAR_ENDPOINT_FILE": "/home/a/.hangar/endpoint.json" } }),
+            json!({ "command": "node", "env": { "HANGAR_ENDPOINT_FILE": "/home/a/.teskad/endpoint.json" } }),
             json!({ "url": "http://127.0.0.1:1/mcp" }),
         ] {
             assert!(!names_teskad(&theirs), "{theirs}");

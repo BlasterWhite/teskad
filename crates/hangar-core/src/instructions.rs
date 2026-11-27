@@ -1,7 +1,7 @@
 //! Writes the agent playbook into the file each agent reads on startup
 //! (docs/native/agents.md §6.5, D19).
 //!
-//! A doc parked in `.hangar/` would be loaded by nobody. Each agent the
+//! A doc parked in `.teskad/` would be loaded by nobody. Each agent the
 //! workspace runs has its project instructions file
 //! (`AgentInfo::instructions_file`: `CLAUDE.md` for Claude Code, `AGENTS.md`
 //! for Codex), and the block goes into each, between the same markers, never
@@ -23,6 +23,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 
 use crate::agent::AgentKind;
+use crate::project_dir::PROJECT_DIR_NAME;
 use crate::store::{write_atomic, Access};
 
 /// The product's name, as every text written for a person or an agent says it.
@@ -308,12 +309,12 @@ fn update_gitignore(root: &Path) -> InstructionReport {
     };
 
     // Deliberately only looks for the current directory: a repository that
-    // already ignores `.iabench/` still needs a rule for `.hangar/`, or the
-    // board lands in the next commit. The two coexist until the old board is
-    // gone, and both deserve a line.
+    // already ignores `.hangar/` or `.iabench/` still needs a rule for `.teskad/`,
+    // or the board lands in the next commit. The old lines are kept: the
+    // official app may still write there.
     let already = existing.lines().any(|line| {
         let trimmed = line.trim().trim_end_matches('/');
-        trimmed == ".hangar" || trimmed == "/.hangar"
+        trimmed == PROJECT_DIR_NAME || trimmed.strip_prefix('/') == Some(PROJECT_DIR_NAME)
     });
 
     if already {
@@ -332,7 +333,7 @@ fn update_gitignore(root: &Path) -> InstructionReport {
         updated.push('\n');
     }
     updated.push_str(&format!(
-        "# {APP_NAME} — tableau de tâches local\n.hangar/\n"
+        "# {APP_NAME} — tableau de tâches local\n{PROJECT_DIR_NAME}/\n"
     ));
 
     match write_atomic(&path, updated.as_bytes(), Access::AsBefore) {

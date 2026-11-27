@@ -1234,7 +1234,7 @@ mod by_agent {
             hooks: vec![log()],
             codex: true,
             add: names(&[
-                "codex plugin marketplace add C:/Users/me/.hangar/codex-plugins",
+                "codex plugin marketplace add C:/Users/me/.teskad/codex-plugins",
                 "codex plugin add hello-kit@hangar-kits",
             ]),
             remove: names(&[
@@ -1360,7 +1360,7 @@ mod by_agent {
                 "Add Hello kit to Codex? Teskad builds a Codex plugin from what is listed here, then runs these commands:",
                 "Skills: hello",
                 "Hooks: PostToolUse · Bash",
-                "codex plugin marketplace add C:/Users/me/.hangar/codex-plugins",
+                "codex plugin marketplace add C:/Users/me/.teskad/codex-plugins",
                 "codex plugin add hello-kit@hangar-kits",
                 "Codex runs these hooks only once you trust them in its /hooks.",
                 "Cancel",

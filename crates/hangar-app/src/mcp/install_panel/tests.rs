@@ -130,7 +130,7 @@ fn the_hint_lists_the_files_in_each_language() {
         let codex = playbook_hint(&["AGENTS.md"], &text);
         assert!(codex.starts_with("AGENTS.md · "), "{locale:?}: {codex}");
         assert!(!codex.contains("CLAUDE.md"), "{locale:?}: {codex}");
-        assert!(codex.contains(".hangar/"), "{locale:?}: {codex}");
+        assert!(codex.contains(".teskad/"), "{locale:?}: {codex}");
     }
     // A text with no separator is kept whole.
     assert_eq!(playbook_hint(&["AGENTS.md"], "x"), "AGENTS.md · x");
@@ -304,7 +304,7 @@ fn the_panel_lists_the_files_it_will_write() {
     assert!(draws(
         &opened(&codex),
         &codex,
-        "AGENTS.md · adds .hangar/ to .gitignore"
+        "AGENTS.md · adds .teskad/ to .gitignore"
     ));
 
     let both = model_in(
@@ -314,13 +314,13 @@ fn the_panel_lists_the_files_it_will_write() {
     assert!(draws(
         &opened(&both),
         &both,
-        "CLAUDE.md, AGENTS.md · adds .hangar/ to .gitignore"
+        "CLAUDE.md, AGENTS.md · adds .teskad/ to .gitignore"
     ));
 
     let claude = model_in(dir.path(), run_by(vec![("a", AgentId::Claude)]));
     assert!(draws(
         &opened(&claude),
         &claude,
-        "CLAUDE.md · adds .hangar/ to .gitignore"
+        "CLAUDE.md · adds .teskad/ to .gitignore"
     ));
 }

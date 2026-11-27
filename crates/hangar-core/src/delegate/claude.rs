@@ -1128,7 +1128,7 @@ mod spec_tests {
     /// the identity of a pane Hangar was started from.
     #[test]
     fn the_account_is_the_childs_config_dir() {
-        let home = PathBuf::from("/home/ada/.hangar/accounts/claude/team");
+        let home = PathBuf::from("/home/ada/.teskad/accounts/claude/team");
         let spawn = run_spec(&request(), "/work/hangar", None, None, Some(home.clone())).unwrap();
         let command = command(&spawn);
         let set: Vec<_> = command.as_std().get_envs().collect();

@@ -175,7 +175,7 @@ fn playbook_files(agents: &[AgentKind]) -> Vec<&'static str> {
     files
 }
 
-/// The playbook row's line under its label: « CLAUDE.md · adds .hangar/ to
+/// The playbook row's line under its label: « CLAUDE.md · adds .teskad/ to
 /// .gitignore », with the files the panel will write in the place of the one
 /// the text names.
 fn playbook_hint(files: &[&str], text: &str) -> String {

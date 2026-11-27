@@ -4,7 +4,7 @@
 //! Memory is the opposite: a single store for the whole app, because what an
 //! agent learns in one project has to still be there when another agent opens a
 //! different one. That is why it sits in the app data directory beside
-//! `state.json` instead of in `.hangar/`, and why nothing here is keyed by the
+//! `state.json` instead of in the project's `.teskad/`, and why nothing here is keyed by the
 //! workspace — `workspace` is recorded as the origin of a fact, not as a
 //! partition of the store.
 //!

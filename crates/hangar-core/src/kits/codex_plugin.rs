@@ -10,7 +10,7 @@
 //!   its `name`, and its plugins by `name` and `source`. A local source is a
 //!   `./` path that stays inside the marketplace's folder
 //!   (`resolve_local_plugin_source_path`), so the plugins Hangar builds live
-//!   under the marketplace's own folder, `~/.hangar/codex-plugins/`, rather
+//!   under the marketplace's own folder, `~/.teskad/codex-plugins/`, rather
 //!   than in each kit's folder as §6.4 first said: a linked kit has no folder
 //!   of Hangar's, and a cloned one would carry a folder git does not know.
 //! - `codex plugin marketplace add <folder>` records a local marketplace where

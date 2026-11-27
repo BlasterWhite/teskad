@@ -45,7 +45,7 @@ core.shutdown();                              // when the main window goes; then
 the Tauri `setup` hook did, in this order:
 
 1. warms the login shell's `PATH` (`path_env::ensure`) and writes the
-   teskad-bridge mod to `~/.hangar/mods/` (`bridge::plugin_dir`), each on a
+   teskad-bridge mod to `~/.teskad/mods/` (`bridge::plugin_dir`), each on a
    thread of its own;
 2. starts the watchers: `kits::watch` (every 2 s: the kits' index and
    manifests, `Event::KitsChanged`) and `accounts::watch` (every 3 s: the
@@ -58,7 +58,7 @@ the Tauri `setup` hook did, in this order:
 4. spawns the agents' HTTP API on `runtime` (`server::start`, 127.0.0.1 on an
    ephemeral port, a bearer token made at startup), then hands the port and
    token to the panes (`bridge::set_endpoint`) and publishes them for the
-   agents (`endpoint::publish`: `~/.hangar/endpoint.json` and the legacy
+   agents (`endpoint::publish`: `~/.teskad/endpoint.json` and the legacy
    `~/.iabench/endpoint.json`, or `$TESKAD_ENDPOINT_FILE` alone). A failure
    is printed (`board API failed to start: …`).
 
@@ -143,7 +143,7 @@ Every file the backend keeps went under `app_data_dir()`: `state.json` (and
 (the per-pane MCP files), `usage-stats-cache.json`, `hq/`. The other folders
 are the app's: whatever the Tauri window or its plugins kept there (the
 webview's own storage, the updater's downloads) stays where it was. Outside
-the app folders, as before: `~/.hangar/` (mods, kits, endpoint), `~/.claude*`
+the app folders, as before: `~/.teskad/` (mods, kits, endpoint), `~/.claude*`
 and the agents' configs.
 
 ## Events
@@ -644,7 +644,7 @@ Invoked as `board_create` from `src/lib/board.ts`. Now `hangar_core::board_creat
 pub fn board_create(cwd: String, task: board::NewTask) -> Result<board::Task, String>
 ```
 
-- Errors: the board's own sentence (`unknown column '{column}'`, a title or a field it refuses…), or the workspace's `.hangar/board.json` could not be written.
+- Errors: the board's own sentence (`unknown column '{column}'`, a title or a field it refuses…), or the workspace's `.teskad/board.json` could not be written.
 
 #### `board_update`
 
@@ -1265,7 +1265,7 @@ Invoked as `kits_list` from `src/lib/kits.ts`. Now `hangar_core::kits::kits_list
 pub async fn kits_list() -> Result<Vec<KitInfo>, String>
 ```
 
-- Errors: the kits' index (`~/.hangar/kits/`) could not be read.
+- Errors: the kits' index (`~/.teskad/kits/`) could not be read.
 
 #### `kit_add_folder`
 

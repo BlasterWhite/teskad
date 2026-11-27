@@ -237,13 +237,13 @@ impl Board {
 
 /// Boards live beside the code they describe, one per workspace directory.
 fn board_path(workspace_cwd: &str) -> PathBuf {
-    Path::new(workspace_cwd).join(".hangar").join("board.json")
+    crate::project_dir::project_dir(Path::new(workspace_cwd)).join("board.json")
 }
 
 /// Where boards lived before the directory was renamed.
 ///
 /// Read-only, and never deleted: a board found here is read as-is until the
-/// next write, which lands in `.hangar/` and adopts it. Same care as
+/// next write, which lands in `.teskad/` and adopts it. Same care as
 /// `adopt_previous_state()` in store.rs — a rename that moves the file would
 /// strand every board belonging to an older build still on the machine.
 fn legacy_board_path(workspace_cwd: &str) -> PathBuf {
@@ -302,12 +302,14 @@ const READ_RETRY: std::time::Duration = std::time::Duration::from_millis(50);
 /// The file the board of `workspace_cwd` is read from, if there is one.
 fn locate(workspace_cwd: &str) -> Option<PathBuf> {
     let shared = shared_workspace(workspace_cwd);
+    crate::project_dir::adopt(Path::new(&shared));
     let mut candidates = vec![board_path(&shared), legacy_board_path(&shared)];
     // A worktree opened as a workspace before boards were shared has a board
     // of its own. Reading it when the main repository has none is the same
     // adoption the `.iabench` rename got: the tasks stay visible, and the
     // first write moves them to the shared location for good.
     if shared != workspace_cwd {
+        crate::project_dir::adopt(Path::new(workspace_cwd));
         candidates.push(board_path(workspace_cwd));
         candidates.push(legacy_board_path(workspace_cwd));
     }
@@ -370,6 +372,7 @@ fn set_aside(err: Unreadable) -> String {
 
 fn write_board(workspace_cwd: &str, board: &Board) -> Result<(), String> {
     let shared = shared_workspace(workspace_cwd);
+    crate::project_dir::adopt(Path::new(&shared));
     let path = board_path(&shared);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -395,7 +398,11 @@ fn keep_out_of_git(root: &str) {
     if first {
         let root = PathBuf::from(root);
         std::thread::spawn(move || {
-            crate::git::exclude_locally(&root, ".hangar", ".hangar/board.json")
+            crate::git::exclude_locally(
+                &root,
+                crate::project_dir::PROJECT_DIR_NAME,
+                &format!("{}/board.json", crate::project_dir::PROJECT_DIR_NAME),
+            )
         });
     }
 }

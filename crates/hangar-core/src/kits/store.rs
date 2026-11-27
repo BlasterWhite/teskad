@@ -1,9 +1,9 @@
-//! The kits installed on this machine: `~/.hangar/kits/`, and its
+//! The kits installed on this machine: `~/.teskad/kits/`, and its
 //! `index.json`.
 //!
 //! A folder kit is linked: the index points at the folder, which is read in
 //! place every time and never copied, so editing it is editing the kit. A git
-//! kit is a shallow clone Hangar made in `~/.hangar/kits/<id>`, and the only
+//! kit is a shallow clone Hangar made in `~/.teskad/kits/<id>`, and the only
 //! thing removing a kit ever deletes.
 
 use std::collections::HashMap;

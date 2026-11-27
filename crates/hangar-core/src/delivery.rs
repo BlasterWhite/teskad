@@ -4363,7 +4363,7 @@ mod tests {
 
     #[test]
     fn the_reviewer_runs_on_the_config_dir_of_the_workspace_account() {
-        let profile = PathBuf::from("/home/me/.hangar/accounts/work");
+        let profile = PathBuf::from("/home/me/.teskad/accounts/work");
         let launch = crate::accounts::Launch {
             id: "work".into(),
             dir: Some(profile.clone()),

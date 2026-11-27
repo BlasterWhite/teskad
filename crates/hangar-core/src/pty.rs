@@ -1665,7 +1665,7 @@ mod tests {
 
     #[test]
     fn only_a_claude_code_pane_on_a_profile_gets_its_config_dir() {
-        let profile = std::path::Path::new("/home/me/.hangar/accounts/work");
+        let profile = std::path::Path::new("/home/me/.teskad/accounts/work");
         let inherited = "/home/me/custom-claude";
 
         let mut claude = CommandBuilder::new("pwsh");
@@ -1822,7 +1822,7 @@ mod tests {
 
     #[test]
     fn a_pane_with_kits_finds_their_data_with_the_bridge_or_without_it() {
-        let root = std::path::PathBuf::from("/home/me/.hangar/kit-data");
+        let root = std::path::PathBuf::from("/home/me/.teskad/kit-data");
         let bridge = std::path::Path::new("/hangar/mods/teskad-bridge");
         let with_root = || crate::kits::Launch {
             data_root: Some(root.clone()),
@@ -2457,7 +2457,7 @@ mod tests {
         pane.env("TESKAD_CODEX_MCP", "inherited from another Hangar");
         pane.env("TESKAD_GONE", "x");
         pane.env_remove("TESKAD_GONE");
-        let home = PathBuf::from("/home/me/.hangar/accounts/codex/work");
+        let home = PathBuf::from("/home/me/.teskad/accounts/codex/work");
         let spec = launch::build(&LaunchRequest {
             kind: AgentKind::Codex,
             account_dir: Some(home.clone()),

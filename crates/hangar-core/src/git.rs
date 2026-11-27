@@ -2789,7 +2789,7 @@ pub fn shared_root(cwd: &str) -> Option<String> {
     resolved
 }
 
-/// Keeps the folder `dir` of `root` (`.hangar`) out of `git status` through
+/// Keeps the folder `dir` of `root` (`.teskad`) out of `git status` through
 /// the repository's own `info/exclude`, which is never committed.
 ///
 /// Nothing is written when git already tracks `probe`, a file in that folder
@@ -2823,7 +2823,7 @@ pub(crate) fn exclude_locally(root: &Path, dir: &str, probe: &str) {
         body.push('\n');
     }
     body.push_str(&format!(
-        "# HangarAI: the workspace's local task board\n/{prefix}{dir}/\n"
+        "# Teskad: the workspace's local task board\n/{prefix}{dir}/\n"
     ));
     if let Some(parent) = exclude.parent() {
         let _ = std::fs::create_dir_all(parent);
@@ -3244,17 +3244,17 @@ mod tests {
     #[test]
     fn the_board_folder_is_left_out_of_git_status_without_a_committed_file() {
         let root = repo("exclude");
-        write(&root, ".hangar/board.json", "{}");
-        assert!(untracked(&root).contains(".hangar/board.json"));
+        write(&root, ".teskad/board.json", "{}");
+        assert!(untracked(&root).contains(".teskad/board.json"));
 
-        exclude_locally(&root, ".hangar", ".hangar/board.json");
+        exclude_locally(&root, ".teskad", ".teskad/board.json");
         assert_eq!(untracked(&root), "");
         assert!(!root.join(".gitignore").exists());
         // Already ignored by its own rule: not written twice.
-        exclude_locally(&root, ".hangar", ".hangar/board.json");
+        exclude_locally(&root, ".teskad", ".teskad/board.json");
         assert_eq!(
             read(&root, ".git/info/exclude")
-                .matches("/.hangar/")
+                .matches("/.teskad/")
                 .count(),
             1
         );
@@ -3263,28 +3263,28 @@ mod tests {
     #[test]
     fn a_workspace_in_a_subfolder_gets_a_rule_anchored_where_it_is() {
         let root = repo("exclude-sub");
-        write(&root, "apps/web/.hangar/board.json", "{}");
-        write(&root, ".hangar/board.json", "{}");
+        write(&root, "apps/web/.teskad/board.json", "{}");
+        write(&root, ".teskad/board.json", "{}");
 
-        exclude_locally(&root.join("apps/web"), ".hangar", ".hangar/board.json");
+        exclude_locally(&root.join("apps/web"), ".teskad", ".teskad/board.json");
         let status = untracked(&root);
-        assert!(!status.contains("apps/web/.hangar"));
+        assert!(!status.contains("apps/web/.teskad"));
         // Anchored: the board at the top is the top's business.
-        assert!(status.contains(".hangar/board.json"));
+        assert!(status.contains(".teskad/board.json"));
     }
 
     #[test]
     fn a_board_the_person_tracks_or_ignores_is_left_to_them() {
         let tracked = repo("exclude-tracked");
-        write(&tracked, ".hangar/board.json", "{}");
-        git(&tracked, &["add", ".hangar/board.json"]);
-        exclude_locally(&tracked, ".hangar", ".hangar/board.json");
-        assert!(!read(&tracked, ".git/info/exclude").contains("/.hangar/"));
+        write(&tracked, ".teskad/board.json", "{}");
+        git(&tracked, &["add", ".teskad/board.json"]);
+        exclude_locally(&tracked, ".teskad", ".teskad/board.json");
+        assert!(!read(&tracked, ".git/info/exclude").contains("/.teskad/"));
 
         let ignored = repo("exclude-ignored");
-        write(&ignored, ".gitignore", ".hangar/\n");
-        exclude_locally(&ignored, ".hangar", ".hangar/board.json");
-        assert!(!read(&ignored, ".git/info/exclude").contains("/.hangar/"));
+        write(&ignored, ".gitignore", ".teskad/\n");
+        exclude_locally(&ignored, ".teskad", ".teskad/board.json");
+        assert!(!read(&ignored, ".git/info/exclude").contains("/.teskad/"));
     }
 
     /// A main checkout with one commit, and a linked worktree made from it.
@@ -3433,7 +3433,7 @@ mod tests {
     #[test]
     fn outside_a_repository_nothing_is_written() {
         let root = temp_dir("exclude-none");
-        exclude_locally(&root, ".hangar", ".hangar/board.json");
+        exclude_locally(&root, ".teskad", ".teskad/board.json");
         assert!(!root.join(".git").exists());
     }
 

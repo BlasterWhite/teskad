@@ -2059,7 +2059,7 @@ mod tests {
         let path = std::path::PathBuf::from(answer.body["path"].as_str().unwrap());
         assert_eq!(
             path.parent().unwrap(),
-            folder.join(".hangar").join("uploads")
+            folder.join(".teskad").join("uploads")
         );
         let name = path.file_name().unwrap().to_string_lossy().into_owned();
         // yyyy-mm-dd-hhmmss-IMG 1.jpg
@@ -2079,7 +2079,7 @@ mod tests {
         let folder = scratch_folder();
         let remote = remote_with(window_with_folder(&folder), no_app);
         let token = paired_phone(&remote).await;
-        let uploads = folder.join(".hangar").join("uploads");
+        let uploads = folder.join(".teskad").join("uploads");
 
         for name in [
             "..%2F..%2Fescape.txt",
@@ -2125,7 +2125,7 @@ mod tests {
         assert_eq!(answer.status, StatusCode::PAYLOAD_TOO_LARGE);
         assert_eq!(answer.body, json!({ "error": "too-large" }));
         assert!(window.asked.lock().unwrap().is_empty());
-        assert!(!folder.join(".hangar").exists());
+        assert!(!folder.join(".teskad").exists());
 
         let answer = ask(&remote, upload(files::MAX_UPLOAD)).await;
         assert_eq!(answer.status, StatusCode::OK);
@@ -2165,7 +2165,7 @@ mod tests {
         .await;
         assert_eq!(unknown.status, StatusCode::BAD_REQUEST);
         assert_eq!(unknown.body["message"], "No workspace with that id");
-        assert!(!folder.join(".hangar").exists());
+        assert!(!folder.join(".teskad").exists());
     }
 
     #[tokio::test]

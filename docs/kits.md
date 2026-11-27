@@ -462,8 +462,8 @@ exact commands.
 
 - The plugin, `<kit>@hangar-kits`, holds copies of the kit's skills and the hooks Codex
   runs, with `${CLAUDE_PLUGIN_ROOT}` written out as the kit's own folder. It lives in a
-  local marketplace Teskad keeps, `~/.hangar/codex-plugins/`.
-- **Add to Codex** runs `codex plugin marketplace add ~/.hangar/codex-plugins` (the
+  local marketplace Teskad keeps, `~/.teskad/codex-plugins/`.
+- **Add to Codex** runs `codex plugin marketplace add ~/.teskad/codex-plugins` (the
   first time) and `codex plugin add <kit>@hangar-kits`. Codex copies the plugin into its
   own folder and turns it on: from then on it reaches **every Codex session on the
   machine**, whatever the workspace, on every Codex account Teskad keeps (they share the
@@ -767,7 +767,7 @@ is in every pane. Anything else does not:
   `127.0.0.1` only, on a port chosen at each start, under a token generated at each start.
 
 It is the token of the whole API, not one for this route alone: the one the bridge's mod is given,
-and the one the `--mcp` process reads from `~/.hangar/endpoint.json`, where it has always been. As an
+and the one the `--mcp` process reads from `~/.teskad/endpoint.json`, where it has always been. As an
 environment variable it goes nowhere but those panes, and whatever runs in such a pane can use it
 as they can. This is the same trust as the bridge's, and the reason the person sees a kit's hooks
 before enabling it.
@@ -1358,14 +1358,14 @@ argv changed only for another system asks nothing here.
 
 ## A kit's data folder
 
-Each kit has a folder of its own, `~/.hangar/kit-data/<kit id>/` — beside
+Each kit has a folder of its own, `~/.teskad/kit-data/<kit id>/` — beside
 `TESKAD_ENDPOINT_FILE` for a development build given one, like the kits' store.
 It is the same on every account, of either agent, and every worktree, and never inside a project.
 
 - **A tab** reaches it through `data.read` and `data.write`.
 - **A hook, or anything else in a pane**, finds it at
   `$TESKAD_KITS_DATA/<kit id>`: panes of a workspace with at least one kit get
-  `TESKAD_KITS_DATA`, which is the root, `~/.hangar/kit-data`. Teskad makes the
+  `TESKAD_KITS_DATA`, which is the root, `~/.teskad/kit-data`. Teskad makes the
   folder of each kit whose plugin comes along when such a pane starts, so a hook
   can write there at once; otherwise the first `data.write` does. A WSL pane does
   not carry the variable into Linux.
@@ -1381,7 +1381,7 @@ A step's command for the machine's OS is shown to the person **verbatim**, and
 runs in a visible pane, opened in the kit's root folder (`dir`), once they
 approve it. Teskad never runs one on its own.
 
-Each run is recorded per machine in `~/.hangar/kits/setup.json` as
+Each run is recorded per machine in `~/.teskad/kits/setup.json` as
 `{ kit, step, sha256, at }`, the hash being SHA-256 of the command string
 exactly as the manifest writes it for this OS. A step whose command is
 unchanged is not asked for again; one an update changed is. Removing a kit
@@ -1393,7 +1393,7 @@ as run, with its current command.
 
 ## The store, and where kits come from
 
-Installed kits live in `~/.hangar/kits/` — beside `TESKAD_ENDPOINT_FILE` for a
+Installed kits live in `~/.teskad/kits/` — beside `TESKAD_ENDPOINT_FILE` for a
 development build given one, as the bridge's mod does, so a dev build never
 touches the installed app's kits. Its `index.json`:
 
@@ -1410,14 +1410,14 @@ touches the installed app's kits. Its `index.json`:
     {
       "id": "roblox",
       "source": { "kind": "git", "url": "https://github.com/owner/kits", "ref": "main", "subdir": "roblox" },
-      "dir": "C:\\Users\\me\\.hangar\\kits\\roblox\\roblox",
+      "dir": "C:\\Users\\me\\.teskad\\kits\\roblox\\roblox",
       "installedVersion": "1.0.0",
       "addedAt": 1793460795999
     },
     {
       "id": "ci-status",
       "source": { "kind": "git", "url": "https://github.com/hangar-ai/ci-status", "ref": "refs/tags/v0.2.0" },
-      "dir": "C:\\Users\\me\\.hangar\\kits\\ci-status",
+      "dir": "C:\\Users\\me\\.teskad\\kits\\ci-status",
       "installedVersion": "0.2.0",
       "addedAt": 1793460796500
     }
@@ -1449,7 +1449,7 @@ out of the index; the folder stays as it is.
 Links with credentials, other hosts, `http://`, `ssh`, `git@` and `file://`
 are refused before anything runs. The repository is cloned with the git CLI,
 shallow — one commit, no tags, no submodules, no large files — first aside,
-then into `~/.hangar/kits/<id>` once its manifest checks out; `dir` is that
+then into `~/.teskad/kits/<id>` once its manifest checks out; `dir` is that
 clone, or the folder in it. Symlinks are checked out as plain files
 (`core.symlinks=false`). **Cloning never runs anything from the repository.**
 Removing a git kit deletes its clone: the only thing Teskad ever deletes.
@@ -1587,8 +1587,8 @@ permissions included. The workspace's Kits dialog shows it on, its switch locked
 says it is managed in Settings › Kits.
 
 Teskad writes nothing of a kit's into a workspace's project folder: kits live in
-`~/.hangar/kits/` or where they were linked from, their data in
-`~/.hangar/kit-data/`, and the `--mcp-config` file in Teskad's app data. What changes
+`~/.teskad/kits/` or where they were linked from, their data in
+`~/.teskad/kit-data/`, and the `--mcp-config` file in Teskad's app data. What changes
 a project's file is a tab granted `files.write`, saying what, or a kit's own code.
 
 ## Commands and events

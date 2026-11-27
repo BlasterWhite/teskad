@@ -7963,7 +7963,7 @@ pub(crate) static MESSAGES: [Message; KEY_COUNT] = [
     Message { id: "mcp.manualHint", en: Text::plain("if you prefer the CLI"), fr: Text::plain("si tu préfères passer par la CLI") },
     Message { id: "mcp.notDetected", en: Text::plain("not detected"), fr: Text::plain("non détecté") },
     Message { id: "mcp.playbook", en: Text::plain("Write the agent playbook"), fr: Text::plain("Écrire le mode d'emploi pour les agents") },
-    Message { id: "mcp.playbookHint", en: Text::plain("CLAUDE.md · adds .hangar/ to .gitignore"), fr: Text::plain("CLAUDE.md · ajoute .hangar/ au .gitignore") },
+    Message { id: "mcp.playbookHint", en: Text::plain("CLAUDE.md · adds .teskad/ to .gitignore"), fr: Text::plain("CLAUDE.md · ajoute .teskad/ au .gitignore") },
     Message { id: "mcp.restartHint", en: Text::plain("Restart the Claude Code panes so they load the server."), fr: Text::plain("Redémarre les panneaux Claude Code pour qu'ils chargent le serveur.") },
     Message { id: "mcp.stale", en: Text::plain("broken — repair"), fr: Text::plain("cassé — à réparer") },
     Message { id: "mcp.staleHint", en: Text::plain("registered, but this executable is gone: {command}"), fr: Text::plain("configuré, mais cet exécutable n'existe plus\u{202f}: {command}") },

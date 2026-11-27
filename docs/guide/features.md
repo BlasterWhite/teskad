@@ -81,8 +81,8 @@ has no online service of its own.
 ## Board, memory and statistics
 
 - **Task board.** Priorities, dependencies, labels, assignees and comments. It opens as a
-  full view or as a panel beside the terminals. Stored in `.hangar/board.json` in the
-  project.
+  full view or as a panel beside the terminals. Stored in `.teskad/board.json` in the
+  project (copied from `.hangar/` the first time you open a project the official app used).
 - **Global memory.** Agents search, write and update facts across projects. You can browse
   and edit them in the Memory view.
 - **Usage statistics.** Tokens, active time and the equivalent cost at API prices, per

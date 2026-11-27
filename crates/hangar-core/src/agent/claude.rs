@@ -128,7 +128,7 @@ mod tests {
     /// The MCP servers of a launch as the shell reads their file: `arg`.
     fn mcp(arg: &str, strict: bool) -> Option<McpRequest> {
         Some(McpRequest {
-            file: "/home/Ann Lee/.hangar/mcp/ws-1.json".into(),
+            file: "/home/Ann Lee/.teskad/mcp/ws-1.json".into(),
             arg: arg.into(),
             strict,
         })
@@ -500,7 +500,7 @@ mod tests {
         let main = build(&LaunchRequest::default()).unwrap();
         assert_eq!(main.env, [(MCP_CONFIG_VAR.to_string(), None)]);
 
-        let profile = PathBuf::from("/home/me/.hangar/accounts/work");
+        let profile = PathBuf::from("/home/me/.teskad/accounts/work");
         let spec = build(&LaunchRequest {
             mcp: mcp("\"$TESKAD_MCP_CONFIG\"", false),
             account_dir: Some(profile.clone()),
@@ -512,7 +512,7 @@ mod tests {
             [
                 (
                     "TESKAD_MCP_CONFIG".to_string(),
-                    Some(OsString::from("/home/Ann Lee/.hangar/mcp/ws-1.json"))
+                    Some(OsString::from("/home/Ann Lee/.teskad/mcp/ws-1.json"))
                 ),
                 (
                     "CLAUDE_CONFIG_DIR".to_string(),

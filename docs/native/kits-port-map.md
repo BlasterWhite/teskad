@@ -170,7 +170,7 @@ text inputs, the comment and "Send to" fields, the foot, `ui.confirm` before dro
   (iced's fields have no undo of their own), which the page ignored: the kit keeps which note was
   typed in last, set by the field's `on_input` and cleared by a press on the canvas, and ignores the
   shortcut while one is.
-- Export → `cx.call(api::CanvasExport::of(&canvas, ".hangar/annotations/20251031-211456.png"),
+- Export → `cx.call(api::CanvasExport::of(&canvas, ".teskad/annotations/20251031-211456.png"),
   …)`: Hangar draws it, scales it down to fit 10 MB, writes it new (`conflict` → the next name, as
   `logic.names` does). Its answer's `width`, `height` and `scale` go in the JSON.
 - The file name's local time (`logic.stamp`) → `format::local_time(cx.now(), cx.utc_offset())`,
