@@ -9,20 +9,20 @@
 use hangar_core::agent::{Capabilities, UsageSource};
 use hangar_core::bridge::Queued;
 use hangar_i18n::{Key, Locale, Translator, args};
-use hangar_theme::tokens::{font_size, space};
+use hangar_theme::tokens::{scale, scale::type_scale, space};
 use hangar_theme::{AgentState, Theme, fonts, style};
-use hangar_ui::button::icon_button;
+use hangar_ui::button::{self as buttons, icon_button};
 use hangar_ui::glyph::{self, GlyphState};
-use hangar_ui::section::{self, Section};
 use hangar_ui::tail_text::tail_text;
-use hangar_ui::{Icon, icon, tip};
+use hangar_ui::{Icon, focus, icon, meter, tip};
 use iced::widget::text::{self, Text};
 use iced::widget::{button, column, container, mouse_area, row, space as filler};
 use iced::{Alignment, Background, Border, Color, Element, Length, Padding, mouse, window};
 
 use super::format;
+use super::section::{self, Section};
 use super::sources::{self, TaskCard};
-use super::widgets::{self, CARD_RADIUS, TILE_RADIUS, kv, stacked};
+use super::widgets::{self, kv, stacked};
 use super::{Msg, SectionId};
 use crate::ctx::Ctx;
 use crate::message::Message;
@@ -59,7 +59,10 @@ impl<'a> Scene<'a> {
     }
 
     pub fn is_folded(&self, id: SectionId) -> bool {
-        self.folded.iter().any(|folded| folded == id.as_str())
+        let stored = self.folded.iter().any(|folded| folded == id.as_str());
+        // An agent's terminal block starts folded: what is stored says it was
+        // opened.
+        stored != (id == SectionId::AgentTerminal)
     }
 
     /// The column's own padding at both sides of a section (`--insp-pad`).
@@ -72,8 +75,8 @@ impl<'a> Scene<'a> {
             self.tr().t(title).into_owned(),
             self.is_folded(id),
             Message::Inspector(Msg::Toggle(id)),
+            Self::PAD,
         )
-        .padding(Self::PAD)
     }
 
     /// The tooltip of a thing, under it.
@@ -102,8 +105,8 @@ pub(super) fn empty_note<'a>(
     words: impl text::IntoFragment<'a>,
 ) -> Element<'a, Message> {
     text::Text::new(words)
-        .size(font_size::CAPTION_LG)
-        .style(style::text::subtle(t))
+        .size(type_scale::CAPTION.size)
+        .color(t.palette.text_muted)
         .width(Length::Fill)
         .into()
 }
@@ -119,8 +122,7 @@ pub(super) fn link<'a>(
 ) -> Element<'a, Message> {
     let mut words = row![
         text::Text::new(label.into())
-            .size(font_size::CAPTION)
-            .font(fonts::ui_medium())
+            .size(type_scale::CAPTION.size)
             .wrapping(text::Wrapping::None)
     ]
     .spacing(space::XS)
@@ -128,11 +130,23 @@ pub(super) fn link<'a>(
     if arrow {
         words = words.push(icon(Icon::ArrowUpRight, 10.0));
     }
+    tip::bottom(t, ringed_link(t, words, Message::Inspector(msg)), hint)
+}
+
+/// `words` as a link the keyboard can reach and press.
+pub(super) fn ringed_link<'a>(
+    t: &'a Theme,
+    words: impl Into<Element<'a, Message>>,
+    msg: Message,
+) -> Element<'a, Message> {
     let action = button(words)
         .padding(Padding::from([0.0, 2.0]))
         .style(style::button::link(t))
-        .on_press(Message::Inspector(msg));
-    tip::bottom(t, action, hint)
+        .on_press(msg.clone());
+    focus::ring(t, action)
+        .radius(scale::radius::XS)
+        .on_activate(msg)
+        .into()
 }
 
 /// A value and, at its right end, an action (`.insp-kv__split`).
@@ -140,7 +154,9 @@ fn split<'a>(
     value: Element<'a, Message>,
     action: Option<Element<'a, Message>>,
 ) -> Element<'a, Message> {
-    let mut line = row![value].spacing(space::MD).align_y(Alignment::Center);
+    let mut line = row![container(value).width(Length::Fill).clip(true)]
+        .spacing(space::MD)
+        .align_y(Alignment::Center);
     if let Some(action) = action {
         line = line.push(action);
     }
@@ -152,7 +168,7 @@ fn split<'a>(
 fn mono_cut<'a>(content: impl Into<String>, color: Color) -> Element<'a, Message> {
     tail_text(content)
         .cut_end()
-        .size(font_size::LABEL)
+        .size(type_scale::LABEL.size)
         .font(fonts::mono())
         .color(color)
         .into()
@@ -164,9 +180,9 @@ pub(super) fn tail_path<'a>(t: &'a Theme, path: &str) -> Element<'a, Message> {
     tip::bottom(
         t,
         tail_text(path.to_string())
-            .size(font_size::LABEL)
+            .size(type_scale::LABEL.size)
             .font(fonts::mono())
-            .color(t.colors.fg),
+            .color(t.palette.text),
         path.to_string(),
     )
 }
@@ -189,7 +205,7 @@ pub(super) fn session<'a>(
     folder: &'a str,
 ) -> Section<'a, Message> {
     let (t, tr) = (s.theme(), s.tr());
-    let c = &t.colors;
+    let c = &t.palette;
     let agent = s.pane.agent.info();
     let kind = s.pane.agent.kind();
     let ws = s.ws.id.clone();
@@ -198,11 +214,11 @@ pub(super) fn session<'a>(
     // The session it resumes, for an agent that resumes one (`sessions`).
     if kind.is_some_and(|kind| kind.info().caps.sessions.resume) {
         let id: Element<'a, Message> = match &s.pane.session_id {
-            Some(id) => s.tip(mono_cut(id.clone(), c.fg), id.clone()),
+            Some(id) => s.tip(mono_cut(id.clone(), c.text), id.clone()),
             None => ink(
                 tr.t(Key::InspectorResumeNew),
-                font_size::CAPTION_LG,
-                c.fg_subtle,
+                type_scale::CAPTION.size,
+                c.text_muted,
             )
             .width(Length::Fill)
             .into(),
@@ -219,7 +235,7 @@ pub(super) fn session<'a>(
 
     if let Some(since) = insight.session_since.map(sources::at_ms) {
         let words = format::since(since, s.now, s.locale()).text(tr);
-        let shown = ink(words, font_size::CAPTION_LG, c.fg).width(Length::Shrink);
+        let shown = ink(words, type_scale::CAPTION.size, c.text).width(Length::Shrink);
         rows.push(kv(
             t,
             tr.t(Key::InspectorSince),
@@ -231,7 +247,7 @@ pub(super) fn session<'a>(
         rows.push(kv(
             t,
             tr.t(Key::InspectorModel),
-            s.tip(mono_cut(model.to_string(), c.fg), model.to_string()),
+            s.tip(mono_cut(model.to_string(), c.text), model.to_string()),
         ));
     }
 
@@ -242,11 +258,11 @@ pub(super) fn session<'a>(
     {
         let label = args!("agent" => agent.label);
         let value: Element<'a, Message> = match servers {
-            Some(list) => s.tip(mono_cut(list.clone(), c.fg), list),
+            Some(list) => s.tip(mono_cut(list.clone(), c.text), list),
             None => ink(
                 tr.t_with(Key::InspectorMcpInherit, &label).into_owned(),
-                font_size::CAPTION_LG,
-                c.fg_subtle,
+                type_scale::CAPTION.size,
+                c.text,
             )
             .width(Length::Fill)
             .into(),
@@ -256,14 +272,23 @@ pub(super) fn session<'a>(
             tr.t(Key::InspectorMcpChange),
             tr.t_with(Key::InspectorMcpChangeHint, &label),
             false,
-            Msg::OpenMcpServers(ws),
+            Msg::OpenMcpServers(ws.clone()),
         );
         rows.push(kv(t, tr.t(Key::InspectorMcp), split(value, Some(change))));
     }
 
     rows.push(kv(t, tr.t(Key::InspectorFolder), tail_path(t, folder)));
+    let mut body = column![stacked(0.0, rows)].spacing(space::MD);
+    // What the sessions picker's first row does, one press away.
+    if kind.is_some_and(|kind| kind.info().caps.sessions.resume) {
+        let fresh = buttons::secondary(t, tr.t(Key::SessionsNew).into_owned())
+            .icon(Icon::Plus)
+            .tip(tr.t(Key::SessionsNewHint).into_owned())
+            .on_press(Message::Inspector(Msg::NewSession(ws, s.pane.id.clone())));
+        body = body.push(Element::from(fresh));
+    }
     s.section(SectionId::Session, Key::InspectorSectionSession)
-        .body(stacked(5.0, rows))
+        .body(body)
 }
 
 /// The servers a custom launch named, joined; `None` when the pane inherits
@@ -277,6 +302,7 @@ pub(super) fn mcp_servers(mcp: &PaneMcp) -> Option<String> {
 
 pub(super) fn terminal<'a>(
     s: &Scene<'a>,
+    id: SectionId,
     shell: Option<&str>,
     folder: &'a str,
 ) -> Section<'a, Message> {
@@ -286,12 +312,16 @@ pub(super) fn terminal<'a>(
         rows.push(kv(
             t,
             tr.t(Key::InspectorShell),
-            ink(shell.to_string(), font_size::CAPTION_LG, t.colors.fg).width(Length::Fill),
+            ink(shell.to_string(), type_scale::CAPTION.size, t.palette.text).width(Length::Fill),
         ));
     }
     rows.push(kv(t, tr.t(Key::InspectorFolder), tail_path(t, folder)));
-    s.section(SectionId::Terminal, Key::InspectorSectionTerminal)
-        .body(stacked(5.0, rows))
+    let mut section = s.section(id, Key::InspectorSectionTerminal);
+    // The shell is named on the title row, so a folded block still says it.
+    if let Some(shell) = shell {
+        section = section.meta(shell);
+    }
+    section.body(stacked(0.0, rows))
 }
 
 // ---- Context and cost ---------------------------------------------------------------------
@@ -353,14 +383,14 @@ pub(super) fn context<'a>(
     }
 
     s.section(SectionId::Context, Key::InspectorSectionContext)
-        .body(column(body).spacing(10).width(Length::Fill))
+        .body(column(body).spacing(space::LG).width(Length::Fill))
 }
 
 /// The ring and, beside it, how much of the window is used and what that
 /// means (`.insp-ctx`).
 fn gauge_row<'a>(s: &Scene<'a>, gauge: &'a ContextGauge) -> Element<'a, Message> {
     let (t, tr) = (s.theme(), s.tr());
-    let c = &t.colors;
+    let c = &t.palette;
     let pct = gauge.pct.round() as i64;
     let used = format::spaced_unit(&panes_logic::format_tokens(gauge.used_tokens), s.locale());
     let window = format::spaced_unit(&panes_logic::format_tokens(gauge.window), s.locale());
@@ -369,13 +399,15 @@ fn gauge_row<'a>(s: &Scene<'a>, gauge: &'a ContextGauge) -> Element<'a, Message>
     } else {
         Key::InspectorContextHint
     };
+    let line = type_scale::CAPTION.relative_line_height();
     let info = column![
         text::Text::new(
             tr.t_with(Key::InspectorContextUsed, &args!("pct" => pct))
                 .into_owned()
         )
-        .size(font_size::UI)
-        .font(fonts::ui_medium())
+        .size(type_scale::CAPTION.size)
+        .line_height(line)
+        .font(fonts::ui_semibold())
         .style(style::text::primary(t)),
         text::Text::new(
             tr.t_with(
@@ -384,29 +416,30 @@ fn gauge_row<'a>(s: &Scene<'a>, gauge: &'a ContextGauge) -> Element<'a, Message>
             )
             .into_owned()
         )
-        .size(font_size::CAPTION)
-        .style(style::text::muted(t)),
+        .size(type_scale::LABEL.size)
+        .font(fonts::mono())
+        .color(c.text_secondary),
         text::Text::new(tr.t(hint).into_owned())
-            .size(font_size::CAPTION)
-            .style(move |_: &iced::Theme| text::Style {
-                color: Some(c.fg_subtle),
-            })
+            .size(type_scale::CAPTION.size)
+            .line_height(line)
+            .color(c.text_muted)
             .width(Length::Fill),
     ]
-    .spacing(3)
+    .spacing(space::XXS)
     .width(Length::Fill);
     row![widgets::ring(t, gauge.pct), info]
-        .spacing(14)
+        .spacing(space::XL)
         .align_y(Alignment::Center)
         .into()
 }
 
 fn tile<'a>(s: &Scene<'a>, label: String, body: Element<'a, Message>) -> Element<'a, Message> {
     let t = s.theme();
-    container(column![ink(label, font_size::LABEL, t.colors.fg_subtle), body].spacing(1))
-        .padding(Padding::from([7.0, 9.0]))
+    let label = ink(label, type_scale::LABEL.size, t.palette.text_muted);
+    container(column![label, body].spacing(3))
+        .padding(Padding::from([space::MD, space::LG]))
         .width(Length::Fill)
-        .style(widgets::tile(t, TILE_RADIUS))
+        .style(widgets::tile(t))
         .into()
 }
 
@@ -415,7 +448,7 @@ fn tile<'a>(s: &Scene<'a>, label: String, body: Element<'a, Message>) -> Element
 fn unknown<'a>(s: &Scene<'a>, why: String) -> Element<'a, Message> {
     let t = s.theme();
     s.tip(
-        ink("—", font_size::BODY, t.colors.fg_subtle).font(fonts::ui_medium()),
+        ink("—", type_scale::SUBTITLE.size, t.palette.text_muted).font(fonts::ui_medium()),
         why,
     )
 }
@@ -431,10 +464,10 @@ fn cost_tile<'a>(
             let mut line = row![
                 ink(
                     format::format_cost(usd, s.locale()),
-                    font_size::BODY,
-                    t.colors.fg
+                    type_scale::SUBTITLE.size,
+                    t.palette.text
                 )
-                .font(fonts::ui_semibold())
+                .font(fonts::display())
             ]
             .spacing(space::SM)
             .align_y(Alignment::End);
@@ -443,8 +476,8 @@ fn cost_tile<'a>(
                 line = line.push(ink(
                     tr.t_with(Key::InspectorCostOver, &args!("duration" => over.as_str()))
                         .into_owned(),
-                    font_size::LABEL,
-                    t.colors.fg_subtle,
+                    type_scale::LABEL.size,
+                    t.palette.text_muted,
                 ));
             }
             line.into()
@@ -503,7 +536,6 @@ fn plan_meter<'a>(
     limit: RateLimit,
 ) -> Element<'a, Message> {
     let (t, tr) = (s.theme(), s.tr());
-    let c = &t.colors;
     let pct = limit.percent_used;
     let window = tr.t(window);
     let hint = match format::resets_at_ms(&limit) {
@@ -522,24 +554,14 @@ fn plan_meter<'a>(
             )
             .into_owned(),
     };
-    let line = row![
-        container(ink(tr.t(label).into_owned(), font_size::LABEL, c.fg_subtle)).width(20.0),
-        widgets::meter_bar(t, pct),
-        container(
-            ink(
-                format::format_percent(pct, s.locale()),
-                font_size::LABEL,
-                c.fg_muted
-            )
-            .font(fonts::mono())
-            .align_x(iced::alignment::Horizontal::Right)
-        )
-        .width(Length::Shrink)
-        .align_x(iced::alignment::Horizontal::Right),
-    ]
-    .spacing(space::SM)
-    .align_y(Alignment::Center)
-    .height(15.0);
+    // Cut, not rounded, to the whole percent: the warning starts at 70, not
+    // at 69.5.
+    let line = meter::plan_row_with(
+        t,
+        tr.t(label).into_owned(),
+        format::format_percent(pct, s.locale()),
+        pct.clamp(0.0, 100.0) as u8,
+    );
     s.tip(line, hint)
 }
 
@@ -552,11 +574,15 @@ fn plan_meter<'a>(
 /// word come from `board::format`.
 fn priority<'a>(s: &Scene<'a>, level_of: u8) -> Element<'a, Message> {
     let (t, tr) = (s.theme(), s.tr());
-    let c = &t.colors;
+    let c = &t.palette;
     let level = board::format::priority_level(f64::from(level_of)).bars();
     let word = tr.t(board::format::priority_key(f64::from(level_of)));
     let bar = |lit: bool, height: f32| -> Element<'a, Message> {
-        let color = if lit { c.fg_muted } else { c.line_strong };
+        let color = if lit {
+            c.text_secondary
+        } else {
+            c.border_strong
+        };
         container(filler::horizontal())
             .width(2.5)
             .height(height)
@@ -573,10 +599,14 @@ fn priority<'a>(s: &Scene<'a>, level_of: u8) -> Element<'a, Message> {
     let bars = row![bar(true, 4.0), bar(level >= 2, 6.5), bar(level >= 3, 9.0)]
         .spacing(1.5)
         .align_y(Alignment::End);
-    let ink_of = if level == 3 { c.fg_muted } else { c.fg_subtle };
+    let ink_of = if level == 3 {
+        c.text_secondary
+    } else {
+        c.text_muted
+    };
     let line = row![
         bars,
-        ink(word.to_string(), font_size::LABEL, ink_of).font(fonts::ui_medium())
+        ink(word.to_string(), type_scale::LABEL.size, ink_of).font(fonts::ui_medium())
     ]
     .spacing(5)
     .align_y(Alignment::Center);
@@ -592,7 +622,7 @@ fn priority<'a>(s: &Scene<'a>, level_of: u8) -> Element<'a, Message> {
 
 pub(super) fn task<'a>(s: &Scene<'a>, card: Option<&TaskCard>) -> Section<'a, Message> {
     let (t, tr) = (s.theme(), s.tr());
-    let c = &t.colors;
+    let c = &t.palette;
     let open = Msg::OpenBoard;
     let mut section = s.section(SectionId::Task, Key::InspectorSectionTask);
     let Some(card) = card else {
@@ -609,7 +639,7 @@ pub(super) fn task<'a>(s: &Scene<'a>, card: Option<&TaskCard>) -> Section<'a, Me
     let id = format!("#{}", board::format::short_task_id(&card.id));
     let top = row![
         s.tip(
-            ink(id, font_size::LABEL, c.fg_subtle).font(fonts::mono()),
+            ink(id, type_scale::LABEL.size, c.text_muted).font(fonts::mono()),
             tr.t_with(Key::InspectorTaskId, &args!("id" => card.id.as_str()))
                 .into_owned()
         ),
@@ -621,20 +651,20 @@ pub(super) fn task<'a>(s: &Scene<'a>, card: Option<&TaskCard>) -> Section<'a, Me
 
     let title = container(
         text::Text::new(card.title.clone())
-            .size(font_size::UI_LG)
+            .size(type_scale::SMALL.size)
             .font(fonts::ui_medium())
             .style(style::text::primary(t)),
     )
     // Two lines, then cut.
-    .max_height(2.0 * font_size::UI_LG * 1.35 + 1.0)
+    .max_height(2.0 * type_scale::SMALL.size * 1.35 + 1.0)
     .clip(true);
 
     let doing = card.doing_since.filter(|_| !card.in_review());
     let state: Element<'a, Message> = if card.in_review() {
         ink(
             tr.t(Key::InspectorTaskReview).into_owned(),
-            font_size::CAPTION,
-            c.fg_muted,
+            type_scale::CAPTION.size,
+            c.text_secondary,
         )
         .into()
     } else if let Some(since) = doing {
@@ -647,15 +677,15 @@ pub(super) fn task<'a>(s: &Scene<'a>, card: Option<&TaskCard>) -> Section<'a, Me
             .into_owned();
         let date = format::full_date(since, s.locale());
         s.tip(
-            ink(words, font_size::CAPTION, c.fg_muted),
+            ink(words, type_scale::CAPTION.size, c.text_secondary),
             tr.t_with(Key::BoardDoingSince, &args!("date" => date.as_str()))
                 .into_owned(),
         )
     } else {
         ink(
             tr.t(Key::InspectorTaskDoingNow).into_owned(),
-            font_size::CAPTION,
-            c.fg_muted,
+            type_scale::CAPTION.size,
+            c.text_secondary,
         )
         .into()
     };
@@ -667,9 +697,13 @@ pub(super) fn task<'a>(s: &Scene<'a>, card: Option<&TaskCard>) -> Section<'a, Me
         foot = foot.push(
             s.tip(
                 row![
-                    icon(Icon::Bubble, 11.0).color(c.fg_subtle),
-                    ink(card.comments.to_string(), font_size::LABEL, c.fg_subtle)
-                        .font(fonts::mono()),
+                    icon(Icon::Bubble, 11.0).color(c.text_muted),
+                    ink(
+                        card.comments.to_string(),
+                        type_scale::LABEL.size,
+                        c.text_muted
+                    )
+                    .font(fonts::mono()),
                 ]
                 .spacing(space::XS)
                 .align_y(Alignment::Center),
@@ -682,7 +716,7 @@ pub(super) fn task<'a>(s: &Scene<'a>, card: Option<&TaskCard>) -> Section<'a, Me
     let card_body = container(column![top, title, foot].spacing(5))
         .padding(Padding::from([9.0, 10.0]))
         .width(Length::Fill)
-        .style(widgets::tile(t, CARD_RADIUS));
+        .style(widgets::tile(t));
     // The whole card answers a click; the "Open" link beside the title is
     // the same action for people who aim at text.
     section.body(
@@ -696,7 +730,7 @@ pub(super) fn task<'a>(s: &Scene<'a>, card: Option<&TaskCard>) -> Section<'a, Me
 
 pub(super) fn queue<'a>(s: &Scene<'a>, queue: &'a [Queued]) -> Section<'a, Message> {
     let (t, tr) = (s.theme(), s.tr());
-    let c = &t.colors;
+    let c = &t.palette;
     let mut section = s.section(SectionId::Queue, Key::InspectorSectionQueue);
     if !queue.is_empty() {
         section = section.meta(queue.len().to_string());
@@ -706,13 +740,15 @@ pub(super) fn queue<'a>(s: &Scene<'a>, queue: &'a [Queued]) -> Section<'a, Messa
     }
     let lines = queue.iter().enumerate().map(|(at, entry)| {
         let mut line = row![
-            container(ink((at + 1).to_string(), font_size::MICRO, c.fg_subtle).font(fonts::mono()))
-                .width(Length::Shrink),
+            container(
+                ink((at + 1).to_string(), type_scale::LABEL.size, c.text_muted).font(fonts::mono())
+            )
+            .width(Length::Shrink),
             container(
                 tail_text(entry.text.clone())
                     .cut_end()
-                    .size(font_size::CAPTION_LG)
-                    .color(c.fg)
+                    .size(type_scale::CAPTION.size)
+                    .color(c.text)
             )
             .width(Length::Fill),
         ]
@@ -721,7 +757,7 @@ pub(super) fn queue<'a>(s: &Scene<'a>, queue: &'a [Queued]) -> Section<'a, Messa
         if let Some(by) = panes_logic::queued_by(entry.from.as_deref()) {
             line = line.push(
                 s.tip(
-                    ink(by.clone(), font_size::LABEL, c.fg_subtle),
+                    ink(by.clone(), type_scale::LABEL.size, c.text_muted),
                     tr.t_with(Key::InspectorQueueFrom, &args!("name" => by.as_str()))
                         .into_owned(),
                 ),
@@ -746,7 +782,7 @@ pub(super) fn queue<'a>(s: &Scene<'a>, queue: &'a [Queued]) -> Section<'a, Messa
                 left: 8.0,
             })
             .width(Length::Fill)
-            .style(widgets::tile(t, TILE_RADIUS))
+            .style(widgets::tile(t))
             .into();
         s.tip(item, entry.text.clone())
     });
@@ -777,7 +813,7 @@ fn dot<'a>(t: &Theme, kind: &str) -> Element<'a, Message> {
     ) {
         mark.into()
     } else {
-        mark.tint(t.colors.fg_subtle).into()
+        mark.tint(t.palette.text_muted).into()
     }
 }
 
@@ -787,7 +823,7 @@ pub(super) fn activity<'a>(
     nothing: String,
 ) -> Section<'a, Message> {
     let (t, tr) = (s.theme(), s.tr());
-    let c = &t.colors;
+    let c = &t.palette;
     let section = s.section(SectionId::Activity, Key::InspectorSectionActivity);
     if events.is_empty() {
         return section.body(empty_note(t, nothing));
@@ -796,10 +832,10 @@ pub(super) fn activity<'a>(
         let at = sources::at_ms(event.at);
         let time = s.tip(
             container(
-                ink(format::clock_time(at), font_size::LABEL, c.fg_subtle).font(fonts::mono()),
+                ink(format::clock_time(at), type_scale::LABEL.size, c.text_muted)
+                    .font(fonts::mono()),
             )
-            .width(34.0)
-            .align_x(iced::alignment::Horizontal::Right),
+            .width(34.0),
             format::full_date(at, s.locale()),
         );
         // The dot sits on the first line, whatever the text wraps to.
@@ -810,11 +846,12 @@ pub(super) fn activity<'a>(
         // At most two lines, then cut.
         let words = container(
             text::Text::new(panes_logic::pane_event_text(&event.detail, tr))
-                .size(font_size::CAPTION_LG)
-                .style(style::text::muted(t))
+                .size(type_scale::CAPTION.size)
+                .color(t.palette.text_secondary)
+                .line_height(type_scale::CAPTION.relative_line_height())
                 .width(Length::Fill),
         )
-        .max_height(2.0 * font_size::CAPTION_LG * 1.4 + 1.0)
+        .max_height(2.0 * type_scale::CAPTION.line_height)
         .clip(true)
         .width(Length::Fill);
         row![time, marker, words]
@@ -822,7 +859,7 @@ pub(super) fn activity<'a>(
             .align_y(Alignment::Start)
             .into()
     });
-    section.body(column(lines).spacing(2).width(Length::Fill))
+    section.body(column(lines).spacing(space::SM).width(Length::Fill))
 }
 
 // ---- The clock ----------------------------------------------------------------------------

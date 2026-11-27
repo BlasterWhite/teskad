@@ -30,6 +30,7 @@ pub mod files_model;
 pub mod format;
 mod header;
 pub mod poll;
+mod section;
 mod sections;
 pub mod sources;
 mod view;
@@ -47,7 +48,7 @@ use crate::message::{Intent, Message};
 use crate::services::{CoreEvent, Services};
 use crate::shell::side_panels::{INSPECTOR_MAX, INSPECTOR_MIN, Panels};
 use crate::shell::{Drawer, Focus, Region, View};
-use crate::state::types::Settings;
+use crate::state::types::{Pane, Settings};
 use crate::state::{Model, PaneId, PanelDrag, Patch, StoreAction, WsId};
 
 pub use view::view;
@@ -64,6 +65,8 @@ const CLOCK: std::time::Duration = std::time::Duration::from_secs(30);
 pub enum SectionId {
     Session,
     Terminal,
+    /// The terminal block of an agent's pane, which starts folded.
+    AgentTerminal,
     Context,
     Task,
     Queue,
@@ -76,6 +79,9 @@ impl SectionId {
         match self {
             SectionId::Session => "session",
             SectionId::Terminal => "terminal",
+            // Stored when it is open, the other way round from the others:
+            // it starts folded (`Scene::is_folded`).
+            SectionId::AgentTerminal => "terminalOpen",
             SectionId::Context => "context",
             SectionId::Task => "task",
             SectionId::Queue => "queue",
@@ -131,6 +137,12 @@ pub enum Msg {
     OpenBoard,
     OpenSessions(WsId, PaneId),
     OpenMcpServers(WsId),
+    /// Starts the pane over on a new session, as the sessions picker's first
+    /// row does.
+    NewSession(WsId, PaneId),
+    /// Tab, or Shift+Tab (`false`), while the column has the keyboard: the
+    /// next control of this window's column.
+    FocusStep(window::Id, bool),
     OpenDiff(WsId, PaneId),
     /// The × of a queued prompt.
     CancelQueued(PaneId, String),
@@ -249,6 +261,7 @@ fn set_width(m: &mut Model, width: f64, max: f32) {
 
 pub fn update(st: &mut State, m: &mut Model, sv: &Services, msg: Msg) -> Task<Message> {
     match msg {
+        Msg::FocusStep(window, forward) => focus_step(window, forward),
         Msg::CancelQueued(pane, id) => {
             // The queue lives in the bridge: the pane hears the change and
             // the list follows, so there is nothing to undo here and a
@@ -275,6 +288,11 @@ fn request(msg: &Msg) -> Option<Intent> {
         Msg::OpenBoard => Intent::SetView(View::Board),
         Msg::OpenSessions(ws, pane) => Intent::OpenSessions { ws, pane },
         Msg::OpenMcpServers(ws) => Intent::OpenMcpServers(ws),
+        Msg::NewSession(ws, pane) => Intent::ReplacePane {
+            ws,
+            pane,
+            patch: Patch::new(|pane: &mut Pane| pane.session_id = None),
+        },
         Msg::OpenDiff(ws, pane) => Intent::OpenDiff {
             ws,
             pane: Some(pane),
@@ -400,7 +418,29 @@ fn reduce(st: &mut State, m: &mut Model, msg: Msg) -> Task<Message> {
         | Msg::OpenBoard
         | Msg::OpenSessions(..)
         | Msg::OpenMcpServers(..)
-        | Msg::OpenDiff(..) => Task::none(),
+        | Msg::OpenDiff(..)
+        | Msg::NewSession(..)
+        | Msg::FocusStep(..) => Task::none(),
+    }
+}
+
+/// The id of the column's tree in window `w`, which Tab stays inside.
+fn column_id(w: window::Id) -> iced::widget::Id {
+    iced::widget::Id::from(format!("inspector-{w:?}"))
+}
+
+/// The keyboard to the control after, or before, the one that has it, among
+/// the column's own: iced's own walk would go through the whole window.
+fn focus_step(w: window::Id, forward: bool) -> Task<Message> {
+    use iced::advanced::widget::{operate, operation};
+    let column = column_id(w);
+    if forward {
+        operate(operation::scope(column, operation::focusable::focus_next()))
+    } else {
+        operate(operation::scope(
+            column,
+            operation::focusable::focus_previous(),
+        ))
     }
 }
 
@@ -475,14 +515,20 @@ fn window_focus(event: iced::Event, _status: event::Status, id: window::Id) -> O
 
 /// The arrows resize the column while it has the keyboard (the web app's
 /// separator took them when it had the focus: iced has no focusable
-/// separator, so the region stands for it).
-fn arrows(event: iced::Event, status: event::Status, _id: window::Id) -> Option<Message> {
+/// separator, so the region stands for it). Tab and Shift+Tab walk its
+/// controls.
+fn arrows(event: iced::Event, status: event::Status, id: window::Id) -> Option<Message> {
     if status == event::Status::Captured {
         return None;
     }
     let iced::Event::Keyboard(keyboard::Event::KeyPressed { key, modifiers, .. }) = event else {
         return None;
     };
+    if key == keyboard::Key::Named(Named::Tab)
+        && (modifiers.is_empty() || modifiers == keyboard::Modifiers::SHIFT)
+    {
+        return Some(Message::Inspector(Msg::FocusStep(id, !modifiers.shift())));
+    }
     if !modifiers.is_empty() {
         return None;
     }
@@ -510,10 +556,9 @@ pub fn subscription(st: &State, m: &Model) -> Subscription<Message> {
     Subscription::batch(all)
 }
 
-/// What takes the focus when F6 reaches region `Inspector`. The column has
-/// nothing to focus inside (its buttons are for the pointer, iced's take no
-/// keyboard focus), so entering the region is the whole of it: the shell
-/// marks the region focused, and the arrows then resize.
+/// What takes the focus when F6 reaches region `Inspector`: the region as a
+/// whole. The shell marks it focused, the arrows then resize, and Tab goes to
+/// its first control.
 pub fn focus_entry(st: &State, m: &Model, region: Region) -> Option<Task<Message>> {
     let _ = st;
     (region == Region::Inspector && focused_shows(m)).then(Task::none)

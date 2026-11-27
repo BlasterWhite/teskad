@@ -189,7 +189,7 @@ pub(crate) fn render(
     element: Element<'_, Message>,
 ) {
     let settings = Settings {
-        fonts: vec![Cow::Borrowed(fonts::INTER_VARIABLE)],
+        fonts: fonts::ALL.into_iter().map(Cow::Borrowed).collect(),
         default_font: fonts::ui(),
         ..Settings::default()
     };
@@ -292,6 +292,12 @@ fn a_codex_pane_is_drawn_in_both_languages() {
     for locale in [Locale::En, Locale::Fr] {
         draw("codex", AgentId::Codex, "graphite", locale, 296.0);
     }
+}
+
+/// The theme the brand pack's mock-ups are drawn in, to lay beside them.
+#[test]
+fn the_column_is_drawn_in_the_default_theme() {
+    draw("claude", AgentId::Claude, "teskad-dark", Locale::En, 300.0);
 }
 
 #[test]

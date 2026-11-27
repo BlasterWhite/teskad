@@ -7,18 +7,18 @@ use std::borrow::Cow;
 use super::files_model::Indexed;
 use hangar_core::agent::IdleInject;
 use hangar_i18n::{Key, args};
-use hangar_theme::tokens::{BORDER_WIDTH, font_size};
-use hangar_theme::{AgentState, fonts, style};
-use hangar_ui::Icon;
-use hangar_ui::button::icon_button;
-use iced::widget::{column, container, row, rule, scrollable, space, stack, text};
-use iced::{Alignment, Element, Length, Padding};
+use hangar_theme::tokens::BORDER_WIDTH;
+use hangar_theme::{AgentState, style};
+use hangar_ui::button::{Side, icon_button};
+use hangar_ui::{Icon, empty};
+use iced::widget::{column, container, row, rule, scrollable, space, stack};
+use iced::{Background, Element, Length};
 
 use super::header::{self, Head};
 use super::sections::{self, Scene};
 use super::sources::TaskCard;
 use super::widgets::{GripEvents, grip};
-use super::{Msg, State, files, format, sources};
+use super::{Msg, SectionId, State, files, format, sources};
 use crate::ctx::Ctx;
 use crate::message::Message;
 use crate::state::live::{PaneInsight, RateLimit};
@@ -52,13 +52,24 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>) -> Element<'a, Message> {
         },
     );
     // The grip lies over the column's left edge, not beside it.
-    stack![
+    let layers = stack![
         content,
         row![edge, space::horizontal()].height(Length::Fill)
     ]
     .width(Length::Fill)
-    .height(Length::Fill)
-    .into()
+    .height(Length::Fill);
+    // On the window's own background. A window the desktop shows through
+    // keeps the frame's single coat: two would add up to an opaque one.
+    let solid = (!t.is_translucent()).then_some(t.palette.bg);
+    container(layers)
+        .id(super::column_id(ctx.window))
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .style(move |_: &iced::Theme| container::Style {
+            background: solid.map(Background::Color),
+            ..container::Style::default()
+        })
+        .into()
 }
 
 /// Everything the sections show of a pane, read from the model and the
@@ -162,12 +173,21 @@ pub(super) fn column_of<'a>(scene: &Scene<'a>, data: Data<'a>) -> Element<'a, Me
     };
 
     let mut sections = Vec::new();
-    sections.push(if is_shell {
-        sections::terminal(scene, data.shell.as_deref(), folder)
+    if is_shell {
+        sections.push(sections::terminal(
+            scene,
+            SectionId::Terminal,
+            data.shell.as_deref(),
+            folder,
+        ));
     } else {
-        sections::session(scene, insight, folder)
-    });
-    if !is_shell {
+        sections.push(sections::session(scene, insight, folder));
+        sections.push(sections::terminal(
+            scene,
+            SectionId::AgentTerminal,
+            data.shell.as_deref(),
+            folder,
+        ));
         sections.push(sections::context(
             scene,
             insight,
@@ -215,49 +235,24 @@ pub(super) fn column_of<'a>(scene: &Scene<'a>, data: Data<'a>) -> Element<'a, Me
     .into()
 }
 
-/// No pane in focus (`.insp-none`): the close cross, a mark where the
-/// monogram would be, and what to do.
+/// No pane in focus: the close cross over the shared empty state, which says
+/// what to do.
 fn no_pane<'a>(ctx: Ctx<'a>, ws: String) -> Element<'a, Message> {
     let t = ctx.theme;
     let tr = ctx.i18n;
-    let edge = t.colors.line_strong;
-    let mark = container(space::horizontal())
-        .width(30.0)
-        .height(30.0)
-        .style(move |_: &iced::Theme| container::Style {
-            border: iced::Border {
-                color: edge,
-                width: 1.0,
-                radius: 7.0.into(),
-            },
-            ..container::Style::default()
-        });
-    let note = column![
-        mark,
-        text(tr.t(Key::InspectorNoPane).into_owned())
-            .size(font_size::UI)
-            .font(fonts::ui_semibold())
-            .style(style::text::muted(t)),
-        container(
-            text(tr.t(Key::InspectorNoPaneBody).into_owned())
-                .size(font_size::CAPTION_LG)
-                .style(style::text::subtle(t))
-                .align_x(iced::alignment::Horizontal::Center),
-        )
-        .max_width(200.0),
-    ]
-    .spacing(6)
-    .align_x(Alignment::Center);
+    let note = empty::empty(
+        t,
+        Icon::SidebarRight,
+        tr.t(Key::InspectorNoPane).into_owned(),
+    )
+    .description(tr.t(Key::InspectorNoPaneBody).into_owned());
     let close = icon_button(t, Icon::Close)
-        .side(20.0)
+        .sized(Side::Xs)
         .icon_size(12.0)
         .tip(tr.t(Key::InspectorClose).into_owned())
         .on_press(Message::Inspector(Msg::Close(ws, None)));
     stack![
-        container(note).center(Length::Fill).padding(Padding {
-            bottom: 80.0,
-            ..Padding::new(24.0)
-        }),
+        Element::from(note),
         container(close)
             .width(Length::Fill)
             .align_x(iced::alignment::Horizontal::Right)

@@ -3,10 +3,10 @@
 //! focuses it, the close cross, and under them what runs in it.
 
 use hangar_i18n::{Key, args};
-use hangar_theme::tokens::{font_size, radius, space};
+use hangar_theme::tokens::{radius, scale, scale::type_scale, space};
 use hangar_theme::{AgentState, fonts, style};
 use hangar_ui::Icon;
-use hangar_ui::button::icon_button;
+use hangar_ui::button::{Side, icon_button};
 use hangar_ui::glyph::{self, GlyphState};
 use hangar_ui::keycap::binding;
 use hangar_ui::tail_text::tail_text;
@@ -44,17 +44,19 @@ fn monogram(name: &str) -> String {
 }
 
 /// The width of the avatar and its badge's overhang.
-const AVATAR: f32 = 30.0;
-const OVERHANG: f32 = 4.0;
+const AVATAR: f32 = 32.0;
+const OVERHANG: f32 = 3.0;
+/// The size of the pane's name.
+const NAME: f32 = 15.0;
 
 fn avatar<'a>(s: &Scene<'a>, state: AgentState) -> Element<'a, Message> {
     let t = s.theme();
-    let c = &t.colors;
-    let (raised, edge, chrome) = (c.raised, c.line_strong, c.chrome);
+    let p = &t.palette;
+    let (raised, edge, behind) = (p.surface_raised, p.border, p.bg);
     let face = container(
         text(monogram(&s.pane.name))
-            .size(font_size::BODY)
-            .font(fonts::ui_semibold())
+            .size(type_scale::BODY.size)
+            .font(fonts::display())
             .style(style::text::primary(t)),
     )
     .center(AVATAR)
@@ -63,7 +65,7 @@ fn avatar<'a>(s: &Scene<'a>, state: AgentState) -> Element<'a, Message> {
         border: Border {
             color: edge,
             width: 1.0,
-            radius: 7.0.into(),
+            radius: scale::radius::MD.into(),
         },
         ..container::Style::default()
     });
@@ -72,7 +74,7 @@ fn avatar<'a>(s: &Scene<'a>, state: AgentState) -> Element<'a, Message> {
     let badge = container(glyph::state(t, GlyphState::from(state), 8.0))
         .center(14.0)
         .style(move |_: &iced::Theme| container::Style {
-            background: Some(Background::Color(chrome)),
+            background: Some(Background::Color(behind)),
             border: Border {
                 radius: radius::FULL.into(),
                 ..Border::default()
@@ -98,26 +100,26 @@ fn avatar<'a>(s: &Scene<'a>, state: AgentState) -> Element<'a, Message> {
 
 pub(super) fn view<'a>(s: &Scene<'a>, head: Head<'a>) -> Element<'a, Message> {
     let (t, tr) = (s.theme(), s.tr());
-    let c = &t.colors;
+    let p = &t.palette;
+    let small = type_scale::LABEL.size;
 
     let title = row![
         container(
             tail_text(s.pane.name.clone())
                 .cut_end()
-                .size(font_size::TITLE)
-                .font(fonts::ui_semibold())
-                .color(c.fg)
+                .size(NAME)
+                .font(fonts::display())
+                .color(p.text)
                 .width(Length::Shrink)
         )
         .max_width(150.0),
         tail_text(state_word(tr, head.state))
             .cut_end()
-            .size(font_size::CAPTION_LG)
-            .font(fonts::ui_medium())
-            .color(c.state(head.state).text)
+            .size(type_scale::CAPTION.size)
+            .color(p.text_muted)
             .width(Length::Shrink),
     ]
-    .spacing(space::MD)
+    .spacing(space::SM)
     .align_y(Alignment::End);
 
     // The shortcut that focuses this pane, when it is one of the first nine.
@@ -133,7 +135,7 @@ pub(super) fn view<'a>(s: &Scene<'a>, head: Head<'a>) -> Element<'a, Message> {
         tools = tools.push(hangar_ui::tip::bottom(t, binding(t, keys), hint));
     }
     let mut close = icon_button(t, Icon::Close)
-        .side(20.0)
+        .sized(Side::Xs)
         .icon_size(12.0)
         .tip(tr.t(Key::InspectorClose).into_owned())
         .on_press(Message::Inspector(Msg::Close(
@@ -147,59 +149,37 @@ pub(super) fn view<'a>(s: &Scene<'a>, head: Head<'a>) -> Element<'a, Message> {
 
     // What runs in it: the agent (and, when there is room, its version) and
     // the model, or the shell.
-    let sub: Element<'a, Message> = if head.is_shell {
-        let mut line = row![ink(
-            head.agent_label.to_string(),
-            font_size::CAPTION_LG,
-            c.fg_muted
-        )];
+    let mut words = head.agent_label.to_string();
+    if head.is_shell {
         if let Some(shell) = head.shell {
-            line = line.push(ink(
-                format!(" · {shell}"),
-                font_size::CAPTION_LG,
-                c.fg_muted,
-            ));
+            words = format!("{words} · {shell}");
         }
-        line.into()
     } else {
-        let mut line = row![ink(
-            head.agent_label.to_string(),
-            font_size::CAPTION_LG,
-            c.fg_muted
-        )];
         // A narrow column keeps the essentials: the version goes first.
         if let Some(version) = head.version.filter(|_| s.width > 280.0) {
-            line = line.push(ink(
-                format!(" {version}"),
-                font_size::CAPTION_LG,
-                c.fg_subtle,
-            ));
+            words = format!("{words} {version}");
         }
         if let Some(model) = head.model {
-            line = line.push(ink(
-                format!(" · {model}"),
-                font_size::CAPTION_LG,
-                c.fg_muted,
-            ));
+            words = format!("{words} · {model}");
         }
-        line.into()
-    };
+    }
+    let sub = container(ink(words, small, p.text_muted))
+        .clip(true)
+        .width(Length::Fill);
 
     container(
         row![
             avatar(s, head.state),
-            column![title, container(sub).clip(true).width(Length::Fill)]
-                .spacing(1)
-                .width(Length::Fill),
-            container(tools).align_y(iced::alignment::Vertical::Top),
+            column![title, sub].spacing(1).width(Length::Fill),
+            tools,
         ]
         .spacing(space::LG)
         .align_y(Alignment::Center),
     )
     .padding(Padding {
-        top: 10.0,
-        right: 10.0,
-        bottom: 10.0,
+        top: space::XL,
+        right: space::MD,
+        bottom: space::XL,
         left: Scene::PAD,
     })
     .width(Length::Fill)

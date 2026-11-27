@@ -1,17 +1,17 @@
 //! The small drawings of the inspector's sections that no other surface
-//! shares: the context ring, the plan meter, the five squares of a file's
+//! shares: the context ring, the five squares of a file's
 //! changes, and the grip on the column's left edge.
 
 use std::f32::consts::{FRAC_PI_2, TAU};
 
-use hangar_theme::tokens::{font_size, radius, space};
+use hangar_theme::tokens::{scale, scale::type_scale, space};
 use hangar_theme::{Theme, fonts, style};
 use iced::advanced::layout::{self, Layout};
 use iced::advanced::mouse::click::{self, Click};
 use iced::advanced::renderer::{self, Quad};
 use iced::advanced::widget::{Tree, tree};
 use iced::advanced::{Clipboard, Shell, Widget};
-use iced::widget::{canvas, column, container, progress_bar, row, space as filler, stack, text};
+use iced::widget::{canvas, column, container, row, space as filler, stack, text};
 use iced::{
     Alignment, Background, Border, Color, Element, Event, Length, Point, Radians, Rectangle, Size,
     keyboard, mouse,
@@ -23,19 +23,22 @@ use super::format::{Tone, usage_tone};
 /// The ink of a reading: neutral, amber, red.
 fn tone_color(t: &Theme, tone: Tone) -> Color {
     match tone {
-        Tone::Normal => t.colors.fg_muted,
+        Tone::Normal => t.palette.status.active,
+        // The palette has no warning colour: the derived one.
         Tone::Warn => t.colors.warning,
-        Tone::Danger => t.colors.danger,
+        Tone::Danger => t.palette.status.failed,
     }
 }
 
 // ---- The context ring ---------------------------------------------------------------------
 
-/// The ring's side and the radius and stroke of its 64-unit drawing
-/// (`.insp-ring`: r = 27, stroke 5).
-const RING: f32 = 64.0;
-const RING_RADIUS: f32 = 27.0 / 64.0;
-const RING_STROKE: f32 = 5.0 / 64.0;
+/// The ring's side and the radius and stroke of its 56-unit drawing (r = 23,
+/// stroke 5).
+const RING: f32 = 56.0;
+const RING_RADIUS: f32 = 23.0 / 56.0;
+const RING_STROKE: f32 = 5.0 / 56.0;
+/// The size of the figure inside it.
+const RING_FIGURE: f32 = 15.0;
 
 struct Arc {
     pct: f64,
@@ -93,47 +96,18 @@ pub fn ring<'a, M: 'a>(t: &'a Theme, pct: f64) -> Element<'a, M> {
     let tone = usage_tone(pct);
     let drawing = canvas(Arc {
         pct,
-        track: t.colors.line_strong,
+        track: t.palette.border,
         value: tone_color(t, tone),
     })
     .width(RING)
     .height(RING);
-    let label = row![
-        text(format!("{}", pct.round() as i64))
-            .size(font_size::TITLE)
-            .font(fonts::ui_semibold())
-            .style(style::text::primary(t)),
-        text("%")
-            .size(font_size::MICRO)
-            .font(fonts::ui_medium())
-            .style(style::text::subtle(t)),
-    ]
-    .spacing(1)
-    .align_y(Alignment::End);
+    let label = text(format!("{}%", pct.round() as i64))
+        .size(RING_FIGURE)
+        .font(fonts::display())
+        .style(style::text::primary(t));
     stack![drawing, container(label).center(Length::Fill)]
         .width(RING)
         .height(RING)
-        .into()
-}
-
-// ---- The plan meter -----------------------------------------------------------------------
-
-/// A thin bar for a plan window's usage, in the tone of the reading
-/// (`.insp-meter__bar`).
-pub fn meter_bar<'a, M: 'a>(t: &'a Theme, pct: f64) -> Element<'a, M> {
-    let fill = tone_color(t, usage_tone(pct));
-    let track = t.colors.line_strong;
-    progress_bar(0.0..=100.0, pct as f32)
-        .girth(4.0)
-        .length(Length::Fill)
-        .style(move |_: &iced::Theme| progress_bar::Style {
-            background: Background::Color(track),
-            bar: Background::Color(fill),
-            border: Border {
-                radius: 2.0.into(),
-                ..Border::default()
-            },
-        })
         .into()
 }
 
@@ -142,12 +116,12 @@ pub fn meter_bar<'a, M: 'a>(t: &'a Theme, pct: f64) -> Element<'a, M> {
 /// GitHub's five squares: lit green for additions, red for deletions, grey
 /// for the rest (`.insp-diffbar`).
 pub fn diff_bar<'a, M: 'a>(t: &'a Theme, segments: &[DiffSegment]) -> Element<'a, M> {
-    let c = &t.colors;
+    let p = &t.palette;
     let squares = segments.iter().map(|segment| {
         let color = match segment {
-            DiffSegment::Add => c.success,
-            DiffSegment::Del => c.danger,
-            DiffSegment::None => c.line_strong,
+            DiffSegment::Add => p.status.completed,
+            DiffSegment::Del => p.status.failed,
+            DiffSegment::None => p.border_strong,
         };
         container(filler::horizontal())
             .width(5.0)
@@ -165,8 +139,13 @@ pub fn diff_bar<'a, M: 'a>(t: &'a Theme, segments: &[DiffSegment]) -> Element<'a
     row(squares).spacing(1).into()
 }
 
-/// A row of a key/value grid: a label in the quiet colour, right-aligned in a
-/// column of its own, and its value (`.insp-kv`).
+/// The width of the labels of the key/value rows.
+const KV_LABEL: f32 = 56.0;
+/// The height of a key/value row, and more when its value asks for it.
+const KV_HEIGHT: f32 = 22.0;
+
+/// A row of a key/value grid: a label in the quiet colour, in a column of its
+/// own, and its value.
 pub fn kv<'a, M: 'a>(
     t: &'a Theme,
     label: impl Into<String>,
@@ -175,36 +154,32 @@ pub fn kv<'a, M: 'a>(
     row![
         container(
             text(label.into())
-                .size(font_size::CAPTION_LG)
-                .style(style::text::subtle(t))
+                .size(type_scale::CAPTION.size)
+                .color(t.palette.text_muted)
                 .wrapping(text::Wrapping::None)
         )
-        .width(54.0)
-        .align_x(iced::alignment::Horizontal::Right),
-        container(value.into()).width(Length::Fill).clip(true),
+        .width(KV_LABEL),
+        container(value.into()).width(Length::Fill),
     ]
-    .spacing(space::LG)
+    .spacing(space::MD)
+    .height(KV_HEIGHT)
     .align_y(Alignment::Center)
     .into()
 }
 
-/// A hairline-edged raised block, as the stat tiles, the task card and the
-/// queue's lines are (`--raised` with `inset 0 0 0 1px --line`).
-pub fn tile(t: &Theme, radius_of: f32) -> impl Fn(&iced::Theme) -> container::Style + '_ {
+/// A hairline-edged block, as the stat tiles, the task card and the queue's
+/// lines are.
+pub fn tile(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
     move |_| container::Style {
-        background: Some(Background::Color(t.colors.raised)),
+        background: Some(Background::Color(t.palette.surface)),
         border: Border {
-            color: t.colors.line,
+            color: t.palette.border,
             width: 1.0,
-            radius: radius_of.into(),
+            radius: scale::radius::MD.into(),
         },
         ..container::Style::default()
     }
 }
-
-/// The corner radii the blocks use.
-pub const TILE_RADIUS: f32 = radius::MD;
-pub const CARD_RADIUS: f32 = radius::LG;
 
 /// A column of `children` with a gap, for the sections' bodies.
 pub fn stacked<'a, M: 'a>(
@@ -243,7 +218,7 @@ pub struct Grip<M> {
 pub fn grip<M>(t: &Theme, events: GripEvents<M>) -> Grip<M> {
     Grip {
         events,
-        accent: t.colors.accent,
+        accent: t.palette.accent,
     }
 }
 

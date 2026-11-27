@@ -3,16 +3,16 @@
 //! reported nothing, what changed in its folder.
 
 use hangar_i18n::{Key, args};
-use hangar_theme::tokens::font_size;
-use hangar_theme::{fonts, style};
-use hangar_ui::section::Section;
+use hangar_theme::fonts;
+use hangar_theme::tokens::{scale, scale::type_scale};
 use hangar_ui::tail_text::tail_text;
-use hangar_ui::{Icon, icon, list};
+use hangar_ui::{Icon, focus, icon, list};
 use iced::widget::{column, container, row, text};
 use iced::{Alignment, Element, Padding};
 
 use super::files_model::{FileRow, Indexed, diff_segments, diff_totals};
-use super::sections::{Scene, empty_note, ink};
+use super::section::Section;
+use super::sections::{Scene, empty_note, ink, ringed_link};
 use super::widgets::{diff_bar, stacked};
 use super::{Msg, SectionId};
 use crate::message::Message;
@@ -92,18 +92,18 @@ fn status_name(s: &Scene<'_>, row: &FileRow) -> Option<String> {
 
 /// "+3 −1" in green and red; a side that did not move is quiet.
 fn counts<'a>(s: &Scene<'a>, additions: u32, deletions: u32) -> Element<'a, Message> {
-    let c = &s.theme().colors;
+    let t = s.theme();
     let side = |sign: &str, n: u32, lit| {
         ink(
             format!("{sign}{n}"),
-            font_size::LABEL,
-            if n > 0 { lit } else { c.fg_subtle },
+            type_scale::LABEL.size,
+            if n > 0 { lit } else { t.palette.text_muted },
         )
         .font(fonts::mono())
     };
     row![
-        side("+", additions, c.success),
-        side("−", deletions, c.danger)
+        side("+", additions, t.colors.success),
+        side("−", deletions, t.colors.danger)
     ]
     .spacing(4)
     .into()
@@ -111,7 +111,7 @@ fn counts<'a>(s: &Scene<'a>, additions: u32, deletions: u32) -> Element<'a, Mess
 
 fn file_line<'a>(s: &Scene<'a>, line: &FileRow, open: Msg) -> Element<'a, Message> {
     let (t, tr) = (s.theme(), s.tr());
-    let c = &t.colors;
+    let (c, p) = (&t.colors, &t.palette);
     let status = status_name(s, line);
     let hint = match &status {
         Some(status) => tr
@@ -127,25 +127,29 @@ fn file_line<'a>(s: &Scene<'a>, line: &FileRow, open: Msg) -> Element<'a, Messag
         Some("A") => c.success,
         Some("D") => c.danger,
         Some("U") => c.warning,
-        _ => c.fg_subtle,
+        _ => p.text_muted,
     };
     let letter = match (&line.status, line.settled) {
         (Some(letter), _) => letter.clone(),
         (None, true) => "·".to_string(),
         (None, false) => String::new(),
     };
-    let name_color = if line.settled { c.fg_muted } else { c.fg };
+    let name_color = if line.settled {
+        p.text_secondary
+    } else {
+        p.text
+    };
     // The directory gives way first, from its start, so the file name always
     // shows; only a name longer than the whole row is cut.
     let path: Element<'a, Message> = tail_text(line.dir.clone())
         .suffix(line.name.clone(), name_color)
-        .size(font_size::CAPTION)
+        .size(type_scale::CAPTION.size)
         .font(fonts::mono())
-        .color(c.fg_subtle)
+        .color(p.text_muted)
         .into();
 
     let mut cells = row![
-        container(ink(letter, font_size::MICRO, letter_color).font(fonts::ui_semibold()))
+        container(ink(letter, type_scale::LABEL.size, letter_color).font(fonts::ui_semibold()))
             .width(12.0)
             .align_x(iced::alignment::Horizontal::Center),
         path,
@@ -161,18 +165,21 @@ fn file_line<'a>(s: &Scene<'a>, line: &FileRow, open: Msg) -> Element<'a, Messag
         _ if line.binary => {
             cells = cells.push(ink(
                 tr.t(Key::InspectorFileBinary).into_owned(),
-                font_size::LABEL,
-                c.fg_subtle,
+                type_scale::LABEL.size,
+                p.text_muted,
             ));
         }
         _ => {}
     }
     // Every row opens the same diff view.
+    let line = list::row(t, cells, false)
+        .height(22.0)
+        .padding(Padding::from([0.0, 4.0]))
+        .on_press(Message::Inspector(open.clone()));
     s.tip(
-        list::row(t, cells, false)
-            .height(22.0)
-            .padding(Padding::from([0.0, 4.0]))
-            .on_press(Message::Inspector(open)),
+        focus::ring(t, line)
+            .radius(scale::radius::XS)
+            .on_activate(Message::Inspector(open)),
         hint,
     )
 }
@@ -203,18 +210,22 @@ pub(super) fn section<'a>(
                     row![
                         ink(
                             format!("+{additions}"),
-                            font_size::LABEL,
+                            type_scale::LABEL.size,
                             if additions > 0 {
                                 c.success
                             } else {
-                                c.fg_subtle
+                                t.palette.text_muted
                             }
                         )
                         .font(fonts::mono()),
                         ink(
                             format!("−{deletions}"),
-                            font_size::LABEL,
-                            if deletions > 0 { c.danger } else { c.fg_subtle }
+                            type_scale::LABEL.size,
+                            if deletions > 0 {
+                                c.danger
+                            } else {
+                                t.palette.text_muted
+                            }
                         )
                         .font(fonts::mono()),
                     ]
@@ -226,9 +237,13 @@ pub(super) fn section<'a>(
                     .into_owned(),
                 )
             } else {
-                ink(count.to_string(), font_size::LABEL, c.fg_subtle)
-                    .font(fonts::mono())
-                    .into()
+                ink(
+                    count.to_string(),
+                    type_scale::LABEL.size,
+                    t.palette.text_muted,
+                )
+                .font(fonts::mono())
+                .into()
             };
             section = section.meta_element(meta);
             (rows.as_slice(), *more, false)
@@ -249,15 +264,11 @@ pub(super) fn section<'a>(
         if let Some(label) = label {
             words = words.push(
                 text::Text::new(label)
-                    .size(font_size::CAPTION)
-                    .font(fonts::ui_medium())
+                    .size(type_scale::CAPTION.size)
                     .wrapping(text::Wrapping::None),
             );
         }
-        let action = iced::widget::button(words)
-            .padding(Padding::from([0.0, 2.0]))
-            .style(style::button::link(t))
-            .on_press(Message::Inspector(open.clone()));
+        let action = ringed_link(t, words, Message::Inspector(open.clone()));
         section = section.action(s.tip(action, tr.t(Key::InspectorFilesDiffHint).into_owned()));
     }
 
@@ -266,8 +277,8 @@ pub(super) fn section<'a>(
         body.push(
             ink(
                 tr.t(Key::InspectorFilesFolder).into_owned(),
-                font_size::LABEL,
-                c.fg_subtle,
+                type_scale::LABEL.size,
+                t.palette.text_muted,
             )
             .into(),
         );
@@ -291,8 +302,8 @@ pub(super) fn section<'a>(
         body.push(
             container(ink(
                 tr.tn(Key::InspectorFilesMore, more, &[]).into_owned(),
-                font_size::CAPTION,
-                c.fg_subtle,
+                type_scale::CAPTION.size,
+                t.palette.text_muted,
             ))
             .padding(Padding {
                 left: 16.0,

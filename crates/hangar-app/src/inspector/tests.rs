@@ -398,6 +398,26 @@ mod width {
             )
             .is_none()
         );
+        // Tab and Shift+Tab walk the column's controls; with Ctrl they are
+        // somebody else's.
+        for (modifiers, expected) in [(none, true), (keyboard::Modifiers::SHIFT, false)] {
+            assert!(matches!(
+                arrows(
+                    key_pressed(Named::Tab, modifiers),
+                    event::Status::Ignored,
+                    window::Id::unique()
+                ),
+                Some(Message::Inspector(Msg::FocusStep(_, forward))) if forward == expected
+            ));
+        }
+        assert!(
+            arrows(
+                key_pressed(Named::Tab, keyboard::Modifiers::CTRL),
+                event::Status::Ignored,
+                window::Id::unique()
+            )
+            .is_none()
+        );
         assert!(
             arrows(
                 key_pressed(Named::ArrowUp, none),
@@ -427,6 +447,7 @@ mod folding {
         let ids = [
             SectionId::Session,
             SectionId::Terminal,
+            SectionId::AgentTerminal,
             SectionId::Context,
             SectionId::Task,
             SectionId::Queue,
@@ -437,7 +458,14 @@ mod folding {
         assert_eq!(
             ids,
             [
-                "session", "terminal", "context", "task", "queue", "files", "activity"
+                "session",
+                "terminal",
+                "terminalOpen",
+                "context",
+                "task",
+                "queue",
+                "files",
+                "activity"
             ]
         );
     }
@@ -802,6 +830,22 @@ mod requests {
     }
 
     #[test]
+    fn a_new_session_starts_the_pane_over_without_the_one_it_resumed() {
+        let Some(Intent::ReplacePane { ws, pane, patch }) =
+            request(&Msg::NewSession("w".into(), "a".into()))
+        else {
+            panic!("the pane is replaced");
+        };
+        assert_eq!((ws.as_str(), pane.as_str()), ("w", "a"));
+        let mut patched = Pane {
+            session_id: Some("s1".into()),
+            ..Pane::default()
+        };
+        patch.apply(&mut patched);
+        assert_eq!(patched.session_id, None);
+    }
+
+    #[test]
     fn what_is_the_inspector_s_own_is_not_an_intent() {
         for own in [
             Msg::Clock,
@@ -847,6 +891,30 @@ mod drawn {
             },
             hangar: Some(true),
         }
+    }
+
+    #[test]
+    fn an_agent_s_terminal_block_starts_folded_and_remembers_being_opened() {
+        let mut m = claude_model();
+        m.ui.shells = vec![hangar_core::shells::ShellInfo {
+            id: "zsh".into(),
+            label: "zsh".into(),
+            program: "/bin/zsh".into(),
+            args: Vec::new(),
+        }];
+        let w = main(&m);
+        let shell = en(hangar_i18n::Key::InspectorShell);
+        assert!(!draws(&m, w, &shell), "folded");
+        send(
+            &mut State::default(),
+            &mut m,
+            Msg::Toggle(SectionId::AgentTerminal),
+        );
+        assert_eq!(m.settings().inspector_collapsed, ["terminalOpen"]);
+        assert!(draws(&m, w, &shell), "opened");
+        // A shell pane's own terminal block is another one, open by default.
+        m.ui.focus_by_workspace.insert("w".into(), "b".into());
+        assert!(draws(&m, w, &shell));
     }
 
     #[test]
@@ -980,8 +1048,9 @@ mod drawn {
         let t = hangar_i18n::Translator::new(hangar_i18n::Locale::En);
         let session = t.t(hangar_i18n::Key::InspectorSectionSession);
         let terminal = t.t(hangar_i18n::Key::InspectorSectionTerminal);
+        // An agent's column has both blocks, a shell's the terminal alone.
         assert!(draws(&m, main, &session));
-        assert!(!draws(&m, main, &terminal));
+        assert!(draws(&m, main, &terminal));
         assert!(draws(&m, own, &terminal));
         assert!(!draws(&m, own, &session));
     }
@@ -1058,7 +1127,7 @@ mod drawn {
             })],
         );
         // The model as Codex names it: no Claude name is made up for it.
-        assert!(draws(&m, w, " · gpt-5.1-codex"));
+        assert!(draws(&m, w, "Codex 0.170.0 · gpt-5.1-codex"));
         assert!(draws(&m, w, "24% of context used"));
         // Its plan is ChatGPT's, not Claude's.
         assert!(draws(&m, w, "ChatGPT plan"));
@@ -1189,5 +1258,85 @@ mod drawn {
         let panels = Panels::of(&m, w);
         assert_eq!(panels.inspector.max, 300.0);
         assert_eq!(panels.inspector.width, 296.0);
+    }
+}
+
+/// Tab and Shift+Tab over the column as the app draws it, run as the runtime
+/// runs the operation: Space then says which control has the keyboard.
+mod keyboard_walk {
+    use super::*;
+    use hangar_theme::fonts;
+    use iced::Element;
+    use iced::advanced::widget::operation::{self, Outcome, focusable};
+    use iced_test::runtime::{UserInterface, user_interface};
+
+    /// The messages Space sends after each Tab (`true`) or Shift+Tab.
+    fn walk(m: &Model, steps: &[bool]) -> Vec<String> {
+        use iced_test::core::renderer::Headless;
+        let (st, pkg) = (State::default(), Packages::default());
+        let w = main(m);
+        let ctx = crate::ctx::Ctx {
+            window: w,
+            ..ctx(m, &pkg)
+        };
+        let mut renderer = iced_test::futures::futures::executor::block_on(
+            <iced::Renderer as Headless>::new(fonts::ui(), iced::Pixels(14.0), None),
+        )
+        .expect("a headless renderer");
+        // A control before the column, which Tab must not reach.
+        let outside = hangar_ui::button::secondary(ctx.theme, "outside").on_press(Message::Noop);
+        let page: Element<'_, Message> =
+            iced::widget::row![Element::from(outside), view(&st, ctx)].into();
+        let mut ui = UserInterface::build(
+            page,
+            iced::Size::new(500.0, 900.0),
+            user_interface::Cache::default(),
+            &mut renderer,
+        );
+        let mut heard = Vec::new();
+        for &forward in steps {
+            let mut step: Box<dyn operation::Operation<()>> = if forward {
+                Box::new(operation::scope(column_id(w), focusable::focus_next()))
+            } else {
+                Box::new(operation::scope(column_id(w), focusable::focus_previous()))
+            };
+            loop {
+                ui.operate(&renderer, step.as_mut());
+                match step.finish() {
+                    Outcome::Chain(next) => step = next,
+                    _ => break,
+                }
+            }
+            let mut messages = Vec::new();
+            let _ = ui.update(
+                &[key_pressed(Named::Space, keyboard::Modifiers::empty())],
+                iced::mouse::Cursor::Unavailable,
+                &mut renderer,
+                &mut iced::advanced::clipboard::Null,
+                &mut messages,
+            );
+            heard.push(format!("{messages:?}"));
+        }
+        heard
+    }
+
+    #[test]
+    fn tab_walks_the_column_s_controls_and_space_presses_them() {
+        let mut m = model();
+        let mut state = m.state().clone();
+        state.workspaces[0].panes[0].agent = AgentId::Claude;
+        m.hydrate(state);
+        let heard = walk(&m, &[true, true, true, true, true, false]);
+        let expected = [
+            "Close(",
+            "Toggle(Session)",
+            "OpenSessions(",
+            "NewSession(",
+            "Toggle(AgentTerminal)",
+            "NewSession(",
+        ];
+        for (at, (heard, expected)) in heard.iter().zip(expected).enumerate() {
+            assert!(heard.contains(expected), "step {at}: {heard}");
+        }
     }
 }
