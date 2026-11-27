@@ -95,11 +95,42 @@ fn a_disabled_button_fades_and_loses_its_shadow() {
 }
 
 #[test]
-fn the_menu_line_under_the_pointer_is_the_accent() {
+fn the_menu_line_under_the_pointer_is_lit_not_filled_and_keeps_its_text() {
     let t = default_theme();
+    let rest = button_style::menu_item(t)(&iced::Theme::Dark, Status::Active);
     let hovered = button_style::menu_item(t)(&iced::Theme::Dark, Status::Hovered);
-    assert_eq!(hovered.background, Some(Background::Color(t.colors.accent)));
-    assert_eq!(hovered.text_color, t.colors.accent_fg);
+    let pressed = button_style::menu_item(t)(&iced::Theme::Dark, Status::Pressed);
+    assert_eq!(rest.background, None);
+    let lit = |s: &iced::widget::button::Style| match s.background {
+        Some(Background::Color(c)) => c.a,
+        _ => 0.0,
+    };
+    assert!(lit(&hovered) > 0.0 && lit(&pressed) > lit(&hovered));
+    assert_eq!(hovered.text_color, t.palette.text);
+    let danger = button_style::menu_item_danger(t)(&iced::Theme::Dark, Status::Hovered);
+    assert_eq!(danger.text_color, t.colors.danger);
+}
+
+#[test]
+fn floating_surfaces_take_their_colours_from_the_palette() {
+    for t in crate::themes() {
+        let dark = &iced::Theme::Dark;
+        let pop = container_style::popover(t)(dark);
+        assert_eq!(
+            pop.background,
+            Some(Background::Color(t.palette.surface_raised))
+        );
+        assert_eq!(pop.border.color, t.palette.border);
+        assert_eq!(pop.border.radius, 8.0.into());
+        let modal = container_style::modal(t)(dark);
+        assert_eq!(modal.background, Some(Background::Color(t.palette.surface)));
+        assert_eq!(modal.border.color, t.palette.border_strong);
+        assert_eq!(modal.border.radius, 12.0.into());
+        assert_eq!(
+            container_style::scrim(t)(dark).background,
+            Some(Background::Color(t.palette.scrim))
+        );
+    }
 }
 
 #[test]

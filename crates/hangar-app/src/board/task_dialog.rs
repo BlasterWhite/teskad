@@ -18,9 +18,9 @@ use hangar_i18n::{Key, Translator, args};
 use hangar_theme::tokens::{font_size, space};
 use hangar_theme::{Theme, fonts, style};
 use hangar_ui::button;
+use hangar_ui::dialog;
 use hangar_ui::icon::{Icon, icon};
 use hangar_ui::input::{NumberField, NumberMsg, number_input};
-use hangar_ui::layer;
 use hangar_ui::tip;
 use iced::widget::{
     Space, checkbox, column, container, pick_list, row, rule, scrollable, text, text_editor,
@@ -672,8 +672,7 @@ pub fn view<'a>(
         (Some(_), None) => return page.into(),
         (None, _) => create_form(&v, dialog),
     };
-    layer::modal(page, Some(content))
-        .veil(style::container::scrim(t))
+    dialog::veiled(t, page, Some(content))
         .on_dismiss(msg(Msg::Close))
         .into()
 }
@@ -703,7 +702,7 @@ fn shell<'a>(
     ])
     .width(Length::Fill)
     .max_width(look::DIALOG_WIDTH)
-    .style(look::dialog(t))
+    .style(style::container::modal(t))
     .into()
 }
 
@@ -968,7 +967,7 @@ fn edit_form<'a>(v: &View<'a>, dialog: &'a Dialog, task: &'a T) -> Element<'a, M
             Some(&task.id),
         ),
         stack_column(body),
-        container(foot).padding([space::LG, 14.0]).into(),
+        dialog::foot(t, foot),
     )
 }
 
@@ -1008,7 +1007,7 @@ fn create_form<'a>(v: &View<'a>, dialog: &'a Dialog) -> Element<'a, Message> {
             None,
         ),
         stack_column(body),
-        container(foot).padding([space::LG, 14.0]).into(),
+        dialog::foot(t, foot),
     )
 }
 

@@ -153,25 +153,25 @@ fn picked(messages: &[Message]) -> Vec<String> {
         .collect()
 }
 
-// Open in a window 5..31, —, Command palette 40..66, —, the agents' heading
-// 75..99, Orchestration 99..125, Stop the workers 125..151, —, Reset agents…
-// 160..186.
+// Open in a window 5..35, —, Command palette 44..74, —, the agents' heading
+// 83..107, Orchestration 107..137, Stop the workers 137..167, —, Reset agents…
+// 176..206.
 
 #[test]
 fn the_more_menu_opens_the_workspace_in_a_window() {
-    let picked = picked(&pick_line(&model(), 18.0));
+    let picked = picked(&pick_line(&model(), 20.0));
     assert_eq!(picked, ["[Detach(\"w\")]"]);
 }
 
 #[test]
 fn the_more_menu_opens_the_command_palette() {
-    let picked = picked(&pick_line(&model(), 53.0));
+    let picked = picked(&pick_line(&model(), 59.0));
     assert_eq!(picked, ["[TogglePalette]"]);
 }
 
 #[test]
 fn an_orchestrated_workspace_has_its_settings_in_the_more_menu() {
-    let picked = picked(&pick_line(&model(), 112.0));
+    let picked = picked(&pick_line(&model(), 122.0));
     assert_eq!(picked, ["[OpenOrchestration(\"w\")]"]);
 }
 
@@ -238,20 +238,20 @@ fn the_more_menu_says_which_agent_orchestrates_and_which_the_workers_run() {
 
 #[test]
 fn stopping_the_workers_takes_over_from_a_reset_that_was_asking() {
-    let picked = picked(&pick_line(&model(), 138.0));
+    let picked = picked(&pick_line(&model(), 152.0));
     assert_eq!(picked, ["[ArmResetAgents(false), ArmStopWorkers(true)]"]);
 }
 
 #[test]
 fn resetting_the_agents_takes_over_from_a_stop_that_was_asking() {
-    let picked = picked(&pick_line(&model(), 173.0));
+    let picked = picked(&pick_line(&model(), 191.0));
     assert_eq!(picked, ["[ArmStopWorkers(false), ArmResetAgents(true)]"]);
 }
 
 #[test]
 fn a_menu_line_that_is_not_there_picks_nothing() {
     // Below the last line, in the padding.
-    assert!(picked(&pick_line(&model(), 190.0)).is_empty());
+    assert!(picked(&pick_line(&model(), 208.0)).is_empty());
 }
 
 #[test]

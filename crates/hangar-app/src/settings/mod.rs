@@ -49,7 +49,7 @@ use std::time::Duration;
 
 use hangar_i18n::{Key, Translator, args};
 use hangar_ui::menu_nav::{Step, arrow_step};
-use hangar_ui::{Icon, button, icon, input, keys, layer, text as typography};
+use hangar_ui::{Icon, button, icon, input, keys, text as typography};
 use iced::keyboard::{Key as KeyboardKey, key::Named};
 use iced::widget::{self, button as plain_button, column, container, row, scrollable, text};
 use iced::{Alignment, Element, Length, Padding, Subscription, Task};
@@ -735,13 +735,13 @@ pub fn view<'a>(st: &'a State, ctx: Ctx<'a>, category: SettingsCategory) -> Elem
         _ => None,
     });
 
-    layer::modal(
+    hangar_ui::dialog::veiled(
+        t,
         widget::Space::new()
             .width(Length::Fill)
             .height(Length::Fill),
         Some(sheet),
     )
-    .veil(style::container::scrim(t))
     .on_dismiss(close)
     .escape(false)
     .into()

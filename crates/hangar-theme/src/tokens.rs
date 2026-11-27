@@ -151,7 +151,7 @@ pub mod size {
     /// A tiny button, a segment in the toolbar.
     pub const CONTROL_HEIGHT_SM: f32 = 22.0;
     /// A line of a menu.
-    pub const MENU_ITEM_HEIGHT: f32 = 26.0;
+    pub const MENU_ITEM_HEIGHT: f32 = 30.0;
     /// A pane's header.
     pub const PANE_HEAD_HEIGHT: f32 = 30.0;
     /// The palette's search field.

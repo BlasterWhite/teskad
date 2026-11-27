@@ -154,22 +154,38 @@ pub fn segmented(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     }
 }
 
-/// A context menu or any popover (`.ctx-menu`, `.pane-menu`): the toolbar's
-/// colour, an edge, and a shadow that lifts it off the window.
+/// A context menu or any popover (`ecrans.md`: `surfaceRaised`, radius 8,
+/// the popover shadow): the raised surface, a `border` hairline (the pack's
+/// ring) and a shadow that lifts it off the window.
 pub fn popover(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
-        border: hairline(t.colors.line_strong, radius::LG),
-        shadow: drop_shadow(t.colors.shadow, 12.0, 32.0),
-        ..fill(t.colors.chrome_bar, t.colors.fg)
+        border: hairline(t.palette.border, radius::LG),
+        shadow: drop_shadow(t.colors.shadow, 8.0, 24.0),
+        ..fill(t.palette.surface_raised, t.palette.text)
     }
 }
 
-/// A dialog (`.modal`).
+/// A dialog (`ecrans.md`: `surface`, `borderStrong`, radius 12, the modal
+/// shadow).
 pub fn modal(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
-        border: hairline(t.colors.line_strong, radius::XL),
+        border: hairline(t.palette.border_strong, radius::XL),
         shadow: drop_shadow(t.colors.shadow, 24.0, 64.0),
-        ..fill(t.colors.chrome, t.colors.fg)
+        ..fill(t.palette.surface, t.palette.text)
+    }
+}
+
+/// A dialog's foot, a step apart from its body: the sunken surface
+/// (`ecrans.md`: "un cran plus sombre"). Only the bottom corners, which meet
+/// the dialog's edge, are round.
+pub fn modal_foot(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
+    move |_| Style {
+        border: Border {
+            // Inside the dialog's 1 px hairline.
+            radius: iced::border::bottom(radius::XL - 1.0),
+            ..Border::default()
+        },
+        ..fill(t.palette.surface_sunken, t.palette.text)
     }
 }
 
@@ -192,16 +208,11 @@ pub fn tooltip(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     }
 }
 
-/// The veil behind a dialog (`.modal-backdrop`), lighter on a light theme
-/// since the same veil reads twice as heavy over white.
+/// The veil behind a dialog: the palette's `scrim`, which is already
+/// lighter on a light theme.
 pub fn scrim(t: &Theme) -> impl Fn(&iced::Theme) -> Style + '_ {
     move |_| Style {
-        background: Some(Background::Color(Color::from_rgba(
-            0.0,
-            0.0,
-            0.0,
-            if t.is_dark() { 0.36 } else { 0.16 },
-        ))),
+        background: Some(Background::Color(t.palette.scrim)),
         ..Style::default()
     }
 }

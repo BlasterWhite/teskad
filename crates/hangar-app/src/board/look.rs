@@ -364,8 +364,3 @@ pub fn deps(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
         ..container::Style::default()
     }
 }
-
-/// A task dialog's own surface (`.modal--task`): the chrome's colour.
-pub fn dialog(t: &Theme) -> impl Fn(&iced::Theme) -> container::Style + '_ {
-    hangar_theme::style::container::modal(t)
-}

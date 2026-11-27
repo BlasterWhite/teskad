@@ -5,7 +5,7 @@ use std::borrow::Cow;
 
 use super::*;
 
-const PAGE: Size = Size::new(1100.0, 1250.0);
+const PAGE: Size = Size::new(1100.0, 2000.0);
 
 fn simulator<'a>(t: &'a Theme) -> Simulator<'a, ()> {
     let settings = Settings {
@@ -39,6 +39,9 @@ fn every_state_is_on_the_sheet_in_both_teskad_themes() {
             "5 h",
             "7 d",
             "69%",
+            "Session",
+            "Orchestration",
+            "Save",
         ] {
             assert!(ui.find(label).is_ok(), "{id}: {label}");
         }

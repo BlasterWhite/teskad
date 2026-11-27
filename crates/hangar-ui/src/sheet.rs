@@ -16,12 +16,15 @@ use iced::{Alignment, Element, Length};
 
 use crate::badge::{self, Role};
 use crate::button::{self, Side};
+use crate::dialog;
 use crate::focus;
 use crate::form;
 use crate::icon::Icon;
 use crate::input::{self, Segment};
 use crate::keycap;
+use crate::menu::{self, heading, item, separator};
 use crate::meter;
+use crate::popover;
 use crate::text as typography;
 
 type View<'a> = Element<'a, ()>;
@@ -52,6 +55,7 @@ pub fn view(t: &Theme) -> View<'_> {
         section(t, "Settings block", block(t)),
         section(t, "Badges and keys", badges(t)),
         section(t, "Gauges", gauges(t)),
+        section(t, "Context menu, popover and modal", floating(t)),
     ]
     .spacing(24)
     .padding(24)
@@ -326,6 +330,62 @@ fn gauges(t: &Theme) -> View<'_> {
             .width(260)
             .into(),
     ])
+}
+
+/// What floats, drawn in place: a menu with its group titles, a tick, a
+/// disabled line and a destructive one; the Details popover; a dialog with its
+/// head, body and foot on the palette's scrim.
+fn floating(t: &Theme) -> View<'_> {
+    let entries = vec![
+        heading("Go to"),
+        item("Mia").icon(Icon::Terminal).shortcut("Ctrl+1").into(),
+        item("Rename").icon(Icon::Pencil).into(),
+        separator(),
+        heading("Claude Code account"),
+        item("work@example.com").checked(true).into(),
+        item("personal@example.com").checked(false).into(),
+        separator(),
+        item("Put to sleep")
+            .icon(Icon::Moon)
+            .disabled_because("Nothing is running")
+            .into(),
+        item("Delete workspace…").icon(Icon::Trash).danger().into(),
+    ];
+    let menu = menu::menu(t, entries).from_keyboard(true);
+    let details = popover::popover(
+        t,
+        column![
+            popover::row(t, "Shell", typography::mono(t, "bash")),
+            popover::row(t, "Session", typography::mono(t, "9f3c-41a2")),
+            popover::row(t, "State", typography::label(t, "Running")),
+        ]
+        .spacing(10),
+    )
+    .width(popover::WIDTH);
+    let modal = dialog::dialog(
+        t,
+        "Orchestration",
+        typography::label(t, "Models for the next worker started."),
+    )
+    .subtitle("~/dev/storefront")
+    .note("Applies to the next delivery.")
+    .action(button::secondary(t, "Cancel").on_press(()))
+    .action(button::primary(t, "Save").on_press(()))
+    .on_close(())
+    .width(520.0);
+    let behind = container(Element::from(modal))
+        .padding(24)
+        .style(style::container::scrim(t));
+    // The dialog has a line of its own: beside the two others it would be
+    // squeezed, and its footer's buttons pushed out.
+    column![
+        row![Element::from(menu), Element::from(details)]
+            .spacing(24)
+            .align_y(Alignment::Start),
+        container(behind).style(style::container::page(t)),
+    ]
+    .spacing(24)
+    .into()
 }
 
 #[cfg(test)]

@@ -48,6 +48,7 @@
 //! | [`menu`] | `item`, `heading`, `separator`, `dropdown`, `context_menu`: drop-down and context menus |
 //! | [`menu_select`](mod@menu_select) | a closed field that opens a menu: a choice among grouped options, some of them unavailable and saying why |
 //! | [`dialog`] | `dialog(t, title, body)` and `over(t, page, dialog)`: modal dialogs |
+//! | [`popover`] | `popover(t, content)`, `under`, `row`: the raised surface that opens beside a control (the session's Details) |
 //! | [`palette`] | `Palette<T>`: the command palette, generic over what it lists |
 //! | [`matching`] | the palette's matching and ranking (`src/lib/paletteMatch.ts`) |
 //! | [`toast`] | `Toasts`, `Toast`, `over`: notices that go by themselves |
@@ -104,6 +105,7 @@ pub mod menu_select;
 pub mod meter;
 pub mod palette;
 pub mod panel;
+pub mod popover;
 pub mod section;
 pub mod selectable;
 pub mod sheet;

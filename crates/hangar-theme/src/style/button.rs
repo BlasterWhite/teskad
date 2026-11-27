@@ -203,11 +203,22 @@ pub fn menu_item_danger(t: &Theme) -> impl Fn(&iced::Theme, Status) -> Style + '
 fn menu_line(t: &Theme, destructive: bool) -> impl Fn(&iced::Theme, Status) -> Style + '_ {
     move |_, status| {
         let c = &t.colors;
-        let rest = if destructive { c.danger } else { c.fg };
+        let rest = if destructive {
+            c.danger
+        } else {
+            t.palette.text
+        };
         let (background, text) = match status {
             Status::Active => (None, rest),
-            Status::Hovered | Status::Pressed => (Some(Background::Color(c.accent)), c.accent_fg),
-            Status::Disabled => (None, c.fg_subtle),
+            Status::Hovered => (
+                Some(Background::Color(stacked(t.palette.hover_overlay, 1))),
+                rest,
+            ),
+            Status::Pressed => (
+                Some(Background::Color(stacked(t.palette.hover_overlay, 2))),
+                rest,
+            ),
+            Status::Disabled => (None, t.palette.text_muted),
         };
         Style {
             background,

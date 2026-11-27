@@ -86,6 +86,23 @@ mod lines {
     }
 
     #[test]
+    fn the_tick_sits_in_the_icon_column_unless_the_line_has_an_icon() {
+        let t = default_theme();
+        let width = |entries| {
+            menu::<Msg>(t, entries)
+                .width_between(0.0, 1000.0)
+                .natural_width()
+        };
+        let label = "A choice with a long enough name";
+        let with_icon = width(vec![item(label).icon(Icon::Plus).into()]);
+        let ticked = width(vec![item(label).checked(true).into()]);
+        // The same column: a tick takes no room of its own.
+        assert_eq!(ticked, with_icon);
+        let both = width(vec![item(label).icon(Icon::Plus).checked(true).into()]);
+        assert_eq!(both, with_icon + GAP + ICON);
+    }
+
+    #[test]
     fn a_line_with_a_detail_is_still_picked_by_a_click() {
         let t = default_theme();
         let content = menu(

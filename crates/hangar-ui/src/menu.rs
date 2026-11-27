@@ -242,6 +242,10 @@ impl<M> Item<M> {
         self
     }
 
+    fn has_lead(&self) -> bool {
+        self.icon.is_some() || self.glyph.is_some()
+    }
+
     fn label_font(&self) -> Font {
         if self.mono {
             fonts::mono()
@@ -367,6 +371,20 @@ impl<M> Menu<'_, M> {
             .any(|entry| matches!(entry, Entry::Item(item) if item.checked.is_some()))
     }
 
+    /// The column left of the labels: icons, state glyphs and the tick of the
+    /// current choice (`ecrans.md`, the workspace's menu).
+    fn has_lead(&self) -> bool {
+        self.has_icons() || self.has_checks()
+    }
+
+    /// Whether a line that can be ticked already has an icon or a glyph on
+    /// the left: its tick then needs a column of its own at the right.
+    fn has_end_checks(&self) -> bool {
+        self.entries.iter().any(
+            |entry| matches!(entry, Entry::Item(item) if item.checked.is_some() && item.has_lead()),
+        )
+    }
+
     /// The line under a point of the menu's own coordinates, and the action
     /// of it, if the point is on one.
     fn hit(
@@ -417,6 +435,8 @@ struct Hit {
 #[derive(Debug, Default)]
 struct State {
     highlighted: Option<usize>,
+    /// The highlight was put there by a key: it shows the focus ring.
+    keys: bool,
     pressed: Option<Hit>,
     scroll: f32,
 }
@@ -424,8 +444,12 @@ struct State {
 impl<M: Clone> Menu<'_, M> {
     /// The width the menu takes: its widest line, kept between the bounds.
     fn natural_width(&self) -> f32 {
-        let icons = if self.has_icons() { ICON + GAP } else { 0.0 };
-        let checks = if self.has_checks() { GAP + ICON } else { 0.0 };
+        let icons = if self.has_lead() { ICON + GAP } else { 0.0 };
+        let checks = if self.has_end_checks() {
+            GAP + ICON
+        } else {
+            0.0
+        };
         let widest = self
             .entries
             .iter()
@@ -503,6 +527,7 @@ impl<M: Clone> Widget<M, iced::Theme, iced::Renderer> for Menu<'_, M> {
         };
         tree::State::new(State {
             highlighted,
+            keys: highlighted.is_some(),
             ..State::default()
         })
     }
@@ -550,6 +575,7 @@ impl<M: Clone> Widget<M, iced::Theme, iced::Renderer> for Menu<'_, M> {
                 // choice must survive redraws under a resting pointer.
                 if under != state.highlighted && (at.is_some() || state.highlighted.is_some()) {
                     state.highlighted = under;
+                    state.keys = false;
                     shell.request_redraw();
                 }
             }
@@ -591,6 +617,7 @@ impl<M: Clone> Widget<M, iced::Theme, iced::Renderer> for Menu<'_, M> {
                         move_selectable(state.highlighted, &self.selectable(), movement, true);
                     if let Some(next) = next {
                         state.highlighted = Some(next);
+                        state.keys = true;
                         self.reveal(state, next, bounds.height);
                     }
                     shell.request_redraw();
@@ -639,7 +666,6 @@ impl<M: Clone> Widget<M, iced::Theme, iced::Renderer> for Menu<'_, M> {
     ) {
         let state = tree.state.downcast_ref::<State>();
         let bounds = layout.bounds();
-        let c = &self.theme.colors;
         let scroll = state.scroll.clamp(0.0, self.max_scroll(bounds.height));
 
         container::draw_background(
@@ -654,8 +680,8 @@ impl<M: Clone> Widget<M, iced::Theme, iced::Renderer> for Menu<'_, M> {
             width: bounds.width,
             height: bounds.height - 2.0,
         };
-        let icons = self.has_icons();
-        let checks = self.has_checks();
+        let lead = self.has_lead();
+        let end_checks = self.has_end_checks();
         renderer.with_layer(inner, |renderer| {
             let mut top = bounds.y + PAD - scroll;
             for (index, entry) in self.entries.iter().enumerate() {
@@ -683,7 +709,7 @@ impl<M: Clone> Widget<M, iced::Theme, iced::Renderer> for Menu<'_, M> {
                                 bounds: line,
                                 ..Quad::default()
                             },
-                            Background::Color(c.line_strong),
+                            Background::Color(self.theme.palette.border),
                         );
                     }
                     Entry::Heading(label) => {
@@ -692,7 +718,7 @@ impl<M: Clone> Widget<M, iced::Theme, iced::Renderer> for Menu<'_, M> {
                             label,
                             font_size::CAPTION,
                             fonts::ui_semibold(),
-                            c.fg_muted,
+                            self.theme.palette.text_muted,
                             Line {
                                 anchor: Point::new(row.x + INSET, row.y + (height + 2.0) / 2.0),
                                 align: alignment::Horizontal::Left,
@@ -702,7 +728,13 @@ impl<M: Clone> Widget<M, iced::Theme, iced::Renderer> for Menu<'_, M> {
                     }
                     Entry::Item(item) => {
                         let on = state.highlighted == Some(index);
-                        self.draw_item(renderer, item, row, on, icons, checks);
+                        self.draw_item(
+                            renderer,
+                            item,
+                            row,
+                            (on, on && state.keys),
+                            (lead, end_checks),
+                        );
                     }
                 }
             }
@@ -786,28 +818,32 @@ impl<M: Clone> Menu<'_, M> {
         renderer: &mut iced::Renderer,
         item: &Item<M>,
         row: Rectangle,
-        highlighted: bool,
-        icons: bool,
-        checks: bool,
+        (highlighted, ringed): (bool, bool),
+        (lead, end_checks): (bool, bool),
     ) {
         let c = &self.theme.colors;
+        let p = &self.theme.palette;
+        // The line under the pointer or the keys is lit by the palette's
+        // overlay and keeps its text: never a fill that changes the colour of
+        // what is written on it.
+        let lit = Some(p.hover_overlay);
         let (background, text_color, icon_color, keys_color) = if highlighted && item.live() {
-            (
-                Some(c.accent),
-                c.accent_fg,
-                c.accent_fg,
-                c.accent_fg.scale_alpha(0.75),
-            )
+            let (text, icon) = if item.danger {
+                (c.danger, c.danger)
+            } else {
+                (p.text, p.text_secondary)
+            };
+            (lit, text, icon, p.text_muted)
         } else if highlighted {
             // Greyed with a reason: lit enough to show it was reached, never
             // enough to look pressable.
-            (Some(c.surface_hover), c.fg_subtle, c.fg_subtle, c.fg_subtle)
+            (lit, p.text_muted, p.text_muted, p.text_muted)
         } else if item.disabled {
-            (None, c.fg_subtle, c.fg_subtle, c.fg_subtle)
+            (None, p.text_muted, p.text_muted, p.text_muted)
         } else if item.danger {
-            (None, c.danger, c.danger, c.fg_muted)
+            (None, c.danger, c.danger, p.text_muted)
         } else {
-            (None, c.fg, c.fg_muted, c.fg_muted)
+            (None, p.text, p.text_secondary, p.text_muted)
         };
 
         if let Some(background) = background {
@@ -823,10 +859,27 @@ impl<M: Clone> Menu<'_, M> {
                 Background::Color(background),
             );
         }
+        if ringed {
+            // The keyboard's line: the ring every control shows when it has
+            // the keys (2 px of `focus_ring`).
+            renderer.fill_quad(
+                Quad {
+                    bounds: row,
+                    border: style::focus_border(self.theme, radius::SM),
+                    ..Quad::default()
+                },
+                Background::Color(Color::TRANSPARENT),
+            );
+        }
 
         let middle = row.y + row.height / 2.0;
         let mut x = row.x + INSET;
-        if icons {
+        let tick = if item.disabled {
+            p.text_muted
+        } else {
+            p.accent_text
+        };
+        if lead {
             let slot = Rectangle::new(Point::new(x, middle - ICON / 2.0), Size::new(ICON, ICON));
             if let Some(which) = item.icon {
                 icon::draw(renderer, which, slot, icon_color, Radians(0.0));
@@ -836,39 +889,30 @@ impl<M: Clone> Menu<'_, M> {
                     Point::new(slot.center_x() - side / 2.0, middle - side / 2.0),
                     Size::new(side, side),
                 );
-                let tint = if highlighted && item.live() {
-                    Tint {
-                        fill: icon_color,
-                        ink: self.theme.colors.bg,
-                    }
-                } else {
-                    Tint {
-                        fill: if item.disabled {
-                            icon_color
-                        } else {
-                            glyph_tint(self.theme, state)
-                        },
-                        ink: self.theme.colors.bg,
-                    }
+                let tint = Tint {
+                    fill: if item.disabled {
+                        icon_color
+                    } else {
+                        glyph_tint(self.theme, state)
+                    },
+                    ink: p.surface_raised,
                 };
                 glyph::draw(renderer, state, glyph_slot, tint, false);
+            } else if item.checked == Some(true) {
+                icon::draw(renderer, Icon::Check, slot, tick, Radians(0.0));
             }
             x += ICON + GAP;
         }
 
-        // From the right edge back: the tick, then the actions or the keys.
+        // From the right edge back: the tick of a line whose left column is
+        // taken, then the actions or the keys.
         let mut end = row.x + row.width - INSET;
-        if checks {
-            if item.checked == Some(true) {
+        if end_checks {
+            if item.checked == Some(true) && item.has_lead() {
                 let slot = Rectangle::new(
                     Point::new(end - ICON, middle - ICON / 2.0),
                     Size::new(ICON, ICON),
                 );
-                let tick = if highlighted && item.live() {
-                    c.accent_fg
-                } else {
-                    c.fg_muted
-                };
                 icon::draw(renderer, Icon::Check, slot, tick, Radians(0.0));
             }
             end -= ICON + GAP;
@@ -1040,10 +1084,7 @@ pub fn dropdown<'a, M: Clone + 'a>(
 /// [`layer::dropdown`] (with [`Layer::tab_inside`] and [`Layer::autofocus`]
 /// if it has fields).
 pub fn panel<'a, M: 'a>(t: &'a Theme, content: impl Into<Element<'a, M>>) -> Element<'a, M> {
-    container(content)
-        .padding(iced::Padding::new(10.0))
-        .style(style::container::popover(t))
-        .into()
+    crate::popover::popover(t, content).into()
 }
 
 /// A context menu: `row` is where it is asked for with the right button, `at`

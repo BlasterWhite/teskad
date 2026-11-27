@@ -2,7 +2,9 @@
 //! that puts it over the window (`Backdrop.tsx`).
 //!
 //! A title bar with a close button, a body that scrolls, and a footer with
-//! the actions at the bottom right.
+//! the actions at the bottom right. A window with a layout of its own (a
+//! task's sheet, the settings, the diff) shares the surface
+//! (`style::container::modal`), the [`foot`] and the veil ([`veiled`]).
 //!
 //! ```ignore
 //! use hangar_ui::{button, dialog, input};
@@ -36,6 +38,9 @@ use crate::button::icon_button;
 use crate::icon::Icon;
 use crate::layer::{self, Layer};
 use crate::text as typography;
+
+/// The height of a modal window's foot.
+const FOOT_HEIGHT: f32 = 52.0;
 
 /// A dialog's contents. Becomes an [`Element`] with `.into()`.
 #[must_use]
@@ -198,14 +203,7 @@ impl<'a, M: Clone + 'a> From<Dialog<'a, M>> for Element<'a, M> {
         for action in d.actions {
             foot = foot.push(action);
         }
-        let foot = container(foot)
-            .padding(Padding {
-                top: space::LG,
-                right: 14.0,
-                bottom: space::LG,
-                left: 18.0,
-            })
-            .height(52.0);
+        let foot = self::foot(t, foot);
 
         let line = || rule::horizontal(1).style(style::rule::hairline(t));
         container(column![head, line(), body, line(), foot])
@@ -213,6 +211,36 @@ impl<'a, M: Clone + 'a> From<Dialog<'a, M>> for Element<'a, M> {
             .style(style::container::modal(t))
             .into()
     }
+}
+
+/// The foot of a modal window: its actions on a bar a step darker than the
+/// body. [`Dialog`] has its own; a window with a layout of its own puts its
+/// buttons in this one.
+pub fn foot<'a, M: 'a>(t: &'a Theme, content: impl Into<Element<'a, M>>) -> Element<'a, M> {
+    container(content)
+        .padding(Padding {
+            top: space::LG,
+            right: 14.0,
+            bottom: space::LG,
+            left: 18.0,
+        })
+        .height(FOOT_HEIGHT)
+        .width(Length::Fill)
+        .align_y(Alignment::Center)
+        .style(style::container::modal_foot(t))
+        .into()
+}
+
+/// `page` with a modal window over it, if there is one: centred on the
+/// palette's scrim, the keyboard kept inside it, Escape and a click on the
+/// veil asking for [`Layer::on_dismiss`]. What [`over`] does for a
+/// [`Dialog`], for a window that draws itself.
+pub fn veiled<'a, M: Clone + 'a>(
+    t: &'a Theme,
+    page: impl Into<Element<'a, M>>,
+    window: Option<Element<'a, M>>,
+) -> Layer<'a, M> {
+    layer::modal(page, window).veil(style::container::scrim(t))
 }
 
 /// `page` with `dialog` over it, if there is one.
@@ -225,7 +253,7 @@ pub fn over<'a, M: Clone + 'a>(
     dialog: Option<Dialog<'a, M>>,
 ) -> Layer<'a, M> {
     let on_close = dialog.as_ref().and_then(|d| d.on_close.clone());
-    let mut layer = layer::modal(page, dialog.map(Element::from)).veil(style::container::scrim(t));
+    let mut layer = veiled(t, page, dialog.map(Element::from));
     if let Some(message) = on_close {
         layer = layer.on_dismiss(message);
     }

@@ -8,7 +8,7 @@ use iced::{Alignment, Background, Element, Length, Padding};
 use hangar_i18n::{Key, args};
 use hangar_theme::tokens::{font_size, radius, space};
 use hangar_theme::{Theme, fonts, style};
-use hangar_ui::{Icon, glyph, icon, layer, tip};
+use hangar_ui::{Icon, glyph, icon, layer, popover, tip};
 
 use super::model::{KINDS, Kind, NeedsYouItem, latest_note};
 use super::{LandRequest, Msg, State};
@@ -178,10 +178,10 @@ fn panel<'a>(st: &'a State, ctx: Ctx<'a>, items: &[NeedsYouItem]) -> Element<'a,
     }))
     .style(style::scrollable::default(t));
 
-    container(column![head, rule(t), list])
+    let content = container(column![head, rule(t), list]).max_height(PANEL_MAX_HEIGHT);
+    popover::popover(t, content)
         .width(PANEL_WIDTH)
-        .max_height(PANEL_MAX_HEIGHT)
-        .style(style::container::popover(t))
+        .padding(0.0)
         .into()
 }
 

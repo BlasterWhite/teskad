@@ -28,7 +28,7 @@ use hangar_ui::button::{self, icon_button};
 use hangar_ui::input::segmented_labels;
 use hangar_ui::keys::on_key;
 use hangar_ui::tail_text::tail_text;
-use hangar_ui::{Icon, layer, list, tip};
+use hangar_ui::{Icon, dialog, list, tip};
 use iced::advanced::text::{self as adv_text, Paragraph as _};
 use iced::keyboard::{Key as Keyboard, key::Named};
 use iced::widget::{
@@ -608,11 +608,11 @@ pub fn view<'a>(
 ) -> Element<'a, Message> {
     let t = ctx.theme;
     let modal = modal(ds, ctx, wrap, close.clone());
-    layer::modal(
+    dialog::veiled(
+        t,
         iced::widget::space::horizontal().height(Length::Fill),
         Some(modal),
     )
-    .veil(style::container::scrim(t))
     .on_dismiss(close)
     .margin(40.0)
     .into()
@@ -629,7 +629,6 @@ pub fn modal<'a>(
     let t = ctx.theme;
     let c = &t.colors;
     let tr = ctx.i18n;
-    let (chrome, line, shadow) = (c.chrome, c.line_strong, c.shadow);
 
     let mut title = row![
         text(tr.t(Key::DiffTitle).into_owned())
@@ -680,20 +679,7 @@ pub fn modal<'a>(
         .max_width(1240.0)
         .height(Length::Fill)
         .clip(true)
-        .style(move |_: &iced::Theme| container::Style {
-            background: Some(Background::Color(chrome)),
-            border: Border {
-                color: line,
-                width: 1.0,
-                radius: radius::XL.into(),
-            },
-            shadow: iced::Shadow {
-                color: shadow,
-                offset: iced::Vector::new(0.0, 24.0),
-                blur_radius: 60.0,
-            },
-            ..container::Style::default()
-        })
+        .style(style::container::modal(t))
         .into()
 }
 
