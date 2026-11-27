@@ -5,6 +5,7 @@
 //! hangar-ui's `menu`; what is here is which lines a workspace or a folder has.
 
 use hangar_i18n::Key;
+use hangar_theme::tokens;
 use hangar_ui::menu::{self, Entry};
 use hangar_ui::{Icon, glyph::GlyphState};
 
@@ -16,8 +17,8 @@ use super::status;
 use crate::ctx::Ctx;
 use crate::message::{Intent, Message};
 use crate::panes_logic::SleepLine;
-use crate::shell::MenuEntry;
-use crate::state::types::Workspace;
+use crate::shell::{MenuEntry, brand_logo};
+use crate::state::types::{PaneRole, Workspace};
 use crate::state::{AgentActivity, PaneId, WsId};
 
 /// What a line of the menu does once picked. The menu closes first.
@@ -132,9 +133,17 @@ fn agent_entries(ctx: Ctx<'_>, workspaces: &[&Workspace]) -> Vec<Entry<Message>>
     let tr = ctx.i18n;
     let mut entries = vec![menu::heading(tr.t(Key::SidebarGoTo).into_owned())];
     for (state, ws, pane) in found {
+        let role = pane.role.map(|role| {
+            tr.t(match role {
+                PaneRole::Orchestrator => Key::OrchBadgeOrchestrator,
+                PaneRole::Worker => Key::OrchBadgeWorker,
+                PaneRole::Manager => Key::OrchBadgeManager,
+            })
+        });
         entries.push(
             menu::item(pane.name.clone())
                 .glyph(glyph_of(state))
+                .meta(role.unwrap_or_default().into_owned())
                 .on_select(pick(Action::Go {
                     ws: ws.id.clone(),
                     pane: pane.id.clone(),
@@ -267,7 +276,7 @@ pub fn workspace_entries(ctx: Ctx<'_>, id: &str) -> Vec<Entry<Message>> {
     );
     entries.push(
         menu::item(tr.t(Key::EditorOpen).into_owned())
-            .icon(Icon::Folder)
+            .icon(Icon::External)
             .on_select(pick(Action::OpenEditor(ws.id.clone())))
             .into(),
     );
@@ -285,13 +294,14 @@ pub fn workspace_entries(ctx: Ctx<'_>, id: &str) -> Vec<Entry<Message>> {
     );
     entries.push(
         menu::item(tr.t(Key::KitsManageMenu).into_owned())
-            .icon(Icon::Plug)
+            .icon(Icon::Apps)
             .on_select(intent(Intent::OpenKitsDialog(ws.id.clone())))
             .into(),
     );
     entries.push(
         menu::item(tr.t(Key::OrchSettingsMenu).into_owned())
-            .icon(Icon::Orchestrator)
+            // The Fork symbol, in its colours (`charte §9`).
+            .art(brand_logo::colored(ctx.theme, tokens::size::ICON))
             .on_select(intent(Intent::OpenOrchestration(ws.id.clone())))
             .into(),
     );

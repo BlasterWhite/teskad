@@ -270,7 +270,7 @@ const ALLOWED: &[Allowed] = &[
         "crates/hangar-app/src/orchestration_ui/panel.rs",
         &[
             "let names = suggestions(ctx, AgentKind::Claude, move |name| {",
-            "let names = suggestions(ctx, AgentKind::Codex, move |name| {",
+            "if let Some(names) = suggestions(ctx, AgentKind::Codex, move |name| {",
         ],
         "the model fields kept once per kind, each with its kind's model names",
     ),
@@ -289,6 +289,7 @@ const ALLOWED: &[Allowed] = &[
             "Some(AgentId::Claude.info().label.to_string()),",
             "placeholder: AgentKind::Codex.info().program.into(),",
             "AgentId::Claude.info().label.to_string(),",
+            "Some(AgentKind::Codex.info().label.to_string()),",
         ],
         "settings rows kept once per kind (commands, default agents, setup), Codex's « beta » (D21)",
     ),

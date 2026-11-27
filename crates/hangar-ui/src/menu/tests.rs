@@ -46,7 +46,8 @@ fn entries() -> Vec<Entry<Msg>> {
 }
 
 /// The menu open under the anchor, which puts it at (0, 30) with its first
-/// line (after a 24 px heading) at y 59 to 85.
+/// line (after a 24 px heading) at y 60 to 90, a 13 px separator, then
+/// "Second" at 103 to 133.
 fn open_menu<'a>(from_keyboard: bool) -> Element<'a, Msg> {
     let t = default_theme();
     let content = menu(t, entries()).from_keyboard(from_keyboard).into();
@@ -56,7 +57,7 @@ fn open_menu<'a>(from_keyboard: bool) -> Element<'a, Msg> {
 }
 
 const FIRST_LINE: (f32, f32) = (40.0, 72.0);
-const SECOND_LINE: (f32, f32) = (40.0, 107.0);
+const SECOND_LINE: (f32, f32) = (40.0, 112.0);
 
 fn messages(ui: Simulator<'_, Msg>) -> Vec<Msg> {
     ui.into_messages().collect()
@@ -154,7 +155,7 @@ mod pointer {
     fn a_heading_and_a_separator_cannot_be_picked() {
         let mut ui = simulate(open_menu(false));
         ui.click_at(40.0, 45.0);
-        ui.click_at(40.0, 90.0);
+        ui.click_at(40.0, 96.0);
         assert_eq!(messages(ui), []);
     }
 
@@ -175,12 +176,12 @@ mod pointer {
     #[test]
     fn the_small_actions_of_a_line_appear_with_the_highlight_and_send_their_own_message() {
         let mut ui = simulate(open_menu(false));
-        // "Third" is the fifth line: 26 below "Greyed".
-        let y = SECOND_LINE.1 + 52.0;
+        // "Third" is the fifth line: under "Greyed".
+        let y = SECOND_LINE.1 + 60.0;
         ui.move_to(40.0, y);
         // The menu is 200 wide, 8 px in from the window's edge; the actions
         // are its last two 20 px cells, 4 px in from the line's end.
-        ui.click_at(8.0 + 200.0 - 5.0 - 4.0 - 10.0, y);
+        ui.click_at(8.0 + 200.0 - 6.0 - 4.0 - 10.0, y);
         let sent = messages(ui);
         assert!(sent.contains(&Msg::Remove), "{sent:?}");
         assert!(!sent.contains(&Msg::Third));
@@ -315,9 +316,9 @@ mod context {
     #[test]
     fn an_open_menu_is_where_it_was_asked_for() {
         // Asked for at (100, 10): the menu's first line is a heading below,
-        // then "First" at y 10 + 24 + 5 to + 26.
+        // then "First" at y 10 + 24 + 6 to + 30.
         let mut ui = simulate(menu_at(Some(Vector::new(100.0, 10.0))));
-        ui.click_at(150.0, 10.0 + 5.0 + 24.0 + 13.0);
+        ui.click_at(150.0, 10.0 + 6.0 + 24.0 + 15.0);
         assert_eq!(messages(ui), [Msg::First]);
     }
 

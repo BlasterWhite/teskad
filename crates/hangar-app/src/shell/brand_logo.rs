@@ -29,6 +29,20 @@ static ON_LIGHT_SMALL: LazyLock<svg::Handle> = mark!("color-on-light-small");
 
 static MONO_SMALL: LazyLock<svg::Handle> = mark!("mono-white-small");
 
+macro_rules! role {
+    ($name:literal) => {
+        LazyLock::new(|| {
+            svg::Handle::from_memory(
+                include_bytes!(concat!("brand/teskad-role-", $name, ".svg")).as_slice(),
+            )
+        })
+    };
+}
+
+static ROLE_ORCHESTRATOR: LazyLock<svg::Handle> = role!("orchestrator");
+static ROLE_WORKERS_ON_DARK: LazyLock<svg::Handle> = role!("workers-on-dark");
+static ROLE_WORKERS_ON_LIGHT: LazyLock<svg::Handle> = role!("workers-on-light");
+
 macro_rules! lockup {
     ($name:literal) => {
         LazyLock::new(|| {
@@ -81,6 +95,35 @@ fn handle(dark: bool, side: f32) -> svg::Handle {
     }
 }
 
+/// The mark's file in its colours, for a widget that draws it itself (a line
+/// of a menu).
+pub fn colored(t: &Theme, side: f32) -> svg::Handle {
+    handle(t.is_dark(), side)
+}
+
+fn drawing<'a, M: 'a>(handle: svg::Handle, side: f32) -> Element<'a, M> {
+    svg(handle)
+        .width(Length::Fixed(side))
+        .height(Length::Fixed(side))
+        .into()
+}
+
+/// The orchestrator's identity tile: the mark's node, white on its gradient.
+/// The brand's, the same in every theme.
+pub fn orchestrator_tile<'a, M: 'a>(side: f32) -> Element<'a, M> {
+    drawing(ROLE_ORCHESTRATOR.clone(), side)
+}
+
+/// The workers' symbol: the mark's three branches without its node.
+pub fn branches<'a, M: 'a>(t: &Theme, side: f32) -> Element<'a, M> {
+    let handle = if t.is_dark() {
+        &ROLE_WORKERS_ON_DARK
+    } else {
+        &ROLE_WORKERS_ON_LIGHT
+    };
+    drawing((**handle).clone(), side)
+}
+
 /// The mark, `side` pixels across.
 pub fn logo<'a, M: 'a>(t: &Theme, side: f32) -> Element<'a, M> {
     svg(handle(t.is_dark(), side))
@@ -129,6 +172,9 @@ mod tests {
             include_str!("brand/teskad-mark-mono-white-small.svg"),
             include_str!("brand/teskad-lockup-stacked-color-on-dark.svg"),
             include_str!("brand/teskad-lockup-stacked-color-on-light.svg"),
+            include_str!("brand/teskad-role-orchestrator.svg"),
+            include_str!("brand/teskad-role-workers-on-dark.svg"),
+            include_str!("brand/teskad-role-workers-on-light.svg"),
         ] {
             assert!(bytes.contains("aria-label=\"Teskad\""));
         }

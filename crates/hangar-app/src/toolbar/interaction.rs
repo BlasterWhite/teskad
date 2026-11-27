@@ -153,9 +153,9 @@ fn picked(messages: &[Message]) -> Vec<String> {
         .collect()
 }
 
-// Open in a window 5..35, —, Command palette 44..74, the board beside the
-// terminals 74..104, —, the agents' heading 113..137, Orchestration 137..167,
-// Stop the workers 167..197, —, Reset agents… 206..236.
+// Open in a window 6..36, —, Command palette 49..79, the board beside the
+// terminals 79..109, —, the agents' heading 122..146, Orchestration 146..176,
+// Stop the workers 176..206, —, Reset agents… 219..249, padding to 255.
 
 #[test]
 fn the_more_menu_opens_the_workspace_in_a_window() {
@@ -276,7 +276,7 @@ fn resetting_the_agents_takes_over_from_a_stop_that_was_asking() {
 #[test]
 fn a_menu_line_that_is_not_there_picks_nothing() {
     // Below the last line, in the padding.
-    assert!(picked(&pick_line(&model(), 238.0)).is_empty());
+    assert!(picked(&pick_line(&model(), 252.0)).is_empty());
 }
 
 #[test]
