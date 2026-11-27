@@ -10,6 +10,8 @@ Every release, with its installers, is on the
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-11-27
+
 This fork is independent and not affiliated with the original HangarAI project: the app no longer points at that project's services.
 
 ### Added
@@ -914,6 +916,7 @@ statistics, workspace sleep and per-workspace MCP servers.
 - Automatic updates from signed GitHub releases.
 - An interface in English and French (0.1.1).
 
+[2.6.0]: https://github.com/BlasterWhite/hangar/releases/tag/v2.6.0
 [2.5.1]: https://github.com/simnJS/hangar-ai/releases/tag/v2.5.1
 [2.5.0]: https://github.com/simnJS/hangar-ai/releases/tag/v2.5.0
 [2.4.6]: https://github.com/simnJS/hangar-ai/releases/tag/v2.4.6
